@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/menu_provider.dart';
 import '../models/menu_item.dart';
-// import 'dart:convert';
+import 'package:cached_network_image/cached_network_image.dart'; // Add this package to your pubspec.yaml
 
 class ModifierScreen extends StatefulWidget {
   const ModifierScreen({super.key});
@@ -14,19 +14,17 @@ class ModifierScreen extends StatefulWidget {
 class ModifierScreenState extends State<ModifierScreen> {
   final _formKey = GlobalKey<FormState>();
   String _selectedCategory = '';
-  final _categoryController = TextEditingController(); // Single controller for category input/selection
+  final _categoryController = TextEditingController();
   
-  // Controllers for form fields
   final _nameController = TextEditingController();
   final _priceController = TextEditingController();
   final _imageUrlController = TextEditingController();
   bool _isAvailable = true;
-  bool _isAddingNewCategory = false; // Flag to track if user is adding a new category
+  bool _isAddingNewCategory = false;
   
-  // Track if we're editing an existing item
   MenuItem? _editingItem;
   
-  // Improved helper function to handle complex URLs
+  // Helper function to ensure URL is properly formatted
   String _prepareImageUrl(String url) {
     if (url.isEmpty) {
       return url;
@@ -37,42 +35,7 @@ class ModifierScreenState extends State<ModifierScreen> {
       url = 'https://$url';
     }
     
-    try {
-      // Check if the URL is already properly encoded
-      if (url.contains('%')) {
-        return url; // URL appears to be already encoded
-      }
-      
-      // Parse the URL
-      final uri = Uri.parse(url);
-      
-      // For complex URLs like iStock, reconstruct the URL
-      // using proper encoding for query parameters
-      if (uri.hasQuery) {
-        // Build a new URI with encoded parameters
-        final newUri = Uri(
-          scheme: uri.scheme,
-          host: uri.host,
-          path: uri.path,
-          queryParameters: uri.queryParameters,
-        );
-        
-        // Return the properly formatted URL
-        return newUri.toString();
-      }
-      
-      // If no query parameters, just return the original URL
-      return url;
-    } catch (e) {
-      debugPrint('URL parsing error: $e');
-      // If there's an error, try a simpler approach
-      // Just ensure basic URL components are encoded
-      try {
-        return Uri.encodeFull(url);
-      } catch (_) {
-        return url; // Return original URL if all else fails
-      }
-    }
+    return url;
   }
   
   @override
@@ -94,7 +57,6 @@ class ModifierScreenState extends State<ModifierScreen> {
       _editingItem = null;
       _isAddingNewCategory = false;
       
-      // Reset selected category to first category if available
       final menuProvider = Provider.of<MenuProvider>(context, listen: false);
       if (menuProvider.categories.isNotEmpty) {
         _selectedCategory = menuProvider.categories.first;
@@ -116,7 +78,6 @@ class ModifierScreenState extends State<ModifierScreen> {
     });
   }
 
-  // Method to handle delete confirmation
   void _showDeleteConfirmation(MenuItem item) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -141,9 +102,7 @@ class ModifierScreenState extends State<ModifierScreen> {
     }
   }
 
-  // Method to handle the delete operation
   void _deleteItem(MenuItem item) async {
-    // Show loading indicator
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -158,29 +117,23 @@ class ModifierScreenState extends State<ModifierScreen> {
       ),
     );
     
-    // Execute delete operation
     bool success = false;
     try {
       final menuProvider = Provider.of<MenuProvider>(context, listen: false);
       success = await menuProvider.deleteMenuItem(item.id);
       
-      // If deletion was successful in the database but the local state wasn't updated
       if (!success) {
-        // Refresh the data to sync with the database
         await menuProvider.fetchMenu();
-        success = true; // Assuming the deletion was successful if we got here
+        success = true;
       }
     } catch (e) {
       success = false;
     }
     
-    // Check if widget still mounted before updating UI
     if (!mounted) return;
     
-    // Close the loading dialog
     Navigator.of(context).pop();
     
-    // Show success or error message
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(success 
@@ -191,14 +144,12 @@ class ModifierScreenState extends State<ModifierScreen> {
     );
   }
 
-  // Method to toggle between category selection and new category input
   void _toggleCategoryInput(bool isAdding) {
     setState(() {
       _isAddingNewCategory = isAdding;
       if (isAdding) {
-        _categoryController.text = ''; // Clear the text when switching to input mode
+        _categoryController.text = '';
       } else {
-        // If switching back to dropdown, reset to selected category if available
         final menuProvider = Provider.of<MenuProvider>(context, listen: false);
         if (menuProvider.categories.isNotEmpty) {
           _selectedCategory = menuProvider.categories.first;
@@ -206,25 +157,7 @@ class ModifierScreenState extends State<ModifierScreen> {
       }
     });
   }
-  
-  // Helper method to check if a URL is valid
-  bool _isValidUrl(String url) {
-    if (url.isEmpty) return false;
 
-    // Improved URL validation regex
-    String pattern = r'^(https?:\/\/)?'
-        r'((([a-z\d]([a-z\d-]*[a-z\d])*)\.)+[a-z]{2,}|'
-        r'((\d{1,3}\.){3}\d{1,3}))'
-        r'(:\d+)?(\/[-a-z\d%_.~+]*)*'
-        r'(\?[;&a-z\d%_.~+=-]*)?'
-        r'(\#[-a-z\d_]*)?$';
-
-    return RegExp(pattern, caseSensitive: false).hasMatch(url);
-  }
-
-
-
-  // Method to handle saving an item to the database
   void _saveItemToDatabase() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -232,7 +165,6 @@ class ModifierScreenState extends State<ModifierScreen> {
     final menuProvider = Provider.of<MenuProvider>(context, listen: false);
     final String message = _editingItem == null ? 'Item added successfully' : 'Item updated successfully';
 
-    // Show loading indicator
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -250,46 +182,36 @@ class ModifierScreenState extends State<ModifierScreen> {
     String categoryToUse;
     bool categoryAdded = true;
     
-    // Determine which category to use
     if (_isAddingNewCategory && _categoryController.text.isNotEmpty) {
       categoryToUse = _categoryController.text.trim();
       
-      // First add the category and wait for it to complete
       try {
         categoryAdded = await menuProvider.addCategory(categoryToUse);
         
-        // If category wasn't added successfully
         if (!categoryAdded) {
           throw Exception("Failed to add category");
         }
         
-        // Ensure the categories are updated
         await menuProvider.fetchCategories();
-        
-        // Update selected category for future use
         _selectedCategory = categoryToUse;
       } catch (e) {
-        // If there was an error adding the category
         if (!mounted) return;
-        Navigator.of(context).pop(); // Close loading dialog
+        Navigator.of(context).pop();
         scaffoldMessenger.showSnackBar(
           const SnackBar(
             content: Text('Failed to add new category. Please try again.'),
             backgroundColor: Colors.red,
           ),
         );
-        return; // Exit the method to prevent further execution
+        return;
       }
     } else {
-      // Use the selected category from dropdown
       categoryToUse = _selectedCategory;
     }
 
-    // Process the image URL to ensure it has http/https prefix and is properly formatted
     String imageUrl = _prepareImageUrl(_imageUrlController.text.trim());
     debugPrint('Saving with image URL: $imageUrl');
 
-    // Now create the menu item with the correct category
     final item = MenuItem(
       id: _editingItem?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
       name: _nameController.text,
@@ -314,7 +236,6 @@ class ModifierScreenState extends State<ModifierScreen> {
 
     if (!mounted) return;
     
-    // Close the loading dialog
     Navigator.of(context).pop();
 
     scaffoldMessenger.showSnackBar(
@@ -327,7 +248,6 @@ class ModifierScreenState extends State<ModifierScreen> {
     if (success) {
       _resetForm();
       
-      // Refresh categories and menu after successful add
       try {
         await menuProvider.fetchCategories();
         await menuProvider.fetchMenu();
@@ -341,7 +261,6 @@ class ModifierScreenState extends State<ModifierScreen> {
   Widget build(BuildContext context) {
     final menuProvider = Provider.of<MenuProvider>(context);
     
-    // Initialize category if empty and categories exist
     if (_selectedCategory.isEmpty && menuProvider.categories.isNotEmpty) {
       _selectedCategory = menuProvider.categories.first;
     }
@@ -412,27 +331,18 @@ class ModifierScreenState extends State<ModifierScreen> {
                                     return const Icon(Icons.image_not_supported);
                                   }
                                   
-                                  debugPrint('Showing image: ${item.imageUrl}');
-                                  
+                                  // Use CachedNetworkImage for better performance and error handling
                                   return ClipRRect(
                                     borderRadius: BorderRadius.circular(8.0),
-                                    child: Image.network(
-                                      item.imageUrl,
+                                    child: CachedNetworkImage(
+                                      imageUrl: item.imageUrl,
                                       fit: BoxFit.cover,
-                                      loadingBuilder: (context, child, loadingProgress) {
-                                        if (loadingProgress == null) return child;
-                                        return const Center(
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        );
-                                      },
-                                      errorBuilder: (context, error, stackTrace) {
-                                        debugPrint('Error loading image for ${item.name}: $error');
+                                      placeholder: (context, url) => const Center(
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      ),
+                                      errorWidget: (context, url, error) {
+                                        debugPrint('Error loading image: $error');
                                         return const Icon(Icons.broken_image);
-                                      },
-                                      headers: const {
-                                        'Accept': 'image/jpeg,image/png,image/*;q=0.8',
                                       },
                                     ),
                                   );
@@ -588,21 +498,18 @@ class ModifierScreenState extends State<ModifierScreen> {
 
                       const SizedBox(height: 16),
 
-                      // Image URL field with better hint and validation
+                      // Image URL field
                       TextFormField(
                         controller: _imageUrlController,
                         decoration: const InputDecoration(
                           labelText: 'Image URL',
                           hintText: 'e.g. example.com/image.jpg',
                           border: OutlineInputBorder(),
-                          helperText: 'For stock photos, use direct image links that allow hotlinking',
+                          helperText: 'Enter URL for an image that allows embedding',
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Please enter an image URL';
-                          }
-                          if (!_isValidUrl(_prepareImageUrl(value.trim()))) {
-                            return 'Please enter a valid URL';
                           }
                           return null;
                         },
@@ -646,29 +553,21 @@ class ModifierScreenState extends State<ModifierScreen> {
                               }
                               
                               return ClipRRect(
-                                borderRadius: BorderRadius.circular(8.0),
-                                child: Image.network(
-                                  imageUrl,
+                                borderRadius: BorderRadius.circular(7.0),
+                                child: CachedNetworkImage(
+                                  imageUrl: imageUrl,
                                   fit: BoxFit.contain,
-                                  loadingBuilder: (context, child, loadingProgress) {
-                                    if (loadingProgress == null) return child;
-                                    return Center(
-                                      child: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          CircularProgressIndicator(
-                                            value: loadingProgress.expectedTotalBytes != null
-                                              ? loadingProgress.cumulativeBytesLoaded / 
-                                                (loadingProgress.expectedTotalBytes ?? 1)
-                                              : null,
-                                          ),
-                                          const SizedBox(height: 8),
-                                          const Text('Loading image...'),
-                                        ],
-                                      ),
-                                    );
-                                  },
-                                  errorBuilder: (context, error, stackTrace) {
+                                  placeholder: (context, url) => Center(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        const CircularProgressIndicator(),
+                                        const SizedBox(height: 8),
+                                        const Text('Loading image...'),
+                                      ],
+                                    ),
+                                  ),
+                                  errorWidget: (context, url, error) {
                                     debugPrint('Preview error: $error');
                                     return Center(
                                       child: Column(
@@ -687,9 +586,6 @@ class ModifierScreenState extends State<ModifierScreen> {
                                         ],
                                       ),
                                     );
-                                  },
-                                  headers: const {
-                                    'Accept': 'image/jpeg,image/png,image/*;q=0.8',
                                   },
                                 ),
                               );
@@ -713,32 +609,29 @@ class ModifierScreenState extends State<ModifierScreen> {
                         ],
                       ),
                       
-                      // Add a note about stock photo usage
-                      if (_imageUrlController.text.contains('istockphoto') || 
-                          _imageUrlController.text.contains('shutterstock') ||
-                          _imageUrlController.text.contains('gettyimages'))
-                        Container(
-                          margin: const EdgeInsets.only(top: 8.0),
-                          padding: const EdgeInsets.all(8.0),
-                          decoration: BoxDecoration(
-                            color: Colors.amber[50],
-                            borderRadius: BorderRadius.circular(4.0),
-                            border: Border.all(color: Colors.amber),
-                          ),
-                          child: const Row(
-                            children: [
-                              Icon(Icons.info_outline, color: Colors.amber),
-                              SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Stock photo sites often prevent direct use of their images. '
-                                  'Consider downloading the image and hosting it elsewhere.',
-                                  style: TextStyle(fontSize: 12),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                      // Image warning notice
+                      // Container(
+                      //   margin: const EdgeInsets.only(top: 8.0),
+                      //   padding: const EdgeInsets.all(8.0),
+                      //   decoration: BoxDecoration(
+                      //     color: Colors.blue[50],
+                      //     borderRadius: BorderRadius.circular(4.0),
+                      //     border: Border.all(color: Colors.blue[300]!),
+                      //   ),
+                      //   child: const Row(
+                      //     children: [
+                      //       Icon(Icons.info_outline, color: Colors.blue),
+                      //       SizedBox(width: 8),
+                      //       Expanded(
+                      //         child: Text(
+                      //           'Some image URLs from services like CloudFront, iStock, and others may not display '
+                      //           'due to security restrictions. For best results, use images from services that allow embedding.',
+                      //           style: TextStyle(fontSize: 12),
+                      //         ),
+                      //       ),
+                      //     ],
+                      //   ),
+                      // ),
                     ],
                   ),
                 ),
