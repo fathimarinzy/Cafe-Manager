@@ -2,7 +2,7 @@ from flask import Flask
 from flask_cors import CORS
 import os
 import secrets
-from config import DATABASE_URI, DEBUG, PORT, HOST
+from backend.config import DATABASE_URI, DEBUG, PORT, HOST
 from models import db
 from database import init_db
 from routes.auth import auth_bp
