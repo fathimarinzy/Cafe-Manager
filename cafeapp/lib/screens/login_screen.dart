@@ -14,6 +14,7 @@ class LoginScreenState extends State<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _obscurePassword = true; // Add this variable to track password visibility
 
   @override
   void dispose() {
@@ -44,13 +45,14 @@ class LoginScreenState extends State<LoginScreen> {
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to login. Please check your credentials.')),
+          SnackBar(content: Text('Login Failed. Please check your credentials.')),
         );
       }
     } catch (error) {
      if (!mounted) return; // ✅ Another check before using context
+    
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('An error occurred. Please try again later.')),
+        SnackBar(content: Text(' error :${error.toString()}')),
       );
     } finally {
         if (mounted) {
@@ -112,6 +114,18 @@ class LoginScreenState extends State<LoginScreen> {
                     labelText: 'Password',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.lock),
+                    // Add suffix icon for toggling password visibility
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                        color: Colors.grey,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _obscurePassword = !_obscurePassword;
+                        });
+                      },
+                    ),
                     focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.blue[900]??Colors.blue,width: 2.0)),
                      labelStyle: TextStyle(
                       color: Colors.black, // Default label color
@@ -120,7 +134,7 @@ class LoginScreenState extends State<LoginScreen> {
                       color: Colors.blue[900], // Label color when focused
                     ),
                   ),
-                  obscureText: true,
+                  obscureText: _obscurePassword, // Use the state variable here
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter your password';

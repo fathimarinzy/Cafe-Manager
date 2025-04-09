@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart'; // For formatting time
-import 'dart:async'; // For Timer
-
+import 'package:intl/intl.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/menu_provider.dart';
 import '../providers/order_provider.dart';
 import '../models/menu_item.dart';
 import '../screens/person_form_screen.dart';
 import '../screens/search_person_screen.dart';
 import '../screens/modifier_screen.dart';
+import '../screens/table_management_screen.dart';
+import '../screens/order_confirmation_screen.dart';
+
 
 
 class MenuScreen extends StatefulWidget {
@@ -23,28 +27,33 @@ class MenuScreen extends StatefulWidget {
 class MenuScreenState extends State<MenuScreen> {
   bool _isLoading = false;
   String _selectedCategory = '';
-  final String _categorySearchQuery = '';
   String _itemSearchQuery = '';
   String _currentTime = '';
-  // final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _loadMenu();
-    _updateTime(); // Start updating the time
-
+    _updateTime();
+    
+    // Set the current service type in OrderProvider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<OrderProvider>(context, listen: false)
+          .setCurrentServiceType(widget.serviceType);
+    });
   }
+
   // Function to update the current time every second
   void _updateTime() {
     Timer.periodic(const Duration(seconds: 1), (Timer timer) {
       if (mounted) {
         setState(() {
-          _currentTime = DateFormat('hh:mm a').format(DateTime.now()); // Format time
+          _currentTime = DateFormat('hh:mm a').format(DateTime.now());
         });
       }
     });
   }
+  
 
   Future<void> _loadMenu() async {
     setState(() {
@@ -71,7 +80,7 @@ class MenuScreenState extends State<MenuScreen> {
     }
   }
 
-    @override
+  @override
   Widget build(BuildContext context) {
     final menuProvider = Provider.of<MenuProvider>(context);
     final orderProvider = Provider.of<OrderProvider>(context);
@@ -108,7 +117,7 @@ class MenuScreenState extends State<MenuScreen> {
                 const Icon(Icons.access_time, color: Colors.black, size: 20),
                 const SizedBox(width: 4),
                 Text(
-                  _currentTime, // Display current time
+                  _currentTime,
                   style: TextStyle(color: Colors.black),
                 ),
               ],
@@ -130,11 +139,10 @@ class MenuScreenState extends State<MenuScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildCategorySidebar(menuProvider.categories),
-                   // Add a vertical divider here
-                        Container(
-                          width: 1.0,
-                          color: Colors.grey.shade300,
-                        ),
+                Container(
+                  width: 1.0,
+                  color: Colors.grey.shade300,
+                ),
                 Expanded(
                   flex: 3,
                   child: Column(
@@ -149,7 +157,6 @@ class MenuScreenState extends State<MenuScreen> {
                     ],
                   ),
                 ),
-                // Add second vertical divider after product grid (middle portion)
                 Container(
                   width: 1.0,
                   color: Colors.grey.shade300,
@@ -160,37 +167,35 @@ class MenuScreenState extends State<MenuScreen> {
           ),
         ],
       ),
-       // Add the bottom navigation bar here
-    bottomNavigationBar: Container(
-      height: 50,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey.shade300)),
+      bottomNavigationBar: Container(
+        height: 50,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: Colors.grey.shade300)),
+        ),
+        child: Row(
+          children: [
+            _buildNavButton(Icons.arrow_back_ios, null, ''),
+            _buildNavButton(null, null, 'Discount'),
+            _buildNavButton(null, null, 'Sales hold list'),
+            _buildNavButton(null, null, 'Hold'),
+            _buildNavButton(null, null, 'Memo'),
+            _buildNavButton(null, null, 'Modifier'),
+            _buildNavButton(null, null, 'Kitchen note'),
+            _buildNavButton(null, null, 'Clear'),
+            _buildNavButton(null, null, 'Remove'),
+            _buildNavButton(null, null, 'Amount split'),
+            _buildNavButton(null, null, 'Item split'),
+            _buildNavButton(null, null, 'Order list'),
+            _buildNavButton(null, null, 'Tables'),
+            _buildNavButton(Icons.arrow_forward_ios, null, ''),
+          ],
+        ),
       ),
-      child: Row(
-        children: [
-          _buildNavButton(Icons.arrow_back_ios, null, ''),
-          _buildNavButton(null, null, 'Discount'),
-          _buildNavButton(null, null, 'Sales hold list'),
-          _buildNavButton(null, null, 'Hold'),
-          _buildNavButton(null, null, 'Memo'),
-          _buildNavButton(null, null, 'Modifier'),
-          _buildNavButton(null, null, 'Kitchen note'),
-          _buildNavButton(null, null, 'Clear'),
-          _buildNavButton(null, null, 'Remove'),
-          _buildNavButton(null, null, 'Amount split'),
-          _buildNavButton(null, null, 'Item split'),
-          _buildNavButton(null, null, 'Order list'),
-          _buildNavButton(null, null, 'Tables'),
-          _buildNavButton(Icons.arrow_forward_ios, null, ''),
-        ],
-      ),
-    ),
-  );
-}
+    );
+  }
 
-// Add this new method for the navigation buttons
-Widget _buildNavButton(IconData? iconData, Color? iconColor, String text) {
+  Widget _buildNavButton(IconData? iconData, Color? iconColor, String text) {
   return Expanded(
     child: Container(
       decoration: BoxDecoration(
@@ -200,7 +205,6 @@ Widget _buildNavButton(IconData? iconData, Color? iconColor, String text) {
       ),
       child: TextButton(
         onPressed: () {
-        // Handle navigation based on button text
           if (text == 'Modifier') {
             Navigator.push(
               context,
@@ -208,8 +212,62 @@ Widget _buildNavButton(IconData? iconData, Color? iconColor, String text) {
                 builder: (context) => const ModifierScreen()
               ),
             );
+          } else if (text == 'Clear') {
+            // Clear the current cart with visual feedback
+            final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+            
+            // Only show the confirmation if there are items in the cart
+            if (orderProvider.cartItems.isNotEmpty) {
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Clear Order',style: TextStyle(
+                    fontSize: 18, // Smaller font size (default is usually 20-22)
+                    fontWeight: FontWeight.bold,
+                  ),
+                  ),
+                  content: const Text('Are you sure you want to clear all items from this order?'),
+                  actions: [
+                    TextButton(
+                      child: const Text('Cancel'),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                    TextButton(
+                      child: const Text('Clear', style: TextStyle(color: Colors.red)),
+                      onPressed: () {
+                        orderProvider.clearCart();
+                        Navigator.of(ctx).pop();
+                        // Show success message
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Order cleared successfully'),
+                            duration: Duration(seconds: 1),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              );
+            } else {
+              // If the cart is already empty, just show a message
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Order is already empty'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+            }
+          } else if (text == 'Tables' ) {
+            // Handle Tables navigation
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const TableManagementScreen()
+              ),
+            );
           }
-           // Add other navigation cases as needed
+          // Add other navigation cases as needed
         },
         style: TextButton.styleFrom(
           padding: EdgeInsets.zero,
@@ -228,37 +286,9 @@ Widget _buildNavButton(IconData? iconData, Color? iconColor, String text) {
     ),
   );
 }
-  // Widget _buildSearchBar() {
-  //   return Container(
-  //     color: Colors.white,
-  //     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-  //     child: TextField(
-  //       controller: _searchController,
-  //       decoration: InputDecoration(
-  //         hintText: "Search menu...",
-  //         prefixIcon: const Icon(Icons.search),
-  //         border: OutlineInputBorder(
-  //           borderRadius: BorderRadius.circular(8),
-  //           borderSide: BorderSide(color: Colors.grey.shade300),
-  //         ),
-  //         contentPadding: const EdgeInsets.symmetric(vertical: 0),
-  //         isDense: true,
-  //       ),
-  //       onChanged: (value) {
-  //         setState(() {});
-  //       },
-  //     ),
-  //   );
-  // }
-  
-  
   Widget _buildCategorySidebar(List<String> categories) {
-    // Filter categories based on category search (if needed)
-    final filteredCategories = _categorySearchQuery.isEmpty 
-        ? categories 
-        : categories.where((category) => 
-            category.toLowerCase().contains(_categorySearchQuery.toLowerCase())
-          ).toList();
+    // Filter categories based on search (if needed)
+    final filteredCategories = categories;
     
     return Container(
       width: 250,
@@ -293,25 +323,17 @@ Widget _buildNavButton(IconData? iconData, Color? iconColor, String text) {
             ),
           ),
           // Add a thin border line under the search bar
-        Container(
-          height: 1.0,
-          color: Colors.grey.shade300,
-          margin: const EdgeInsets.symmetric(horizontal: 8.0),
-        ),
+          Container(
+            height: 1.0,
+            color: Colors.grey.shade300,
+            margin: const EdgeInsets.symmetric(horizontal: 8.0),
+          ),
 
           // Category header
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
-              children: const [
-                // Text(
-                //   "Categories",
-                //   style: TextStyle(
-                //     fontWeight: FontWeight.bold,
-                //     fontSize: 16,
-                //   ),
-                // ),
-              ],
+              children: const [],
             ),
           ),
           // Category list
@@ -355,7 +377,6 @@ Widget _buildNavButton(IconData? iconData, Color? iconColor, String text) {
       ),
     );
   }
-
 
   Widget _buildCategoryHeader() {
     return Container(
@@ -410,13 +431,10 @@ Widget _buildNavButton(IconData? iconData, Color? iconColor, String text) {
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          ClipRRect(
-                            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                            child: Image.network(
-                              items[index].imageUrl,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
+                        ClipRRect(
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                          child: _buildItemImage(items[index]),
+                          ),  
                           if (!items[index].isAvailable)
                             Container(
                               decoration: BoxDecoration(
@@ -440,12 +458,10 @@ Widget _buildNavButton(IconData? iconData, Color? iconColor, String text) {
                         children: [
                           Text(
                             items[index].name,
-                            style: const TextStyle(fontWeight: FontWeight.bold,fontSize: 12),
-                          
-                           maxLines: 1, // Ensure the name doesn't overflow
-                           overflow: TextOverflow.ellipsis, // Add ellipsis for overflow
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-
                           const SizedBox(height: 4),
                           Text(
                             items[index].price.toStringAsFixed(3),
@@ -477,31 +493,88 @@ Widget _buildNavButton(IconData? iconData, Color? iconColor, String text) {
     );
   }
 
+Widget _buildItemImage(MenuItem item) {
+  // Handle empty image URL
+  if (item.imageUrl.isEmpty) {
+    return Container(
+      color: Colors.grey.shade300,
+      child: const Center(child: Icon(Icons.image_not_supported)),
+    );
+  }
+
+  // Handle base64 images
+  if (item.imageUrl.startsWith('data:image')) {
+    try {
+      // Parse base64 data
+      final parts = item.imageUrl.split(',');
+      if (parts.length != 2) {
+        return Container(color: Colors.grey.shade300, child: const Icon(Icons.broken_image));
+      }
+      
+      String base64String = parts[1];
+      
+      // Clean and prepare base64 data
+      base64String = base64String.replaceAll(RegExp(r'\s+'), '');
+      base64String = base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+      
+      // Fix padding
+      int padding = (4 - (base64String.length % 4)) % 4;
+      base64String = base64String.padRight(base64String.length + padding, '=');
+      
+      // Decode and display
+      final decodedBytes = base64Decode(base64String);
+      return Image.memory(
+        decodedBytes,
+        fit: BoxFit.cover,
+      );
+    } catch (e) {
+      debugPrint('Error decoding base64 image: $e');
+      return Container(color: Colors.grey.shade300, child: const Icon(Icons.broken_image));
+    }
+  }
+  
+  // Handle network images
+  return CachedNetworkImage(
+    imageUrl: item.imageUrl,
+    fit: BoxFit.cover,
+    placeholder: (context, url) => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+    errorWidget: (context, url, error) {
+      debugPrint('Error loading image: $error');
+      return Container(
+        color: Colors.grey.shade300,
+        child: const Center(child: Icon(Icons.broken_image)),
+      );
+    },
+  );
+}
+
   Widget _buildOrderPanel(OrderProvider orderProvider) {
     return Container(
       width: 350,
       color: Colors.white,
-      child: SingleChildScrollView( 
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-            ),
-            child: const Text(
-              'Order Items',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+              ),
+              child: Text(
+                'Order Items',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-          ),
 
-                  // Order items list
-                  ListView.builder(
+            // Order items list or empty cart message
+            orderProvider.cartItems.isEmpty
+                ? _buildEmptyCartMessage()
+                : ListView.builder(
                     physics: const NeverScrollableScrollPhysics(),
                     shrinkWrap: true,
                     itemCount: orderProvider.cartItems.length,
@@ -597,6 +670,13 @@ Widget _buildNavButton(IconData? iconData, Color? iconColor, String text) {
                       );
                     },
                   ),
+                
+          // Create a visual separator between order items and billing section
+          Container(
+            height: 10,
+            color: Colors.grey.shade50,
+          ),
+             
                  
           // Order summary section
           Container(
@@ -742,7 +822,7 @@ Widget _buildNavButton(IconData? iconData, Color? iconColor, String text) {
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     _buildPaymentButton('Cash', Colors.grey.shade100),
-                    _buildPaymentButton('Tender', Colors.grey.shade100),
+                    // _buildPaymentButton('Tender', Colors.grey.shade100),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -761,7 +841,47 @@ Widget _buildNavButton(IconData? iconData, Color? iconColor, String text) {
     ),
     );
 }
+  
 
+  // New method to display empty cart message
+Widget _buildEmptyCartMessage() {
+  return Container(
+    padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
+    child: Column(
+      children: [
+        Icon(
+          Icons.shopping_cart_outlined,
+          size: 60,
+          color: Colors.grey.shade400,
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Your cart is empty',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        // Text(
+        //   'Select menu items to add them to your order',
+        //   textAlign: TextAlign.center,
+        //   style: TextStyle(
+        //     fontSize: 14,
+        //     color: Colors.grey.shade600,
+        //   ),
+        // ),
+        const SizedBox(height: 30),
+        // Add a divider to separate from billing section
+        Container(
+          height: 1,
+          color: Colors.grey.shade300,
+        ),
+      ],
+    ),
+  );
+}
   Widget _buildSummaryRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -776,17 +896,62 @@ Widget _buildNavButton(IconData? iconData, Color? iconColor, String text) {
   }
 
   Widget _buildPaymentButton(String text, Color color) {
-    return SizedBox(
-      width: 110,
-      height: 40,
-      child: OutlinedButton(
-        onPressed: () {},
-        style: OutlinedButton.styleFrom(
-          backgroundColor: color,
-          side: BorderSide(color: Colors.grey.shade300),
-        ),
-        child: Text(text, style: TextStyle(color: Colors.black)),
+  if (text == "Tender") {
+    // Skip rendering the Tender button
+    return const SizedBox.shrink();
+  }
+  
+  return SizedBox(
+    width: 130,
+    height: 50,
+    child: OutlinedButton(
+      onPressed: () {
+        if (text == "Order") {
+          final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+          
+          // Check if cart is empty
+          if (orderProvider.cartItems.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Please add items to your order')),
+            );
+            return;
+          }
+          
+          // Navigate to order confirmation screen
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (ctx) => OrderConfirmationScreen(
+                serviceType: widget.serviceType,
+              ),
+            ),
+          );
+        } else if (text == "Cash") {
+          final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+          
+          // Check if cart is empty
+          if (orderProvider.cartItems.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Please add items to your order')),
+            );
+            return;
+          }
+          
+          // Navigate to order confirmation screen
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (ctx) => OrderConfirmationScreen(
+                serviceType: widget.serviceType,
+              ),
+            ),
+          );
+        }
+      },
+      style: OutlinedButton.styleFrom(
+        backgroundColor: color,
+        side: BorderSide(color: Colors.grey.shade300),
       ),
-    );
+      child: Text(text, style: TextStyle(color: Colors.black)),
+    ),
+  );
   }
 }

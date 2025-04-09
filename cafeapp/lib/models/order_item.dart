@@ -23,6 +23,7 @@ class OrderItem {
   Map<String, dynamic> toJson() {
     return {
       'id': id.toString(),
+       'name': name,
       'price': price,
       'quantity': quantity,
     };

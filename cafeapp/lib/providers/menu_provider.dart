@@ -13,23 +13,74 @@ class MenuProvider with ChangeNotifier {
   Future<void> fetchMenu() async {
     try {
       final menuItems = await _apiService.getMenu();
-      _items = menuItems;
-      notifyListeners();
+      
+      // Only update and notify if there's an actual change
+      if (!_itemListsEqual(_items, menuItems)) {
+        _items = menuItems;
+        notifyListeners();
+      }
     } catch (error) {
       debugPrint('Error fetching menu: $error');
       rethrow; // Preserves original stack trace
     }
   }
 
+  // Helper to check if two item lists are logically equal
+  bool _itemListsEqual(List<MenuItem> list1, List<MenuItem> list2) {
+    if (list1.length != list2.length) return false;
+    
+    // Create maps by ID for fast comparison
+    final map1 = {for (var item in list1) item.id: item};
+    final map2 = {for (var item in list2) item.id: item};
+    
+    // Check if all keys match
+    if (!_setsEqual(map1.keys.toSet(), map2.keys.toSet())) {
+      return false;
+    }
+    
+    // Check if all values match
+    for (final id in map1.keys) {
+      final item1 = map1[id]!;
+      final item2 = map2[id]!;
+      
+      if (item1.name != item2.name ||
+          item1.price != item2.price ||
+          item1.category != item2.category ||
+          item1.isAvailable != item2.isAvailable) {
+        return false;
+      }
+    }
+    
+    return true;
+  }
+  
+  // Helper to check if two sets are equal
+  bool _setsEqual<T>(Set<T> a, Set<T> b) {
+    return a.length == b.length && a.containsAll(b);
+  }
+
   Future<void> fetchCategories() async {
     try {
       final categories = await _apiService.getCategories();
-      _categories = categories;
-      notifyListeners();
+      
+      // Only update and notify if there's an actual change
+      if (!_listsEqual(_categories, categories)) {
+        _categories = categories;
+        notifyListeners();
+      }
     } catch (error) {
       debugPrint('Error fetching categories: $error');
       rethrow; // Preserves original stack trace
     }
+  }
+  
+  // Helper to check if two lists are equal
+  bool _listsEqual<T>(List<T> list1, List<T> list2) {
+    if (list1.length != list2.length) return false;
+    for (int i = 0; i < list1.length; i++) {
+      if (list1[i] != list2[i]) return false;
+    }
+    return true;
   }
 
   List<MenuItem> getItemsByCategory(String category) {
@@ -37,19 +88,21 @@ class MenuProvider with ChangeNotifier {
   }
 
   // Add new methods for CRUD operations
-  Future<void> addMenuItem(MenuItem item) async {
+  Future<MenuItem> addMenuItem(MenuItem item) async {
     try {
       // First ensure the category exists
       if (!_categories.contains(item.category)) {
         await addCategory(item.category);
       }
       
-      // Call the API service to persist to database
+      // Call the API service to persist to database - pass the MenuItem directly
       final newItem = await _apiService.addMenuItem(item);
       
       // Update local state after successful API call
       _items.add(newItem);
       notifyListeners();
+      
+      return newItem;
     } catch (error) {
       debugPrint('Error adding menu item: $error');
       rethrow;

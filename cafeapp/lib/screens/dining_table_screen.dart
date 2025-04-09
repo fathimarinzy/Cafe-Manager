@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:provider/provider.dart';
 import 'menu_screen.dart';
+import 'table_management_screen.dart'; // Add this import
+import '../providers/order_provider.dart';
+import '../providers/table_provider.dart'; // Add this import
 
 class DiningTableScreen extends StatefulWidget {
   const DiningTableScreen({super.key});
@@ -35,12 +39,15 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
     final amPm = now.hour >= 12 ? 'PM' : 'AM';
   
     setState(() {
-    _currentTime = '${hour.toString()}:${now.minute.toString().padLeft(2, '0')} $amPm';
-  });
+      _currentTime = '${hour.toString()}:${now.minute.toString().padLeft(2, '0')} $amPm';
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final tableProvider = Provider.of<TableProvider>(context);
+    final tables = tableProvider.tables;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -53,6 +60,23 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
           style: TextStyle(color: Colors.black),
         ),
         actions: [
+          // Add Tables management button
+          TextButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const TableManagementScreen(),
+                ),
+              ).then((_) {
+                // This will refresh the screen when coming back
+                setState(() {});
+              });
+            },
+            icon: const Icon(Icons.table_bar, color: Colors.black),
+            label: const Text('Tables', style: TextStyle(color: Colors.black)),
+          ),
+          const SizedBox(width: 10),
+          // Time display
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: Row(
@@ -75,49 +99,39 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
           ),
         ),
       ),
-
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // const Text(
-            //   'Select a Table',
-            //   style: TextStyle(
-            //     fontSize: 24,
-            //     fontWeight: FontWeight.bold,
-            //     color: Colors.black87,
-            //   ),
-            // ),
-            // const SizedBox(height: 8),
-            // const Text(
-            //   'Tap on a table to place an order',
-            //   style: TextStyle(
-            //     fontSize: 16,
-            //     color: Colors.black54,
-            //   ),
-            // ),
             const SizedBox(height: 24),
             Expanded(
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 4,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  childAspectRatio: 1.5,
+              child: tables.isEmpty 
+                ? const Center(child: Text('No tables available. Add tables from the Tables menu.'))
+                : GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 1.5,
+                  ),
+                  itemCount: tables.length,
+                  itemBuilder: (context, index) {
+                    final table = tables[index];
+                    
+                    // Get the OrderProvider
+                    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+                    final String serviceType = 'Dining - Table ${table.number}'; 
+                    
+                    return _buildTableCard(
+                      context,
+                      table.number,
+                      table.isOccupied,
+                      orderProvider,
+                      serviceType,
+                    );
+                  },
                 ),
-                itemCount: 16, // 16 tables
-                itemBuilder: (context, index) {
-                  final tableNumber = index + 1;
-                  final bool isOccupied = index % 3 == 0; // For demo: every 3rd table is occupied
-                  
-                  return _buildTableCard(
-                    context,
-                    tableNumber,
-                    isOccupied,
-                  );
-                },
-              ),
             ),
           ],
         ),
@@ -129,14 +143,19 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
     BuildContext context,
     int tableNumber,
     bool isOccupied,
+    OrderProvider orderProvider,
+    String serviceType,
   ) {
     return InkWell(
       onTap: () {
         if (!isOccupied) {
+          // Set the current service type in OrderProvider before navigation
+          orderProvider.setCurrentServiceType(serviceType);
+          
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (ctx) => MenuScreen(
-                serviceType: 'Dining - Table $tableNumber',
+                serviceType: serviceType,
               ),
             ),
           );

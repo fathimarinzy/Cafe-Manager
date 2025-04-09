@@ -17,7 +17,7 @@ class Person {
   // Factory method to create Person from JSON
   factory Person.fromJson(Map<String, dynamic> json) {
     return Person(
-      id: json['id'],
+      id: json['id'].toString(),
       name: json['name'],
       phoneNumber: json['phoneNumber'],
       place: json['place'],

@@ -128,6 +128,8 @@ import 'package:provider/provider.dart';
 
 import 'screens/login_screen.dart';
 import 'screens/person_form_screen.dart';
+
+import 'providers/table_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/menu_provider.dart';
 import 'providers/order_provider.dart';
@@ -150,6 +152,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (ctx) => MenuProvider()),
         ChangeNotifierProvider(create: (ctx) => OrderProvider()),
         ChangeNotifierProvider(create: (ctx) => PersonProvider(ApiService())),
+        ChangeNotifierProvider(create: (ctx) => TableProvider()),
       ],
       child: Consumer<AuthProvider>(
         builder: (ctx, auth, _) => MaterialApp(

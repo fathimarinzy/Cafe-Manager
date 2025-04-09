@@ -1,4 +1,5 @@
-import 'dart:convert';
+ import 'dart:convert';
+import 'package:flutter/foundation.dart'; // Add this import for debugPrint
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/user.dart';
@@ -9,7 +10,7 @@ import '../models/person.dart';
 
 class ApiService {
 
-  static const String baseUrl = 'http://localhost:5000/api'; // Use your backend URL
+  static const String baseUrl = 'https://ftrinzy.pythonanywhere.com/api'; // Use your backend URL
   final FlutterSecureStorage storage = FlutterSecureStorage();
 
   Future<String?> getToken() async {
@@ -31,7 +32,6 @@ class ApiService {
       body: jsonEncode({'username': username, 'password': password}),
     );
    
-
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       await saveToken(data['token']);
@@ -193,7 +193,13 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Person.fromJson(json)).toList();
+        return data.map((json) {
+          // Ensure ID is a string
+          if (json['id'] != null) {
+            json['id'] = json['id'].toString();
+          }
+          return Person.fromJson(json);
+        }).toList();
       } else {
         throw Exception('Failed to load persons');
       }
@@ -214,7 +220,15 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Person.fromJson(json)).toList();
+       // Make sure each person object has properly formatted data
+        return data.map((json) {
+          // Ensure ID is a string
+          if (json['id'] != null) {
+            json['id'] = json['id'].toString();
+          }
+        return Person.fromJson(json);
+      }).toList();
+      
       } else {
         throw Exception('Failed to search persons');
       }
@@ -226,42 +240,66 @@ class ApiService {
 
 
 //  crud operation
-  Future<MenuItem> addMenuItem(MenuItem item) async {
-    final token = await getToken();
-    final response = await http.post(
-      Uri.parse('$baseUrl/menu'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode(item.toJson()),
-    );
+  
+Future<MenuItem> addMenuItem(MenuItem item) async {
+  final token = await getToken();
+  
+  // Important: Make sure we're using the correct field name 'image' to match the backend
+  final Map<String, dynamic> data = {
+    'name': item.name,
+    'price': item.price,
+    'image': item.imageUrl, // This should match the API's expected field name
+    'category': item.category,
+    'available': item.isAvailable,
+  };
 
-    if (response.statusCode == 201) {
-      return MenuItem.fromJson(jsonDecode(response.body));
-    } else {
-      throw Exception('Failed to add menu item');
-    }
+  final response = await http.post(
+    Uri.parse('$baseUrl/menu'),
+    headers: {
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode(data),
+  );
+
+  if (response.statusCode == 201) {
+    debugPrint('Menu item added successfully, response: ${response.body}');
+    return MenuItem.fromJson(jsonDecode(response.body));
+  } else {
+    debugPrint('Failed to add menu item, status: ${response.statusCode}, response: ${response.body}');
+    throw Exception('Failed to add menu item: ${response.body}');
   }
+}
 
   Future<MenuItem> updateMenuItem(MenuItem item) async {
-    final token = await getToken();
-    final response = await http.put(
-      Uri.parse('$baseUrl/menu/${item.id}'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode(item.toJson()),
-    );
+  final token = await getToken();
+  
+  // Important: Make sure we're using the correct field name 'image' to match the backend
+  final Map<String, dynamic> data = {
+    'name': item.name,
+    'price': item.price,
+    'image': item.imageUrl, // This should match the API's expected field name
+    'category': item.category,
+    'available': item.isAvailable,
+  };
 
-    if (response.statusCode == 200) {
-      return MenuItem.fromJson(jsonDecode(response.body));
-    } else {
-      throw Exception('Failed to update menu item');
-    }
+  final response = await http.put(
+    Uri.parse('$baseUrl/menu/${item.id}'),
+    headers: {
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    },
+    body: jsonEncode(data),
+  );
+
+  if (response.statusCode == 200) {
+    debugPrint('Menu item updated successfully');
+    return MenuItem.fromJson(jsonDecode(response.body));
+  } else {
+    debugPrint('Failed to update menu item, status: ${response.statusCode}, response: ${response.body}');
+    throw Exception('Failed to update menu item: ${response.body}');
   }
-
+}
   Future<void> deleteMenuItem(String id) async {
     final token = await getToken();
     final response = await http.delete(
@@ -292,6 +330,4 @@ class ApiService {
       throw Exception('Failed to add category');
     }
   }
-
-
-}
+}   
