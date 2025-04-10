@@ -300,8 +300,10 @@ Future<MenuItem> addMenuItem(MenuItem item) async {
     throw Exception('Failed to update menu item: ${response.body}');
   }
 }
-  Future<void> deleteMenuItem(String id) async {
-    final token = await getToken();
+ Future<void> deleteMenuItem(String id) async {
+  final token = await getToken();
+  
+  try {
     final response = await http.delete(
       Uri.parse('$baseUrl/menu/$id'),
       headers: {
@@ -310,10 +312,33 @@ Future<MenuItem> addMenuItem(MenuItem item) async {
       },
     );
 
-    if (response.statusCode != 204) {
-      throw Exception('Failed to delete menu item');
+    // Check for success status codes (200, 202, 204)
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      debugPrint('Menu item deleted successfully: ${response.statusCode}');
+      return; // Success case
+    } else {
+      // Log failure details for debugging
+      final errorBody = response.body.isNotEmpty ? response.body : 'No response body';
+      debugPrint('Failed to delete menu item. Status: ${response.statusCode}, Response: $errorBody');
+      
+      // Parse error message if available
+      String errorMessage = 'Failed to delete menu item';
+      if (response.body.isNotEmpty) {
+        try {
+          final data = jsonDecode(response.body);
+          errorMessage = data['message'] ?? errorMessage;
+        } catch (_) {
+          // Keep default error message if JSON parsing fails
+        }
+      }
+      
+      throw Exception(errorMessage);
     }
+  } catch (e) {
+    debugPrint('Exception while deleting menu item: $e');
+    throw Exception('Failed to delete menu item: $e');
   }
+}
   // Add this method to handle adding new categories
   Future<void> addCategory(String category) async {
     final token = await getToken();

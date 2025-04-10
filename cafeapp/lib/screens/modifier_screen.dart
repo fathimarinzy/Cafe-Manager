@@ -350,56 +350,72 @@ class _ModifierScreenState extends State<ModifierScreen> {
       _deleteItem(item);
     }
   }
-
   void _deleteItem(MenuItem item) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => const AlertDialog(
-        content: Row(
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 20),
-            Text("Deleting item...")
-          ],
-        ),
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => const AlertDialog(
+      content: Row(
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(width: 20),
+          Text("Deleting item...")
+        ],
       ),
-    );
+    ),
+  );
+  
+  bool success = false;
+  String errorMessage = 'Failed to delete item. Please try again.';
+  
+  try {
+    final menuProvider = Provider.of<MenuProvider>(context, listen: false);
+    success = await menuProvider.deleteMenuItem(item.id);
     
-    bool success = false;
-    try {
-      final menuProvider = Provider.of<MenuProvider>(context, listen: false);
-      success = await menuProvider.deleteMenuItem(item.id);
-      
-      // Force refresh menu and categories
+    // Force refresh menu and categories on success
+    if (success) {
       await menuProvider.fetchMenu();
       await menuProvider.fetchCategories();
-    } catch (e) {
-      success = false;
     }
-    
-    if (!mounted) return;
-    
-    // Close the loading dialog
-    Navigator.of(context).pop();
-    
-    // Show result message
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(success 
-          ? 'Item deleted successfully' 
-          : 'Failed to delete item. Please try again.'),
-        backgroundColor: success ? Colors.green : Colors.red,
-      ),
-    );
-    
-    // Force UI refresh
-    if (success) {
-      setState(() {
-        // Force rebuild by refreshing state
-      });
+  } catch (e) {
+    success = false;
+    // If the error contains "foreign key constraint", provide a clearer message
+    if (e.toString().toLowerCase().contains('foreign key') || 
+        e.toString().toLowerCase().contains('constraint')) {
+      errorMessage = 'This item cannot be deleted because it is used in existing orders.';
+    } else {
+      errorMessage = 'Error: ${e.toString()}';
     }
+    debugPrint('Exception during delete: $e');
   }
+  
+  if (!mounted) return;
+  
+  // Close the loading dialog
+  Navigator.of(context).pop();
+  
+  // Show result message
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(success ? 'Item deleted successfully' : errorMessage),
+      backgroundColor: success ? Colors.green : Colors.red,
+      duration: const Duration(seconds: 3),
+      action: success ? null : SnackBarAction(
+        label: 'Dismiss',
+        onPressed: () {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        },
+      ),
+    ),
+  );
+  
+  // Force UI refresh
+  if (success) {
+    setState(() {
+      // Force rebuild by refreshing state
+    });
+  }
+}
 
   void _toggleCategoryInput(bool isAdding) {
     setState(() {
