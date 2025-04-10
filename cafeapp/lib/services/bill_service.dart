@@ -54,7 +54,7 @@ class BillService {
               pw.Center(
                 child: pw.Column(
                   children: [
-                    pw.Text('CAFE MANAGEMENT', 
+                    pw.Text('SIMS RESTO CAFE', 
                       style: pw.TextStyle(
                         font: ttf, 
                         fontSize: 14, 

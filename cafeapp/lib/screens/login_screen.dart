@@ -77,7 +77,7 @@ class LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Cafe Management',
+                  'SIMS RESTO CAFE',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 28,
