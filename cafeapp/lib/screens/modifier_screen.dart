@@ -350,6 +350,8 @@ class _ModifierScreenState extends State<ModifierScreen> {
       _deleteItem(item);
     }
   }
+
+  
   void _deleteItem(MenuItem item) async {
   showDialog(
     context: context,

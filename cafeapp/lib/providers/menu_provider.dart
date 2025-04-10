@@ -132,39 +132,48 @@ class MenuProvider with ChangeNotifier {
   }
 
   Future<bool> deleteMenuItem(String id) async {
-    try {
-      // Call the API service to persist to database
-      await _apiService.deleteMenuItem(id);
-      
-      // Update local state after successful API call
-      final previousLength = _items.length;
-      _items.removeWhere((item) => item.id == id);
-      
-      // Verify that an item was actually removed
-      final wasRemoved = _items.length < previousLength;
-      
-      // Only notify listeners if the state actually changed
-      if (wasRemoved) {
-        notifyListeners();
-      } else {
-        // If no item was removed locally but API call succeeded,
-        // refresh the entire menu to ensure consistency
-        await fetchMenu();
-      }
-      
-      return true;
-    } catch (error) {
-      debugPrint('Error deleting menu item: $error');
-      // Try to refresh data to ensure UI is in sync
-      try {
-        await fetchMenu();
-      } catch (_) {
-        // Ignore errors during refresh attempt
-      }
-      return false;
+  try {
+    // Call the API service to delete from database
+    await _apiService.deleteMenuItem(id);
+    
+    // Update local state after successful API call
+    final previousLength = _items.length;
+    _items.removeWhere((item) => item.id == id);
+    
+    // Verify that an item was actually removed
+    final wasRemoved = _items.length < previousLength;
+    
+    // Only notify listeners if the state actually changed
+    if (wasRemoved) {
+      notifyListeners();
+    } else {
+      // If no item was removed locally but API call succeeded,
+      // refresh the entire menu to ensure consistency
+      await fetchMenu();
     }
+    
+    return true;
+  } catch (e) {
+    debugPrint('Error deleting menu item: $e');
+    
+    // Check if this is a foreign key constraint error
+    final String errorMsg = e.toString().toLowerCase();
+    if (errorMsg.contains('foreign key') || errorMsg.contains('constraint')) {
+      // This is expected for items used in orders - provide proper error handling
+      debugPrint('Cannot delete menu item because it is referenced in orders');
+    }
+    
+    // Try to refresh data to ensure UI is in sync
+    try {
+      await fetchMenu();
+    } catch (_) {
+      // Ignore errors during refresh attempt
+    }
+    
+    // Propagate the error to the UI
+    return false;
   }
-
+}
   // Improved addCategory method with error handling
   Future<bool> addCategory(String category) async {
     if (category.isEmpty) return false;
