@@ -135,7 +135,7 @@ import 'providers/menu_provider.dart';
 import 'providers/order_provider.dart';
 import 'providers/person_provider.dart';
 import 'services/api_service.dart'; 
-
+import 'providers/order_history_provider.dart'; 
 
 void main() {
   runApp(const MyApp());
@@ -153,6 +153,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (ctx) => OrderProvider()),
         ChangeNotifierProvider(create: (ctx) => PersonProvider(ApiService())),
         ChangeNotifierProvider(create: (ctx) => TableProvider()),
+        ChangeNotifierProvider(create: (ctx) => OrderHistoryProvider()),
+
       ],
       child: Consumer<AuthProvider>(
         builder: (ctx, auth, _) => MaterialApp(

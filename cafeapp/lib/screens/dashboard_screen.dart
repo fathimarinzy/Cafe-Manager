@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/order_provider.dart';
 import 'menu_screen.dart';
 import 'dining_table_screen.dart';
+import 'order_list_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -121,12 +122,14 @@ class DashboardScreen extends StatelessWidget {
               builder: (ctx) => const DiningTableScreen(),
             ),
           );
-        } else if (title == 'Order List') {
-          // Handle Order List navigation
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Order List functionality coming soon')),
+        } else if (title == 'Order List'){
+          // For Order List, navigate to OrderListScreen
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (ctx) => const OrderListScreen(),
+            ),
           );
-        } else {
+        }  else {
           // For all other service types, set the service type in provider and navigate
           orderProvider.setCurrentServiceType(title);
           

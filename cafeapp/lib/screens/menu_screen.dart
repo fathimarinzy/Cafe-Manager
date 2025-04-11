@@ -13,6 +13,8 @@ import '../screens/search_person_screen.dart';
 import '../screens/modifier_screen.dart';
 import '../screens/table_management_screen.dart';
 import '../screens/order_confirmation_screen.dart';
+import '../screens/order_list_screen.dart';
+
 
 class MenuScreen extends StatefulWidget {
   final String serviceType;
@@ -49,12 +51,12 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
     });
   }
   
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Refresh data whenever dependencies change (like returning to this screen)
-    _loadMenu();
-  }
+  // @override
+  // void didChangeDependencies() {
+  //   super.didChangeDependencies();
+  //   // Refresh data whenever dependencies change (like returning to this screen)
+  //   _loadMenu();
+  // }
   
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -349,6 +351,14 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                 // Refresh when returning from TableManagementScreen
                 _loadMenu();
               });
+            }else if (text == 'Order list') {
+              // Navigate to OrderListScreen with current service type
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => OrderListScreen(serviceType: widget.serviceType),
+                ),
+              );
             }
             // Add other navigation cases as needed
           },

@@ -13,7 +13,7 @@ class OrderItem {
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
     return OrderItem(
-      id: int.parse(json['id']),
+      id: json['id'] is String ? int.parse(json['id']) : json['id'],
       name: json['name'],
       price: json['price'].toDouble(),
       quantity: json['quantity'],

@@ -355,4 +355,100 @@ Future<MenuItem> addMenuItem(MenuItem item) async {
       throw Exception('Failed to add category');
     }
   }
+
+  // Add these methods to your existing ApiService class
+
+  Future<List<Order>> getOrdersByServiceType(String serviceType) async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('$baseUrl/orders/service/$serviceType'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((order) => Order.fromJson(order)).toList();
+    }
+    return [];
+  }
+
+  Future<List<Order>> getOrdersByDateRange(DateTime start, DateTime end) async {
+    final token = await getToken();
+    
+    // Format dates as ISO strings for query parameters
+    final startStr = start.toIso8601String();
+    final endStr = end.toIso8601String();
+    
+    final response = await http.get(
+      Uri.parse('$baseUrl/orders/date?start=$startStr&end=$endStr'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((order) => Order.fromJson(order)).toList();
+    }
+    return [];
+  }
+
+  Future<Order?> getOrderById(int orderId) async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('$baseUrl/orders/$orderId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return Order.fromJson(jsonDecode(response.body));
+    }
+    return null;
+  }
+
+  Future<List<Order>> getOrdersByTable(String tableInfo) async {
+    final token = await getToken();
+    
+    // Extract table number from the tableInfo string (e.g., "Dining - Table 1")
+    final tableNumber = tableInfo.split('Table ').last;
+    
+    final response = await http.get(
+      Uri.parse('$baseUrl/orders/table/$tableNumber'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((order) => Order.fromJson(order)).toList();
+    }
+    return [];
+  }
+
+  Future<List<Order>> searchOrdersByBillNumber(String billNumber) async {
+    final token = await getToken();
+    
+    final response = await http.get(
+      Uri.parse('$baseUrl/orders/search?billNumber=$billNumber'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((order) => Order.fromJson(order)).toList();
+    }
+    return [];
+  }
 }   
