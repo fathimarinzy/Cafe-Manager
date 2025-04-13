@@ -404,6 +404,7 @@ Future<MenuItem> addMenuItem(MenuItem item) async {
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
+         'X-Timezone-Offset': DateTime.now().timeZoneOffset.inMinutes.toString(),
       },
     );
 

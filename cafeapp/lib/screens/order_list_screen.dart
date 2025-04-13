@@ -32,10 +32,6 @@ class _OrderListScreenState extends State<OrderListScreen> {
       _updateTime();
     });
     
-     // Set default filter to Today
-      if (widget.serviceType == null) {
-        _selectedFilter = OrderTimeFilter.today;
-      }
     // Load orders on init
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
@@ -46,7 +42,6 @@ class _OrderListScreenState extends State<OrderListScreen> {
         historyProvider.loadOrdersByServiceType(widget.serviceType!);
       } else {
         historyProvider.loadOrders();
-       
       }
     });
   }

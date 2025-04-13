@@ -10,90 +10,117 @@ class DashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Get orientation to adjust layout
-    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-
-    // Calculate aspect ratio and grid parameters based on orientation
-    // Lower aspect ratio in landscape makes cards wider relative to height
-    final double aspectRatio = isLandscape ? 1.1 : 1.1;
-    final int crossAxisCount = isLandscape ? 3 : 2; // 3 cards per row in landscape, 2 in portrait
+    // Get screen size to determine layout
+    final screenSize = MediaQuery.of(context).size;
+    final isLandscape = screenSize.width > screenSize.height;
+    
+    // Calculate best grid parameters based on screen size
+    final crossAxisCount = isLandscape ? 3 : 2; // 3 cards per row in landscape, 2 in portrait
+    
+    // Calculate aspect ratio to ensure cards fit properly
+    // For landscape, we need wider cards relative to height
+    // For portrait, we need taller cards relative to width
+    final double aspectRatio = isLandscape 
+        ? (screenSize.width / crossAxisCount) / ((screenSize.height - 120) / 2) 
+        : (screenSize.width / crossAxisCount) / ((screenSize.height - 120) / 3);
+    
+    // Set appropriate padding based on screen size
+    final horizontalPadding = screenSize.width * 0.03; // 3% of screen width
+    final verticalPadding = screenSize.height * 0.02; // 2% of screen height
 
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          ' Dashboard',
+          'Dashboard',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Colors.black87, // Dark text color
+            color: Colors.black87,
           ),
         ),
-        backgroundColor: Colors.white, // White background
-        elevation: 0, // Remove shadow
-        iconTheme: const IconThemeData(color: Colors.black87), // Dark icons
+        backgroundColor: Colors.white,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.black87),
         actions: [
           IconButton(
             icon: const Icon(Icons.exit_to_app),
             onPressed: () {
-              // Implement logout
               Navigator.of(context).pushReplacementNamed('/');
             },
           ),
         ],
       ),
-      body: Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 1000), // Increased max width for landscape
-          padding: EdgeInsets.all(isLandscape ? 20 : 12), // More padding in landscape
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(height: isLandscape ? 30 : 16), // More spacing in landscape
-              Expanded(
-                child: GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: crossAxisCount,
-                  childAspectRatio: aspectRatio,
-                  crossAxisSpacing: isLandscape ? 24 : 12, // More spacing in landscape
-                  mainAxisSpacing: isLandscape ? 24 : 12, // More spacing in landscape
-                  children: [
-                    _buildServiceCard(
-                      context,
-                      'Dining',
-                      Icons.restaurant,
-                      isDining: true, // New parameter to identify Dining option
-                    ),
-                    _buildServiceCard(
-                      context,
-                      'Takeout',
-                      Icons.takeout_dining,
-                    ),
-                    _buildServiceCard(
-                      context,
-                      'Delivery',
-                      Icons.delivery_dining,
-                    ),
-                    _buildServiceCard(
-                      context,
-                      'Drive Through',
-                      Icons.drive_eta,
-                    ),
-                    _buildServiceCard(
-                      context,
-                      'Catering',
-                      Icons.cake,  // Using cake icon for catering
-                    ),
-                    _buildServiceCard(
-                      context,
-                      'Order List',
-                      Icons.list_alt,  // Using list icon for order list
-                    ),
-                  ],
-                ),
+      body: SafeArea(
+        // Use SafeArea to avoid notches and system UI
+        child: LayoutBuilder(
+          // LayoutBuilder gives us the exact constraints within the parent
+          builder: (context, constraints) {
+            // Calculate available height for grid
+            // final availableHeight = constraints.maxHeight;
+            
+            return Container(
+              width: double.infinity,
+              height: double.infinity,
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: verticalPadding,
               ),
-            ],
-          ),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: GridView.count(
+                      // Disable scrolling to ensure everything fits on screen
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: crossAxisCount,
+                      childAspectRatio: aspectRatio,
+                      crossAxisSpacing: horizontalPadding * 0.8,
+                      mainAxisSpacing: verticalPadding * 0.8,
+                      shrinkWrap: true,
+                      children: [
+                        _buildServiceCard(
+                          context,
+                          'Dining',
+                          Icons.restaurant,
+                          isDining: true,
+                          screenSize: screenSize,
+                        ),
+                        _buildServiceCard(
+                          context,
+                          'Takeout',
+                          Icons.takeout_dining,
+                          screenSize: screenSize,
+                        ),
+                        _buildServiceCard(
+                          context,
+                          'Delivery',
+                          Icons.delivery_dining,
+                          screenSize: screenSize,
+                        ),
+                        _buildServiceCard(
+                          context,
+                          'Drive Through',
+                          Icons.drive_eta,
+                          screenSize: screenSize,
+                        ),
+                        _buildServiceCard(
+                          context,
+                          'Catering',
+                          Icons.cake,
+                          screenSize: screenSize,
+                        ),
+                        _buildServiceCard(
+                          context,
+                          'Order List',
+                          Icons.list_alt,
+                          screenSize: screenSize,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
@@ -102,13 +129,22 @@ class DashboardScreen extends StatelessWidget {
   Widget _buildServiceCard(
     BuildContext context,
     String title,
-    IconData icon,
-    {bool isDining = false} // New parameter with default value
-  ) {
-    // Get current orientation to adjust icon size and padding
-    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-    final iconSize = isLandscape ? 50.0 : 45.0; // Larger icons in landscape
-    final cardPadding = isLandscape ? 20.0 : 12.0; // More padding in landscape
+    IconData icon, {
+    bool isDining = false,
+    required Size screenSize,
+  }) {
+    // Responsive design - scale based on screen dimensions
+    final isLandscape = screenSize.width > screenSize.height;
+    
+    // Calculate icon size based on screen size
+    final iconSize = isLandscape 
+        ? screenSize.width * 0.04 // 5% of screen width in landscape
+        : screenSize.width * 0.06; // 9% of screen width in portrait
+    
+    // Calculate font size based on screen size
+    final fontSize = isLandscape 
+        ? screenSize.width * 0.016 // 1.6% of screen width in landscape
+        : screenSize.width * 0.03;  // 4% of screen width in portrait
     
     // Access OrderProvider to set the current service type when navigating
     final orderProvider = Provider.of<OrderProvider>(context, listen: false);
@@ -116,24 +152,19 @@ class DashboardScreen extends StatelessWidget {
     return InkWell(
       onTap: () {
         if (isDining) {
-          // If Dining is selected, navigate to DiningTableScreen
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (ctx) => const DiningTableScreen(),
             ),
           );
-        } else if (title == 'Order List'){
-          // For Order List, navigate to OrderListScreen
+        } else if (title == 'Order List') {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (ctx) => const OrderListScreen(),
             ),
           );
-        }  else {
-          // For all other service types, set the service type in provider and navigate
+        } else {
           orderProvider.setCurrentServiceType(title);
-          
-          // Navigate to MenuScreen
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (ctx) => MenuScreen(serviceType: title),
@@ -141,33 +172,34 @@ class DashboardScreen extends StatelessWidget {
           );
         }
       },
-      
       child: Card(
-        elevation: isLandscape ? 6 : 4, // Increased elevation for landscape
+        elevation: 4,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(isLandscape ? 18 : 12), // Larger radius in landscape
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(isLandscape ? 18 : 12),
-            color: Colors.white, // White background for the card
+            borderRadius: BorderRadius.circular(12),
+            color: Colors.white,
           ),
-          padding: EdgeInsets.all(cardPadding),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 icon,
                 size: iconSize,
-                color: Colors.blue[900], // Blue icon color
+                color: Colors.blue[900],
               ),
-              SizedBox(height: isLandscape ? 22 : 12), // More spacing in landscape
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: isLandscape ? 18 : 18, // Larger text in landscape
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87, // Standard dark text color
+              SizedBox(height: screenSize.height * 0.015), // 1.5% of screen height
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
                 ),
               ),
             ],

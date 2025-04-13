@@ -51,13 +51,6 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
     });
   }
   
-  // @override
-  // void didChangeDependencies() {
-  //   super.didChangeDependencies();
-  //   // Refresh data whenever dependencies change (like returning to this screen)
-  //   _loadMenu();
-  // }
-  
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Refresh data when the app comes back to the foreground
@@ -182,12 +175,21 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
             style: const TextStyle(color: Colors.black),
           ),
           actions: [
-            // // Add refresh button
-            // IconButton(
-            //   icon: const Icon(Icons.refresh, color: Colors.black),
-            //   onPressed: _loadMenu,
-            //   tooltip: 'Refresh menu',
-            // ),
+            // Add Order List button to the left of time
+            TextButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => OrderListScreen(serviceType: widget.serviceType),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.receipt_long, color: Colors.black, size: 20),
+              label: const Text('Order List', style: TextStyle(color: Colors.black, fontSize: 14)),
+            ),
+            const SizedBox(width: 8),
+            // Time display
             Padding(
               padding: const EdgeInsets.only(right: 16.0),
               child: Row(
@@ -520,11 +522,20 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                 borderRadius: BorderRadius.all(Radius.circular(8)),
               ),
               child: InkWell(
-                onTap: item.isAvailable
-                    ? () {
-                        orderProvider.addToCart(item);
-                      }
-                    : null,
+                // Allow all items to be selected, including out-of-stock items
+                onTap: () {
+                  orderProvider.addToCart(item);
+                  
+                  // If the item is out of stock, show an informational message
+                  if (!item.isAvailable) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('"${item.name}" is out of stock but has been added to your order'),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                },
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -699,105 +710,135 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                     shrinkWrap: true,
                     itemCount: orderProvider.cartItems.length,
                     itemBuilder: (ctx, index) {
-                      final item = orderProvider.cartItems[index];
-                      return Container(
-                        key: ValueKey('cart_item_${item.id}'),
-                        decoration: BoxDecoration(
-                          border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                        child: Row(
-                          children: [
-                            // Item name and price
-                            Expanded(
-                              flex: 3,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item.name,
-                                    style: const TextStyle(fontWeight: FontWeight.w500),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '${item.price.toStringAsFixed(3)} × ${item.quantity}',
-                                    style: TextStyle(
-                                      color: Colors.grey.shade600,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // Quantity adjustment and controls
-                            Row(
+                    final item = orderProvider.cartItems[index];
+                    return Container(
+                      key: ValueKey('cart_item_${item.id}'),
+                      decoration: BoxDecoration(
+                        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Item name and price - more space for name
+                          Expanded(
+                            flex: 5,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                IconButton(
-                                  icon: const Icon(Icons.remove, size: 16),
-                                  onPressed: () {
-                                    if (item.quantity > 1) {
-                                      orderProvider.updateItemQuantity(item.id, item.quantity - 1);
-                                    } else {
-                                      orderProvider.removeItem(item.id);
-                                    }
-                                  },
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                  style: IconButton.styleFrom(
-                                    minimumSize: const Size(24, 24),
-                                    padding: EdgeInsets.zero,
-                                  ),
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        item.name,
+                                        style: const TextStyle(fontWeight: FontWeight.w500),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (!item.isAvailable)
+                                      Container(
+                                        margin: const EdgeInsets.only(left: 4),
+                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red.shade100,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          'Out of stock',
+                                          style: TextStyle(
+                                            color: Colors.red.shade900,
+                                            fontSize: 9,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                                  child: Text(
-                                    '${item.quantity}',
-                                    style: const TextStyle(fontWeight: FontWeight.w500),
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.add, size: 16),
-                                  onPressed: () {
-                                    orderProvider.updateItemQuantity(item.id, item.quantity + 1);
-                                  },
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                  style: IconButton.styleFrom(
-                                    minimumSize: const Size(24, 24),
-                                    padding: EdgeInsets.zero,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
+                                const SizedBox(height: 4),
                                 Text(
-                                  (item.price * item.quantity).toStringAsFixed(3),
-                                  style: const TextStyle(fontWeight: FontWeight.w500),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.close, color: Colors.grey, size: 16),
-                                  onPressed: () {
-                                    orderProvider.removeItem(item.id);
-                                  },
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                  style: IconButton.styleFrom(
-                                    minimumSize: const Size(24, 24),
-                                    padding: EdgeInsets.zero,
+                                  '${item.price.toStringAsFixed(3)} × ${item.quantity}',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 12,
                                   ),
                                 ),
                               ],
                             ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                          ),
+                          // Quantity adjustment and controls with reduced spacing
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.remove, size: 14),
+                                onPressed: () {
+                                  if (item.quantity > 1) {
+                                    orderProvider.updateItemQuantity(item.id, item.quantity - 1);
+                                  } else {
+                                    orderProvider.removeItem(item.id);
+                                  }
+                                },
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                style: IconButton.styleFrom(
+                                  minimumSize: const Size(20, 20),
+                                  padding: EdgeInsets.zero,
+                                ),
+                              ),
+                              SizedBox(
+                                width: 24,
+                                child: Text(
+                                  '${item.quantity}',
+                                  style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.add, size: 14),
+                                onPressed: () {
+                                  orderProvider.updateItemQuantity(item.id, item.quantity + 1);
+                                },
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                style: IconButton.styleFrom(
+                                  minimumSize: const Size(20, 20),
+                                  padding: EdgeInsets.zero,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                width: 50,
+                                child: Text(
+                                  (item.price * item.quantity).toStringAsFixed(3),
+                                  style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                                  textAlign: TextAlign.right,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close, color: Colors.grey, size: 14),
+                                onPressed: () {
+                                  orderProvider.removeItem(item.id);
+                                },
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                style: IconButton.styleFrom(
+                                  minimumSize: const Size(20, 20),
+                                  padding: EdgeInsets.zero,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
                 
           // Create a visual separator between order items and billing section
           Container(
             height: 10,
             color: Colors.grey.shade50,
           ),
-             
                  
           // Order summary section
           Container(

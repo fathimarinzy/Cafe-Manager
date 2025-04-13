@@ -1,8 +1,9 @@
 // models/order_history.dart
-// import 'package:flutter/material.dart';
 import 'order.dart';
 import 'order_item.dart';
+import 'package:flutter/foundation.dart';
 
+// import 'package:intl/intl.dart';
 /// OrderHistory model to represent orders in the history list
 class OrderHistory {
   final int id;
@@ -22,15 +23,39 @@ class OrderHistory {
   });
 
   factory OrderHistory.fromOrder(Order order) {
+  // Parse the date string from the order
+    DateTime parsedDate;
+    if (order.createdAt != null) {
+      try {
+        // First parse the date string to a DateTime object
+        final utcDate = DateTime.parse(order.createdAt!);
+        
+        // Get the local timezone offset in minutes
+        final localTimeZoneOffset = DateTime.now().timeZoneOffset.inMinutes;
+        
+        // Apply the timezone offset to get the correct local time
+        parsedDate = utcDate.add(Duration(minutes: localTimeZoneOffset));
+        
+        debugPrint('Original UTC date: $utcDate');
+        debugPrint('Local timezone offset: $localTimeZoneOffset minutes');
+        debugPrint('Adjusted local date: $parsedDate');
+      } catch (e) {
+        debugPrint('Error parsing date: $e');
+        parsedDate = DateTime.now();
+      }
+    } else {
+      parsedDate = DateTime.now();
+    }
+    
     return OrderHistory(
       id: order.id ?? 0,
       serviceType: order.serviceType,
       total: order.total,
       status: order.status,
-      createdAt: order.createdAt != null ? DateTime.parse(order.createdAt!) : DateTime.now(),
+      createdAt: parsedDate,
       items: order.items,
     );
-  }
+}
   
   // Method to format the order number
   String get orderNumber => id.toString().padLeft(4, '0');
@@ -40,8 +65,9 @@ class OrderHistory {
     return '${createdAt.day.toString().padLeft(2, '0')}-${createdAt.month.toString().padLeft(2, '0')}-${createdAt.year}';
   }
   
-  String get formattedTime {
-    return '${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}';
+    String get formattedTime {
+    // Use 12-hour format with AM/PM
+    return '${createdAt.hour > 12 ? (createdAt.hour - 12) : createdAt.hour}:${createdAt.minute.toString().padLeft(2, '0')} ${createdAt.hour >= 12 ? 'PM' : 'AM'}';
   }
 }
 
@@ -73,35 +99,32 @@ extension OrderTimeFilterExtension on OrderTimeFilter {
   
   // Method to filter orders based on time period
   bool isInPeriod(DateTime date) {
-  final now = DateTime.now();
-  
-  switch (this) {
-    case OrderTimeFilter.today:
-      return date.year == now.year && 
-             date.month == now.month && 
-             date.day == now.day;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final orderDate = DateTime(date.year, date.month, date.day);
     
-    case OrderTimeFilter.weekly:
-      // Calculate days since start of week (assuming Sunday is first day of week)
-      final daysSinceStartOfWeek = now.weekday; // 1=Monday, 7=Sunday
-      final startOfWeek = now.subtract(Duration(days: daysSinceStartOfWeek - 1));
-      final startOfWeekDate = DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day);
+    switch (this) {
+      case OrderTimeFilter.today:
+        return orderDate.isAtSameMomentAs(today);
       
-      return date.isAfter(startOfWeekDate.subtract(const Duration(seconds: 1)));
-    
-    case OrderTimeFilter.monthly:
-      // First day of current month
-      final startOfMonth = DateTime(now.year, now.month, 1);
-      return date.isAfter(startOfMonth.subtract(const Duration(seconds: 1)));
-    
-    case OrderTimeFilter.yearly:
-      // First day of current year
-      final startOfYear = DateTime(now.year, 1, 1);
-      return date.isAfter(startOfYear.subtract(const Duration(seconds: 1)));
-    
-    case OrderTimeFilter.all:
-      return true;
+      case OrderTimeFilter.weekly:
+        // Get the start of the current week (Monday)
+        final startOfWeek = today.subtract(Duration(days: today.weekday - 1));
+        // Check if date is within the last 7 days
+        return orderDate.isAtSameMomentAs(startOfWeek) || orderDate.isAfter(startOfWeek);
+      
+      case OrderTimeFilter.monthly:
+        // First day of current month
+        final startOfMonth = DateTime(now.year, now.month, 1);
+        return orderDate.isAtSameMomentAs(startOfMonth) || orderDate.isAfter(startOfMonth);
+      
+      case OrderTimeFilter.yearly:
+        // First day of current year
+        final startOfYear = DateTime(now.year, 1, 1);
+        return orderDate.isAtSameMomentAs(startOfYear) || orderDate.isAfter(startOfYear);
+      
+      case OrderTimeFilter.all:
+        return true;
+    }
   }
-}
-  
 }

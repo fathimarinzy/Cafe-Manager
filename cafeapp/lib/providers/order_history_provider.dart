@@ -10,7 +10,7 @@ class OrderHistoryProvider with ChangeNotifier {
   List<OrderHistory> _filteredOrders = [];
   bool _isLoading = false;
   String _errorMessage = '';
-  OrderTimeFilter _currentFilter = OrderTimeFilter.all;
+  OrderTimeFilter _currentFilter = OrderTimeFilter.today; // Changed default to today
   String _searchQuery = '';
   String? _serviceTypeFilter;
 
@@ -24,27 +24,38 @@ class OrderHistoryProvider with ChangeNotifier {
 
   // Load all orders
   Future<void> loadOrders() async {
-  _setLoading(true);
-  
-  try {
-    // Clear any service type filter when loading all orders
-    _serviceTypeFilter = null;
+    _setLoading(true);
     
-    final List<Order> apiOrders = await _apiService.getOrders();
-    _orders = apiOrders.map((order) => OrderHistory.fromOrder(order)).toList();
-    
-    // Sort by newest first
-    _orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    
-    // Apply current filters (time filters only, not service type)
-    _applyFilters();
-  } catch (e) {
-    _errorMessage = 'Failed to load orders: $e';
-    debugPrint(_errorMessage);
-  } finally {
-    _setLoading(false);
+    try {
+      // Clear any service type filter when loading all orders
+      _serviceTypeFilter = null;
+      
+      final List<Order> apiOrders = await _apiService.getOrders();
+      
+      // Debug info about dates
+      for (var order in apiOrders) {
+        if (order.createdAt != null) {
+          debugPrint('Raw order date from API: ${order.createdAt}');
+          final parsedDate = DateTime.parse(order.createdAt!).toLocal();
+          debugPrint('Parsed date in local time: $parsedDate');
+        }
+      }
+      
+      _orders = apiOrders.map((order) => OrderHistory.fromOrder(order)).toList();
+      
+      // Sort by newest first
+      _orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      
+      // Apply current filters
+      _applyFilters();
+    } catch (e) {
+      _errorMessage = 'Failed to load orders: $e';
+      debugPrint(_errorMessage);
+    } finally {
+      _setLoading(false);
+    }
   }
-}
+
   // Load orders for a specific service type
   Future<void> loadOrdersByServiceType(String serviceType) async {
     _setLoading(true);
@@ -87,8 +98,8 @@ class OrderHistoryProvider with ChangeNotifier {
       _setLoading(false);
     }
   }
-
-  // Search for an order by bill number
+ 
+ // Search for an order by bill number
   Future<void> searchOrdersByBillNumber(String billNumber) async {
     if (billNumber.isEmpty) {
       _searchQuery = '';
