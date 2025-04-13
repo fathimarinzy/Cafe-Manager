@@ -679,320 +679,357 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildOrderPanel(OrderProvider orderProvider) {
-    return Container(
-      width: 350,
-      color: Colors.white,
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-              ),
-              child: const Text(
-                'Order Items',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
+  // Replace the existing _buildOrderPanel method
+// This is a partial code update - only replace the order panel section
 
-            // Order items list or empty cart message
-            orderProvider.cartItems.isEmpty
-                ? _buildEmptyCartMessage()
-                : ListView.builder(
-                    physics: const NeverScrollableScrollPhysics(),
-                    shrinkWrap: true,
-                    itemCount: orderProvider.cartItems.length,
-                    itemBuilder: (ctx, index) {
-                    final item = orderProvider.cartItems[index];
-                    return Container(
-                      key: ValueKey('cart_item_${item.id}'),
-                      decoration: BoxDecoration(
-                        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Item name and price - more space for name
-                          Expanded(
-                            flex: 5,
-                            child: Column(
+Widget _buildOrderPanel(OrderProvider orderProvider) {
+  return Container(
+    width: 350,
+    color: Colors.white,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+          ),
+          child: const Text(
+            'Order Items',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+
+        // Order items list or empty cart message - this is scrollable
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                orderProvider.cartItems.isEmpty
+                    ? _buildEmptyCartMessage()
+                    : ListView.builder(
+                        physics: const NeverScrollableScrollPhysics(),
+                        shrinkWrap: true,
+                        itemCount: orderProvider.cartItems.length,
+                        itemBuilder: (ctx, index) {
+                          final item = orderProvider.cartItems[index];
+                          return Container(
+                            key: ValueKey('cart_item_${item.id}'),
+                            decoration: BoxDecoration(
+                              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                            child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                // Item name and price - more space for name
+                                Expanded(
+                                  flex: 5,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Flexible(
+                                            child: Text(
+                                              item.name,
+                                              style: const TextStyle(fontWeight: FontWeight.w500),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          if (!item.isAvailable)
+                                            Container(
+                                              margin: const EdgeInsets.only(left: 4),
+                                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                              decoration: BoxDecoration(
+                                                color: Colors.red.shade100,
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                'Out of stock',
+                                                style: TextStyle(
+                                                  color: Colors.red.shade900,
+                                                  fontSize: 9,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '${item.price.toStringAsFixed(3)} × ${item.quantity}',
+                                        style: TextStyle(
+                                          color: Colors.grey.shade600,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // Quantity adjustment and controls with reduced spacing
                                 Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Flexible(
+                                    IconButton(
+                                      icon: const Icon(Icons.remove, size: 14),
+                                      onPressed: () {
+                                        if (item.quantity > 1) {
+                                          orderProvider.updateItemQuantity(item.id, item.quantity - 1);
+                                        } else {
+                                          orderProvider.removeItem(item.id);
+                                        }
+                                      },
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      style: IconButton.styleFrom(
+                                        minimumSize: const Size(20, 20),
+                                        padding: EdgeInsets.zero,
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      width: 24,
                                       child: Text(
-                                        item.name,
-                                        style: const TextStyle(fontWeight: FontWeight.w500),
+                                        '${item.quantity}',
+                                        style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.add, size: 14),
+                                      onPressed: () {
+                                        orderProvider.updateItemQuantity(item.id, item.quantity + 1);
+                                      },
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      style: IconButton.styleFrom(
+                                        minimumSize: const Size(20, 20),
+                                        padding: EdgeInsets.zero,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    SizedBox(
+                                      width: 50,
+                                      child: Text(
+                                        (item.price * item.quantity).toStringAsFixed(3),
+                                        style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                                        textAlign: TextAlign.right,
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
-                                    if (!item.isAvailable)
-                                      Container(
-                                        margin: const EdgeInsets.only(left: 4),
-                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                        decoration: BoxDecoration(
-                                          color: Colors.red.shade100,
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          'Out of stock',
-                                          style: TextStyle(
-                                            color: Colors.red.shade900,
-                                            fontSize: 9,
-                                          ),
-                                        ),
+                                    IconButton(
+                                      icon: const Icon(Icons.close, color: Colors.grey, size: 14),
+                                      onPressed: () {
+                                        orderProvider.removeItem(item.id);
+                                      },
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      style: IconButton.styleFrom(
+                                        minimumSize: const Size(20, 20),
+                                        padding: EdgeInsets.zero,
                                       ),
+                                    ),
                                   ],
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${item.price.toStringAsFixed(3)} × ${item.quantity}',
-                                  style: TextStyle(
-                                    color: Colors.grey.shade600,
-                                    fontSize: 12,
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                
+                // Create a visual separator between order items and billing section
+                Container(
+                  height: 10,
+                  color: Colors.grey.shade50,
+                ),
+                
+                // Order summary section
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      // Subtotal row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Sub total', style: TextStyle(fontWeight: FontWeight.w500)),
+                          Text(orderProvider.subtotal.toStringAsFixed(3), style: const TextStyle(fontWeight: FontWeight.w500)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      
+                      // Additional charges rows
+                      _buildSummaryRow('Tax amount', '0.000'),
+                      _buildSummaryRow('Item discount', '0.000'),
+                      _buildSummaryRow('Bill discount', '0.000'),
+                      _buildSummaryRow('Delivery charge', '0.000'),
+                      _buildSummaryRow('Surcharge', '0.000'),
+                      
+                      const SizedBox(height: 8),
+                      // Grand total
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Grand total', style: TextStyle(fontWeight: FontWeight.bold)),
+                          Text(orderProvider.total.toStringAsFixed(3), style: const TextStyle(fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      
+                      const SizedBox(height: 10),
+                      
+                      // Date visited, Count visited, Point
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Date visited', style: TextStyle(fontSize: 11)),
+                                const SizedBox(height: 6),
+                                Container(
+                                  height: 40,
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.grey),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                    child: Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                      "${DateTime.now().day.toString().padLeft(2, '0')}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().year}",
+                                        style: const TextStyle(fontSize: 10),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Count visited', style: TextStyle(fontSize: 11)),
+                                const SizedBox(height: 6),
+                                Container(
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.grey),
+                                    borderRadius: BorderRadius.circular(4),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          // Quantity adjustment and controls with reduced spacing
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.remove, size: 14),
-                                onPressed: () {
-                                  if (item.quantity > 1) {
-                                    orderProvider.updateItemQuantity(item.id, item.quantity - 1);
-                                  } else {
-                                    orderProvider.removeItem(item.id);
-                                  }
-                                },
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                                style: IconButton.styleFrom(
-                                  minimumSize: const Size(20, 20),
-                                  padding: EdgeInsets.zero,
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Point', style: TextStyle(fontSize: 11)),
+                                const SizedBox(height: 6),
+                                Container(
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.grey),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
                                 ),
-                              ),
-                              SizedBox(
-                                width: 24,
-                                child: Text(
-                                  '${item.quantity}',
-                                  style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.add, size: 14),
-                                onPressed: () {
-                                  orderProvider.updateItemQuantity(item.id, item.quantity + 1);
-                                },
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                                style: IconButton.styleFrom(
-                                  minimumSize: const Size(20, 20),
-                                  padding: EdgeInsets.zero,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              SizedBox(
-                                width: 50,
-                                child: Text(
-                                  (item.price * item.quantity).toStringAsFixed(3),
-                                  style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-                                  textAlign: TextAlign.right,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.close, color: Colors.grey, size: 14),
-                                onPressed: () {
-                                  orderProvider.removeItem(item.id);
-                                },
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                                style: IconButton.styleFrom(
-                                  minimumSize: const Size(20, 20),
-                                  padding: EdgeInsets.zero,
-                                ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-                
-          // Create a visual separator between order items and billing section
-          Container(
-            height: 10,
-            color: Colors.grey.shade50,
-          ),
-                 
-          // Order summary section
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                // Subtotal row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Sub total', style: TextStyle(fontWeight: FontWeight.w500)),
-                    Text(orderProvider.subtotal.toStringAsFixed(3), style: const TextStyle(fontWeight: FontWeight.w500)),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                
-                // Additional charges rows
-                _buildSummaryRow('Tax amount', '0.000'),
-                _buildSummaryRow('Item discount', '0.000'),
-                _buildSummaryRow('Bill discount', '0.000'),
-                _buildSummaryRow('Delivery charge', '0.000'),
-                _buildSummaryRow('Surcharge', '0.000'),
-                
-                const SizedBox(height: 8),
-                // Grand total
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Grand total', style: TextStyle(fontWeight: FontWeight.bold)),
-                    Text(orderProvider.total.toStringAsFixed(3), style: const TextStyle(fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                
-                const SizedBox(height: 10),
-                
-                // Date visited, Count visited, Point
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Date visited', style: TextStyle(fontSize: 11)),
-                          const SizedBox(height: 6),
                           Container(
-                            height: 40,
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                              child: Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                "${DateTime.now().day.toString().padLeft(2, '0')}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().year}",
-                                  style: const TextStyle(fontSize: 10),
+                            padding: const EdgeInsets.only(top: 16),
+                            child: Row(
+                              children: [
+                                IconButton(
+                                  icon: Icon(Icons.person_outline, color: Colors.blue[900]),
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => const PersonFormScreen()
+                                      ),
+                                    );
+                                  },
                                 ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Count visited', style: TextStyle(fontSize: 11)),
-                          const SizedBox(height: 6),
-                          Container(
-                            height: 40,
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Point', style: TextStyle(fontSize: 11)),
-                          const SizedBox(height: 6),
-                          Container(
-                            height: 40,
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.only(top: 16),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            icon: Icon(Icons.person_outline, color: Colors.blue[900]),
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const PersonFormScreen()
+                                IconButton(
+                                  icon: Icon(Icons.search, color: Colors.blue[900]),
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => const SearchPersonScreen(),
+                                      ),
+                                    );
+                                  },
                                 ),
-                              );
-                            },
-                          ),
-                          IconButton(
-                            icon: Icon(Icons.search, color: Colors.blue[900]),
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const SearchPersonScreen(),
-                                ),
-                              );
-                            },
+                              ],
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // Payment buttons
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildPaymentButton('Cash', Colors.grey.shade100),
-                    // _buildPaymentButton('Tender', Colors.grey.shade100),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildPaymentButton('Terminal credit', Colors.grey.shade100),
-                    _buildPaymentButton('Order', Colors.grey.shade100),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
+        ),
+        
+        // FIXED PAYMENT BUTTONS SECTION - always at the bottom
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border(top: BorderSide(color: Colors.grey.shade200)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(13),
+                blurRadius: 4,
+                offset: const Offset(0, -2),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // First row of buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildPaymentButton('Cash', Colors.grey.shade100),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildPaymentButton('Credit', Colors.grey.shade100),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // Second row of buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildPaymentButton('Order', Colors.grey.shade100),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildPaymentButton('Tender', Colors.grey.shade100),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
     ),
-    );
-  }
+  );
+}
+
   
 
   // New method to display empty cart message
@@ -1049,10 +1086,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildPaymentButton(String text, Color color) {
-    if (text == "Tender") {
-      // Skip rendering the Tender button
-      return const SizedBox.shrink();
-    }
+  
     
     return SizedBox(
       width: 130,

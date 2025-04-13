@@ -197,197 +197,228 @@ class _OrderListScreenState extends State<OrderListScreen> {
     );
   }
 
-  Widget _buildOrderList() {
-    return Consumer<OrderHistoryProvider>(
-      builder: (context, historyProvider, child) {
-        if (historyProvider.isLoading) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        
-        if (historyProvider.errorMessage.isNotEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                const SizedBox(height: 16),
-                Text(
-                  'Error: ${historyProvider.errorMessage}',
-                  textAlign: TextAlign.center,
+  // Updated _buildOrderList method for OrderListScreen
+// Replace the existing method with this one
+
+Widget _buildOrderList() {
+  return Consumer<OrderHistoryProvider>(
+    builder: (context, historyProvider, child) {
+      if (historyProvider.isLoading) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      
+      if (historyProvider.errorMessage.isNotEmpty) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.red),
+              const SizedBox(height: 16),
+              Text(
+                'Error: ${historyProvider.errorMessage}',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  if (widget.serviceType != null) {
+                    historyProvider.loadOrdersByServiceType(widget.serviceType!);
+                  } else {
+                    historyProvider.loadOrders();
+                  }
+                },
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        );
+      }
+      
+      final orders = historyProvider.orders;
+      
+      if (orders.isEmpty) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.receipt_long, size: 64, color: Colors.grey.shade400),
+              const SizedBox(height: 16),
+              Text(
+                _isSearching 
+                    ? 'No orders found with that number' 
+                    : 'No orders found',
+                style: TextStyle(
+                  fontSize: 18,
+                  color: Colors.grey.shade600,
                 ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () {
-                    if (widget.serviceType != null) {
-                      historyProvider.loadOrdersByServiceType(widget.serviceType!);
-                    } else {
-                      historyProvider.loadOrders();
-                    }
-                  },
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          );
-        }
-        
-        final orders = historyProvider.orders;
-        
-        if (orders.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.receipt_long, size: 64, color: Colors.grey.shade400),
-                const SizedBox(height: 16),
+              ),
+              if (!_isSearching) const SizedBox(height: 8),
+              if (!_isSearching)
                 Text(
-                  _isSearching 
-                      ? 'No orders found with that number' 
-                      : 'No orders found',
+                  'Orders will appear here once they are placed',
                   style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.grey.shade600,
+                    fontSize: 14,
+                    color: Colors.grey.shade500,
                   ),
                 ),
-                if (!_isSearching) const SizedBox(height: 8),
-                if (!_isSearching)
-                  Text(
-                    'Orders will appear here once they are placed',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade500,
-                    ),
-                  ),
-              ],
-            ),
-          );
-        }
-        
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
+            ],
+          ),
+        );
+      }
+
+      // Card Grid View implementation
+      return Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: GridView.builder(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 6,  // 6 columns
+            childAspectRatio: 1.1,  // More square aspect ratio for shorter cards
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+          ),
           itemCount: orders.length,
           itemBuilder: (context, index) {
-            final order = orders[index];
-            return _buildOrderCard(order);
+            return _buildOrderCard(orders[index]);
           },
+        ),
+      );
+    },
+  );
+}
+
+// New method to build an order card
+Widget _buildOrderCard(OrderHistory order) {
+  // Format currency
+  final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
+  
+  // Get service type icon
+  IconData serviceIcon = _getServiceTypeIcon(order.serviceType);
+  
+  // // Determine status color
+  // Color statusColor = Colors.green;
+  // if (order.status.toLowerCase() == 'pending') {
+  //   statusColor = Colors.orange;
+  // } else if (order.status.toLowerCase() == 'canceled') {
+  //   statusColor = Colors.red;
+  // }
+  
+  return Card(
+    elevation: 1,  // Minimal elevation
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(6),  // Smaller radius
+    ),
+    child: InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OrderDetailsScreen(orderId: order.id),
+          ),
         );
       },
-    );
-  }
-  
-  Widget _buildOrderCard(OrderHistory order) {
-    // Format currency
-    final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
-    
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => OrderDetailsScreen(orderId: order.id),
-            ),
-          );
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Bill #${order.orderNumber}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Service type icon and name
-                  Row(
-                    children: [
-                      Icon(
-                        _getServiceTypeIcon(order.serviceType),
-                        size: 16,
-                        color: Colors.grey.shade700,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        order.serviceType,
-                        style: TextStyle(
-                          color: Colors.grey.shade700,
-                        ),
-                      ),
-                    ],
-                  ),
-                  // Total amount
-                  Text(
-                    currencyFormat.format(order.total),
+      borderRadius: BorderRadius.circular(6),  // Smaller radius
+      child: Padding(
+        padding: const EdgeInsets.all(4.0),  // Minimal padding
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header with bill number and status
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Flexible(
+                  child: Text(
+                    '#${order.orderNumber}',  // Shorter text
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                      fontSize: 14,  // Smaller font
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                ),
+                // Container(
+                //   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),  // Smaller padding
+                //   decoration: BoxDecoration(
+                //     // color: statusColor.withAlpha(51),
+                //     borderRadius: BorderRadius.circular(8),  // Smaller radius
+                //   ),
+                //   child: Text(
+                //     order.status,
+                //     style: TextStyle(
+                //       // color: statusColor,
+                //       fontSize: 10,  // Smaller font
+                //       fontWeight: FontWeight.bold,
+                //     ),
+                //   ),
+                // ),
+              ],
+            ),
+            
+            const Divider(height: 12),  // Reduced height
+            
+            // Service type
+            Row(
+              children: [
+                Icon(
+                  serviceIcon,
+                  size: 14,  // Reduced icon size
+                  color: Colors.grey.shade700,
+                ),
+                const SizedBox(width: 4),  // Reduced spacing
+                Expanded(
+                  child: Text(
+                    order.serviceType,
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontSize: 12,  // Smaller font size
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 6),  // Reduced spacing
+            
+            // Order date and time
+            Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Date and time
                   Row(
                     children: [
                       Icon(
                         Icons.calendar_today,
-                        size: 14,
+                        size: 12,
                         color: Colors.grey.shade600,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         order.formattedDate,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 10,
                           color: Colors.grey.shade600,
                         ),
                       ),
-                      const SizedBox(width: 8),
+                    ],
+                  ),
+                  Row(
+                    children: [
                       Icon(
                         Icons.access_time,
-                        size: 14,
+                        size: 12,
                         color: Colors.grey.shade600,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         order.formattedTime,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 10,
                           color: Colors.grey.shade600,
                         ),
-                      ),
-                    ],
-                  ),
-                  // View details button
-                  Row(
-                    children: [
-                      Text(
-                        'View Details',
-                        style: TextStyle(
-                          color: Colors.blue.shade700,
-                          fontSize: 12,
-                        ),
-                      ),
-                      Icon(
-                        Icons.arrow_forward_ios,
-                        size: 12,
-                        color: Colors.blue.shade700,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -395,10 +426,64 @@ class _OrderListScreenState extends State<OrderListScreen> {
               ),
             ],
           ),
+            
+            const Spacer(),
+            
+            // Amount and view button
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // const Text(
+                    //   'Total',
+                    //   style: TextStyle(
+                    //     fontSize: 10,  // Smaller font
+                    //     color: Colors.grey,
+                    //   ),
+                    // ),
+                    Text(
+                      currencyFormat.format(order.total),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,  // Smaller font
+                      ),
+                    ),
+                  ],
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => OrderDetailsScreen(orderId: order.id),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade700,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),  // Smaller padding
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),  // Smaller radius
+                    ),
+                  ),
+                  child: const Text(
+                    'View',  // Shorter text
+                    style: TextStyle(fontSize: 10),  // Smaller font
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
   
   IconData _getServiceTypeIcon(String serviceType) {
     if (serviceType.contains('Dining')) {
