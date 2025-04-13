@@ -1,9 +1,8 @@
-// models/order_history.dart
 import 'order.dart';
 import 'order_item.dart';
 import 'package:flutter/foundation.dart';
 
-// import 'package:intl/intl.dart';
+
 /// OrderHistory model to represent orders in the history list
 class OrderHistory {
   final int id;
