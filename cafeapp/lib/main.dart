@@ -128,6 +128,8 @@ import 'package:provider/provider.dart';
 
 import 'screens/login_screen.dart';
 import 'screens/person_form_screen.dart';
+import 'screens/dashboard_screen.dart';
+import 'screens/splash_screen.dart'; // We'll create this new screen
 
 import 'providers/table_provider.dart';
 import 'providers/auth_provider.dart';
@@ -142,7 +144,7 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key}); // Using super parameter
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -154,31 +156,46 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (ctx) => PersonProvider(ApiService())),
         ChangeNotifierProvider(create: (ctx) => TableProvider()),
         ChangeNotifierProvider(create: (ctx) => OrderHistoryProvider()),
-
       ],
       child: Consumer<AuthProvider>(
-        builder: (ctx, auth, _) => MaterialApp(
-          title: 'Cafe Management',
-          theme: ThemeData(
-            primarySwatch: Colors.blue,
-            scaffoldBackgroundColor: Colors.white,
-            fontFamily: 'Roboto',
-            visualDensity: VisualDensity.adaptivePlatformDensity,
-          ),
-
-          home:  const LoginScreen(),
-          debugShowCheckedModeBanner: false,
-          routes: {
-            AppRoutes.login: (ctx) => const LoginScreen(),
-            AppRoutes.addperson: (ctx) => const PersonFormScreen(),
-           
-          },
-        ),
+        builder: (ctx, auth, _) {
+          return MaterialApp(
+            title: 'Cafe Management',
+            theme: ThemeData(
+              primarySwatch: Colors.blue,
+              scaffoldBackgroundColor: Colors.white,
+              fontFamily: 'Roboto',
+              visualDensity: VisualDensity.adaptivePlatformDensity,
+            ),
+            home: auth.isInitialized 
+                ? (auth.isAuth ? const DashboardScreen() : const LoginScreen())
+                : FutureBuilder(
+                    future: auth.tryAutoLogin(),
+                    builder: (ctx, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const SplashScreen();
+                      } else {
+                        return snapshot.data == true 
+                            ? const DashboardScreen() 
+                            : const LoginScreen();
+                      }
+                    },
+                  ),
+            debugShowCheckedModeBanner: false,
+            routes: {
+              AppRoutes.login: (ctx) => const LoginScreen(),
+              AppRoutes.addperson: (ctx) => const PersonFormScreen(),
+              AppRoutes.dashboard: (ctx) => const DashboardScreen(),
+            },
+          );
+        },
       ),
     );
   }
 }
+
 class AppRoutes {
   static const String login = '/login';
   static const String addperson = '/add-person';
+  static const String dashboard = '/dashboard';
 }

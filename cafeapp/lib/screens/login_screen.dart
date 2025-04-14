@@ -14,7 +14,23 @@ class LoginScreenState extends State<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
-  bool _obscurePassword = true; // Add this variable to track password visibility
+  bool _obscurePassword = true; // Track password visibility
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Check if we're already authenticated, if yes, navigate to dashboard
+    // This is a safety check in case the navigation in main.dart doesn't work
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      if (authProvider.isAuth) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (ctx) => const DashboardScreen()),
+        );
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -37,29 +53,29 @@ class LoginScreenState extends State<LoginScreen> {
         _usernameController.text,
         _passwordController.text,
       );
-      if (!mounted) return;//  Prevents using context if widget was unmounted
+      if (!mounted) return; // Prevents using context if widget was unmounted
 
       if (success) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (ctx) => DashboardScreen()),
+          MaterialPageRoute(builder: (ctx) => const DashboardScreen()),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Login Failed. Please check your credentials.')),
+          const SnackBar(content: Text('Login Failed. Please check your credentials.')),
         );
       }
     } catch (error) {
-     if (!mounted) return; // ✅ Another check before using context
+      if (!mounted) return; // Another check before using context
     
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(' error :${error.toString()}')),
+        SnackBar(content: Text('Error: ${error.toString()}')),
       );
     } finally {
-        if (mounted) {
-          setState(() {
-             _isLoading = false;
-          });
-        }
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -68,8 +84,8 @@ class LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       body: Center(
         child: Container(
-          constraints: BoxConstraints(maxWidth: 400),
-          padding: EdgeInsets.all(16),
+          constraints: const BoxConstraints(maxWidth: 400),
+          padding: const EdgeInsets.all(16),
           child: Form(
             key: _formKey,
             child: Column(
@@ -82,18 +98,23 @@ class LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
+                    color: Colors.blue[900],
                   ),
                 ),
-                SizedBox(height: 32),
+                const SizedBox(height: 32),
                 TextFormField(
                   controller: _usernameController,
                   decoration: InputDecoration(
                     labelText: 'Username',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person),
-                    focusedBorder: OutlineInputBorder(borderSide:BorderSide(color:Colors.blue[900]??Colors.blue,width:2.0)),
-              
-                    labelStyle: TextStyle(
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.person),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(
+                        color: Colors.blue[900] ?? Colors.blue,
+                        width: 2.0
+                      )
+                    ),
+                    labelStyle: const TextStyle(
                       color: Colors.black, // Default label color
                     ),
                     floatingLabelStyle: TextStyle(
@@ -107,13 +128,13 @@ class LoginScreenState extends State<LoginScreen> {
                     return null;
                   },
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: _passwordController,
                   decoration: InputDecoration(
                     labelText: 'Password',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock),
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.lock),
                     // Add suffix icon for toggling password visibility
                     suffixIcon: IconButton(
                       icon: Icon(
@@ -126,8 +147,13 @@ class LoginScreenState extends State<LoginScreen> {
                         });
                       },
                     ),
-                    focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.blue[900]??Colors.blue,width: 2.0)),
-                     labelStyle: TextStyle(
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(
+                        color: Colors.blue[900] ?? Colors.blue,
+                        width: 2.0
+                      )
+                    ),
+                    labelStyle: const TextStyle(
                       color: Colors.black, // Default label color
                     ),
                     floatingLabelStyle: TextStyle(
@@ -142,16 +168,31 @@ class LoginScreenState extends State<LoginScreen> {
                     return null;
                   },
                 ),
-                SizedBox(height: 24),
+                const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: _isLoading ? null : _login,
-                  style: ElevatedButton.styleFrom( // ✅ `style` moved before `child`
-                    padding: EdgeInsets.symmetric(vertical: 12),
+                  style: ElevatedButton.styleFrom( // `style` moved before `child`
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    backgroundColor: Colors.white,
+                    elevation: 2,
                   ),
                   child: _isLoading
-                      ? CircularProgressIndicator(color: Colors.white)
-                      : Text('Login', style: TextStyle(fontSize: 16,
-                             color: Colors.blue[900])),
+                      ? SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2, 
+                            color: Colors.blue[900]
+                          ),
+                        )
+                      : Text(
+                          'Login', 
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.blue[900],
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ],
             ),

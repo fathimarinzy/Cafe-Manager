@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/order_provider.dart';
+import '../providers/auth_provider.dart';
 import 'menu_screen.dart';
 import 'dining_table_screen.dart';
 import 'order_list_screen.dart';
+import 'login_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -28,6 +30,9 @@ class DashboardScreen extends StatelessWidget {
     final horizontalPadding = screenSize.width * 0.03; // 3% of screen width
     final verticalPadding = screenSize.height * 0.02; // 2% of screen height
 
+    // Get the auth provider to handle logout
+    final authProvider = Provider.of<AuthProvider>(context);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -45,7 +50,33 @@ class DashboardScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.exit_to_app),
             onPressed: () {
-              Navigator.of(context).pushReplacementNamed('/');
+              // Show logout confirmation dialog
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Logout'),
+                  content: const Text('Are you sure you want to logout?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        // Perform logout action
+                        authProvider.logout();
+                        // Navigate to login screen after logout
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(builder: (_) => const LoginScreen()),
+                          (route) => false, // Remove all previous routes
+                        );
+                      },
+                      child: const Text('Logout'),
+                    ),
+                  ],
+                ),
+              );
             },
           ),
         ],
@@ -55,9 +86,6 @@ class DashboardScreen extends StatelessWidget {
         child: LayoutBuilder(
           // LayoutBuilder gives us the exact constraints within the parent
           builder: (context, constraints) {
-            // Calculate available height for grid
-            // final availableHeight = constraints.maxHeight;
-            
             return Container(
               width: double.infinity,
               height: double.infinity,
