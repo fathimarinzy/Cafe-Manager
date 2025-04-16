@@ -216,35 +216,45 @@ class ApiService {
     return [];
   }
 
-  Future<Order?> createOrder(String serviceType, List<Map<String, dynamic>> items, double subtotal, double tax, double discount, double total) async {
-    final token = await getToken();
-    if (token == null) return null;
-    
-    final response = await http.post(
-      Uri.parse('$baseUrl/orders'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'serviceType': serviceType,
-        'items': items,
-        'subtotal': subtotal,
-        'tax': tax,
-        'discount': discount,
-        'total': total,
-      }),
-    );
+  // Update the createOrder method in ApiService to include kitchen notes
 
-    if (response.statusCode == 201) {
-      final data = jsonDecode(response.body);
-      return Order.fromJson(data);
-    } else if (response.statusCode == 401) {
-      final refreshed = await _handleExpiredToken(response);
-      if (refreshed) return createOrder(serviceType, items, subtotal, tax, discount, total);
+    Future<Order?> createOrder(String serviceType, List<Map<String, dynamic>> items, double subtotal, double tax, double discount, double total) async {
+      final token = await getToken();
+      if (token == null) return null;
+      
+      // Make sure each item includes any kitchen notes
+      for (var item in items) {
+        // Ensure kitchen note is included (if not already)
+        if (!item.containsKey('kitchenNote')) {
+          item['kitchenNote'] = '';
+        }
+      }
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/orders'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'serviceType': serviceType,
+          'items': items,
+          'subtotal': subtotal,
+          'tax': tax,
+          'discount': discount,
+          'total': total,
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        return Order.fromJson(data);
+      } else if (response.statusCode == 401) {
+        final refreshed = await _handleExpiredToken(response);
+        if (refreshed) return createOrder(serviceType, items, subtotal, tax, discount, total);
+      }
+      return null;
     }
-    return null;
-  }
 
   Future<void> addToCart(int itemId, int quantity) async {
     final token = await getToken();

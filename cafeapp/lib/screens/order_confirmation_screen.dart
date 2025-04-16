@@ -170,46 +170,72 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                         
                         // Item list
                         ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: items.length,
-                          itemBuilder: (context, index) {
-                            final item = items[index];
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 4.0),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    flex: 5,
-                                    child: Text(item.name),
-                                  ),
-                                  Expanded(
-                                    flex: 2,
-                                    child: Text(
-                                      '${item.quantity}',
-                                      textAlign: TextAlign.center,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: items.length,
+                        itemBuilder: (context, index) {
+                          final item = items[index];
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      flex: 5,
+                                      child: Text(item.name),
                                     ),
-                                  ),
-                                  Expanded(
-                                    flex: 3,
-                                    child: Text(
-                                      item.price.toStringAsFixed(3),
-                                      textAlign: TextAlign.right,
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        '${item.quantity}',
+                                        textAlign: TextAlign.center,
+                                      ),
                                     ),
-                                  ),
-                                  Expanded(
-                                    flex: 3,
-                                    child: Text(
-                                      (item.price * item.quantity).toStringAsFixed(3),
-                                      textAlign: TextAlign.right,
+                                    Expanded(
+                                      flex: 3,
+                                      child: Text(
+                                        item.price.toStringAsFixed(3),
+                                        textAlign: TextAlign.right,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                    Expanded(
+                                      flex: 3,
+                                      child: Text(
+                                        (item.price * item.quantity).toStringAsFixed(3),
+                                        textAlign: TextAlign.right,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            );
-                          },
-                        ),
-                        
+                              // Show kitchen note if it exists
+                              if (item.kitchenNote.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 16.0, bottom: 8.0),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.note, size: 14, color: Colors.blue.shade700),
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Text(
+                                          item.kitchenNote,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontStyle: FontStyle.italic,
+                                            color: Colors.blue.shade800,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                                              
                         const Divider(thickness: 1.5),
                         
                         // Totals

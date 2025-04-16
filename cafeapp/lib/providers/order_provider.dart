@@ -79,16 +79,34 @@ class OrderProvider with ChangeNotifier {
 
   // Add item to cart for current service type
   void addToCart(MenuItem item) {
-    if (_currentServiceType.isEmpty) {
-      debugPrint('Warning: No service type selected');
-      return;
-    }
-    
-    final existingIndex = _serviceTypeCarts[_currentServiceType]!
-        .indexWhere((cartItem) => cartItem.id == item.id);
+  if (_currentServiceType.isEmpty) {
+    debugPrint('Warning: No service type selected');
+    return;
+  }
+  
+  final existingIndex = _serviceTypeCarts[_currentServiceType]!
+      .indexWhere((cartItem) => cartItem.id == item.id);
 
-    if (existingIndex >= 0) {
-      _serviceTypeCarts[_currentServiceType]![existingIndex].quantity += 1;
+  if (existingIndex >= 0) {
+    // Keep the existing kitchen note if the item already has one
+    String existingNote = _serviceTypeCarts[_currentServiceType]![existingIndex].kitchenNote;
+    String noteToUse = item.kitchenNote.isNotEmpty ? item.kitchenNote : existingNote;
+    
+    _serviceTypeCarts[_currentServiceType]![existingIndex].quantity += 1;
+    
+    // Update the kitchen note if needed
+    if (item.kitchenNote.isNotEmpty && item.kitchenNote != existingNote) {
+      _serviceTypeCarts[_currentServiceType]![existingIndex] = MenuItem(
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        imageUrl: item.imageUrl,
+        category: item.category,
+        isAvailable: item.isAvailable,
+        quantity: _serviceTypeCarts[_currentServiceType]![existingIndex].quantity,
+        kitchenNote: noteToUse,
+      );
+    }
     } else {
       final newItem = MenuItem(
         id: item.id,
@@ -98,6 +116,7 @@ class OrderProvider with ChangeNotifier {
         category: item.category,
         isAvailable: item.isAvailable,
         quantity: 1,
+        kitchenNote: item.kitchenNote,
       );
       _serviceTypeCarts[_currentServiceType]!.add(newItem);
     }
@@ -105,7 +124,6 @@ class OrderProvider with ChangeNotifier {
     _updateTotals(_currentServiceType);
     notifyListeners();
   }
-
   // Update item quantity for current service type
   void updateItemQuantity(String id, int quantity) {
     if (_currentServiceType.isEmpty) return;
@@ -337,4 +355,38 @@ class OrderProvider with ChangeNotifier {
     return _serviceTypeCarts[serviceType]!.fold(
         0, (sum, item) => sum + item.quantity);
   }
+
+  // Update an item's kitchen note in the cart
+  void updateItemNote(String id, String note) {
+  if (_currentServiceType.isEmpty) return;
+  
+  // Ensure the service type cart exists
+  if (!_serviceTypeCarts.containsKey(_currentServiceType)) {
+    _serviceTypeCarts[_currentServiceType] = [];
+  }
+  
+  final itemIndex = _serviceTypeCarts[_currentServiceType]!
+      .indexWhere((item) => item.id == id);
+      
+  if (itemIndex >= 0) {
+    // Create a copy with the updated note to ensure proper state management
+    final item = _serviceTypeCarts[_currentServiceType]![itemIndex];
+    final updatedItem = MenuItem(
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      imageUrl: item.imageUrl,
+      category: item.category,
+      isAvailable: item.isAvailable,
+      quantity: item.quantity,
+      kitchenNote: note,
+    );
+    
+    // Replace the item in the cart
+    _serviceTypeCarts[_currentServiceType]![itemIndex] = updatedItem;
+    
+    notifyListeners();
+    debugPrint('Updated kitchen note for item $id: $note');
+  }
+}
 }

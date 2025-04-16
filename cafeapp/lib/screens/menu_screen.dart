@@ -14,7 +14,7 @@ import '../screens/modifier_screen.dart';
 import '../screens/table_management_screen.dart';
 import '../screens/order_confirmation_screen.dart';
 import '../screens/order_list_screen.dart';
-
+import '../widgets/kitchen_note_dialog.dart';
 
 class MenuScreen extends StatefulWidget {
   final String serviceType;
@@ -31,7 +31,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
   String _itemSearchQuery = '';
   String _currentTime = '';
   Timer? _timer;
-  
+  MenuItem? _selectedItem; // Track the currently selected item
   // Caching variables to reduce rebuilds
   List<MenuItem>? _cachedItems;
   String _lastCategory = '';
@@ -146,6 +146,68 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
       }
     }
   }
+  
+// Add this method to _MenuScreenState class
+ // Only including the fixed part with the error on line 165
+// This is just the _showKitchenNoteDialog method that needs to be fixed
+
+  void _showKitchenNoteDialog(MenuItem? item) async {
+  // Ensure we have a non-null item
+  if (item == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please select an item first')),
+    );
+    return;
+  }
+  
+  setState(() {
+    _selectedItem = item; // Set the selected item
+  });
+  
+  // Initialize with empty string if null
+  String initialNote = item.kitchenNote.isEmpty ? '' : item.kitchenNote;
+  
+  final String? note = await showDialog<String>(
+    context: context,
+    builder: (context) => KitchenNoteDialog(
+      initialNote: initialNote,
+    ),
+  );
+  
+  // If dialog was not canceled and we have a note
+  if (note != null) {
+    setState(() {
+      // Create a copy of the item with the new note
+      MenuItem updatedItem = item.copyWith(kitchenNote: note);
+      
+      // Find the item in the cart and update it
+      final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+      final cartItems = orderProvider.cartItems;
+      
+      bool itemFound = false;
+      for (int i = 0; i < cartItems.length; i++) {
+        if (cartItems[i].id == item.id) {
+          // Update the kitchen note for this item
+          orderProvider.updateItemNote(item.id, note);
+          itemFound = true;
+          break;
+        }
+      }
+      
+      // If the item wasn't in the cart, add it with the note
+      if (!itemFound) {
+        orderProvider.addToCart(updatedItem);
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Kitchen note added'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+    });
+  }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -361,7 +423,19 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                   builder: (context) => OrderListScreen(serviceType: widget.serviceType),
                 ),
               );
+            }else if (text == 'Kitchen note') {
+            // Show kitchen note dialog if an item is selected
+            if (_selectedItem != null) {
+              _showKitchenNoteDialog(_selectedItem!);
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Please select a menu item first'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
             }
+          }
             // Add other navigation cases as needed
           },
           style: TextButton.styleFrom(
@@ -498,112 +572,134 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildProductGrid(List<MenuItem> items, OrderProvider orderProvider) {
-    return Container(
-      color: Colors.grey.shade100,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: items.isEmpty 
-            ? const Center(child: Text('No items found in this category'))
-            : GridView.builder(
-          padding: EdgeInsets.zero,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 5,
-            childAspectRatio: 0.8,
-            crossAxisSpacing: 13,
-            mainAxisSpacing: 13,
-          ),
-          itemCount: items.length,
-          itemBuilder: (ctx, index) {
-            final item = items[index];
-            return Card(
-              key: ValueKey('card_${item.id}'),
-              elevation: 2,
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(Radius.circular(8)),
-              ),
-              child: InkWell(
-                // Allow all items to be selected, including out-of-stock items
-                onTap: () {
-                  orderProvider.addToCart(item);
-                  
-                  // If the item is out of stock, show an informational message
-                  if (!item.isAvailable) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('"${item.name}" is out of stock but has been added to your order'),
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
+  return Container(
+    color: Colors.grey.shade100,
+    child: Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: items.isEmpty 
+          ? const Center(child: Text('No items found in this category'))
+          : GridView.builder(
+        padding: EdgeInsets.zero,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 5,
+          childAspectRatio: 0.8,
+          crossAxisSpacing: 13,
+          mainAxisSpacing: 13,
+        ),
+        itemCount: items.length,
+        itemBuilder: (ctx, index) {
+          final item = items[index];
+          final isSelected = _selectedItem?.id == item.id;
+          
+          return Card(
+            key: ValueKey('card_${item.id}'),
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: const BorderRadius.all(Radius.circular(8)),
+              side: isSelected 
+                  ? BorderSide(color: Colors.blue.shade700, width: 2)
+                  : BorderSide.none,
+            ),
+            child: InkWell(
+              onTap: () {
+                // Handle selection state
+                setState(() {
+                  if (_selectedItem?.id == item.id) {
+                    _selectedItem = null; // Deselect if already selected
+                  } else {
+                    _selectedItem = item; // Select the item
                   }
-                },
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          ClipRRect(
-                            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                            child: _buildItemImage(item),
-                          ),  
-                          if (!item.isAvailable)
-                            Container(
-                              decoration: const BoxDecoration(
-                                color: Colors.black54,
-                                borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
-                              ),
-                              child: const Center(
-                                child: Text(
-                                  'Out of stock',
-                                  style: TextStyle(color: Colors.white, fontSize: 14),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+                });
+                
+                // Add to cart (still maintain this functionality)
+                orderProvider.addToCart(item);
+                
+                // Show an informational message if item is out of stock
+                if (!item.isAvailable) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('"${item.name}" is out of stock but has been added to your order'),
+                      duration: const Duration(seconds: 2),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.name,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            item.price.toStringAsFixed(3),
-                            style: TextStyle(
-                              color: Colors.grey.shade800,
-                              fontSize: 10,
+                  );
+                }
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ClipRRect(
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                          child: _buildItemImage(item),
+                        ),  
+                        if (!item.isAvailable)
+                          Container(
+                            decoration: const BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
+                            ),
+                            child: const Center(
+                              child: Text(
+                                'Out of stock',
+                                style: TextStyle(color: Colors.white, fontSize: 14),
+                              ),
                             ),
                           ),
-                          Align(
-                            alignment: Alignment.bottomRight,
-                            child: Text(
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          item.price.toStringAsFixed(3),
+                          style: TextStyle(
+                            color: Colors.grey.shade800,
+                            fontSize: 10,
+                          ),
+                        ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
                               item.isAvailable ? 'Available' : 'Out of stock',
                               style: TextStyle(
                                 color: item.isAvailable ? Colors.green : Colors.red,
                                 fontSize: 10,
                               ),
                             ),
-                          )
-                        ],
-                      ),
+                            if (item.kitchenNote.isNotEmpty)
+                              Icon(
+                                Icons.note_alt_outlined,
+                                size: 12,
+                                color: Colors.blue.shade700,
+                              ),
+                          ],
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            );
-          },
-        ),
+            ),
+          );
+        },
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildItemImage(MenuItem item) {
     // Handle empty image URL

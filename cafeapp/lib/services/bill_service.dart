@@ -159,44 +159,79 @@ class BillService {
               // Items
               pw.Column(
                 children: items.map((item) {
-                  return pw.Padding(
-                    padding: const pw.EdgeInsets.only(top: 5, bottom: 5),
-                    child: pw.Row(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Expanded(
-                          flex: 5, 
-                          child: pw.Text(
-                            item.name, 
-                            style: pw.TextStyle(font: ttf, fontSize: 10)
-                          )
+                  return pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(top: 5, bottom: 5),
+                        child: pw.Row(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Expanded(
+                              flex: 5, 
+                              child: pw.Text(
+                                item.name, 
+                                style: pw.TextStyle(font: ttf, fontSize: 10)
+                              )
+                            ),
+                            pw.Expanded(
+                              flex: 1, 
+                              child: pw.Text(
+                                '${item.quantity}', 
+                                style: pw.TextStyle(font: ttf, fontSize: 10), 
+                                textAlign: pw.TextAlign.center
+                              )
+                            ),
+                            pw.Expanded(
+                              flex: 2, 
+                              child: pw.Text(
+                                item.price.toStringAsFixed(3), 
+                                style: pw.TextStyle(font: ttf, fontSize: 10), 
+                                textAlign: pw.TextAlign.right
+                              )
+                            ),
+                            pw.Expanded(
+                              flex: 2, 
+                              child: pw.Text(
+                                (item.price * item.quantity).toStringAsFixed(3), 
+                                style: pw.TextStyle(font: ttf, fontSize: 10), 
+                                textAlign: pw.TextAlign.right
+                              )
+                            ),
+                          ],
                         ),
-                        pw.Expanded(
-                          flex: 1, 
-                          child: pw.Text(
-                            '${item.quantity}', 
-                            style: pw.TextStyle(font: ttf, fontSize: 10), 
-                            textAlign: pw.TextAlign.center
-                          )
+                      ),
+                      
+                      // Add kitchen note if it exists
+                      if (item.kitchenNote.isNotEmpty)
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.only(left: 10, bottom: 5),
+                          child: pw.Row(
+                            children: [
+                              pw.Text(
+                                'Note: ',
+                                style: pw.TextStyle(
+                                  font: ttf,
+                                  fontSize: 8,
+                                  fontWeight: pw.FontWeight.bold,
+                                  color: PdfColors.blue900,
+                                ),
+                              ),
+                              pw.Expanded(
+                                child: pw.Text(
+                                  item.kitchenNote,
+                                  style: pw.TextStyle(
+                                    font: ttf,
+                                    fontSize: 8,
+                                    fontStyle: pw.FontStyle.italic,
+                                    color: PdfColors.blue900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        pw.Expanded(
-                          flex: 2, 
-                          child: pw.Text(
-                            item.price.toStringAsFixed(3), 
-                            style: pw.TextStyle(font: ttf, fontSize: 10), 
-                            textAlign: pw.TextAlign.right
-                          )
-                        ),
-                        pw.Expanded(
-                          flex: 2, 
-                          child: pw.Text(
-                            (item.price * item.quantity).toStringAsFixed(3), 
-                            style: pw.TextStyle(font: ttf, fontSize: 10), 
-                            textAlign: pw.TextAlign.right
-                          )
-                        ),
-                      ],
-                    ),
+                    ],
                   );
                 }).toList(),
               ),
