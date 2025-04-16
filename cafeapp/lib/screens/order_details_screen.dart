@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import '../models/order_history.dart';
 import '../providers/order_history_provider.dart';
 import '../models/order_item.dart';
+import 'tender_screen.dart';
+// import '../utils/extensions.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
   final int orderId;
@@ -51,6 +53,21 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     }
   }
 
+  void _navigateToTender() {
+    if (_order == null) return;
+    
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => TenderScreen(order: _order!),
+      ),
+    ).then((result) {
+      // Refresh the order if payment was processed
+      if (result == true) {
+        _loadOrderDetails();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -63,15 +80,16 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
-          // IconButton(
-          //   icon: const Icon(Icons.print),
-          //   onPressed: _order == null ? null : () {
-              
-          //     ScaffoldMessenger.of(context).showSnackBar(
-          //       const SnackBar(content: Text('Print functionality will be implemented here'))
-          //     );
-          //   },
-          // ),
+          if (_order != null)
+            TextButton.icon(
+              icon: const Icon(Icons.payment),
+              label: const Text('Tender'),
+              onPressed: _navigateToTender,
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.blue[800],
+              ),
+            ),
+          const SizedBox(width: 8),
         ],
       ),
       body: _isLoading 
@@ -150,12 +168,28 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Order Summary',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Order Summary',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      // ElevatedButton.icon(
+                      //   icon: const Icon(Icons.payment, size: 16),
+                      //   label: const Text('Tender'),
+                      //   onPressed: _navigateToTender,
+                      //   style: ElevatedButton.styleFrom(
+                      //     backgroundColor: Colors.blue[700],
+                      //     foregroundColor: Colors.white,
+                      //     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      //     textStyle: const TextStyle(fontSize: 12),
+                      //   ),
+                      // ),
+                    ],
                   ),
                   const SizedBox(height: 16),
                   _buildInfoRow(
@@ -265,6 +299,64 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
               ),
             ),
           ),
+          
+          const SizedBox(height: 20),
+          
+          // Payment section - New
+          Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Payment',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      // Expanded(
+                      //   child: OutlinedButton.icon(
+                      //     icon: const Icon(Icons.print),
+                      //     label: const Text('Print Bill'),
+                      //     onPressed: () {
+                      //       // Printing functionality will be handled in the Tender screen
+                      //       ScaffoldMessenger.of(context).showSnackBar(
+                      //         const SnackBar(content: Text('Use Tender button to process payment and print bill'))
+                      //       );
+                      //     },
+                      //     style: OutlinedButton.styleFrom(
+                      //       padding: const EdgeInsets.symmetric(vertical: 12),
+                      //     ),
+                      //   ),
+                      // ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.payment),
+                          label: const Text('Tender Payment'),
+                          onPressed: _navigateToTender,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue[900],
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -367,4 +459,5 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       return Icons.receipt;
     }
   }
+
 }

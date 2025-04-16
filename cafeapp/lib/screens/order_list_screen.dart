@@ -294,13 +294,13 @@ Widget _buildOrderCard(OrderHistory order) {
   // Get service type icon
   IconData serviceIcon = _getServiceTypeIcon(order.serviceType);
   
-  // // Determine status color
-  // Color statusColor = Colors.green;
-  // if (order.status.toLowerCase() == 'pending') {
-  //   statusColor = Colors.orange;
-  // } else if (order.status.toLowerCase() == 'canceled') {
-  //   statusColor = Colors.red;
-  // }
+  // Determine status color
+  Color statusColor = Colors.green;
+  if (order.status.toLowerCase() == 'pending') {
+    statusColor = Colors.orange;
+  } else if (order.status.toLowerCase() == 'cancelled') {
+    statusColor = Colors.red;
+  }
   
   return Card(
     elevation: 1,  // Minimal elevation
@@ -336,21 +336,21 @@ Widget _buildOrderCard(OrderHistory order) {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                // Container(
-                //   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),  // Smaller padding
-                //   decoration: BoxDecoration(
-                //     // color: statusColor.withAlpha(51),
-                //     borderRadius: BorderRadius.circular(8),  // Smaller radius
-                //   ),
-                //   child: Text(
-                //     order.status,
-                //     style: TextStyle(
-                //       // color: statusColor,
-                //       fontSize: 10,  // Smaller font
-                //       fontWeight: FontWeight.bold,
-                //     ),
-                //   ),
-                // ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),  // Smaller padding
+                  decoration: BoxDecoration(
+                    color: statusColor.withAlpha(51),
+                    borderRadius: BorderRadius.circular(8),  // Smaller radius
+                  ),
+                  child: Text(
+                    order.status,
+                    style: TextStyle(
+                      // color: statusColor,
+                      fontSize: 10,  // Smaller font
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ],
             ),
             
