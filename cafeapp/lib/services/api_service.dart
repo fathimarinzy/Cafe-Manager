@@ -616,4 +616,38 @@ class ApiService {
     }
     return [];
   }
+
+  // Add this method to your ApiService class in lib/services/api_service.dart
+
+// Update an order's status
+Future<bool> updateOrderStatus(int orderId, String status) async {
+  try {
+    final token = await getToken();
+    if (token == null) return false;
+    
+    final response = await http.put(
+      Uri.parse('$baseUrl/orders/$orderId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'status': status
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      debugPrint('Order status updated successfully: $status');
+      return true;
+    } else if (response.statusCode == 401) {
+      final refreshed = await _handleExpiredToken(response);
+      if (refreshed) return updateOrderStatus(orderId, status);
+    }
+    debugPrint('Failed to update order status: ${response.body}');
+    return false;
+  } catch (e) {
+    debugPrint('Error updating order status: $e');
+    return false;
+  }
+}
 }

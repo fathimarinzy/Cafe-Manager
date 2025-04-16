@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-// import 'package:provider/provider.dart';
-// import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
+import 'package:provider/provider.dart';
 import '../models/order_history.dart';
 import '../services/bill_service.dart';
 import '../utils/extensions.dart';
-// import '../models/menu_item.dart';
+import '../services/api_service.dart';
+import '../providers/order_history_provider.dart';
 import 'payment_success_screen.dart';
+import 'dashboard_screen.dart';
 
 class TenderScreen extends StatefulWidget {
   final OrderHistory order;
@@ -25,8 +26,11 @@ class _TenderScreenState extends State<TenderScreen> {
   String? _selectedPaymentMethod; // No default payment method
   String _amountInput = '0.000';
   double _balanceAmount = 0.0;
+  double _paidAmount = 0.0; // Track the paid amount separately
   bool _isProcessing = false;
   bool _isCashSelected = false;
+  String _orderStatus = 'pending'; // Track the current order status
+  final ApiService _apiService = ApiService();
 
   // Denomination values
   final List<String> _cashDenominations = ['2.000','5.000', '10.000', '20.000', '50.000', '100.000'];
@@ -34,11 +38,49 @@ class _TenderScreenState extends State<TenderScreen> {
   @override
   void initState() {
     super.initState();
+    // Initialize balance amount to the order total
     _balanceAmount = widget.order.total;
+    _paidAmount = 0.0;
+    _orderStatus = widget.order.status; // Initialize with current status
+    debugPrint('Initial balance: $_balanceAmount, Initial paid: $_paidAmount, Status: $_orderStatus');
   }
 
-  // Process payment calculation
-  void _processPayment(double amount) async {
+  // Update order status in the backend
+  Future<bool> _updateOrderStatus(String status) async {
+    setState(() {
+      _isProcessing = true;
+    });
+    
+    try {
+      final success = await _apiService.updateOrderStatus(widget.order.id, status);
+      
+      if (success) {
+        setState(() {
+          _orderStatus = status;
+        });
+        
+        // Refresh the order history list to show updated status
+        if (mounted) {
+          Provider.of<OrderHistoryProvider>(context, listen: false).loadOrders();
+        }
+        
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Error updating order status: $e');
+      return false;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
+  }
+
+  // Process payment and finalize order
+  Future<void> _processPayment(double amount) async {
     // Check if payment method is selected
     if (_selectedPaymentMethod == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -54,6 +96,17 @@ class _TenderScreenState extends State<TenderScreen> {
     });
 
     try {
+      // First, update the order status to "completed" in the backend
+      final statusUpdated = await _updateOrderStatus('completed');
+      
+      if (!statusUpdated) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to update order status, but continuing with payment processing')),
+          );
+        }
+      }
+      
       // Generate the receipt PDF
       final pdf = await _generateReceipt();
       
@@ -75,7 +128,9 @@ class _TenderScreenState extends State<TenderScreen> {
       bool? saveAsPdf = false;
       if (!printed) {
         // If printing failed, offer to save as PDF
-        saveAsPdf = await _showSavePdfDialog();
+        if (mounted) {
+          saveAsPdf = await _showSavePdfDialog();
+        }
         
         if (saveAsPdf == true) {
           try {
@@ -128,73 +183,213 @@ class _TenderScreenState extends State<TenderScreen> {
     }
   }
 
+  // Cancel the order
+  Future<void> _cancelOrder() async {
+    final bool confirm = await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel Order?'),
+        content: const Text('Are you sure you want to cancel this order?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Yes', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    ) ?? false;
+    
+    if (confirm) {
+      setState(() {
+        _isProcessing = true;
+      });
+      
+      try {
+        final success = await _updateOrderStatus('cancelled');
+        
+        if (success) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Order cancelled successfully')),
+            );
+            
+            // Navigate back to dashboard
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const DashboardScreen()),
+              (route) => false,
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to cancel order. Please try again.')),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error cancelling order: $e')),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isProcessing = false;
+          });
+        }
+      }
+    }
+  }
+
   // Apply quick denomination value
   void _applyDenomination(String denomination) {
     double value = double.tryParse(denomination) ?? 0.0;
     if (value > 0) {
-      setState(() {
-        _amountInput = denomination;
-        
-        // Automatically add the denomination
-        if (_balanceAmount > 0) {
-          double newBalance = _balanceAmount - value;
-          if (newBalance < 0) newBalance = 0;
-          _balanceAmount = newBalance;
-          
-          // Clear input after adding
-          _amountInput = '0.000';
-        }
-      });
+      _showPaymentConfirmationDialog(value);
     }
   }
 
-  // Show dialog to ask about saving PDF
-  Future<bool?> _showSavePdfDialog() {
-    return showDialog<bool>(
+  // Show payment confirmation dialog for denomination buttons
+  Future<void> _showPaymentConfirmationDialog(double amount) async {
+    // Check for payment method first
+    if (_selectedPaymentMethod == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a payment method')),
+      );
+      return;
+    }
+
+    // Make sure we have a payment to process
+    if (_balanceAmount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No remaining balance to pay')),
+      );
+      return;
+    }
+
+    // Calculate the amount to deduct (can't deduct more than what's owed)
+    double amountToDeduct = _balanceAmount < amount ? _balanceAmount : amount;
+    
+    // Calculate the change to give back
+    double change = amount > amountToDeduct ? amount - amountToDeduct : 0.0;
+    
+    // Check if widget is still mounted before continuing
+    if (!mounted) return;
+    
+    final result = await showDialog<String>(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Printer Not Available'),
-          content: const Text('No printer was found. Would you like to save the receipt as a PDF?'),
+          title: const Text('Confirm'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Text('Payment amount: ${NumberFormat.currency(symbol: '', decimalDigits: 3).format(amount)}'),
+              // const SizedBox(height: 8),
+              // Text('Amount applied to bill: ${NumberFormat.currency(symbol: '', decimalDigits: 3).format(amountToDeduct)}'),
+              // if (change > 0) ...[
+              //   const SizedBox(height: 8),
+              //   Text('Change to return: ${NumberFormat.currency(symbol: '', decimalDigits: 3).format(change)}'),
+              // ],
+              const SizedBox(height: 16),
+              const Text('Do you want to print ?'),
+            ],
+          ),
           actions: <Widget>[
             TextButton(
               child: const Text('Cancel'),
               onPressed: () {
-                Navigator.of(context).pop(false);
+                Navigator.of(dialogContext).pop('cancel');
               },
             ),
             TextButton(
-              child: const Text('Save PDF'),
+              child: const Text('No'),
               onPressed: () {
-                Navigator.of(context).pop(true);
+                Navigator.of(dialogContext).pop('no');
+              },
+            ),
+            TextButton(
+              child: const Text('Yes'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop('yes');
               },
             ),
           ],
         );
       },
     );
+
+    // Check if widget is still mounted before continuing
+    if (!mounted) return;
+
+    if (result == 'cancel') {
+      // User canceled the payment
+      return;
+    }
+
+    // Process the payment
+    if (result == 'yes' || result == 'no') {
+      setState(() {
+        // Update the balance amount (remaining balance)
+        _balanceAmount -= amountToDeduct;
+        if (_balanceAmount < 0) _balanceAmount = 0;
+        
+        // Update the paid amount
+        _paidAmount += amountToDeduct;
+        
+        debugPrint('Payment processed. Amount: $amount, Applied: $amountToDeduct, Change: $change');
+        debugPrint('New balance: $_balanceAmount, Total paid: $_paidAmount');
+      });
+      
+      // Show success message with change information
+      if (change > 0) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Payment of ${NumberFormat.currency(symbol: '', decimalDigits: 3).format(amount)} accepted. Return change: ${NumberFormat.currency(symbol: '', decimalDigits: 3).format(change)}'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Payment of ${NumberFormat.currency(symbol: '', decimalDigits: 3).format(amount)} accepted.'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+      
+      // If user chose to print and bill is fully paid, generate receipt
+      if (result == 'yes' && _balanceAmount <= 0) {
+        _processPayment(amount);
+      } else if (_balanceAmount <= 0) {
+        // If bill is fully paid but user chose not to print, just show a message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Payment complete!'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        
+        // Update order status to completed
+        _updateOrderStatus('completed');
+      }
+    }
   }
 
-  // Generate the receipt using the PDF library
-  Future<pw.Document> _generateReceipt() async {
-    final pdf = await BillService.generateBill(
-      items: widget.order.items.map((item) => 
-        item.toMenuItem()
-      ).toList(),
-      serviceType: widget.order.serviceType,
-      subtotal: widget.order.total - (widget.order.total * 0.05),
-      tax: widget.order.total * 0.05,
-      discount: 0,
-      total: widget.order.total,
-      personName: null,
-      tableInfo: widget.order.serviceType.contains('Table') ? widget.order.serviceType : null,
-    );
-    
-    return pdf;
-  }
-
-  // Update amount input
+  // Update amount input in the number pad
   void _updateAmount(String value) {
     if (value == 'C') {
       setState(() {
@@ -204,7 +399,12 @@ class _TenderScreenState extends State<TenderScreen> {
     }
 
     if (value == 'Add') {
-      double amount = double.tryParse(_amountInput) ?? 0;
+      // Parse amount carefully, ensuring we get a proper double
+      String cleanInput = _amountInput.replaceAll(',', '.');
+      double amount = double.tryParse(cleanInput) ?? 0.0;
+      
+      debugPrint('Add button pressed. Amount input: $_amountInput, Parsed amount: $amount');
+      
       if (amount > 0) {
         // Check for payment method
         if (_selectedPaymentMethod == null) {
@@ -215,17 +415,34 @@ class _TenderScreenState extends State<TenderScreen> {
         }
         
         setState(() {
-          _balanceAmount = _balanceAmount - amount;
-          if (_balanceAmount < 0) _balanceAmount = 0;
+          // Debug output before calculation
+          debugPrint('Before calculation - Current balance: $_balanceAmount, Amount to add: $amount');
+          
+          // Calculate the amount to deduct
+          double amountToDeduct = amount > _balanceAmount ? _balanceAmount : amount;
+          
+          // Calculate the new balance
+          double newBalance = _balanceAmount - amountToDeduct;
+          
+          // Debug output after calculation
+          debugPrint('After calculation - New balance: $newBalance');
+          
+          // Update the balance amount
+          _balanceAmount = newBalance;
+          
+          // Update the paid amount
+          _paidAmount += amountToDeduct;
+          
+          // Debug final state
+          debugPrint('Paid amount: $_paidAmount, Final balance: $_balanceAmount');
           
           // Clear input after adding
           _amountInput = '0.000';
           
-          // We're removing this automatic payment processing
-          // If balance is zero or payment exceeds total, process the payment automatically
-          // if (_balanceAmount <= 0) {
-          //   _processPayment(amount);
-          // }
+          // If fully paid, update the order status
+          if (_balanceAmount <= 0) {
+            _updateOrderStatus('completed');
+          }
         });
       }
       return;
@@ -277,7 +494,7 @@ class _TenderScreenState extends State<TenderScreen> {
     );
   }
 
-  // Build each payment method option - styled to match the image
+  // Build each payment method option
   Widget _buildPaymentMethodOption(String method, IconData icon) {
     final isSelected = _selectedPaymentMethod == method;
     
@@ -320,7 +537,7 @@ class _TenderScreenState extends State<TenderScreen> {
     );
   }
 
-  // Build individual number buttons - with the calculator style
+  // Build individual number buttons
   Widget _buildNumberButton(String text) {
     return Expanded(
       child: Container(
@@ -394,15 +611,32 @@ class _TenderScreenState extends State<TenderScreen> {
             ),
           ),
           
-          // Tax amount
+          // Status
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Tax amount :', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                Text(
-                  formatCurrency.format(widget.order.total * 0.05),
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)
+                const Text('Status :', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      margin: const EdgeInsets.only(right: 6),
+                      decoration: BoxDecoration(
+                        color: _getStatusColor(_orderStatus),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    Text(
+                      _orderStatus.capitalize(),
+                      style: TextStyle(
+                        fontSize: 14, 
+                        fontWeight: FontWeight.bold,
+                        color: _getStatusColor(_orderStatus),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -424,6 +658,20 @@ class _TenderScreenState extends State<TenderScreen> {
         ],
       ),
     );
+  }
+
+  // Get color for status
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'pending':
+        return Colors.orange;
+      case 'completed':
+        return Colors.green;
+      case 'cancelled':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
   }
 
   // Build number pad with the calculator style layout
@@ -505,7 +753,7 @@ class _TenderScreenState extends State<TenderScreen> {
     );
   }
 
-  // Build payment summary - styled to match the image
+  // Build payment summary
   Widget _buildPaymentSummary() {
     // Format for currency display
     final formatCurrency = NumberFormat.currency(symbol: '', decimalDigits: 3);
@@ -516,63 +764,6 @@ class _TenderScreenState extends State<TenderScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Order info
-            // Column(
-            //   crossAxisAlignment: CrossAxisAlignment.start,
-            //   children: [
-            //     Row(
-            //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            //       children: const [
-            //         Text('Customer:', style: TextStyle(fontSize: 14)),
-            //         Text('NA', style: TextStyle(fontSize: 14)),
-            //       ],
-            //     ),
-            //     const SizedBox(height: 4),
-            //     Row(
-            //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            //       children: [
-            //         const Text('Order type:', style: TextStyle(fontSize: 14)),
-            //         Text(widget.order.serviceType, style: const TextStyle(fontSize: 14)),
-            //       ],
-            //     ),
-            //     const SizedBox(height: 4),
-            //     Row(
-            //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            //       children: [
-            //         const Text('Tables:', style: TextStyle(fontSize: 14)),
-            //         Text(
-            //           widget.order.serviceType.contains('Table') 
-            //               ? widget.order.serviceType.split('Table ').last 
-            //               : '0',
-            //           style: const TextStyle(fontSize: 14)
-            //         ),
-            //       ],
-            //     ),
-            //     const SizedBox(height: 4),
-            //     Row(
-            //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            //       children: [
-            //         const Text('Tax amount:', style: TextStyle(fontSize: 14)),
-            //         Text(
-            //           formatCurrency.format(widget.order.total * 0.05),
-            //           style: const TextStyle(fontSize: 14)
-            //         ),
-            //       ],
-            //     ),
-            //     const SizedBox(height: 4),
-            //     Row(
-            //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            //       children: [
-            //         const Text('Total amount:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-            //         Text(
-            //           formatCurrency.format(widget.order.total),
-            //           style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)
-            //         ),
-            //       ],
-            //     ),
-            //   ],
-            // ),
-            
             const SizedBox(height: 45),
             
             // Coupon code section
@@ -623,7 +814,7 @@ class _TenderScreenState extends State<TenderScreen> {
                     ),
                     alignment: Alignment.centerRight,
                     child: Text(
-                      formatCurrency.format(widget.order.total - _balanceAmount),
+                      formatCurrency.format(_paidAmount),
                       style: const TextStyle(fontSize: 14),
                     ),
                   ),
@@ -631,7 +822,7 @@ class _TenderScreenState extends State<TenderScreen> {
               ),
             ),
             
-            // Balance amount section (clickable card) 
+            // Balance amount section
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -641,18 +832,6 @@ class _TenderScreenState extends State<TenderScreen> {
                 ),
                 const SizedBox(height: 4),
                 GestureDetector(
-                  // onTap: () {
-                  //   if (_balanceAmount > 0) {
-                  //     // When card is clicked
-                  //     if (_selectedPaymentMethod != null) {
-                  //       _processPayment(_balanceAmount);
-                  //     } else {
-                  //       ScaffoldMessenger.of(context).showSnackBar(
-                  //         const SnackBar(content: Text('Please select a payment method')),
-                  //       );
-                  //     }
-                  //   }
-                  // },
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
@@ -732,9 +911,9 @@ class _TenderScreenState extends State<TenderScreen> {
       onTap: () => _applyDenomination(amount),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.blue.shade50,
+          color: Colors.blue.shade50,  // Changed to green to indicate payment action
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.blue.shade200),
+          border: Border.all(color: Colors.blue.shade200),  // Green border
           boxShadow: [
             BoxShadow(
               color: Colors.black.withAlpha(13),
@@ -744,7 +923,7 @@ class _TenderScreenState extends State<TenderScreen> {
           ],
         ),
         alignment: Alignment.center,
-        child: Text(
+         child: Text(
           amount,
           style: TextStyle(
             fontSize: 16,
@@ -756,6 +935,52 @@ class _TenderScreenState extends State<TenderScreen> {
     );
   }
 
+  // Show dialog to ask about saving PDF
+  Future<bool?> _showSavePdfDialog() {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Printer Not Available'),
+          content: const Text('No printer was found. Would you like to save the receipt as a PDF?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop(false);
+              },
+            ),
+            TextButton(
+              child: const Text('Save PDF'),
+              onPressed: () {
+                Navigator.of(context).pop(true);
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Generate the receipt using the PDF library
+  Future<pw.Document> _generateReceipt() async {
+    final pdf = await BillService.generateBill(
+      items: widget.order.items.map((item) => 
+        item.toMenuItem()
+      ).toList(),
+      serviceType: widget.order.serviceType,
+      subtotal: widget.order.total - (widget.order.total * 0.05),
+      tax: widget.order.total * 0.05,
+      discount: 0,
+      total: widget.order.total,
+      personName: null,
+      tableInfo: widget.order.serviceType.contains('Table') ? widget.order.serviceType : null,
+    );
+    
+    return pdf;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -763,6 +988,15 @@ class _TenderScreenState extends State<TenderScreen> {
         title: const Text('Payment'),
         backgroundColor: Colors.blue.shade700,
         foregroundColor: Colors.white,
+        actions: [
+          // Add Cancel button in app bar
+          if (_orderStatus.toLowerCase() == 'pending')
+            TextButton.icon(
+              icon: const Icon(Icons.cancel, color: Colors.white, size: 18),
+              label: const Text('Cancel Order', style: TextStyle(color: Colors.white)),
+              onPressed: _cancelOrder,
+            ),
+        ],
       ),
       body: _isProcessing 
         ? const Center(
@@ -811,7 +1045,7 @@ class _TenderScreenState extends State<TenderScreen> {
           ],
         ),
       bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         height: 50,
         decoration: BoxDecoration(
           color: Colors.white,
@@ -824,39 +1058,81 @@ class _TenderScreenState extends State<TenderScreen> {
           ],
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
+          mainAxisAlignment: MainAxisAlignment.end, // Align buttons to the right
           children: [
-            TextButton(
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                foregroundColor: Colors.blue.shade700,
+            // Apply Coupon button
+            ElevatedButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Coupon feature will be available soon')),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.amber.shade100,
+                foregroundColor: Colors.amber.shade900,
+                elevation: 1,
+                padding: const EdgeInsets.symmetric(horizontal: 35, vertical: 10),
+                minimumSize: const Size(10, 36),
+                textStyle: const TextStyle(fontSize: 12),
               ),
-              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Apply Coupon'),
+            ),
+            
+            const SizedBox(width: 8), // Spacing between buttons
+            
+            // Save button
+            ElevatedButton(
+              onPressed: () {
+                // Save logic - just go back without finalizing
+                Navigator.of(context).pop();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue.shade100,
+                foregroundColor: Colors.blue.shade900,
+                elevation: 1,
+                padding: const EdgeInsets.symmetric(horizontal: 55, vertical: 10),
+                minimumSize: const Size(10, 36),
+                textStyle: const TextStyle(fontSize: 12),
+              ),
               child: const Text('Save'),
             ),
-            const SizedBox(width: 8),
+            
+            const SizedBox(width: 8), // Spacing between buttons
+            
+            // View Bill button
             ElevatedButton(
+              onPressed: (_balanceAmount == widget.order.total) 
+                ? null  // Disable if no payment has been made
+                : () async {
+                  // Generate the receipt PDF
+                  final pdf = await _generateReceipt();
+                  
+                  // Show the PDF preview
+                  if (!mounted) return;
+                  
+                  await Printing.layoutPdf(
+                    onLayout: (format) async => pdf.save(),
+                    name: 'bill_preview_${widget.order.id}',
+                  );
+                },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.teal,
-                foregroundColor: Colors.white,
-                elevation: 2,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                backgroundColor: Colors.green.shade100,
+                foregroundColor: Colors.green.shade900,
+                elevation: 1,
+                padding: const EdgeInsets.symmetric(horizontal: 55, vertical: 10),
+                minimumSize: const Size(10, 36),
+                textStyle: const TextStyle(fontSize: 12),
+                // Disable style when button is inactive
+                disabledBackgroundColor: Colors.grey.shade200,
+                disabledForegroundColor: Colors.grey.shade500,
               ),
-              onPressed: (_balanceAmount <= 0 && _selectedPaymentMethod != null)
-                ? () {
-                    // Now we use _processPayment here to resolve the unused element warning
-                    if (_selectedPaymentMethod != null) {
-                      _processPayment(widget.order.total);
-                    } else {
-                      Navigator.of(context).pop();
-                    }
-                  }
-                : null,
-              child: const Text('Finish'),
+              child: const Text('View Bill'),
             ),
+
           ],
         ),
       ),
     );
   }
 }
+

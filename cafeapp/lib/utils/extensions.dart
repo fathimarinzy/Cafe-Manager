@@ -13,3 +13,10 @@ extension OrderItemExtension on OrderItem {
     );
   }
 }
+// Extension to capitalize a string
+extension StringExtension on String {
+  String capitalize() {
+    if (isEmpty) return this;
+    return "${this[0].toUpperCase()}${substring(1)}";
+  }
+}
