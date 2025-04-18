@@ -43,6 +43,14 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
     
     // Load saved layout configuration
     _loadSavedLayout();
+    
+    // Ensure table status is up to date on screen load
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final tableProvider = Provider.of<TableProvider>(context, listen: false);
+        tableProvider.refreshTables();
+      }
+    });
   }
   
   // Load layout configuration from SharedPreferences
@@ -156,12 +164,29 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
     );
   }
 
+  // Method to handle table management navigation
+  Future<void> _navigateToTableManagement() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const TableManagementScreen(),
+      ),
+    );
+
+    // Check if the widget is still mounted before using setState
+    if (mounted) {
+      // Refresh the table state when coming back from table management
+      final tableProvider = Provider.of<TableProvider>(context, listen: false);
+      tableProvider.refreshTables();
+      // Force a rebuild of the current screen
+      setState(() {});
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final tableProvider = Provider.of<TableProvider>(context);
     final tables = tableProvider.tables;
-    // final screenSize = MediaQuery.of(context).size;
-
+    
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -184,18 +209,22 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
           const SizedBox(width: 10),
           // Tables management button
           TextButton.icon(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const TableManagementScreen(),
-                ),
-              ).then((_) {
-                // This will refresh the screen when coming back
-                setState(() {});
-              });
-            },
+            onPressed: _navigateToTableManagement,
             icon: const Icon(Icons.table_bar, color: Colors.black),
             label: const Text('Tables', style: TextStyle(color: Colors.black)),
+          ),
+          const SizedBox(width: 10),
+          // Refresh button to manually update table status
+          IconButton(
+            onPressed: () {
+              tableProvider.refreshTables();
+              setState(() {});
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Tables refreshed')),
+              );
+            },
+            icon: const Icon(Icons.refresh, color: Colors.black),
+            tooltip: 'Refresh tables',
           ),
           const SizedBox(width: 10),
           // Time display
@@ -263,7 +292,6 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
                             final String serviceType = 'Dining - Table ${table.number}';
                             
                             return _buildTableCard(
-                              context,
                               table.number,
                               table.isOccupied,
                               orderProvider,
@@ -281,8 +309,74 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
     );
   }
 
+  // Navigate to Menu Screen and handle return
+  Future<void> _navigateToMenuScreen(String serviceType, OrderProvider orderProvider) async {
+    orderProvider.setCurrentServiceType(serviceType);
+    
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => MenuScreen(
+          serviceType: serviceType,
+        ),
+      ),
+    );
+
+    // Check if widget is still mounted before continuing
+    if (mounted) {
+      // Refresh the table status when returning
+      final tableProvider = Provider.of<TableProvider>(context, listen: false);
+      tableProvider.refreshTables();
+      
+      // Extract table number from service type
+      final tableNumberStr = serviceType.split('Table ').last;
+      final tableNumber = int.tryParse(tableNumberStr);
+      
+      if (tableNumber != null) {
+        // Check if there are any active orders for this table
+        debugPrint('Checking table $tableNumber status after returning from menu');
+      }
+      
+      // Force UI update after returning
+      setState(() {});
+    }
+  }
+
+  // Show dialog for occupied tables
+  void _showOccupiedTableDialog(int tableNumber, String serviceType, OrderProvider orderProvider) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Table $tableNumber'),
+        content: const Text('Table is currently occupied. You can start a new order or view current orders.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              // Navigate to view orders for this table
+              // You would need to implement this functionality
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('View orders functionality would be shown here')),
+              );
+            },
+            child: const Text('View Orders'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _navigateToMenuScreen(serviceType, orderProvider);
+            },
+            child: const Text('New Order'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTableCard(
-    BuildContext context,
     int tableNumber,
     bool isOccupied,
     OrderProvider orderProvider,
@@ -295,24 +389,9 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
     return InkWell(
       onTap: () {
         if (!isOccupied) {
-          // Set the current service type in OrderProvider before navigation
-          orderProvider.setCurrentServiceType(serviceType);
-          
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (ctx) => MenuScreen(
-                serviceType: serviceType,
-              ),
-            ),
-          );
+          _navigateToMenuScreen(serviceType, orderProvider);
         } else {
-          // Show occupied message
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Table $tableNumber is currently occupied'),
-              backgroundColor: Colors.orange,
-            ),
-          );
+          _showOccupiedTableDialog(tableNumber, serviceType, orderProvider);
         }
       },
       child: Card(
@@ -327,7 +406,7 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
             Icon(
               Icons.table_restaurant,
               size: iconSize,
-              color: isOccupied ? Colors.grey : Colors.blue[900],
+              color: isOccupied ? Colors.red : Colors.blue[900],
             ),
             const SizedBox(height: 4), // Reduced spacing
             Text(
@@ -335,7 +414,7 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
               style: TextStyle(
                 fontSize: fontSize,
                 fontWeight: FontWeight.bold,
-                color: isOccupied ? Colors.grey : Colors.black87,
+                color: isOccupied ? Colors.grey.shade800 : Colors.black87,
               ),
               textAlign: TextAlign.center,
             ),
@@ -345,6 +424,7 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
               style: TextStyle(
                 fontSize: fontSize - 4, // Smaller text for status
                 color: isOccupied ? Colors.red : Colors.green,
+                fontWeight: FontWeight.bold,
               ),
               textAlign: TextAlign.center,
             ),

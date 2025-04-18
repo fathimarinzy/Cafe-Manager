@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart'; // Added import for Provider
 import '../models/menu_item.dart';
 import '../models/order.dart';
 import '../models/person.dart';
+import '../models/table_model.dart';
+import '../providers/table_provider.dart';
 import '../services/api_service.dart';
 import '../services/bill_service.dart';
 
@@ -239,8 +242,13 @@ class OrderProvider with ChangeNotifier {
     try {
       // Extract table number from service type if this is a dining order
       String? tableInfo;
+      int? tableNumber;
+      
       if (_currentServiceType.startsWith('Dining - Table')) {
         tableInfo = _currentServiceType;
+        // Extract the table number
+        final tableNumberString = _currentServiceType.split('Table ').last;
+        tableNumber = int.tryParse(tableNumberString);
       }
       
       // Generate and process the bill
@@ -267,6 +275,34 @@ class OrderProvider with ChangeNotifier {
         discount,
         total,
       );
+
+      // If this is a table order, update the table status to occupied
+      if (tableNumber != null && context.mounted) { // Added mounted check
+        final tableProvider = Provider.of<TableProvider>(context, listen: false);
+        final table = tableProvider.tables.firstWhere(
+          (table) => table.number == tableNumber,
+          orElse: () => TableModel(id: '', number: tableNumber!, isOccupied: false)
+        );
+        
+        if (table.id.isNotEmpty) {
+          // Set the table as occupied
+          final updatedTable = TableModel(
+            id: table.id,
+            number: table.number,
+            isOccupied: true,
+            capacity: table.capacity,
+            note: table.note,
+          );
+          
+          await tableProvider.updateTable(updatedTable);
+          debugPrint('Table ${tableNumber.toString()} status updated to occupied');
+        } else if (tableNumber > 0) { // Ensure non-null, non-zero table number
+          // If the table wasn't found in the provider but we have a valid number,
+          // try to update it by number
+          await tableProvider.setTableStatus(tableNumber, true);
+          debugPrint('Table ${tableNumber.toString()} status set to occupied by number');
+        }
+      }
 
       if (order != null) {
         // Clear the current service type's cart

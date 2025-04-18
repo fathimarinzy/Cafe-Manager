@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/order_provider.dart';
-// import '../models/menu_item.dart';
 import 'dashboard_screen.dart';
 
 class OrderConfirmationScreen extends StatefulWidget {
@@ -427,7 +426,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
     });
     
     try {
-      // Process the order and generate bill
+      // Process the order and generate bill - table status update happens inside this method
       final result = await orderProvider.processOrderWithBill(context);
       
       if (!mounted) return;

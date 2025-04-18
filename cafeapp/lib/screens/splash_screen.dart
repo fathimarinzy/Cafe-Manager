@@ -12,13 +12,27 @@ class SplashScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             // App logo or name
-            Text(
-              'SIMS RESTO CAFE',
+            RichText(
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue[900],
+              text: TextSpan(
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
+                children: [
+                  TextSpan(
+                    text: 'SIMS ',
+                    style: TextStyle(
+                      color: Colors.blue[900],
+                    ),
+                  ),
+                  TextSpan(
+                    text: 'AI',
+                    style: TextStyle(
+                      color: Colors.red[700],
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 20),

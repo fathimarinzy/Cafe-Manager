@@ -87,6 +87,28 @@ class TableProvider with ChangeNotifier {
     }
   }
 
+  // Method to update table by number instead of id
+  Future<void> updateTableByNumber(int tableNumber, {bool? isOccupied}) async {
+    final index = _tables.indexWhere((t) => t.number == tableNumber);
+    if (index >= 0) {
+      final table = _tables[index];
+      
+      // Only update the isOccupied status if provided
+      if (isOccupied != null) {
+        _tables[index] = TableModel(
+          id: table.id,
+          number: table.number,
+          capacity: table.capacity,
+          isOccupied: isOccupied,
+          note: table.note,
+        );
+        
+        await _saveTables();
+        notifyListeners();
+      }
+    }
+  }
+
   Future<void> deleteTable(String id) async {
     _tables.removeWhere((table) => table.id == id);
     await _saveTables();
@@ -100,5 +122,24 @@ class TableProvider with ChangeNotifier {
       await _saveTables();
       notifyListeners();
     }
+  }
+
+  // Add a method to set a specific table as occupied or available
+  Future<void> setTableStatus(int tableNumber, bool isOccupied) async {
+    final index = _tables.indexWhere((table) => table.number == tableNumber);
+    if (index >= 0) {
+      _tables[index].isOccupied = isOccupied;
+      await _saveTables();
+      notifyListeners();
+      debugPrint('Table $tableNumber status set to ${isOccupied ? 'occupied' : 'available'}');
+    } else {
+      debugPrint('Table $tableNumber not found');
+    }
+  }
+
+  // Method to refresh the tables data from storage
+  // This ensures the status is always current across screens
+  Future<void> refreshTables() async {
+    await _loadTables();
   }
 }

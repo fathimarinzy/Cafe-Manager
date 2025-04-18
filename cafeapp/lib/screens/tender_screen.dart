@@ -32,9 +32,6 @@ class _TenderScreenState extends State<TenderScreen> {
   String _orderStatus = 'pending'; // Track the current order status
   final ApiService _apiService = ApiService();
 
-  // Denomination values
-  final List<String> _cashDenominations = ['2.000','5.000', '10.000', '20.000', '50.000', '100.000'];
-
   @override
   void initState() {
     super.initState();
@@ -246,15 +243,34 @@ class _TenderScreenState extends State<TenderScreen> {
     }
   }
 
-  // Apply quick denomination value
-  void _applyDenomination(String denomination) {
-    double value = double.tryParse(denomination) ?? 0.0;
-    if (value > 0) {
-      _showPaymentConfirmationDialog(value);
+  // Apply exact bill amount
+  void _applyExactAmount() {
+    // Check for payment method first
+    if (_selectedPaymentMethod == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a payment method')),
+      );
+      return;
     }
+
+    // Make sure we have a payment to process
+    if (_balanceAmount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No remaining balance to pay')),
+      );
+      return;
+    }
+
+    // Use the exact balance amount
+    double amount = _balanceAmount;
+    
+    // Check if widget is still mounted before continuing
+    if (!mounted) return;
+    
+    _showPaymentConfirmationDialog(amount);
   }
 
-  // Show payment confirmation dialog for denomination buttons
+  // Show payment confirmation dialog for the exact bill amount
   Future<void> _showPaymentConfirmationDialog(double amount) async {
     // Check for payment method first
     if (_selectedPaymentMethod == null) {
@@ -857,44 +873,43 @@ class _TenderScreenState extends State<TenderScreen> {
               ],
             ),
             
-            // Denomination boxes - only shown when Cash is selected
+            // Bill amount box - only shown when Cash is selected
             if (_isCashSelected) ...[
               const SizedBox(height: 32),
               
-              // First box centered
-              if (_cashDenominations.isNotEmpty)
-                Center(
-                  child: SizedBox(
-                    width: (MediaQuery.of(context).size.width / 3) * 0.6,
-                    height: 40,
-                    child: _buildDenominationBox(_cashDenominations[0]),
-                  ),
-                ),
-              
-              const SizedBox(height: 8),
-              
-              // Remaining boxes in pairs (2 per row) - evenly spaced
-              if (_cashDenominations.length > 1)
-                for (int i = 1; i < _cashDenominations.length; i += 2)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        SizedBox(
-                          width: (MediaQuery.of(context).size.width / 3) * 0.45,
-                          height: 40,
-                          child: _buildDenominationBox(_cashDenominations[i]),
-                        ),
-                        if (i + 1 < _cashDenominations.length)
-                          SizedBox(
-                            width: (MediaQuery.of(context).size.width / 3) * 0.45,
-                            height: 40,
-                            child: _buildDenominationBox(_cashDenominations[i + 1]),
+              // Full bill amount box centered
+              Center(
+                child: SizedBox(
+                  width: (MediaQuery.of(context).size.width / 3) * 0.6,
+                  height: 60,
+                  child: GestureDetector(
+                    onTap: _applyExactAmount,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade200),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withAlpha(13),
+                            blurRadius: 2,
+                            offset: const Offset(0, 1),
                           ),
-                      ],
+                        ],
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        formatCurrency.format(widget.order.total),
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
                     ),
                   ),
+                ),
+              ),
               
               // Add space at the bottom to prevent overflow
               const SizedBox(height: 20),
@@ -905,36 +920,6 @@ class _TenderScreenState extends State<TenderScreen> {
     );
   }
   
-  // Helper to build denomination boxes
-  Widget _buildDenominationBox(String amount) {
-    return GestureDetector(
-      onTap: () => _applyDenomination(amount),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.blue.shade50,  // Changed to green to indicate payment action
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.blue.shade200),  // Green border
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(13),
-              blurRadius: 2,
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
-        alignment: Alignment.center,
-         child: Text(
-          amount,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Colors.blue.shade700,
-          ),
-        ),
-      ),
-    );
-  }
-
   // Show dialog to ask about saving PDF
   Future<bool?> _showSavePdfDialog() {
     return showDialog<bool>(
@@ -1135,4 +1120,3 @@ class _TenderScreenState extends State<TenderScreen> {
     );
   }
 }
-
