@@ -46,6 +46,7 @@ dependencies:
   pdf: ^3.10.1
   printing: ^5.10.4
   share_plus: ^7.2.1
+  permission_handler: ^11.0.0  # Add this line for permissions management
   
 dev_dependencies:
   flutter_test:

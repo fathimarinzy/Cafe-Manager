@@ -129,15 +129,17 @@ import 'package:provider/provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/person_form_screen.dart';
 import 'screens/dashboard_screen.dart';
-import 'screens/splash_screen.dart'; // We'll create this new screen
+import 'screens/splash_screen.dart';
+import 'screens/settings_screen.dart';
 
 import 'providers/table_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/menu_provider.dart';
 import 'providers/order_provider.dart';
 import 'providers/person_provider.dart';
+import 'providers/settings_provider.dart';
 import 'services/api_service.dart'; 
-import 'providers/order_history_provider.dart'; 
+import 'providers/order_history_provider.dart';
 
 void main() {
   runApp(const MyApp());
@@ -156,9 +158,10 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (ctx) => PersonProvider(ApiService())),
         ChangeNotifierProvider(create: (ctx) => TableProvider()),
         ChangeNotifierProvider(create: (ctx) => OrderHistoryProvider()),
+        ChangeNotifierProvider(create: (ctx) => SettingsProvider()),
       ],
-      child: Consumer<AuthProvider>(
-        builder: (ctx, auth, _) {
+      child: Consumer<SettingsProvider>(
+        builder: (ctx, settingsProvider, _) {
           return MaterialApp(
             title: 'Cafe Management',
             theme: ThemeData(
@@ -166,26 +169,54 @@ class MyApp extends StatelessWidget {
               scaffoldBackgroundColor: Colors.white,
               fontFamily: 'Roboto',
               visualDensity: VisualDensity.adaptivePlatformDensity,
+              brightness: Brightness.light,
             ),
-            home: auth.isInitialized 
-                ? (auth.isAuth ? const DashboardScreen() : const LoginScreen())
-                : FutureBuilder(
-                    future: auth.tryAutoLogin(),
-                    builder: (ctx, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const SplashScreen();
-                      } else {
-                        return snapshot.data == true 
-                            ? const DashboardScreen() 
-                            : const LoginScreen();
-                      }
-                    },
-                  ),
+            darkTheme: ThemeData(
+              primarySwatch: Colors.blue,
+              scaffoldBackgroundColor: Colors.grey[900],
+              fontFamily: 'Roboto',
+              visualDensity: VisualDensity.adaptivePlatformDensity,
+              brightness: Brightness.dark,
+              // Additional dark theme customizations
+              appBarTheme: AppBarTheme(
+                backgroundColor: Colors.grey[850],
+                foregroundColor: Colors.white,
+              ),
+              cardTheme: CardTheme(
+                color: Colors.grey[800],
+              ),
+              textTheme: const TextTheme(
+                bodyMedium: TextStyle(color: Colors.white),
+                bodyLarge: TextStyle(color: Colors.white),
+                titleMedium: TextStyle(color: Colors.white),
+                titleLarge: TextStyle(color: Colors.white),
+              ),
+            ),
+            themeMode: settingsProvider.themeMode,
             debugShowCheckedModeBanner: false,
+            home: Consumer<AuthProvider>(
+              builder: (ctx, auth, _) {
+                return auth.isInitialized 
+                    ? (auth.isAuth ? const DashboardScreen() : const LoginScreen())
+                    : FutureBuilder(
+                        future: auth.tryAutoLogin(),
+                        builder: (ctx, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const SplashScreen();
+                          } else {
+                            return snapshot.data == true 
+                                ? const DashboardScreen() 
+                                : const LoginScreen();
+                          }
+                        },
+                      );
+              },
+            ),
             routes: {
               AppRoutes.login: (ctx) => const LoginScreen(),
               AppRoutes.addperson: (ctx) => const PersonFormScreen(),
               AppRoutes.dashboard: (ctx) => const DashboardScreen(),
+              AppRoutes.settings: (ctx) => const SettingsScreen(),
             },
           );
         },
@@ -198,4 +229,5 @@ class AppRoutes {
   static const String login = '/login';
   static const String addperson = '/add-person';
   static const String dashboard = '/dashboard';
+  static const String settings = '/settings';
 }

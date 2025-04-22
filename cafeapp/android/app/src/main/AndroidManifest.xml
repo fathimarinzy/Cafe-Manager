@@ -4,7 +4,7 @@
     
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
-    
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     <!-- For Android 10+ -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
@@ -13,6 +13,9 @@
     
     <!-- Camera permissions -->
     <uses-permission android:name="android.permission.CAMERA" />
+     
+    <uses-permission android:name="android.permission.USB_PERMISSION" />
+    <uses-feature android:name="android.hardware.usb.host" />
 
     <application
         android:label="SIMS RESTO CAFE"
@@ -61,6 +64,11 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>
+
+          <!-- Print service support -->
+        <meta-data
+        android:name="io.flutter.plugins.printing.support_services"
+        android:value="true" />
     </application>
 
     <queries>
@@ -92,6 +100,11 @@
             <action android:name="android.intent.action.CREATE_DOCUMENT" />
             <category android:name="android.intent.category.OPENABLE" />
             <data android:mimeType="application/pdf" />
+        </intent>
+
+        <!-- Print service query -->
+        <intent>
+            <action android:name="android.printservice.PrintService" />
         </intent>
     </queries>
 </manifest>

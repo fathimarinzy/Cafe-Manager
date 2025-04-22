@@ -6,6 +6,7 @@ import 'menu_screen.dart';
 import 'dining_table_screen.dart';
 import 'order_list_screen.dart';
 import 'login_screen.dart';
+import 'settings_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -52,6 +53,15 @@ class DashboardScreen extends StatelessWidget {
         elevation: 2,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'Settings',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.exit_to_app),
             onPressed: () {
