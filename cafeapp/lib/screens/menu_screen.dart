@@ -18,12 +18,16 @@ import '../widgets/kitchen_note_dialog.dart';
 
 class MenuScreen extends StatefulWidget {
   final String serviceType;
-
-  const MenuScreen({super.key, required this.serviceType});
+  final Color serviceColor;
+  const MenuScreen({super.key, required this.serviceType,this.serviceColor = const Color(0xFF1565C0)});
 
   @override
   MenuScreenState createState() => MenuScreenState();
 }
+// Helper function for light background colors
+    Color getLightBackgroundColor(Color baseColor) {
+      return baseColor.withAlpha(25);
+    }
 
 class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
   bool _isLoading = false;
@@ -459,7 +463,9 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
   Widget _buildCategorySidebar(List<String> categories) {
     // Filter categories based on search (if needed)
     final filteredCategories = categories;
-    
+      // Get the light background color based on service type
+    final lightBgColor = getLightBackgroundColor(widget.serviceColor);
+
     return Container(
       width: 250,
       color: Colors.grey.shade50,
@@ -517,10 +523,10 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                 return Container(
                   key: ValueKey('category_$category'),
                   decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xFFD4E6FF) : Colors.transparent,
+                    color: isSelected ? lightBgColor : Colors.transparent,
                     border: Border(
                      left: BorderSide(
-                        color: isSelected ? (Colors.blue[900] ?? Colors.blue) : Colors.transparent,
+                        color: isSelected ? widget.serviceColor : Colors.transparent,
                         width: 5.0,
                       ),
                       bottom: BorderSide(color: Colors.grey.shade200),
@@ -1042,7 +1048,7 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
                             child: Row(
                               children: [
                                 IconButton(
-                                  icon: Icon(Icons.person_outline, color: Colors.blue[900]),
+                                  icon: Icon(Icons.person_outline, color: widget.serviceColor),
                                   onPressed: () {
                                     Navigator.push(
                                       context,
@@ -1053,7 +1059,7 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
                                   },
                                 ),
                                 IconButton(
-                                  icon: Icon(Icons.search, color: Colors.blue[900]),
+                                  icon: Icon(Icons.search, color: widget.serviceColor ),
                                   onPressed: () {
                                     Navigator.push(
                                       context,

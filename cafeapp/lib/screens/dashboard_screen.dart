@@ -7,6 +7,7 @@ import 'dining_table_screen.dart';
 import 'order_list_screen.dart';
 import 'login_screen.dart';
 import 'settings_screen.dart';
+import 'package:cafeapp/main.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -53,6 +54,13 @@ class DashboardScreen extends StatelessWidget {
         elevation: 2,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.print),
+            onPressed: () {
+              Navigator.of(context).pushNamed(AppRoutes.printerSettings);
+            },
+            tooltip: 'Printer Settings',
+          ),
           IconButton(
             icon: const Icon(Icons.settings),
             tooltip: 'Settings',
@@ -206,7 +214,7 @@ class DashboardScreen extends StatelessWidget {
           orderProvider.setCurrentServiceType(title);
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (ctx) => MenuScreen(serviceType: title),
+              builder: (ctx) => MenuScreen(serviceType: title,serviceColor: color,),
             ),
           );
         }
