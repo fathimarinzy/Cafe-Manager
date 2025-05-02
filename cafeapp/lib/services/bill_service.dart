@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'package:flutter/services.dart';
-// import 'package:path_provider/path_provider.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/menu_item.dart';
 import './thermal_printer_service.dart';
 import '../models/order_history.dart';
@@ -375,6 +375,7 @@ class BillService {
     
     return pdf;
   }
+// Add this method to your BillService class
 
   // Direct thermal printing of a bill
   static Future<bool> printThermalBill(OrderHistory order) async {
@@ -416,7 +417,6 @@ class BillService {
       return false;
     }
   }
-  
   // Print the bill directly to thermal printer - Using only direct ESC/POS commands
   static Future<bool> printBill({
     required List<MenuItem> items,
@@ -448,45 +448,31 @@ class BillService {
     }
   }
 
-  // New method: Save PDF file with file picker to let the user choose the location
-  static Future<String?> savePdfWithFilePicker(pw.Document pdf, {String defaultFileName = ''}) async {
+  // Use Share.shareXFiles to let user choose where to save file
+  static Future<bool> saveBillToDownloads(pw.Document pdf) async {
     try {
-      // Generate default filename if not provided
-      String fileName = defaultFileName.isNotEmpty 
-          ? defaultFileName 
-          : 'cafe_order_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      // First, save PDF to a temporary file
+      final output = await getTemporaryDirectory();
+      final filename = 'cafe_order_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final tempFile = File('${output.path}/$filename');
       
-      // Generate the PDF data
-      final pdfBytes = await pdf.save();
+      // Write PDF to temporary file
+      await tempFile.writeAsBytes(await pdf.save());
       
-      // Use FilePicker to get the save location from the user
-      String? outputPath = await FilePicker.platform.saveFile(
-        dialogTitle: 'Save Receipt',
-        fileName: fileName,
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
+      // Now use Share.shareXFiles to open the save dialog
+      final xFile = XFile(tempFile.path, mimeType: 'application/pdf');
+      
+      // This will open the share dialog where users can choose to save the file
+      await Share.shareXFiles(
+        [xFile],
+        text: 'Order Receipt',
+        subject: 'Cafe Order Receipt',
       );
       
-      // If user canceled the save dialog
-      if (outputPath == null) {
-        debugPrint('User canceled the save dialog');
-        return null;
-      }
-      
-      // Make sure the file path has .pdf extension
-      if (!outputPath.toLowerCase().endsWith('.pdf')) {
-        outputPath = '$outputPath.pdf';
-      }
-      
-      // Write PDF to chosen file path
-      final file = File(outputPath);
-      await file.writeAsBytes(pdfBytes);
-      
-      debugPrint('PDF saved to: $outputPath');
-      return outputPath;
+      return true;
     } catch (e) {
       debugPrint('Error saving PDF: $e');
-      return null;
+      return false;
     }
   }
   
@@ -603,26 +589,19 @@ class BillService {
       tableInfo: tableInfo,
     );
     
-    // Generate a sensible filename
-    final now = DateTime.now();
-    final dateString = DateFormat('yyyyMMdd_HHmmss').format(now);
-    final orderNumber = now.millisecondsSinceEpoch % 10000;
-    final fileName = 'receipt_order${orderNumber}_$dateString.pdf';
+    final saved = await saveBillToDownloads(pdf);
     
-    // Use FilePicker to save file where user chooses
-    final filePath = await savePdfWithFilePicker(pdf, defaultFileName: fileName);
-    
-    if (filePath != null) {
+    if (saved) {
       return {
         'success': true,
         'message': 'Order processed and bill saved as PDF',
         'printed': false,
         'saved': true,
-        'filePath': filePath,
+        'filePath': null,
       };
     }
     
-    // If we get here, saving with FilePicker approach failed
+    // If we get here, saving with Share approach failed
     return {
       'success': false,
       'message': 'Failed to save the bill',

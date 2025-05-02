@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/widgets.dart' as pw;
-// import 'package:path_provider/path_provider.dart';
-// import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 import 'package:provider/provider.dart';
-// import 'package:share_plus/share_plus.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/order_history.dart';
 import '../services/bill_service.dart';
 import '../utils/extensions.dart';
@@ -110,8 +110,8 @@ class _TenderScreenState extends State<TenderScreen> {
     }
   }
 
-  // Replace the existing _processPayment method with this updated version
-  Future<void> _processPayment(double amount) async {
+  // Updated _processPayment method to handle change similar to cash payments
+    Future<void> _processPayment(double amount) async {
     if (_selectedPaymentMethod == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a payment method')),
@@ -164,23 +164,15 @@ class _TenderScreenState extends State<TenderScreen> {
         
         if (saveAsPdf == true) {
           try {
-            // Generate a sensible filename
-            final now = DateTime.now();
-            final dateString = DateFormat('yyyyMMdd_HHmmss').format(now);
-            final fileName = 'receipt_order${widget.order.orderNumber}_$dateString.pdf';
+            final tempDir = await getTemporaryDirectory();
+            final file = File('${tempDir.path}/receipt_${widget.order.id}_${DateTime.now().millisecondsSinceEpoch}.pdf');
+            await file.writeAsBytes(await pdf.save());
             
-            // Use the new FilePicker save method
-            final savedPath = await BillService.savePdfWithFilePicker(pdf, defaultFileName: fileName);
-            
-            if (savedPath != null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Receipt saved to: $savedPath')),
-              );
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Failed to save receipt or operation canceled')),
-              );
-            }
+            await Share.shareXFiles(
+              [XFile(file.path)],
+              subject: 'Order Receipt',
+              text: 'Receipt for Order #${widget.order.orderNumber}',
+            );
           } catch (e) {
             debugPrint('Error saving PDF: $e');
           }
@@ -208,6 +200,7 @@ class _TenderScreenState extends State<TenderScreen> {
       }
     }
   }
+
 
   // Cancel the order
   Future<void> _cancelOrder() async {
@@ -869,8 +862,8 @@ class _TenderScreenState extends State<TenderScreen> {
     }
   }
   
+  // New method to process cash payment
   
-// Replace the existing _processCashPayment method with this updated version
   Future<void> _processCashPayment(double amount, double change) async {
     setState(() {
       _isProcessing = true;
@@ -904,23 +897,15 @@ class _TenderScreenState extends State<TenderScreen> {
         
         if (saveAsPdf == true) {
           try {
-            // Generate a sensible filename
-            final now = DateTime.now();
-            final dateString = DateFormat('yyyyMMdd_HHmmss').format(now);
-            final fileName = 'receipt_order${widget.order.orderNumber}_$dateString.pdf';
+            final tempDir = await getTemporaryDirectory();
+            final file = File('${tempDir.path}/receipt_${widget.order.id}_${DateTime.now().millisecondsSinceEpoch}.pdf');
+            await file.writeAsBytes(await pdf.save());
             
-            // Use the new FilePicker save method
-            final savedPath = await BillService.savePdfWithFilePicker(pdf, defaultFileName: fileName);
-            
-            if (savedPath != null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Receipt saved to: $savedPath')),
-              );
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Failed to save receipt or operation canceled')),
-              );
-            }
+            await Share.shareXFiles(
+              [XFile(file.path)],
+              subject: 'Order Receipt',
+              text: 'Receipt for Order #${widget.order.orderNumber}',
+            );
           } catch (e) {
             debugPrint('Error saving PDF: $e');
           }
@@ -1739,23 +1724,24 @@ class _TenderScreenState extends State<TenderScreen> {
               onPressed: (_balanceAmount == widget.order.total || _selectedPaymentMethod == null) 
                 ? null  // Disable if no payment has been made or no payment method selected
                 : () async {
-                    // Generate the receipt PDF
-                    final pdf = await _generateReceipt();
-                    
-                    // Generate a sensible filename
-                    final now = DateTime.now();
-                    final dateString = DateFormat('yyyyMMdd_HHmmss').format(now);
-                    final fileName = 'receipt_order${widget.order.orderNumber}_$dateString.pdf';
-                    
-                    // Use the new FilePicker save method
-                    final savedPath = await BillService.savePdfWithFilePicker(pdf, defaultFileName: fileName);
-                    
-                    if (savedPath != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Receipt saved to: $savedPath')),
-                      );
-                    }
-                  },
+                  // Generate the receipt PDF
+                  final pdf = await _generateReceipt();
+                  
+                  // Show the PDF preview using Share
+                  if (!mounted) return;
+                  
+                  // Save to a temp file and use Share API
+                  final tempDir = await getTemporaryDirectory();
+                  final file = File('${tempDir.path}/bill_preview_${widget.order.id}.pdf');
+                  await file.writeAsBytes(await pdf.save());
+                  
+                  // Share the file
+                  await Share.shareXFiles(
+                    [XFile(file.path)],
+                    subject: 'Order Receipt Preview',
+                    text: 'Bill Preview for Order #${widget.order.orderNumber}',
+                  );
+                },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green.shade100,
                 foregroundColor: Colors.green.shade900,
