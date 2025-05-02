@@ -76,6 +76,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         await Future.delayed(const Duration(milliseconds: 500));
       }
       
+      // Check if widget is still mounted before updating state
+      if (!mounted) return;
+      
       // Load business info (now at the top)
       _businessNameController.text = settingsProvider.businessName;
       _addressController.text = settingsProvider.businessAddress;
@@ -172,15 +175,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         serverUrl: _serverUrlController.text,
       );
       
+      // Check if widget is still mounted before updating UI
+      if (!mounted) return;
+      
       // Update table provider with new layout
-      if (mounted) {
-        final tableProvider = Provider.of<TableProvider>(context, listen: false);
-        await tableProvider.refreshTables();
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Settings saved successfully')),
-        );
-      }
+      final tableProvider = Provider.of<TableProvider>(context, listen: false);
+      await tableProvider.refreshTables();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Settings saved successfully')),
+      );
     } catch (e) {
       debugPrint('Error saving settings: $e');
       
@@ -210,28 +214,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // Create the backup
       final backupPath = await BackupService.backupData();
       
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-        
-        if (backupPath != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Backup created successfully'),
-              action: SnackBarAction(
-                label: 'Share',
-                onPressed: () {
-                  BackupService.shareBackup(backupPath);
-                },
-              ),
+      // Check if widget is still mounted before updating UI
+      if (!mounted) return;
+      
+      setState(() {
+        _isLoading = false;
+      });
+      
+      if (backupPath != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Backup created successfully'),
+            action: SnackBarAction(
+              label: 'Share',
+              onPressed: () {
+                BackupService.shareBackup(backupPath);
+              },
             ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to create backup')),
-          );
-        }
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to create backup')),
+        );
       }
     } catch (e) {
       debugPrint('Error creating backup: $e');
@@ -263,12 +268,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return;
       }
       
-      // Store the context before async operations
-      final BuildContext currentContext = context;
-      
       // Show dialog to select backup
       final selectedBackup = await showDialog<Map<String, dynamic>>(
-        context: currentContext,
+        context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Select Backup to Restore'),
           content: SizedBox(
@@ -304,9 +306,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       
       if (selectedBackup == null) return;
       
-      // For the second dialog, also use the stored context
+      // For the second dialog, also check if mounted
       final confirmed = await showDialog<bool>(
-        context: currentContext,
+        context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Confirm Restore'),
           content: const Text(
@@ -347,23 +349,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
       
       if (success) {
         // Reload settings - breaking this up into separate operations with mounted checks
-        if (!mounted) return;
         await _loadSettings();
         
-        // Show success message
+        // Check mounted state again before showing message
         if (!mounted) return;
+        
+        // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Backup restored successfully')),
         );
         
-        // Refresh table provider
+        // Refresh table provider - check mounted again
         if (!mounted) return;
         final tableProvider = Provider.of<TableProvider>(context, listen: false);
         tableProvider.refreshTables();
       } else {
         // Only access context if still mounted
-        if (!mounted) return;
-        
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to restore backup')),
         );
@@ -379,6 +380,139 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error restoring backup: $e')),
         );
+      }
+    }
+  }
+
+  void _showPrinterSelectionDialog() {
+    if (!mounted) return;
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Select Default Printer'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                ListTile(
+                  title: const Text('Default Printer'),
+                  onTap: () {
+                    setState(() {
+                      _selectedPrinter = 'Default Printer';
+                    });
+                    Navigator.pop(dialogContext);
+                  },
+                ),
+                ListTile(
+                  title: const Text('Kitchen Printer'),
+                  onTap: () {
+                    setState(() {
+                      _selectedPrinter = 'Kitchen Printer';
+                    });
+                    Navigator.pop(dialogContext);
+                  },
+                ),
+                ListTile(
+                  title: const Text('Office Printer'),
+                  onTap: () {
+                    setState(() {
+                      _selectedPrinter = 'Office Printer';
+                    });
+                    Navigator.pop(dialogContext);
+                  },
+                ),
+                const Divider(),
+                TextButton.icon(
+                  icon: const Icon(Icons.search),
+                  label: const Text('Search for Printers'),
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Searching for printers...')),
+                      );
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.pop(dialogContext),
+            ),
+          ],
+        );
+      },
+    );
+  }
+  
+  void _showClearDataDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Clear All Data'),
+          content: const Text(
+            'This will delete all app data including orders, settings, and login information.\n\n'
+            'This action cannot be undone. Are you sure you want to continue?'
+          ),
+          actions: [
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.pop(dialogContext),
+            ),
+            TextButton(
+              child: const Text('Clear All Data', style: TextStyle(color: Colors.red)),
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                _clearAllData();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+  
+  Future<void> _clearAllData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+      
+      // Reset settings provider
+      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+      await settingsProvider.resetSettings();
+      
+      // Clear secure storage
+      const storage = FlutterSecureStorage();
+      await storage.deleteAll();
+      
+      // Check if widget is still mounted before accessing context
+      if (!mounted) return;
+      
+      // Log out the user
+      Provider.of<AuthProvider>(context, listen: false).logout();
+      
+      // Navigate to login screen
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      debugPrint('Error clearing data: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error clearing data: $e')),
+        );
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
@@ -527,9 +661,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: Text(_selectedPrinter),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () {
-                      if (mounted) {
-                        _showPrinterSelectionDialog();
-                      }
+                      _showPrinterSelectionDialog();
                     },
                   ),
                 ),
@@ -788,136 +920,4 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-  
-  void _showPrinterSelectionDialog() {
-    if (!mounted) return;
-    
-    showDialog(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Select Default Printer'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                ListTile(
-                  title: const Text('Default Printer'),
-                  onTap: () {
-                    setState(() {
-                      _selectedPrinter = 'Default Printer';
-                    });
-                    Navigator.pop(dialogContext);
-                  },
-                ),
-                ListTile(
-                  title: const Text('Kitchen Printer'),
-                  onTap: () {
-                    setState(() {
-                      _selectedPrinter = 'Kitchen Printer';
-                    });
-                    Navigator.pop(dialogContext);
-                  },
-                ),
-                ListTile(
-                  title: const Text('Office Printer'),
-                  onTap: () {
-                    setState(() {
-                      _selectedPrinter = 'Office Printer';
-                    });
-                    Navigator.pop(dialogContext);
-                  },
-                ),
-                const Divider(),
-                TextButton.icon(
-                  icon: const Icon(Icons.search),
-                  label: const Text('Search for Printers'),
-                  onPressed: () {
-                    Navigator.pop(dialogContext);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Searching for printers...')),
-                      );
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () => Navigator.pop(dialogContext),
-            ),
-          ],
-        );
-      },
-    );
-  }
-  
-  void _showClearDataDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Clear All Data'),
-          content: const Text(
-            'This will delete all app data including orders, settings, and login information.\n\n'
-            'This action cannot be undone. Are you sure you want to continue?'
-          ),
-          actions: [
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () => Navigator.pop(dialogContext),
-            ),
-            TextButton(
-              child: const Text('Clear All Data', style: TextStyle(color: Colors.red)),
-              onPressed: () {
-                Navigator.pop(dialogContext);
-                _clearAllData();
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-  
-  Future<void> _clearAllData() async {
-    try {
-      setState(() {
-        _isLoading = true;
-      });
-      
-      // Reset settings provider
-      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-      await settingsProvider.resetSettings();
-      
-      // Clear secure storage
-      const storage = FlutterSecureStorage();
-      await storage.deleteAll();
-      
-      // Log out the user
-      if (mounted) {
-        Provider.of<AuthProvider>(context, listen: false).logout();
-        
-        // Navigate to login screen
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-          (route) => false,
-        );
-      }
-    } catch (e) {
-      debugPrint('Error clearing data: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error clearing data: $e')),
-        );
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-} 
+}

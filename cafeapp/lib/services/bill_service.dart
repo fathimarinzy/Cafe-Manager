@@ -1,16 +1,17 @@
 import 'dart:io';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
+// import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:file_picker/file_picker.dart';
 import '../models/menu_item.dart';
+import './thermal_printer_service.dart';
+import '../models/order_history.dart';
 
 class BillService {
-  // Generate PDF bill for order
+  // Generate PDF bill for order - used only for saving as PDF, not for printing
   static Future<pw.Document> generateBill({
     required List<MenuItem> items,
     required String serviceType,
@@ -375,77 +376,120 @@ class BillService {
     return pdf;
   }
 
-  // Print the bill using a printer
-  static Future<bool> printBill(pw.Document pdf) async {
+  // Direct thermal printing of a bill
+  static Future<bool> printThermalBill(OrderHistory order) async {
     try {
-      // Check for available printers
-      final printers = await Printing.listPrinters();
+      // Convert order items to MenuItem objects
+      final items = order.items.map((item) => 
+        MenuItem(
+          id: item.id.toString(),
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          imageUrl: '',
+          category: '',
+          kitchenNote: item.kitchenNote,
+        )
+      ).toList();
       
-      if (printers.isNotEmpty) {
-        // Use the first available printer
-        final printer = printers.first;
-        
-        // Print the document
-        await Printing.directPrintPdf(
-          printer: printer,
-          onLayout: (PdfPageFormat format) async => pdf.save(),
-        );
-        
-        return true;
-      } else {
-        // No printers available
-        return false;
+      // Extract tableInfo if this is a dining order
+      String? tableInfo;
+      if (order.serviceType.startsWith('Dining - Table')) {
+        tableInfo = order.serviceType;
       }
+      
+      // Use the direct printer service to print the receipt
+      final printed = await ThermalPrinterService.printOrderReceipt(
+        items: items,
+        serviceType: order.serviceType,
+        subtotal: order.total - (order.total * 0.05), // Estimate subtotal as 95% of total
+        tax: order.total * 0.05, // Estimate tax as 5% of total
+        discount: 0, // No discount info in OrderHistory
+        total: order.total,
+        personName: null, // No customer info in OrderHistory
+        tableInfo: tableInfo,
+      );
+      
+      return printed;
+    } catch (e) {
+      debugPrint('Error printing thermal bill: $e');
+      return false;
+    }
+  }
+  
+  // Print the bill directly to thermal printer - Using only direct ESC/POS commands
+  static Future<bool> printBill({
+    required List<MenuItem> items,
+    required String serviceType,
+    required double subtotal,
+    required double tax,
+    required double discount,
+    required double total,
+    String? personName,
+    String? tableInfo,
+  }) async {
+    try {
+      // Use direct ESC/POS commands for printing
+      final printed = await ThermalPrinterService.printOrderReceipt(
+        items: items,
+        serviceType: serviceType,
+        subtotal: subtotal,
+        tax: tax,
+        discount: discount,
+        total: total,
+        personName: personName,
+        tableInfo: tableInfo,
+      );
+      
+      return printed;
     } catch (e) {
       debugPrint('Error printing bill: $e');
       return false;
     }
   }
 
-  // Use Printing.pickDirectory to let user choose where to save file
-  static Future<bool> saveBillToDownloads(pw.Document pdf) async {
+  // New method: Save PDF file with file picker to let the user choose the location
+  static Future<String?> savePdfWithFilePicker(pw.Document pdf, {String defaultFileName = ''}) async {
     try {
-      // First, save PDF to a temporary file
-      final output = await getTemporaryDirectory();
-      final filename = 'cafe_order_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final tempFile = File('${output.path}/$filename');
+      // Generate default filename if not provided
+      String fileName = defaultFileName.isNotEmpty 
+          ? defaultFileName 
+          : 'cafe_order_${DateTime.now().millisecondsSinceEpoch}.pdf';
       
-      // Write PDF to temporary file
-      await tempFile.writeAsBytes(await pdf.save());
+      // Generate the PDF data
+      final pdfBytes = await pdf.save();
       
-      // Now use Share.shareXFiles to open the save dialog
-      final xFile = XFile(tempFile.path, mimeType: 'application/pdf');
-      
-      // This will open the share dialog where users can choose to save the file
-      await Share.shareXFiles(
-        [xFile],
-        text: 'Order Receipt',
-        subject: 'Cafe Order Receipt',
+      // Use FilePicker to get the save location from the user
+      String? outputPath = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save Receipt',
+        fileName: fileName,
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
       );
       
-      return true;
+      // If user canceled the save dialog
+      if (outputPath == null) {
+        debugPrint('User canceled the save dialog');
+        return null;
+      }
+      
+      // Make sure the file path has .pdf extension
+      if (!outputPath.toLowerCase().endsWith('.pdf')) {
+        outputPath = '$outputPath.pdf';
+      }
+      
+      // Write PDF to chosen file path
+      final file = File(outputPath);
+      await file.writeAsBytes(pdfBytes);
+      
+      debugPrint('PDF saved to: $outputPath');
+      return outputPath;
     } catch (e) {
       debugPrint('Error saving PDF: $e');
-      return false;
+      return null;
     }
   }
   
-  // Use Printing.layoutPdf to let user choose where to save the file
-  static Future<bool> saveBillWithFilePicker(pw.Document pdf) async {
-    try {
-      // This will open the native file picker dialog for saving the PDF
-      final successful = await Printing.layoutPdf(
-        onLayout: (PdfPageFormat format) async => pdf.save(),
-        name: 'cafe_order_${DateTime.now().millisecondsSinceEpoch}.pdf',
-      );
-      
-      return successful;
-    } catch (e) {
-      debugPrint('Error using print dialog: $e');
-      return false;
-    }
-  }
-
   // Show a dialog to ask the user if they want to save the PDF
   static Future<bool?> showSavePdfDialog(BuildContext context) async {
     if (!context.mounted) return null;
@@ -456,7 +500,7 @@ class BillService {
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('Printer Not Available'),
-          content: const Text('No printer was found or printing failed. Would you like to save the bill as a PDF?'),
+          content: const Text('Could not connect to the thermal printer. Would you like to save the bill as a PDF?'),
           actions: <Widget>[
             TextButton(
               child: const Text('Cancel'),
@@ -466,36 +510,6 @@ class BillService {
             ),
             TextButton(
               child: const Text('Save PDF'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop(true);
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // Show a dialog to ask the user if they want to try an alternative save method
-  static Future<bool?> showAlternativeMethodDialog(BuildContext context) async {
-    if (!context.mounted) return null;
-    
-    return showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Try Alternative Method'),
-          content: const Text('Would you like to try saving with the share menu instead?'),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('No'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop(false);
-              },
-            ),
-            TextButton(
-              child: const Text('Yes'),
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
               },
@@ -518,8 +532,8 @@ class BillService {
     String? tableInfo,
     required BuildContext context,
   }) async {
-    // First generate the PDF bill
-    final pdf = await generateBill(
+    // Try to print the bill using direct ESC/POS commands only
+    final printed = await printBill(
       items: items,
       serviceType: serviceType,
       subtotal: subtotal,
@@ -529,9 +543,6 @@ class BillService {
       personName: personName,
       tableInfo: tableInfo,
     );
-    
-    // Try to print the bill
-    final printed = await printBill(pdf);
     
     if (printed) {
       // Successfully printed
@@ -580,64 +591,43 @@ class BillService {
       };
     }
     
-    // User chose to save the PDF - show file picker dialog
-    final saved = await saveBillWithFilePicker(pdf);
+    // User chose to save the PDF - generate and save it
+    final pdf = await generateBill(
+      items: items,
+      serviceType: serviceType,
+      subtotal: subtotal,
+      tax: tax,
+      discount: discount,
+      total: total,
+      personName: personName,
+      tableInfo: tableInfo,
+    );
     
-    if (saved) {
+    // Generate a sensible filename
+    final now = DateTime.now();
+    final dateString = DateFormat('yyyyMMdd_HHmmss').format(now);
+    final orderNumber = now.millisecondsSinceEpoch % 10000;
+    final fileName = 'receipt_order${orderNumber}_$dateString.pdf';
+    
+    // Use FilePicker to save file where user chooses
+    final filePath = await savePdfWithFilePicker(pdf, defaultFileName: fileName);
+    
+    if (filePath != null) {
       return {
         'success': true,
         'message': 'Order processed and bill saved as PDF',
         'printed': false,
         'saved': true,
-        'filePath': null,
+        'filePath': filePath,
       };
     }
     
-    // If we get here, saving with file picker failed
-    // Check if context is still valid before showing dialog
-    if (!context.mounted) {
-      return {
-        'success': false,
-        'message': 'Context no longer valid',
-        'printed': false,
-        'saved': false,
-        'filePath': null,
-      };
-    }
-    
-    // Ask user if they want to try the share approach
-    final shouldTryShare = await showAlternativeMethodDialog(context);
-    
-    // Check context again and handle null case
-    if (shouldTryShare == null || !context.mounted) {
-      return {
-        'success': false,
-        'message': 'Dialog was dismissed or context is no longer valid',
-        'printed': false,
-        'saved': false,
-        'filePath': null,
-      };
-    }
-    
-    if (!shouldTryShare) {
-      // User chose not to try alternative method
-      return {
-        'success': false,
-        'message': 'Failed to save the bill',
-        'printed': false,
-        'saved': false,
-        'filePath': null,
-      };
-    }
-    
-    // Try the share approach
-    final savedWithShare = await saveBillToDownloads(pdf);
-    
+    // If we get here, saving with FilePicker approach failed
     return {
-      'success': savedWithShare,
-      'message': savedWithShare ? 'Order processed and bill shared' : 'Failed to share the bill',
+      'success': false,
+      'message': 'Failed to save the bill',
       'printed': false,
-      'saved': savedWithShare,
+      'saved': false,
       'filePath': null,
     };
   }

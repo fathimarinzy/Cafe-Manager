@@ -1,147 +1,58 @@
 import 'package:flutter/material.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
+import 'package:esc_pos_printer/esc_pos_printer.dart';
+import 'package:esc_pos_utils/esc_pos_utils.dart';
 import '../models/menu_item.dart';
+import './thermal_printer_service.dart';
 
 class KitchenPrintService {
-  // Print a kitchen ticket with just the menu item and note
+  // Print a kitchen ticket with just the menu item and note - direct ESC/POS only
   static Future<bool> printKitchenTicket(MenuItem item) async {
-    final pdf = await generateKitchenTicket(item);
-    return await printTicket(pdf);
-  }
-  
-  // Generate a simple PDF for the kitchen with just the item info and note
-  static Future<pw.Document> generateKitchenTicket(MenuItem item) async {
-    final pdf = pw.Document();
-    
-    // Create the kitchen ticket
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.roll80, // Standard receipt roll width
-        build: (pw.Context context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              // Header
-              pw.Center(
-                child: pw.Column(
-                  children: [
-                    pw.Text('KITCHEN ORDER', 
-                      style: pw.TextStyle(
-                        fontSize: 14, 
-                        fontWeight: pw.FontWeight.bold
-                      )
-                    ),
-                    pw.SizedBox(height: 5),
-                    pw.Text(
-                      DateTime.now().toString().substring(0, 19), 
-                      style: pw.TextStyle(fontSize: 10)
-                    ),
-                  ],
-                ),
-              ),
-              
-              pw.SizedBox(height: 10),
-              
-              // Divider
-              pw.Divider(thickness: 1),
-              
-              // Item details - large and prominent
-              pw.Center(
-                child: pw.Text(
-                  item.name,
-                  style: pw.TextStyle(
-                    fontSize: 18,
-                    fontWeight: pw.FontWeight.bold
-                  ),
-                ),
-              ),
-              
-              pw.SizedBox(height: 5),
-              
-              pw.Center(
-                child: pw.Text(
-                  'QTY: ${item.quantity}',
-                  style: pw.TextStyle(
-                    fontSize: 16,
-                    fontWeight: pw.FontWeight.bold
-                  ),
-                ),
-              ),
-              
-              pw.SizedBox(height: 10),
-              
-              // Kitchen note - highlighted prominently
-              if (item.kitchenNote.isNotEmpty)
-                pw.Container(
-                  padding: const pw.EdgeInsets.all(8),
-                  decoration: pw.BoxDecoration(
-                    border: pw.Border.all(width: 1),
-                    color: PdfColors.grey200,
-                  ),
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text(
-                        'SPECIAL INSTRUCTIONS:',
-                        style: pw.TextStyle(
-                          fontSize: 12,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                      pw.SizedBox(height: 4),
-                      pw.Text(
-                        item.kitchenNote,
-                        style: pw.TextStyle(
-                          fontSize: 14,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              
-              pw.SizedBox(height: 20),
-              
-              // Footer with dashed line to tear
-              pw.Center(
-                child: pw.Text(
-                  '--------------------------------',
-                  style: pw.TextStyle(fontSize: 10),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-    
-    return pdf;
-  }
-
-  // Print the ticket to the kitchen printer
-  static Future<bool> printTicket(pw.Document pdf) async {
     try {
-      // Check for available printers
-      final printers = await Printing.listPrinters();
+      // Get printer configuration
+      final ip = await ThermalPrinterService.getPrinterIp();
+      final port = await ThermalPrinterService.getPrinterPort();
       
-      if (printers.isEmpty) {
-        debugPrint('No printers found');
+      // Initialize printer
+      final profile = await CapabilityProfile.load();
+      final printer = NetworkPrinter(PaperSize.mm80, profile);
+      
+      debugPrint('Connecting to printer at $ip:$port for kitchen ticket');
+      final PosPrintResult result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 5));
+      
+      if (result != PosPrintResult.success) {
+        debugPrint('Failed to connect to printer: ${result.msg}');
         return false;
       }
       
-      // Try to find a kitchen printer specifically (if named)
-      Printer kitchenPrinter = printers.firstWhere(
-        (printer) => printer.name.toLowerCase().contains('kitchen'), 
-        orElse: () => printers.first // Default to first printer if no kitchen printer
-      );
+      // Print kitchen ticket
       
-      // Print the document
-      await Printing.directPrintPdf(
-        printer: kitchenPrinter,
-        onLayout: (PdfPageFormat format) async => pdf.save(),
-      );
+      // Header
+      printer.text('KITCHEN ORDER', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
+      printer.text(DateTime.now().toString().substring(0, 19), styles: const PosStyles(align: PosAlign.center));
+      
+      // Divider
+      printer.hr();
+      
+      // Item details
+      printer.text(item.name, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
+      printer.text('QTY: ${item.quantity}', styles: const PosStyles(align: PosAlign.center, bold: true));
+      
+      // Kitchen note if present
+      if (item.kitchenNote.isNotEmpty) {
+        printer.text('', styles: const PosStyles(align: PosAlign.center));
+        printer.text('SPECIAL INSTRUCTIONS:', styles: const PosStyles(align: PosAlign.left, bold: true));
+        printer.text(item.kitchenNote, styles: const PosStyles(align: PosAlign.left, bold: true, underline: true));
+      }
+      
+      // Footer with dashed line
+      printer.text('', styles: const PosStyles(align: PosAlign.center));
+      printer.text('--------------------------------', styles: const PosStyles(align: PosAlign.center));
+      
+      // Cut paper
+      printer.cut();
+      
+      // Disconnect
+      printer.disconnect();
       
       return true;
     } catch (e) {

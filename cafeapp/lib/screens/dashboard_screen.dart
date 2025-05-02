@@ -57,7 +57,7 @@ class DashboardScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.print),
             onPressed: () {
-              Navigator.of(context).pushNamed(AppRoutes.printerSettings);
+              Navigator.of(context).pushNamed(AppRoutes.printerConfig);
             },
             tooltip: 'Printer Settings',
           ),

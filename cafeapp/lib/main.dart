@@ -131,6 +131,7 @@ import 'screens/person_form_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/printer_settings_screen.dart';
 
 import 'providers/table_provider.dart';
 import 'providers/auth_provider.dart';
@@ -140,6 +141,7 @@ import 'providers/person_provider.dart';
 import 'providers/settings_provider.dart';
 import 'services/api_service.dart'; 
 import 'providers/order_history_provider.dart';
+
 
 void main() {
   runApp(const MyApp());
@@ -217,6 +219,7 @@ class MyApp extends StatelessWidget {
               AppRoutes.addperson: (ctx) => const PersonFormScreen(),
               AppRoutes.dashboard: (ctx) => const DashboardScreen(),
               AppRoutes.settings: (ctx) => const SettingsScreen(),
+              AppRoutes.printerConfig: (ctx) => const PrinterSettingsScreen(),
             },
           );
         },
@@ -230,5 +233,6 @@ class AppRoutes {
   static const String addperson = '/add-person';
   static const String dashboard = '/dashboard';
   static const String settings = '/settings';
-  static const String printerSettings = '/printer-settings';
+  static const String printerConfig = '/printer-settings';
+
 }

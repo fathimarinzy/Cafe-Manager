@@ -39,7 +39,7 @@ class _KitchenNoteDialogState extends State<KitchenNoteDialog> {
     });
   }
 
-  // Extract printing logic to a separate method
+  // Extract printing logic to a separate method - direct ESC/POS printing only
   Future<String?> _processNote(BuildContext ctx) async {
     String? noteText = _noteController.text;
 
@@ -55,7 +55,7 @@ class _KitchenNoteDialogState extends State<KitchenNoteDialog> {
           kitchenNote: noteText,
         );
         
-        // Print the kitchen ticket
+        // Print the kitchen ticket using direct ESC/POS commands
         await KitchenPrintService.printKitchenTicket(itemWithNote);
       } catch (e) {
         debugPrint('Error printing kitchen ticket: $e');
