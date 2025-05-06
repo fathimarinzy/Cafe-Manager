@@ -1,17 +1,16 @@
 import 'dart:io';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
-import 'package:share_plus/share_plus.dart';
 import '../models/menu_item.dart';
 import './thermal_printer_service.dart';
 import '../models/order_history.dart';
 
 class BillService {
-  // Generate PDF bill for order - used only for saving as PDF, not for printing
+  // Generate PDF bill for order
   static Future<pw.Document> generateBill({
     required List<MenuItem> items,
     required String serviceType,
@@ -375,7 +374,6 @@ class BillService {
     
     return pdf;
   }
-// Add this method to your BillService class
 
   // Direct thermal printing of a bill
   static Future<bool> printThermalBill(OrderHistory order) async {
@@ -417,6 +415,7 @@ class BillService {
       return false;
     }
   }
+
   // Print the bill directly to thermal printer - Using only direct ESC/POS commands
   static Future<bool> printBill({
     required List<MenuItem> items,
@@ -448,30 +447,36 @@ class BillService {
     }
   }
 
-  // Use Share.shareXFiles to let user choose where to save file
-  static Future<bool> saveBillToDownloads(pw.Document pdf) async {
+  // Save PDF using Android's native Create Document Intent
+  static Future<bool> saveWithAndroidIntent(pw.Document pdf) async {
     try {
-      // First, save PDF to a temporary file
-      final output = await getTemporaryDirectory();
-      final filename = 'cafe_order_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final tempFile = File('${output.path}/$filename');
+      if (!Platform.isAndroid) {
+        debugPrint('This method only works on Android');
+        return false;
+      }
+      
+      // First save PDF to a temporary file
+      final tempDir = await getTemporaryDirectory();
+      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final tempFilename = 'temp_receipt_$timestamp.pdf';
+      final tempFile = File('${tempDir.path}/$tempFilename');
       
       // Write PDF to temporary file
       await tempFile.writeAsBytes(await pdf.save());
       
-      // Now use Share.shareXFiles to open the save dialog
-      final xFile = XFile(tempFile.path, mimeType: 'application/pdf');
+      // Create platform channel for intent
+      const platform = MethodChannel('com.simsrestocafe/file_picker');
       
-      // This will open the share dialog where users can choose to save the file
-      await Share.shareXFiles(
-        [xFile],
-        text: 'Order Receipt',
-        subject: 'Cafe Order Receipt',
-      );
+      // Call the native method with file path
+      final result = await platform.invokeMethod('createDocument', {
+        'path': tempFile.path,
+        'mimeType': 'application/pdf',
+        'fileName': 'SIMS_receipt_$timestamp.pdf',
+      });
       
-      return true;
+      return result == true;
     } catch (e) {
-      debugPrint('Error saving PDF: $e');
+      debugPrint('Error saving PDF with Android intent: $e');
       return false;
     }
   }
@@ -589,7 +594,8 @@ class BillService {
       tableInfo: tableInfo,
     );
     
-    final saved = await saveBillToDownloads(pdf);
+    // Save using native Android intent
+    final saved = await saveWithAndroidIntent(pdf);
     
     if (saved) {
       return {
@@ -601,7 +607,7 @@ class BillService {
       };
     }
     
-    // If we get here, saving with Share approach failed
+    // If we get here, saving failed
     return {
       'success': false,
       'message': 'Failed to save the bill',

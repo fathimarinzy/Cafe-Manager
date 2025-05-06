@@ -7,6 +7,8 @@ import io.flutter.plugins.GeneratedPluginRegistrant
 class MainActivity : FlutterActivity(){
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         GeneratedPluginRegistrant.registerWith(flutterEngine)
+        super.configureFlutterEngine(flutterEngine)
+        flutterEngine.plugins.add(FilePickerPlugin())
     }
 }
 

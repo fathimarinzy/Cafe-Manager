@@ -50,7 +50,6 @@ dependencies:
   esc_pos_utils: ^1.1.0  # For ESC/POS commands generation
   image: ^3.0.2  # Required for image processing with esc_pos_utils
   network_info_plus: ^4.0.2  # To get network information
- 
 
 
 dev_dependencies:

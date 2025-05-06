@@ -13,6 +13,7 @@ import '../providers/order_history_provider.dart';
 import '../screens/order_list_screen.dart';
 import 'dashboard_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
 
 class TenderScreen extends StatefulWidget {
   final OrderHistory order;
@@ -32,6 +33,7 @@ class _TenderScreenState extends State<TenderScreen> {
   bool _isCashSelected = false;
   String _orderStatus = 'pending'; // Track the current order status
   final ApiService _apiService = ApiService();
+  final MethodChannel _channel = const MethodChannel('com.simsrestocafe/file_picker');
 
   // Credit card payment data
   String _selectedCardType = 'VISA'; // Default card type
@@ -111,96 +113,88 @@ class _TenderScreenState extends State<TenderScreen> {
   }
 
   // Updated _processPayment method to handle change similar to cash payments
-    Future<void> _processPayment(double amount) async {
-    if (_selectedPaymentMethod == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a payment method')),
-      );
-      return;
-    }
-    
-    if (amount <= 0) return;
+   Future<void> _processPayment(double amount) async {
+  if (_selectedPaymentMethod == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please select a payment method')),
+    );
+    return;
+  }
+  
+  if (amount <= 0) return;
 
-    setState(() {
-      _isProcessing = true;
-    });
+  setState(() {
+    _isProcessing = true;
+  });
 
-    double change = 0.0;
-    if (amount > widget.order.total) {
-      change = amount - widget.order.total;
-    }
-
-    try {
-      final statusUpdated = await _updateOrderStatus('completed');
-      
-      if (!statusUpdated) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to update order status, but continuing with payment processing')),
-          );
-        }
-      }
-      
-      final prefs = await SharedPreferences.getInstance();
-      final savedPrinterName = prefs.getString('selected_printer');
-      debugPrint('Selected printer: $savedPrinterName'); // This will use the variable and prevent the warning
-        
-      final pdf = await _generateReceipt();
-
-      bool printed = false;
-      try {
-        printed = await BillService.printThermalBill(widget.order);
-      } catch (e) {
-        debugPrint('Printing error: $e');
-         // Log which printer was attempted
-        debugPrint('Attempted to print using: $savedPrinterName');
-      }
-        
-      bool? saveAsPdf = false;
-      if (!printed) {
-        if (mounted) {
-          saveAsPdf = await _showSavePdfDialog();
-        }
-        
-        if (saveAsPdf == true) {
-          try {
-            final tempDir = await getTemporaryDirectory();
-            final file = File('${tempDir.path}/receipt_${widget.order.id}_${DateTime.now().millisecondsSinceEpoch}.pdf');
-            await file.writeAsBytes(await pdf.save());
-            
-            await Share.shareXFiles(
-              [XFile(file.path)],
-              subject: 'Order Receipt',
-              text: 'Receipt for Order #${widget.order.orderNumber}',
-            );
-          } catch (e) {
-            debugPrint('Error saving PDF: $e');
-          }
-        }
-      }
-
-      if (mounted) {
-        if (change > 0) {
-          await _showBalanceMessageDialog(change);
-        } else {
-          await _showBalanceMessageDialog();
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error processing payment: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
-      }
-    }
+  double change = 0.0;
+  if (amount > widget.order.total) {
+    change = amount - widget.order.total;
   }
 
+  try {
+    final statusUpdated = await _updateOrderStatus('completed');
+    
+    if (!statusUpdated) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to update order status, but continuing with payment processing')),
+        );
+      }
+    }
+    
+    final prefs = await SharedPreferences.getInstance();
+    final savedPrinterName = prefs.getString('selected_printer');
+    debugPrint('Selected printer: $savedPrinterName'); // This will use the variable and prevent the warning
+      
+    final pdf = await _generateReceipt();
+
+    bool printed = false;
+    try {
+      printed = await BillService.printThermalBill(widget.order);
+    } catch (e) {
+      debugPrint('Printing error: $e');
+      // Log which printer was attempted
+      debugPrint('Attempted to print using: $savedPrinterName');
+    }
+      
+    bool? saveAsPdf = false;
+    if (!printed) {
+      if (mounted) {
+        saveAsPdf = await _showSavePdfDialog();
+      }
+      
+      if (saveAsPdf == true) {
+        try {
+          // Use Android's native file picker intent to save the file
+          await _saveWithAndroidIntent(pdf);
+        } catch (e) {
+          debugPrint('Error saving PDF: $e');
+        }
+      }
+    }
+
+    if (mounted) {
+      if (change > 0) {
+        await _showBalanceMessageDialog(change);
+      } else {
+        await _showBalanceMessageDialog();
+      }
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error processing payment: $e')),
+      );
+    }
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isProcessing = false;
+      });
+    }
+  }
+}
 
   // Cancel the order
   Future<void> _cancelOrder() async {
@@ -863,72 +857,65 @@ class _TenderScreenState extends State<TenderScreen> {
   }
   
   // New method to process cash payment
-  
   Future<void> _processCashPayment(double amount, double change) async {
-    setState(() {
-      _isProcessing = true;
-    });
+  setState(() {
+    _isProcessing = true;
+  });
 
-    try {
-      final statusUpdated = await _updateOrderStatus('completed');
-      
-      if (!statusUpdated) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to update order status, but continuing with payment processing')),
-          );
-        }
-      }
-      
-      final pdf = await _generateReceipt();
-      
-      bool printed = false;
-      try {
-        printed = await BillService.printThermalBill(widget.order);
-      } catch (e) {
-        debugPrint('Printing error: $e');
-      }
-
-      bool? saveAsPdf = false;
-      if (!printed) {
-        if (mounted) {
-          saveAsPdf = await _showSavePdfDialog();
-        }
-        
-        if (saveAsPdf == true) {
-          try {
-            final tempDir = await getTemporaryDirectory();
-            final file = File('${tempDir.path}/receipt_${widget.order.id}_${DateTime.now().millisecondsSinceEpoch}.pdf');
-            await file.writeAsBytes(await pdf.save());
-            
-            await Share.shareXFiles(
-              [XFile(file.path)],
-              subject: 'Order Receipt',
-              text: 'Receipt for Order #${widget.order.orderNumber}',
-            );
-          } catch (e) {
-            debugPrint('Error saving PDF: $e');
-          }
-        }
-      }
-
-      if (mounted) {
-        await _showBalanceMessageDialog(change);
-      }
-    } catch (e) {
+  try {
+    final statusUpdated = await _updateOrderStatus('completed');
+    
+    if (!statusUpdated) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error processing payment: $e')),
+          const SnackBar(content: Text('Failed to update order status, but continuing with payment processing')),
         );
       }
-    } finally {
+    }
+    
+    final pdf = await _generateReceipt();
+    
+    bool printed = false;
+    try {
+      printed = await BillService.printThermalBill(widget.order);
+    } catch (e) {
+      debugPrint('Printing error: $e');
+    }
+
+    bool? saveAsPdf = false;
+    if (!printed) {
       if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
+        saveAsPdf = await _showSavePdfDialog();
+      }
+      
+      if (saveAsPdf == true) {
+        try {
+          // Use Android's native file picker intent to save the file
+          await _saveWithAndroidIntent(pdf);
+        } catch (e) {
+          debugPrint('Error saving PDF: $e');
+        }
       }
     }
+
+    if (mounted) {
+      await _showBalanceMessageDialog(change);
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error processing payment: $e')),
+      );
+    }
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isProcessing = false;
+      });
+    }
   }
+}
+ 
   // Updated method with optional parameter
   Future<void> _showBalanceMessageDialog([double change = 0.0]) async {
     return showDialog<void>(
@@ -1581,6 +1568,36 @@ class _TenderScreenState extends State<TenderScreen> {
         );
       },
     );
+  }
+  // Save PDF using Android's native Create Document Intent
+  Future<bool> _saveWithAndroidIntent(pw.Document pdf) async {
+    try {
+      if (!Platform.isAndroid) {
+        debugPrint('This method only works on Android');
+        return false;
+      }
+      
+      // First save PDF to a temporary file
+      final tempDir = await getTemporaryDirectory();
+      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final tempFilename = 'temp_receipt_${widget.order.orderNumber}_$timestamp.pdf';
+      final tempFile = File('${tempDir.path}/$tempFilename');
+      
+      // Write PDF to temporary file
+      await tempFile.writeAsBytes(await pdf.save());
+      
+      // Call the native method with file path
+      final result = await _channel.invokeMethod('createDocument', {
+        'path': tempFile.path,
+        'mimeType': 'application/pdf',
+        'fileName': 'SIMS_receipt_${widget.order.orderNumber}_$timestamp.pdf',
+      });
+      
+      return result == true;
+    } catch (e) {
+      debugPrint('Error saving PDF with Android intent: $e');
+      return false;
+    }
   }
 
   // Generate the receipt using the PDF library
