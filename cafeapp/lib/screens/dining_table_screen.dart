@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'menu_screen.dart';
 import 'table_management_screen.dart';
+import 'table_orders_screen.dart'; // Import the new screen
 import '../providers/order_provider.dart';
 import '../providers/table_provider.dart';
 
@@ -341,6 +342,22 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
     }
   }
 
+  // Navigate to TableOrdersScreen to view orders for a specific table
+  Future<void> _navigateToTableOrders(int tableNumber) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => TableOrdersScreen(tableNumber: tableNumber),
+      ),
+    );
+
+    // Refresh the table state when returning
+    if (mounted) {
+      final tableProvider = Provider.of<TableProvider>(context, listen: false);
+      tableProvider.refreshTables();
+      setState(() {});
+    }
+  }
+
   // Show dialog for occupied tables
   void _showOccupiedTableDialog(int tableNumber, String serviceType, OrderProvider orderProvider) {
     showDialog(
@@ -357,10 +374,7 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
             onPressed: () {
               Navigator.of(ctx).pop();
               // Navigate to view orders for this table
-              // You would need to implement this functionality
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('View orders functionality would be shown here')),
-              );
+              _navigateToTableOrders(tableNumber);
             },
             child: const Text('View Orders'),
           ),

@@ -83,6 +83,12 @@ class OrderHistoryProvider with ChangeNotifier {
     _setLoading(true);
     
     try {
+      // Extract table number if needed
+      String tableNumber = tableInfo;
+      if (tableInfo.contains('Table ')) {
+        tableNumber = tableInfo.split('Table ').last;
+      }
+      
       final List<Order> apiOrders = await _apiService.getOrdersByTable(tableInfo);
       _orders = apiOrders.map((order) => OrderHistory.fromOrder(order)).toList();
       
@@ -91,6 +97,8 @@ class OrderHistoryProvider with ChangeNotifier {
       
       // Apply current filters
       _applyFilters();
+      
+      debugPrint('Loaded ${_orders.length} orders for table $tableNumber');
     } catch (e) {
       _errorMessage = 'Failed to load table orders: $e';
       debugPrint(_errorMessage);
@@ -98,7 +106,7 @@ class OrderHistoryProvider with ChangeNotifier {
       _setLoading(false);
     }
   }
- 
+  
  // Search for an order by bill number
   Future<void> searchOrdersByBillNumber(String billNumber) async {
     if (billNumber.isEmpty) {
