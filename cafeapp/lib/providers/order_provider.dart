@@ -18,6 +18,16 @@ class OrderProvider with ChangeNotifier {
   
   String _currentServiceType = '';
   final ApiService _apiService = ApiService();
+  // Add this property to track current order ID
+  int? _currentOrderId;
+
+  // Add getter and setter for current order ID
+  int? get currentOrderId => _currentOrderId;
+
+  void setCurrentOrderId(int? orderId) {
+    _currentOrderId = orderId;
+    notifyListeners();
+  }
   
   // Track selected person for order
   Person? _selectedPerson;
@@ -229,7 +239,8 @@ class OrderProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // New method: Process order with bill generation
+
+// Modify the processOrderWithBill method to handle existing orders
   Future<Map<String, dynamic>> processOrderWithBill(BuildContext context) async {
     // First check if we have items in the cart
     if (_currentServiceType.isEmpty || cartItems.isEmpty) {
@@ -264,17 +275,32 @@ class OrderProvider with ChangeNotifier {
         context: context,
       );
       
-      // Create the order in the database regardless of whether the bill was printed/saved
-      final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
-      
-      final order = await _apiService.createOrder(
-        _currentServiceType,
-        items,
-        subtotal,
-        tax,
-        discount,
-        total,
-      );
+      // Check if we're updating an existing order or creating a new one
+      Order? order;
+      if (_currentOrderId != null) {
+        // Update existing order
+        final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
+        order = await _apiService.updateOrder(
+          _currentOrderId!,
+          _currentServiceType,
+          items,
+          subtotal,
+          tax,
+          discount,
+          total,
+        );
+      } else {
+        // Create a new order in the database
+        final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
+        order = await _apiService.createOrder(
+          _currentServiceType,
+          items,
+          subtotal,
+          tax,
+          discount,
+          total,
+        );
+      }
 
       // If this is a table order, update the table status to occupied
       if (tableNumber != null && context.mounted) { // Added mounted check
@@ -307,6 +333,8 @@ class OrderProvider with ChangeNotifier {
       if (order != null) {
         // Clear the current service type's cart
         clearCart();
+        // Reset the current order ID
+        _currentOrderId = null;
         
         return {
           'success': true,
@@ -318,7 +346,7 @@ class OrderProvider with ChangeNotifier {
       } else {
         return {
           'success': false,
-          'message': 'Failed to create order in the system',
+          'message': 'Failed to create or update order in the system',
         };
       }
     } catch (error) {
@@ -425,4 +453,103 @@ class OrderProvider with ChangeNotifier {
     debugPrint('Updated kitchen note for item $id: $note');
   }
 }
+
+
+// Modify the existing placeOrder method or add a new one to handle updating existing orders
+Future<bool> updateExistingOrder(int orderId) async {
+  if (_currentServiceType.isEmpty || _serviceTypeCarts[_currentServiceType]!.isEmpty) {
+    return false;
+  }
+
+  try {
+    final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
+    final subtotal = _serviceTotals[_currentServiceType]!['subtotal'] ?? 0;
+    final tax = _serviceTotals[_currentServiceType]!['tax'] ?? 0;
+    final discount = _serviceTotals[_currentServiceType]!['discount'] ?? 0;
+    final total = _serviceTotals[_currentServiceType]!['total'] ?? 0;
+    
+    // Call API to update the existing order
+    final order = await _apiService.updateOrder(
+      orderId,
+      _currentServiceType,
+      items,
+      subtotal,
+      tax,
+      discount,
+      total,
+    );
+
+    if (order != null) {
+      // Clear only the current service type's cart
+      _serviceTypeCarts[_currentServiceType]!.clear();
+      _updateTotals(_currentServiceType);
+      notifyListeners();
+      return true; 
+    }
+    return false;
+  } catch (error) {
+    debugPrint('Error updating order: $error');
+    return false;
+  }
+}
+// Add this method to the OrderProvider class to load existing items into the cart
+
+// Load items from an existing order into the cart
+Future<void> loadExistingOrderItems(int orderId) async {
+  try {
+    // First clear the current cart to avoid duplicates
+    if (_serviceTypeCarts.containsKey(_currentServiceType)) {
+      _serviceTypeCarts[_currentServiceType]!.clear();
+    }
+    
+    // Fetch the order from the API
+    final order = await _apiService.getOrderById(orderId);
+    
+    if (order != null) {
+      // Track the current order ID
+      _currentOrderId = orderId;
+      
+      // Convert order items to menu items and add to cart
+      for (var item in order.items) {
+        final menuItem = MenuItem(
+          id: item.id.toString(),
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          imageUrl: '', // No image info in order items
+          category: '', // No category info in order items
+          kitchenNote: item.kitchenNote,
+        );
+        
+        // Add to cart without incrementing quantity (we already have the correct quantity)
+        _addToCartWithoutIncrementing(menuItem);
+      }
+      
+      // Update totals
+      _updateTotals(_currentServiceType);
+      notifyListeners();
+      
+      debugPrint('Loaded ${order.items.length} items from existing order #$orderId');
+    }
+  } catch (e) {
+    debugPrint('Error loading existing order items: $e');
+  }
+}
+
+// Add item to cart without incrementing quantity for existing items
+void _addToCartWithoutIncrementing(MenuItem item) {
+  if (_currentServiceType.isEmpty) {
+    debugPrint('Warning: No service type selected');
+    return;
+  }
+  
+  // Initialize the cart for this service type if it doesn't exist
+  if (!_serviceTypeCarts.containsKey(_currentServiceType)) {
+    _serviceTypeCarts[_currentServiceType] = [];
+  }
+  
+  // Don't check for existing items, just add directly
+  _serviceTypeCarts[_currentServiceType]!.add(item);
+}
+
 }

@@ -7,6 +7,7 @@ import 'table_management_screen.dart';
 import 'table_orders_screen.dart'; // Import the new screen
 import '../providers/order_provider.dart';
 import '../providers/table_provider.dart';
+import '../providers/order_history_provider.dart'; // Add this import
 
 class DiningTableScreen extends StatefulWidget {
   const DiningTableScreen({super.key});
@@ -313,6 +314,8 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
   // Navigate to Menu Screen and handle return
   Future<void> _navigateToMenuScreen(String serviceType, OrderProvider orderProvider) async {
     orderProvider.setCurrentServiceType(serviceType);
+    // Clear any previous order ID when creating a new order
+    orderProvider.setCurrentOrderId(null);
     
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -358,6 +361,113 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
     }
   }
 
+  // Check if there's an active (pending) order for a table
+  
+Future<void> _checkForActiveOrder(int tableNumber, String serviceType, OrderProvider orderProvider) async {
+  // Show loading indicator
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (BuildContext context) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    },
+  );
+  
+  try {
+    // Get the order history provider
+    final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
+    
+    // Load orders for this table
+    await historyProvider.loadOrdersByTable(serviceType);
+    
+    // Look for a pending order
+    final orders = historyProvider.orders;
+    for (var order in orders) {
+      if (order.status.toLowerCase() == 'pending') {
+        // Found an active order - close the loading dialog
+        if (context.mounted) {
+          Navigator.of(context).pop();
+          
+          // Instead of showing a dialog, directly add to the existing order
+          orderProvider.setCurrentOrderId(order.id);
+          orderProvider.setCurrentServiceType(serviceType);
+          // Load existing items into the cart
+          await orderProvider.loadExistingOrderItems(order.id);
+          
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => MenuScreen(
+                serviceType: serviceType,
+                existingOrderId: order.id,
+              ),
+            ),
+          );
+          return;
+        }
+      }
+    }
+    
+    // No active order found - close the loading dialog and proceed with new order
+    if (context.mounted) {
+      Navigator.of(context).pop();
+      _navigateToMenuScreen(serviceType, orderProvider);
+    }
+  } catch (e) {
+    // Error occurred - close the loading dialog and proceed with new order
+    if (context.mounted) {
+      Navigator.of(context).pop();
+       debugPrint('Error checking for active orders: $e');
+      _navigateToMenuScreen(serviceType, orderProvider);
+    }
+  }
+}
+
+  // Dialog to ask if they want to add to an existing order
+  // void _showAddToOrderDialog(dynamic order, int tableNumber, String serviceType, OrderProvider orderProvider) {
+  //   showDialog(
+  //     context: context,
+  //     builder: (ctx) => AlertDialog(
+  //       title: Text('Table $tableNumber'),
+  //       content: const Text('There is an active order for this table. Would you like to add to the existing order or create a new one?'),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () {
+  //             Navigator.of(ctx).pop();
+  //             _navigateToMenuScreen(serviceType, orderProvider);
+  //           },
+  //           child: const Text('New Order'),
+  //         ),
+  //         TextButton(
+  //           onPressed: () {
+  //             Navigator.of(ctx).pop();
+  //             // Set current order ID and navigate to menu
+  //             orderProvider.setCurrentOrderId(order.id);
+  //             orderProvider.setCurrentServiceType(serviceType);
+              
+  //             Navigator.push(
+  //               context,
+  //               MaterialPageRoute(
+  //                 builder: (context) => MenuScreen(
+  //                   serviceType: serviceType,
+  //                   existingOrderId: order.id,
+  //                 ),
+  //               ),
+  //             );
+  //           },
+  //           child: const Text('Add to Existing'),
+  //         ),
+  //         TextButton(
+  //           onPressed: () => Navigator.of(ctx).pop(),
+  //           child: const Text('Cancel'),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+
   // Show dialog for occupied tables
   void _showOccupiedTableDialog(int tableNumber, String serviceType, OrderProvider orderProvider) {
     showDialog(
@@ -381,7 +491,8 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
           TextButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              _navigateToMenuScreen(serviceType, orderProvider);
+              // Check for active orders before creating a new one
+              _checkForActiveOrder(tableNumber, serviceType, orderProvider);
             },
             child: const Text('New Order'),
           ),

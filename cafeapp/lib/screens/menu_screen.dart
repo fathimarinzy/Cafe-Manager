@@ -19,7 +19,8 @@ import '../widgets/kitchen_note_dialog.dart';
 class MenuScreen extends StatefulWidget {
   final String serviceType;
   final Color serviceColor;
-  const MenuScreen({super.key, required this.serviceType,this.serviceColor = const Color(0xFF1565C0)});
+  final int? existingOrderId; // Add this parameter
+  const MenuScreen({super.key, required this.serviceType,this.serviceColor = const Color(0xFF1565C0),this.existingOrderId,});
 
   @override
   MenuScreenState createState() => MenuScreenState();
@@ -48,13 +49,40 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
     _loadMenu();
     _updateTime();
     
-    // Set the current service type in OrderProvider
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<OrderProvider>(context, listen: false)
-          .setCurrentServiceType(widget.serviceType);
-    });
-  }
-  
+   // Set the current service type and order ID in OrderProvider
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+    orderProvider.setCurrentServiceType(widget.serviceType);
+    
+    // If an existing order ID was provided
+    if (widget.existingOrderId != null) {
+      // Check if we need to load the items (they might have been loaded already)
+      if (orderProvider.currentOrderId != widget.existingOrderId) {
+        orderProvider.setCurrentOrderId(widget.existingOrderId);
+        
+        // Show loading indicator
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          },
+        );
+        
+        // Load existing items into the cart
+        await orderProvider.loadExistingOrderItems(widget.existingOrderId!);
+        
+        // Close the loading dialog
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+      }
+    }
+  });
+}
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Refresh data when the app comes back to the foreground

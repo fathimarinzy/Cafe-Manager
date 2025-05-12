@@ -559,26 +559,32 @@ class ApiService {
   }
 
   Future<Order?> getOrderById(int orderId) async {
-    final token = await getToken();
-    if (token == null) return null;
-    
+  final token = await getToken();
+  if (token == null) return null;
+  
+  try {
     final response = await http.get(
       Uri.parse('$baseUrl/orders/$orderId'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
-        'X-Timezone-Offset': DateTime.now().timeZoneOffset.inMinutes.toString(),
       },
     );
 
     if (response.statusCode == 200) {
-      return Order.fromJson(jsonDecode(response.body));
+      final data = jsonDecode(response.body);
+      return Order.fromJson(data);
     } else if (response.statusCode == 401) {
       final refreshed = await _handleExpiredToken(response);
       if (refreshed) return getOrderById(orderId);
     }
+    
+    return null;
+  } catch (e) {
+    debugPrint('Error getting order by ID: $e');
     return null;
   }
+}
 
   Future<List<Order>> getOrdersByTable(String tableInfo) async {
     final token = await getToken();
@@ -627,8 +633,6 @@ class ApiService {
     return [];
   }
 
-  // Add this method to your ApiService class in lib/services/api_service.dart
-
 // Update an order's status
 Future<bool> updateOrderStatus(int orderId, String status) async {
   try {
@@ -660,4 +664,56 @@ Future<bool> updateOrderStatus(int orderId, String status) async {
     return false;
   }
 }
+// Add this method to ApiService class
+
+  Future<Order?> updateOrder(
+    int orderId, 
+    String serviceType, 
+    List<Map<String, dynamic>> items,
+    double subtotal, 
+    double tax, 
+    double discount, 
+    double total
+  ) async {
+    final token = await getToken();
+    if (token == null) return null;
+    
+    // Create the update payload
+    final Map<String, dynamic> payload = {
+      'serviceType': serviceType,
+      'items': items,
+      'subtotal': subtotal,
+      'tax': tax,
+      'discount': discount,
+      'total': total,
+      'status': 'pending', // Keep status as pending for active orders
+    };
+    
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/orders/$orderId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(payload),
+      );
+
+      if (response.statusCode == 200) {
+        debugPrint('Order updated successfully: ${response.body}');
+        return Order.fromJson(jsonDecode(response.body));
+      } else if (response.statusCode == 401) {
+        final refreshed = await _handleExpiredToken(response);
+        if (refreshed) {
+          return updateOrder(orderId, serviceType, items, subtotal, tax, discount, total);
+        }
+      }
+      
+      debugPrint('Failed to update order: ${response.statusCode}, ${response.body}');
+      return null;
+    } catch (e) {
+      debugPrint('Error updating order: $e');
+      return null;
+    }
+  }
 }

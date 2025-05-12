@@ -5,6 +5,8 @@ import '../providers/order_history_provider.dart';
 import '../models/order_history.dart';
 import '../models/order_item.dart';
 import 'order_details_screen.dart';
+import 'menu_screen.dart';
+import '../providers/order_provider.dart';
 
 class TableOrdersScreen extends StatefulWidget {
   final int tableNumber;
@@ -52,8 +54,74 @@ class _TableOrdersScreenState extends State<TableOrdersScreen> {
     }
   }
 
+  // Find active (pending) orders for this table
+  // OrderHistory? _getActiveOrder() {
+  //   // Look for pending orders first
+  //   for (var order in _orders) {
+  //     if (order.status.toLowerCase() == 'pending') {
+  //       return order;
+  //     }
+  //   }
+  //   return null;
+  // }
+
+  // Add to an existing order
+  // void _addToExistingOrder(OrderHistory order) async {
+  //   // Get the order provider to set the service type
+  //   final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+  //   final serviceType = 'Dining - Table ${widget.tableNumber}';
+    
+  //   // We need to set both service type and current order ID
+  //   orderProvider.setCurrentServiceType(serviceType);
+  //   orderProvider.setCurrentOrderId(order.id);
+    
+  //   // Navigate to the menu screen to add items
+  //   await Navigator.push(
+  //     context,
+  //     MaterialPageRoute(
+  //       builder: (context) => MenuScreen(
+  //         serviceType: serviceType,
+  //         existingOrderId: order.id,
+  //       ),
+  //     ),
+  //   );
+    
+  //   // Refresh orders when returning
+  //   if (mounted) {
+  //     _loadOrders();
+  //   }
+  // }
+
+  // Create a new order when no active order exists
+  void _createNewOrder() async {
+    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+    final serviceType = 'Dining - Table ${widget.tableNumber}';
+    
+    // Clear any existing order ID
+    orderProvider.setCurrentOrderId(null);
+    orderProvider.setCurrentServiceType(serviceType);
+    
+    // Navigate to menu screen to create a new order
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MenuScreen(
+          serviceType: serviceType,
+        ),
+      ),
+    );
+    
+    // Refresh orders when returning
+    if (mounted) {
+      _loadOrders();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Find active order if any exists
+    // final activeOrder = _getActiveOrder();
+    
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -78,8 +146,62 @@ class _TableOrdersScreenState extends State<TableOrdersScreen> {
               : _orders.isEmpty
                   ? _buildEmptyView()
                   : _buildOrdersList(),
+      // floatingActionButton: FloatingActionButton.extended(
+      //   onPressed: () {
+      //     if (activeOrder != null) {
+      //       // Show dialog to choose between existing and new order
+      //       _showOrderOptionsDialog(activeOrder);
+      //     } else {
+      //       // No active order, create a new one
+      //       _createNewOrder();
+      //     }
+      //   },
+      //   // backgroundColor: Colors.blue.shade700,
+      //   // icon: const Icon(Icons.add_shopping_cart),
+      //   label: const Text('Add Order'),
+      // ),
     );
   }
+
+  // Dialog to choose between adding to existing order or creating a new one
+  // void _showOrderOptionsDialog(OrderHistory activeOrder) {
+  //   showDialog(
+  //     context: context,
+  //     builder: (ctx) => AlertDialog(
+  //       title: Text('Table ${widget.tableNumber}'),
+  //       content: const Text('Would you like to add to the existing order or create a new one?'),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () {
+  //             Navigator.of(ctx).pop();
+  //             _addToExistingOrder(activeOrder);
+  //           },
+  //           child: const Text('Add to Existing'),
+  //           style: TextButton.styleFrom(
+  //             foregroundColor: Colors.blue.shade700,
+  //           ),
+  //         ),
+  //         TextButton(
+  //           onPressed: () {
+  //             Navigator.of(ctx).pop();
+  //             _createNewOrder();
+  //           },
+  //           child: const Text('Create New'),
+  //           style: TextButton.styleFrom(
+  //             foregroundColor: Colors.green.shade700,
+  //           ),
+  //         ),
+  //         TextButton(
+  //           onPressed: () => Navigator.of(ctx).pop(),
+  //           child: const Text('Cancel'),
+  //           style: TextButton.styleFrom(
+  //             foregroundColor: Colors.grey,
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   Widget _buildErrorView() {
     return Center(
@@ -125,6 +247,17 @@ class _TableOrdersScreenState extends State<TableOrdersScreen> {
               color: Colors.grey.shade500,
             ),
           ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: _createNewOrder,
+            icon: const Icon(Icons.add),
+            label: const Text('Create Order'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue.shade700,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+          ),
         ],
       ),
     );
@@ -153,10 +286,16 @@ class _TableOrdersScreenState extends State<TableOrdersScreen> {
       statusColor = Colors.red;
     }
 
+    // Check if this is an active order
+    final bool isActive = order.status.toLowerCase() == 'pending';
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
+        side: isActive 
+            ? BorderSide(color: Colors.blue.shade400, width: 2) 
+            : BorderSide.none,
       ),
       elevation: 2,
       child: InkWell(
@@ -176,7 +315,7 @@ class _TableOrdersScreenState extends State<TableOrdersScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: isActive ? Colors.blue.shade50 : Colors.grey.shade50,
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(12),
                   topRight: Radius.circular(12),
@@ -205,20 +344,34 @@ class _TableOrdersScreenState extends State<TableOrdersScreen> {
                       ),
                     ],
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Text(
-                      order.status,
-                      style: TextStyle(
-                        color: statusColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                  Row(
+                    children: [
+                      if (isActive)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          // child: IconButton(
+                          //   icon: const Icon(Icons.add_circle),
+                          //   color: Colors.blue.shade700,
+                          //   tooltip: 'Add to this order',
+                          //   onPressed: () => _addToExistingOrder(order),
+                          // ),
+                        ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: statusColor.withAlpha(51),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          order.status,
+                          style: TextStyle(
+                            color: statusColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
@@ -275,21 +428,39 @@ class _TableOrdersScreenState extends State<TableOrdersScreen> {
                       ),
                     ],
                   ),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => OrderDetailsScreen(orderId: order.id),
+                  Row(
+                    children: [
+                      if (isActive)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          // child: OutlinedButton.icon(
+                          //   onPressed: () => _addToExistingOrder(order),
+                          //   icon: const Icon(Icons.add),
+                          //   label: const Text('Add More'),
+                          //   style: OutlinedButton.styleFrom(
+                          //     foregroundColor: Colors.blue.shade700,
+                          //     side: BorderSide(color: Colors.blue.shade300),
+                          //     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          //   ),
+                          // ),
                         ),
-                      ).then((_) => _loadOrders()); // Refresh after returning
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade700,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    ),
-                    child: const Text('View Details'),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => OrderDetailsScreen(orderId: order.id),
+                            ),
+                          ).then((_) => _loadOrders()); // Refresh after returning
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue.shade700,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        ),
+                        child: const Text('View Details'),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -364,7 +535,7 @@ class _TableOrdersScreenState extends State<TableOrdersScreen> {
               ),
             ],
           ),
-        )).toList(),
+        )),
         
         // Show a message if there are more items
         if (items.length > 3) 

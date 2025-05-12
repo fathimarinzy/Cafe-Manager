@@ -14,6 +14,7 @@ import '../screens/order_list_screen.dart';
 import 'dashboard_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
+import '../providers/table_provider.dart';
 
 class TenderScreen extends StatefulWidget {
   final OrderHistory order;
@@ -173,7 +174,22 @@ class _TenderScreenState extends State<TenderScreen> {
         }
       }
     }
-
+    
+    // Check if this order is for a dining table
+    if (widget.order.serviceType.contains('Dining - Table')) {
+      // Extract table number from service type
+      final tableNumberStr = widget.order.serviceType.split('Table ').last;
+      final tableNumber = int.tryParse(tableNumberStr);
+      
+      if (tableNumber != null && mounted) {
+        // Get table provider and update table status
+        final tableProvider = Provider.of<TableProvider>(context, listen: false);
+        
+        // Find the table with this number and set it to available
+        await tableProvider.setTableStatus(tableNumber, false);
+        debugPrint('Table $tableNumber status set to available after payment');
+      }
+    }
     if (mounted) {
       if (change > 0) {
         await _showBalanceMessageDialog(change);
@@ -897,7 +913,21 @@ class _TenderScreenState extends State<TenderScreen> {
         }
       }
     }
-
+    // Check if this order is for a dining table
+    if (widget.order.serviceType.contains('Dining - Table')) {
+      // Extract table number from service type
+      final tableNumberStr = widget.order.serviceType.split('Table ').last;
+      final tableNumber = int.tryParse(tableNumberStr);
+      
+      if (tableNumber != null && mounted) {
+        // Get table provider and update table status
+        final tableProvider = Provider.of<TableProvider>(context, listen: false);
+        
+        // Find the table with this number and set it to available
+        await tableProvider.setTableStatus(tableNumber, false);
+        debugPrint('Table $tableNumber status set to available after cash payment');
+      }
+    }
     if (mounted) {
       await _showBalanceMessageDialog(change);
     }
