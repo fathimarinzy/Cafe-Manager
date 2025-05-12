@@ -21,6 +21,9 @@ class _OrderListScreenState extends State<OrderListScreen> {
   OrderTimeFilter _selectedFilter = OrderTimeFilter.today;
   String _currentTime = '';
   Timer? _timer;
+  
+  // Track if pending filter is active
+  bool _isPendingFilterActive = false;
 
   @override
   void initState() {
@@ -162,13 +165,22 @@ class _OrderListScreenState extends State<OrderListScreen> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
+                  Row(
+                    children: [
+                // Filter chips for time periods
                 _buildFilterChip(OrderTimeFilter.today),
                 _buildFilterChip(OrderTimeFilter.weekly),
                 _buildFilterChip(OrderTimeFilter.monthly),
                 _buildFilterChip(OrderTimeFilter.yearly),
                 _buildFilterChip(OrderTimeFilter.all),
-              ],
-            ),
+                 ],
+               ),
+             
+              const SizedBox(width: 150),    
+              // Pending filter button - right after All Orders
+              _buildPendingFilterButton(),
+            ],
+          ),
           ),
         ],
       ),
@@ -186,6 +198,13 @@ class _OrderListScreenState extends State<OrderListScreen> {
         onSelected: (selected) {
           setState(() {
             _selectedFilter = filter;
+            
+            // If pending filter is active, maintain it when changing time filter
+            if (_isPendingFilterActive) {
+              Provider.of<OrderHistoryProvider>(context, listen: false).setStatusFilter('pending');
+            } else {
+              Provider.of<OrderHistoryProvider>(context, listen: false).setStatusFilter(null);
+            }
           });
           Provider.of<OrderHistoryProvider>(context, listen: false)
             .setTimeFilter(filter);
@@ -197,293 +216,336 @@ class _OrderListScreenState extends State<OrderListScreen> {
     );
   }
 
-  // Updated _buildOrderList method for OrderListScreen
-// Replace the existing method with this one
-
-Widget _buildOrderList() {
-  return Consumer<OrderHistoryProvider>(
-    builder: (context, historyProvider, child) {
-      if (historyProvider.isLoading) {
-        return const Center(child: CircularProgressIndicator());
-      }
-      
-      if (historyProvider.errorMessage.isNotEmpty) {
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 48, color: Colors.red),
-              const SizedBox(height: 16),
-              Text(
-                'Error: ${historyProvider.errorMessage}',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () {
-                  if (widget.serviceType != null) {
-                    historyProvider.loadOrdersByServiceType(widget.serviceType!);
-                  } else {
-                    historyProvider.loadOrders();
-                  }
-                },
-                child: const Text('Retry'),
-              ),
-            ],
+  // New method for the Pending filter button
+  Widget _buildPendingFilterButton() {
+    return ElevatedButton.icon(
+      icon: Icon(
+        Icons.timer,
+        color: _isPendingFilterActive ? Colors.white : Colors.orange,
+        size: 18,
+      ),
+      label: Text(
+        'Pending',
+        style: TextStyle(
+          color: _isPendingFilterActive ? Colors.white : Colors.orange,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      onPressed: () {
+        setState(() {
+          _isPendingFilterActive = !_isPendingFilterActive;
+        });
+        
+        final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
+        
+        // Toggle pending filter
+        if (_isPendingFilterActive) {
+          historyProvider.setStatusFilter('pending');
+        } else {
+          historyProvider.setStatusFilter(null);
+        }
+        
+        // Reload orders with the new filter
+        if (widget.serviceType != null) {
+          historyProvider.loadOrdersByServiceType(widget.serviceType!);
+        } else {
+          historyProvider.loadOrders();
+        }
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: _isPendingFilterActive ? Colors.orange : Colors.orange.withOpacity(0.1),
+        foregroundColor: _isPendingFilterActive ? Colors.white : Colors.orange,
+        elevation: _isPendingFilterActive ? 2 : 0,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: Colors.orange,
+            width: 1,
           ),
-        );
-      }
-      
-      final orders = historyProvider.orders;
-      
-      if (orders.isEmpty) {
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.receipt_long, size: 64, color: Colors.grey.shade400),
-              const SizedBox(height: 16),
-              Text(
-                _isSearching 
-                    ? 'No orders found with that number' 
-                    : 'No orders found',
-                style: TextStyle(
-                  fontSize: 18,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-              if (!_isSearching) const SizedBox(height: 8),
-              if (!_isSearching)
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrderList() {
+    return Consumer<OrderHistoryProvider>(
+      builder: (context, historyProvider, child) {
+        if (historyProvider.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        
+        if (historyProvider.errorMessage.isNotEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
                 Text(
-                  'Orders will appear here once they are placed',
+                  'Error: ${historyProvider.errorMessage}',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    if (widget.serviceType != null) {
+                      historyProvider.loadOrdersByServiceType(widget.serviceType!);
+                    } else {
+                      historyProvider.loadOrders();
+                    }
+                  },
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          );
+        }
+        
+        final orders = historyProvider.orders;
+        
+        if (orders.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.receipt_long, size: 64, color: Colors.grey.shade400),
+                const SizedBox(height: 16),
+                Text(
+                  _isSearching 
+                      ? 'No orders found with that number' 
+                      : (_isPendingFilterActive
+                          ? 'No pending orders found'
+                          : 'No orders found'),
                   style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade500,
+                    fontSize: 18,
+                    color: Colors.grey.shade600,
                   ),
                 ),
-            ],
-          ),
-        );
-      }
+                if (!_isSearching) const SizedBox(height: 8),
+                if (!_isSearching)
+                  Text(
+                    'Orders will appear here once they are placed',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+              ],
+            ),
+          );
+        }
 
-      // Card Grid View implementation
-      return Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: GridView.builder(
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 6,  // 6 columns
-            childAspectRatio: 1.1,  // More square aspect ratio for shorter cards
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-          ),
-          itemCount: orders.length,
-          itemBuilder: (context, index) {
-            return _buildOrderCard(orders[index]);
-          },
-        ),
-      );
-    },
-  );
-}
-
-// New method to build an order card
-Widget _buildOrderCard(OrderHistory order) {
-  // Format currency
-  final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
-  
-  // Get service type icon
-  IconData serviceIcon = _getServiceTypeIcon(order.serviceType);
-  
-  // Determine status color
-  Color statusColor = Colors.green;
-  if (order.status.toLowerCase() == 'pending') {
-    statusColor = Colors.orange;
-  } else if (order.status.toLowerCase() == 'cancelled') {
-    statusColor = Colors.red;
-  }
-  
-  return Card(
-    elevation: 1,  // Minimal elevation
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(6),  // Smaller radius
-    ),
-    child: InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => OrderDetailsScreen(orderId: order.id),
+        // Card Grid View implementation
+        return Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: GridView.builder(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 6,  // 6 columns
+              childAspectRatio: 1.1,  // More square aspect ratio for shorter cards
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+            ),
+            itemCount: orders.length,
+            itemBuilder: (context, index) {
+              return _buildOrderCard(orders[index]);
+            },
           ),
         );
       },
-      borderRadius: BorderRadius.circular(6),  // Smaller radius
-      child: Padding(
-        padding: const EdgeInsets.all(4.0),  // Minimal padding
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header with bill number and status
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Flexible(
-                  child: Text(
-                    '#${order.orderNumber}',  // Shorter text
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,  // Smaller font
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),  // Smaller padding
-                  decoration: BoxDecoration(
-                    color: statusColor.withAlpha(51),
-                    borderRadius: BorderRadius.circular(8),  // Smaller radius
-                  ),
-                  child: Text(
-                    order.status,
-                    style: TextStyle(
-                      // color: statusColor,
-                      fontSize: 10,  // Smaller font
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
+    );
+  }
+
+  Widget _buildOrderCard(OrderHistory order) {
+    // Format currency
+    final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
+    
+    // Get service type icon
+    IconData serviceIcon = _getServiceTypeIcon(order.serviceType);
+    
+    // Determine status color
+    Color statusColor = Colors.green;
+    if (order.status.toLowerCase() == 'pending') {
+      statusColor = Colors.orange;
+    } else if (order.status.toLowerCase() == 'cancelled') {
+      statusColor = Colors.red;
+    }
+    
+    return Card(
+      elevation: 1,  // Minimal elevation
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(6),  // Smaller radius
+      ),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => OrderDetailsScreen(orderId: order.id),
             ),
-            
-            const Divider(height: 12),  // Reduced height
-            
-            // Service type
-            Row(
-              children: [
-                Icon(
-                  serviceIcon,
-                  size: 14,  // Reduced icon size
-                  color: Colors.grey.shade700,
-                ),
-                const SizedBox(width: 4),  // Reduced spacing
-                Expanded(
-                  child: Text(
-                    order.serviceType,
-                    style: TextStyle(
-                      color: Colors.grey.shade700,
-                      fontSize: 12,  // Smaller font size
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 6),  // Reduced spacing
-            
-            // Order date and time
-            Row(
+          );
+        },
+        borderRadius: BorderRadius.circular(6),  // Smaller radius
+        child: Padding(
+          padding: const EdgeInsets.all(4.0),  // Minimal padding
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
+              // Header with bill number and status
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(
+                    child: Text(
+                      '#${order.orderNumber}',  // Shorter text
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,  // Smaller font
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),  // Smaller padding
+                    decoration: BoxDecoration(
+                      color: statusColor.withAlpha(51),
+                      borderRadius: BorderRadius.circular(8),  // Smaller radius
+                    ),
+                    child: Text(
+                      order.status,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontSize: 10,  // Smaller font
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              
+              const Divider(height: 12),  // Reduced height
+              
+              // Service type
+              Row(
+                children: [
+                  Icon(
+                    serviceIcon,
+                    size: 14,  // Reduced icon size
+                    color: Colors.grey.shade700,
+                  ),
+                  const SizedBox(width: 4),  // Reduced spacing
+                  Expanded(
+                    child: Text(
+                      order.serviceType,
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontSize: 12,  // Smaller font size
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 6),  // Reduced spacing
+              
+              // Order date and time
+              Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        Icons.calendar_today,
-                        size: 12,
-                        color: Colors.grey.shade600,
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.calendar_today,
+                            size: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            order.formattedDate,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        order.formattedDate,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.access_time,
-                        size: 12,
-                        color: Colors.grey.shade600,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        order.formattedTime,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Colors.grey.shade600,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.access_time,
+                            size: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            order.formattedTime,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey.shade600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ],
               ),
+              
+              const Spacer(),
+              
+              // Amount and view button
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        currencyFormat.format(order.total),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,  // Smaller font
+                        ),
+                      ),
+                    ],
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => OrderDetailsScreen(orderId: order.id),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade700,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),  // Smaller padding
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),  // Smaller radius
+                      ),
+                    ),
+                    child: const Text(
+                      'View',  // Shorter text
+                      style: TextStyle(fontSize: 10),  // Smaller font
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
-            
-            const Spacer(),
-            
-            // Amount and view button
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // const Text(
-                    //   'Total',
-                    //   style: TextStyle(
-                    //     fontSize: 10,  // Smaller font
-                    //     color: Colors.grey,
-                    //   ),
-                    // ),
-                    Text(
-                      currencyFormat.format(order.total),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,  // Smaller font
-                      ),
-                    ),
-                  ],
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => OrderDetailsScreen(orderId: order.id),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade700,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),  // Smaller padding
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),  // Smaller radius
-                    ),
-                  ),
-                  child: const Text(
-                    'View',  // Shorter text
-                    style: TextStyle(fontSize: 10),  // Smaller font
-                  ),
-                ),
-              ],
-            ),
-          ],
         ),
       ),
-    ),
-  );
-}
+    );
+  }
   
   IconData _getServiceTypeIcon(String serviceType) {
     if (serviceType.contains('Dining')) {

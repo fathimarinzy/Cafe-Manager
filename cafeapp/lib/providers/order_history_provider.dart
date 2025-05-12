@@ -13,7 +13,8 @@ class OrderHistoryProvider with ChangeNotifier {
   OrderTimeFilter _currentFilter = OrderTimeFilter.today; // Changed default to today
   String _searchQuery = '';
   String? _serviceTypeFilter;
-
+  String? _statusFilter;
+  
   // Getters
   List<OrderHistory> get orders => _filteredOrders;
   bool get isLoading => _isLoading;
@@ -21,6 +22,11 @@ class OrderHistoryProvider with ChangeNotifier {
   OrderTimeFilter get currentFilter => _currentFilter;
   String get searchQuery => _searchQuery;
   String? get serviceTypeFilter => _serviceTypeFilter;
+  void setStatusFilter(String? status) {
+    _statusFilter = status;
+    _applyFilters();
+    notifyListeners();
+  }
 
   // Load all orders
   Future<void> loadOrders() async {
@@ -151,11 +157,11 @@ class OrderHistoryProvider with ChangeNotifier {
     _currentFilter = OrderTimeFilter.all;
     _searchQuery = '';
     _serviceTypeFilter = null;
+     _statusFilter = null;
     _applyFilters();
   }
 
-  // Apply all current filters
-  // Add this to your _applyFilters method in OrderHistoryProvider
+  // Update the _applyFilters method to include status filtering
 void _applyFilters() {
   if (_searchQuery.isNotEmpty) {
     // Search takes precedence over other filters
@@ -164,12 +170,6 @@ void _applyFilters() {
       order.serviceType.toLowerCase().contains(_searchQuery.toLowerCase())
     ).toList();
   } else {
-    // Add debugging for date filter
-    for (var order in _orders) {
-      bool passes = _currentFilter.isInPeriod(order.createdAt);
-      debugPrint('Order ${order.id} date: ${order.createdAt}, passes ${_currentFilter.displayName} filter: $passes');
-    }
-    
     // Apply time filter
     _filteredOrders = _orders.where((order) => 
       _currentFilter.isInPeriod(order.createdAt)
@@ -182,12 +182,20 @@ void _applyFilters() {
       ).toList();
     }
     
+    // Apply status filter if set
+    if (_statusFilter != null && _statusFilter!.isNotEmpty) {
+      _filteredOrders = _filteredOrders.where((order) => 
+        order.status.toLowerCase() == _statusFilter!.toLowerCase()
+      ).toList();
+    }
+    
     // Log results
-    debugPrint('Applied ${_currentFilter.displayName} filter, found ${_filteredOrders.length} orders');
+    debugPrint('Applied filters, found ${_filteredOrders.length} orders');
   }
   
   notifyListeners();
 }
+
   // Get an order by ID
   Future<OrderHistory?> getOrderDetails(int orderId) async {
     _setLoading(true);
