@@ -357,196 +357,195 @@ class _OrderListScreenState extends State<OrderListScreen> {
   }
 
   Widget _buildOrderCard(OrderHistory order) {
-    // Format currency
-    final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
-    
-    // Get service type icon
-    IconData serviceIcon = _getServiceTypeIcon(order.serviceType);
-    
-    // Determine status color
-    Color statusColor = Colors.green;
-    if (order.status.toLowerCase() == 'pending') {
-      statusColor = Colors.orange;
-    } else if (order.status.toLowerCase() == 'cancelled') {
-      statusColor = Colors.red;
-    }
-    
-    return Card(
-      elevation: 1,  // Minimal elevation
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(6),  // Smaller radius
-      ),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => OrderDetailsScreen(orderId: order.id),
-            ),
-          );
-        },
-        borderRadius: BorderRadius.circular(6),  // Smaller radius
-        child: Padding(
-          padding: const EdgeInsets.all(4.0),  // Minimal padding
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header with bill number and status
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Flexible(
+  // Format currency
+  final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
+  
+  // Get service type icon and color
+  IconData serviceIcon = _getServiceTypeIcon(order.serviceType);
+  Color serviceColor = _getServiceTypeColor(order.serviceType);
+  
+  // Determine status color
+  Color statusColor = Colors.green;
+  if (order.status.toLowerCase() == 'pending') {
+    statusColor = Colors.orange;
+  } else if (order.status.toLowerCase() == 'cancelled') {
+    statusColor = Colors.red;
+  }
+  
+  // Choose text color based on background brightness
+  bool isDarkBackground = _isDarkColor(serviceColor);
+  Color textColor = isDarkBackground ? Colors.white : Colors.black;
+  Color secondaryTextColor = isDarkBackground ? Colors.white.withAlpha(200) : Colors.black87;
+  
+  return Card(
+    elevation: 1,  // Minimal elevation
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(6),  // Smaller radius
+    ),
+    // Use the full service type color as the card background
+    color: serviceColor,
+    child: InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OrderDetailsScreen(orderId: order.id),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(6),  // Smaller radius
+      child: Padding(
+        padding: const EdgeInsets.all(4.0),  // Minimal padding
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header with centered bill number and status
+            Column(
+              children: [
+                // Centered bill number
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 4.0),
                     child: Text(
-                      '#${order.orderNumber}',  // Shorter text
-                      style: const TextStyle(
+                      '#${order.orderNumber}',
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,  // Smaller font
+                        color: textColor,
                       ),
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),  // Smaller padding
+                ),
+                const SizedBox(height: 4),
+                // Status indicator below bill number
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: statusColor.withAlpha(51),
-                      borderRadius: BorderRadius.circular(8),  // Smaller radius
+                      color: isDarkBackground 
+                          ? Colors.white.withAlpha(40) 
+                          : statusColor.withAlpha(51),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       order.status,
                       style: TextStyle(
-                        color: statusColor,
-                        fontSize: 10,  // Smaller font
+                        color: isDarkBackground ? Colors.white : statusColor,
+                        fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-                ],
-              ),
-              
-              const Divider(height: 12),  // Reduced height
-              
-              // Service type
-              Row(
-                children: [
-                  Icon(
-                    serviceIcon,
-                    size: 14,  // Reduced icon size
-                    color: Colors.grey.shade700,
-                  ),
-                  const SizedBox(width: 4),  // Reduced spacing
-                  Expanded(
-                    child: Text(
-                      order.serviceType,
-                      style: TextStyle(
-                        color: Colors.grey.shade700,
-                        fontSize: 12,  // Smaller font size
-                      ),
-                      overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+            
+            Divider(
+              height: 12,
+              color: isDarkBackground ? Colors.white.withAlpha(50) : Colors.black.withAlpha(20),
+            ),
+            
+            // Service type
+            Row(
+              children: [
+                Icon(
+                  serviceIcon,
+                  size: 14,  // Reduced icon size
+                  color: isDarkBackground ? Colors.white : Colors.black87,
+                ),
+                const SizedBox(width: 4),  // Reduced spacing
+                Expanded(
+                  child: Text(
+                    order.serviceType,
+                    style: TextStyle(
+                      color: secondaryTextColor,
+                      fontSize: 12,  // Smaller font size
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ],
-              ),
-              
-              const SizedBox(height: 6),  // Reduced spacing
-              
-              // Order date and time
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.calendar_today,
-                            size: 12,
-                            color: Colors.grey.shade600,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            order.formattedDate,
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.access_time,
-                            size: 12,
-                            color: Colors.grey.shade600,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            order.formattedTime,
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.grey.shade600,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              
-              const Spacer(),
-              
-              // Amount and view button
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        currencyFormat.format(order.total),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,  // Smaller font
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 6),  // Reduced spacing
+            
+            // Order date and time
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today,
+                          size: 12,
+                          color: secondaryTextColor,
                         ),
-                      ),
-                    ],
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => OrderDetailsScreen(orderId: order.id),
+                        const SizedBox(width: 4),
+                        Text(
+                          order.formattedDate,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: secondaryTextColor,
+                          ),
                         ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade700,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),  // Smaller padding
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),  // Smaller radius
-                      ),
+                      ],
                     ),
-                    child: const Text(
-                      'View',  // Shorter text
-                      style: TextStyle(fontSize: 10),  // Smaller font
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          size: 12,
+                          color: secondaryTextColor,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          order.formattedTime,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: secondaryTextColor,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
+              ],
+            ),
+            
+            const Spacer(),
+            
+            // Amount - removed View button
+            Container(
+              width: double.infinity,
+              alignment: Alignment.centerRight,
+              child: Text(
+                currencyFormat.format(order.total),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: textColor,
+                ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
-    );
-  }
-  
+    ),
+  );
+}
+
+// Add this helper method to determine if a color is dark
+bool _isDarkColor(Color color) {
+  // Calculate perceived brightness using the formula: (299*R + 587*G + 114*B) / 1000
+  // Where R, G, B values are between 0 and 255
+  double brightness = (299 * color.red + 587 * color.green + 114 * color.blue) / 1000;
+  return brightness < 128; // If brightness is less than 128, consider it dark
+}
+
   IconData _getServiceTypeIcon(String serviceType) {
     if (serviceType.contains('Dining')) {
       return Icons.restaurant;
@@ -562,4 +561,20 @@ class _OrderListScreenState extends State<OrderListScreen> {
       return Icons.receipt;
     }
   }
+  // Add this helper method to get color based on service type
+Color _getServiceTypeColor(String serviceType) {
+  if (serviceType.contains('Dining')) {
+    return const Color.fromARGB(255, 83, 153, 232); // Dark blue for dining
+  } else if (serviceType.contains('Takeout')) {
+    return const Color.fromARGB(255, 121, 221, 124); // Green for takeout
+  } else if (serviceType.contains('Delivery')) {
+    return const Color.fromARGB(255, 255, 152, 0); // Orange for delivery
+  } else if (serviceType.contains('Drive')) {
+    return const Color.fromARGB(255, 219, 128, 128); // Light red for drive through
+  } else if (serviceType.contains('Catering')) {
+    return const Color.fromARGB(255, 232, 216, 65); // Yellow for catering
+  } else {
+    return const Color(0xFF607D8B); // Light charcoal for other order types
+  }
+}
 }
