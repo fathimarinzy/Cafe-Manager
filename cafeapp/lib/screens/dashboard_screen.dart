@@ -43,7 +43,7 @@ class DashboardScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Dashboard',
+          'SIMS RESTO CAFE',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
