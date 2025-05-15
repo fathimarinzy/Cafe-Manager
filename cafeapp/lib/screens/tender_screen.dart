@@ -18,8 +18,9 @@ import '../providers/table_provider.dart';
 
 class TenderScreen extends StatefulWidget {
   final OrderHistory order;
+  final bool isEdited;
 
-  const TenderScreen({super.key, required this.order});
+  const TenderScreen({super.key, required this.order,this.isEdited = false,});
 
   @override
   State<TenderScreen> createState() => _TenderScreenState();
@@ -152,7 +153,7 @@ class _TenderScreenState extends State<TenderScreen> {
 
     bool printed = false;
     try {
-      printed = await BillService.printThermalBill(widget.order);
+      printed = await BillService.printThermalBill(widget.order,isEdited: widget.isEdited);
     } catch (e) {
       debugPrint('Printing error: $e');
       // Log which printer was attempted
@@ -893,7 +894,7 @@ class _TenderScreenState extends State<TenderScreen> {
     
     bool printed = false;
     try {
-      printed = await BillService.printThermalBill(widget.order);
+      printed = await BillService.printThermalBill(widget.order,isEdited: widget.isEdited);
     } catch (e) {
       debugPrint('Printing error: $e');
     }
@@ -1632,6 +1633,7 @@ class _TenderScreenState extends State<TenderScreen> {
 
   // Generate the receipt using the PDF library
   Future<pw.Document> _generateReceipt() async {
+    
     final pdf = await BillService.generateBill(
       items: widget.order.items.map((item) => item.toMenuItem()).toList(),
       serviceType: widget.order.serviceType,
@@ -1641,6 +1643,7 @@ class _TenderScreenState extends State<TenderScreen> {
       total: widget.order.total,
       personName: null,
       tableInfo: widget.order.serviceType.contains('Table') ? widget.order.serviceType : null,
+      isEdited: widget.isEdited,
     );
     
     return pdf;

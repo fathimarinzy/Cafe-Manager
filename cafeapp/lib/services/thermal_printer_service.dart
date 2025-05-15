@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:esc_pos_printer/esc_pos_printer.dart';
 import 'package:esc_pos_utils/esc_pos_utils.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/menu_item.dart';
 
 class ThermalPrinterService {
@@ -128,6 +128,7 @@ class ThermalPrinterService {
     required double total,
     String? personName,
     String? tableInfo,
+    bool isEdited = false, // Add parameter to indicate if order was edited
   }) async {
     final ip = await getPrinterIp();
     final port = await getPrinterPort();
@@ -153,6 +154,34 @@ class ThermalPrinterService {
       printer.text('123 Cafe Street, City', styles: const PosStyles(align: PosAlign.center));
       printer.text('Tel: +1234567890', styles: const PosStyles(align: PosAlign.center));
       printer.text('', styles: const PosStyles(align: PosAlign.center));
+      
+      // Add EDITED indicator if order was edited
+      if (isEdited) {
+        printer.row([
+          PosColumn(
+            text: '',
+            width: 3,
+          ),
+          PosColumn(
+            text: ' EDITED ',
+            width: 1,
+            styles: const PosStyles(
+              // reverse: true,  // Reverse colors (black background, white text)
+              bold: true,
+              align: PosAlign.left,
+              height: PosTextSize.size1,  // Smaller height
+              width: PosTextSize.size1,   // Smaller width
+              
+            ),
+          ),
+          PosColumn(
+            text: '',
+            width: 2,
+          ),
+        ]);
+        printer.text('', styles: const PosStyles(align: PosAlign.center));
+      }
+      
       printer.text('ORDER #$orderNumber', styles: const PosStyles(align: PosAlign.center, bold: true));
       
       // Current date and time

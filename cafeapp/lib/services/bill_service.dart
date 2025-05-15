@@ -20,6 +20,7 @@ class BillService {
     required double total,
     String? personName,
     String? tableInfo,
+    bool isEdited = false, // Add parameter to indicate if order was edited
   }) async {
     final pdf = pw.Document();
     
@@ -68,7 +69,30 @@ class BillService {
                     pw.Text('Tel: +1234567890', 
                       style: pw.TextStyle(font: ttf, fontSize: 10)
                     ),
-                    pw.SizedBox(height: 5),
+                    pw.SizedBox(height: 3),
+                    
+                    // Add EDITED marker if order was edited
+                    if (isEdited)
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: pw.BoxDecoration(
+                          // color: PdfColors.orange100,
+                          // border: pw.Border.all(color: PdfColors.orange),
+                          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                        ),
+                        child: pw.Text(
+                          'EDITED',
+                          style: pw.TextStyle(
+                            font: ttf,
+                            fontSize: 5,
+                            fontWeight: pw.FontWeight.bold,
+                            // color: PdfColors.orange900,
+                          ),
+                        ),
+                      ),
+                    
+                    pw.SizedBox(height: 3),
+                    
                     pw.Text('ORDER #$orderNumber', 
                       style: pw.TextStyle(
                         font: ttf, 
@@ -376,7 +400,7 @@ class BillService {
   }
 
   // Direct thermal printing of a bill
-  static Future<bool> printThermalBill(OrderHistory order) async {
+  static Future<bool> printThermalBill(OrderHistory order, {bool isEdited = false}) async {
     try {
       // Convert order items to MenuItem objects
       final items = order.items.map((item) => 
@@ -407,6 +431,7 @@ class BillService {
         total: order.total,
         personName: null, // No customer info in OrderHistory
         tableInfo: tableInfo,
+        isEdited: isEdited, // Pass the edited flag
       );
       
       return printed;
@@ -426,6 +451,7 @@ class BillService {
     required double total,
     String? personName,
     String? tableInfo,
+    bool isEdited = false, // Add parameter to indicate if order was edited
   }) async {
     try {
       // Use direct ESC/POS commands for printing
@@ -438,6 +464,7 @@ class BillService {
         total: total,
         personName: personName,
         tableInfo: tableInfo,
+        isEdited: isEdited, // Pass the edited flag
       );
       
       return printed;
@@ -522,6 +549,7 @@ class BillService {
     String? personName,
     String? tableInfo,
     required BuildContext context,
+    bool isEdited = false, // Add parameter to indicate if order was edited
   }) async {
     // Try to print the bill using direct ESC/POS commands only
     final printed = await printBill(
@@ -533,6 +561,7 @@ class BillService {
       total: total,
       personName: personName,
       tableInfo: tableInfo,
+      isEdited: isEdited, // Pass the edited flag
     );
     
     if (printed) {
@@ -592,6 +621,7 @@ class BillService {
       total: total,
       personName: personName,
       tableInfo: tableInfo,
+      isEdited: isEdited, // Pass the edited flag
     );
     
     // Save using native Android intent
