@@ -659,4 +659,286 @@ class BillService {
       'filePath': null,
     };
   }
+   // Generate PDF kitchen receipt (simplified format)
+static Future<pw.Document> generateKitchenBill({
+  required List<MenuItem> items,
+  required String serviceType,
+  String? tableInfo,
+  String? orderNumber,
+}) async {
+  final pdf = pw.Document();
+  
+  // Try to load custom font if available
+  pw.Font? ttf;
+  try {
+    final fontData = await rootBundle.load("assets/fonts/open-sans.regular.ttf");
+    ttf = pw.Font.ttf(fontData.buffer.asByteData());
+  } catch (e) {
+    debugPrint('Could not load font, using default: $e');
+    // Continue without custom font
+  }
+  
+  // Format current date and time
+  final now = DateTime.now();
+  final dateFormatter = DateFormat('dd-MM-yyyy');
+  final timeFormatter = DateFormat('hh:mm a');
+  final formattedDate = dateFormatter.format(now);
+  final formattedTime = timeFormatter.format(now);
+  
+  // Use provided order number or generate a new one
+  final billNumber = orderNumber ?? '${now.millisecondsSinceEpoch % 10000}';
+  
+  pdf.addPage(
+    pw.Page(
+      pageFormat: PdfPageFormat.roll80, // Standard receipt roll width
+      build: (pw.Context context) {
+        return pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            // Header
+            pw.Center(
+              child: pw.Column(
+                children: [
+                  pw.Text('KITCHEN ORDER', 
+                    style: pw.TextStyle(
+                      font: ttf, 
+                      fontSize: 16, 
+                      fontWeight: pw.FontWeight.bold
+                    )
+                  ),
+                  pw.SizedBox(height: 5),
+                  
+                  pw.Text('ORDER #$billNumber', 
+                    style: pw.TextStyle(
+                      font: ttf, 
+                      fontSize: 14, 
+                      fontWeight: pw.FontWeight.bold
+                    )
+                  ),
+                  pw.SizedBox(height: 3),
+                  pw.Text('$formattedDate at $formattedTime', 
+                    style: pw.TextStyle(font: ttf, fontSize: 10)
+                  ),
+                  pw.SizedBox(height: 3),
+                  pw.Text('Service: $serviceType', 
+                    style: pw.TextStyle(
+                      font: ttf, 
+                      fontSize: 12, 
+                      fontWeight: pw.FontWeight.bold
+                    )
+                  ),
+                  if (tableInfo != null)
+                    pw.Text(tableInfo, style: pw.TextStyle(font: ttf, fontSize: 12)),
+                ],
+              ),
+            ),
+            
+            pw.SizedBox(height: 10),
+            
+            // Divider
+            pw.Divider(thickness: 1),
+            
+            // Item header - simplified for kitchen
+            pw.Row(
+              children: [
+                pw.Expanded(
+                  flex: 6, 
+                  child: pw.Text(
+                    'Item', 
+                    style: pw.TextStyle(
+                      font: ttf, 
+                      fontSize: 12, 
+                      fontWeight: pw.FontWeight.bold
+                    )
+                  )
+                ),
+                pw.Expanded(
+                  flex: 2, 
+                  child: pw.Text(
+                    'Qty', 
+                    style: pw.TextStyle(
+                      font: ttf, 
+                      fontSize: 12, 
+                      fontWeight: pw.FontWeight.bold
+                    ), 
+                    textAlign: pw.TextAlign.right
+                  )
+                ),
+              ],
+            ),
+            
+            pw.Divider(thickness: 1),
+            
+            // Items - with focus on name, quantity, and kitchen notes
+            pw.Column(
+              children: items.map((item) {
+                return pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(top: 5, bottom: 2),
+                      child: pw.Row(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Expanded(
+                            flex: 6, 
+                            child: pw.Text(
+                              item.name, 
+                              style: pw.TextStyle(font: ttf, fontSize: 12)
+                            )
+                          ),
+                          pw.Expanded(
+                            flex: 2, 
+                            child: pw.Text(
+                              '${item.quantity}', 
+                              style: pw.TextStyle(font: ttf, fontSize: 12), 
+                              textAlign: pw.TextAlign.right
+                            )
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    // Add kitchen note if it exists - important for kitchen staff
+                    if (item.kitchenNote.isNotEmpty)
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(left: 10, bottom: 5),
+                        child: pw.Text(
+                          'NOTE: ${item.kitchenNote}',
+                          style: pw.TextStyle(
+                            font: ttf,
+                            fontSize: 10,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    
+                    // Add space between items
+                    pw.SizedBox(height: 2),
+                  ],
+                );
+              }).toList(),
+            ),
+            
+            pw.Divider(thickness: 1),
+            
+            // Footer with table reference if applicable
+            pw.SizedBox(height: 10),
+            pw.Center(
+              child: pw.Column(
+                children: [
+                  if (tableInfo != null)
+                    pw.Text(
+                      'TABLE: ${tableInfo.split("Table ").last}', 
+                      style: pw.TextStyle(
+                        font: ttf, 
+                        fontSize: 14,
+                        fontWeight: pw.FontWeight.bold
+                      )
+                    ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+  
+  return pdf;
+}
+ // Print a kitchen-focused receipt (just item names, quantities, and notes)
+static Future<Map<String, dynamic>> printKitchenOrderReceipt({
+  required List<MenuItem> items,
+  required String serviceType,
+  String? tableInfo,
+  String? orderNumber,
+  BuildContext? context,
+}) async {
+  try {
+    // Try direct ESC/POS commands for printing a kitchen-focused receipt
+    final printed = await ThermalPrinterService.printKitchenReceipt(
+      items: items,
+      serviceType: serviceType,
+      tableInfo: tableInfo,
+      orderNumber: orderNumber,
+    );
+    
+    if (printed) {
+      return {
+        'success': true,
+        'message': 'Kitchen receipt printed successfully',
+        'printed': true,
+        'saved': false,
+      };
+    }
+    
+    // If printing failed, try to save as PDF
+    if (context != null && context.mounted) {
+      // Generate the PDF
+      final pdf = await generateKitchenBill(
+        items: items,
+        serviceType: serviceType,
+        tableInfo: tableInfo,
+        orderNumber: orderNumber,
+      );
+      
+      // Show dialog to ask if user wants to save PDF
+      final shouldSave = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Printer Not Available'),
+            content: const Text('Could not print kitchen receipt. Would you like to save it as a PDF?'),
+            actions: <Widget>[
+              TextButton(
+                child: const Text('Cancel'),
+                onPressed: () {
+                  Navigator.of(context).pop(false);
+                },
+              ),
+              TextButton(
+                child: const Text('Save PDF'),
+                onPressed: () {
+                  Navigator.of(context).pop(true);
+                },
+              ),
+            ],
+          );
+        },
+      ) ?? false;
+      
+      if (shouldSave) {
+        // Save the PDF using Android intent
+        final saved = await saveWithAndroidIntent(pdf);
+        
+        if (saved) {
+          return {
+            'success': true,
+            'message': 'Kitchen receipt saved as PDF',
+            'printed': false,
+            'saved': true,
+          };
+        }
+      }
+    }
+    
+    // If we get here, printing and saving both failed or were declined
+    return {
+      'success': false,
+      'message': 'Failed to print or save kitchen receipt',
+      'printed': false,
+      'saved': false,
+    };
+  } catch (e) {
+    debugPrint('Error with kitchen receipt: $e');
+    return {
+      'success': false,
+      'message': 'Error: $e',
+      'printed': false,
+      'saved': false,
+    };
+  }
+}
 }

@@ -276,4 +276,94 @@ class ThermalPrinterService {
       return false;
     }
   }
+  // Print a kitchen receipt with simplified info (just item names, quantities, and notes)
+static Future<bool> printKitchenReceipt({
+  required String serviceType,
+  required List<MenuItem> items,
+  String? tableInfo,
+  String? orderNumber,
+}) async {
+  final ip = await getPrinterIp();
+  final port = await getPrinterPort();
+  
+  try {
+    // Initialize printer
+    final profile = await CapabilityProfile.load();
+    final printer = NetworkPrinter(PaperSize.mm80, profile);
+    
+    debugPrint('Connecting to printer at $ip:$port for kitchen receipt');
+    final PosPrintResult result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 5));
+    
+    if (result != PosPrintResult.success) {
+      debugPrint('Failed to connect to printer: ${result.msg}');
+      return false;
+    }
+    
+    // Use provided order number or generate a new one
+    final billNumber = orderNumber ?? (DateTime.now().millisecondsSinceEpoch % 10000).toString();
+    
+    // Print receipt header
+    printer.text('KITCHEN ORDER', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
+    printer.text('ORDER #$billNumber', styles: const PosStyles(align: PosAlign.center, bold: true));
+    
+    // Current date and time
+    final now = DateTime.now();
+    final formattedDate = '${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year}';
+    final formattedTime = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    printer.text('$formattedDate at $formattedTime', styles: const PosStyles(align: PosAlign.center));
+    
+    // Service information
+    printer.text('Service: $serviceType', styles: const PosStyles(align: PosAlign.center, bold: true));
+    
+    if (tableInfo != null) {
+      printer.text(tableInfo, styles: const PosStyles(align: PosAlign.center));
+    }
+    
+    // Divider
+    printer.hr();
+    
+    // Item headers - simplified for kitchen
+    printer.row([
+      PosColumn(text: 'Item', width: 6, styles: const PosStyles(bold: true)),
+      PosColumn(text: 'Qty', width: 2, styles: const PosStyles(bold: true, align: PosAlign.right)),
+    ]);
+    printer.hr();
+    
+    // Items - with focus on name, quantity, and kitchen notes
+    for (var item in items) {
+      printer.row([
+        PosColumn(text: item.name, width: 6),
+        PosColumn(text: '${item.quantity}', width: 2, styles: const PosStyles(align: PosAlign.right)),
+      ]);
+      
+      // Add kitchen note if present - this is important for kitchen staff
+      if (item.kitchenNote.isNotEmpty) {
+        printer.text('NOTE: ${item.kitchenNote}', styles: const PosStyles(align: PosAlign.left, fontType: PosFontType.fontB, bold: true));
+      }
+      
+      // Add a small space between items
+      printer.text('', styles: const PosStyles(align: PosAlign.center));
+    }
+    
+    printer.hr();
+    
+    // Footer with table number or service type for reference
+    if (tableInfo != null) {
+      printer.text('TABLE: ${tableInfo.split("Table ").last}', styles: const PosStyles(align: PosAlign.center, bold: true));
+    } else {
+      printer.text('SERVICE: $serviceType', styles: const PosStyles(align: PosAlign.center, bold: true));
+    }
+    
+    // Cut paper
+    printer.cut();
+    
+    // Disconnect
+    printer.disconnect();
+    
+    return true;
+  } catch (e) {
+    debugPrint('Error printing kitchen receipt: $e');
+    return false;
+  }
+}
 }

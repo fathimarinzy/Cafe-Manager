@@ -240,124 +240,120 @@ class OrderProvider with ChangeNotifier {
   }
 
 
-// Modify the processOrderWithBill method to handle existing orders
+
   Future<Map<String, dynamic>> processOrderWithBill(BuildContext context) async {
-    // First check if we have items in the cart
-    if (_currentServiceType.isEmpty || cartItems.isEmpty) {
-      return {
-        'success': false,
-        'message': 'No items in cart',
-      };
-    }
-
-    try {
-      // Extract table number from service type if this is a dining order
-      String? tableInfo;
-      int? tableNumber;
-      
-      if (_currentServiceType.startsWith('Dining - Table')) {
-        tableInfo = _currentServiceType;
-        // Extract the table number
-        final tableNumberString = _currentServiceType.split('Table ').last;
-        tableNumber = int.tryParse(tableNumberString);
-      }
-      
-      // Generate and process the bill
-      final billResult = await BillService.processOrderBill(
-        items: cartItems,
-        serviceType: _currentServiceType,
-        subtotal: subtotal,
-        tax: tax,
-        discount: discount,
-        total: total,
-        personName: _selectedPerson?.name,
-        tableInfo: tableInfo,
-        context: context,
-      );
-      
-      // Check if we're updating an existing order or creating a new one
-      Order? order;
-      if (_currentOrderId != null) {
-        // Update existing order
-        final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
-        order = await _apiService.updateOrder(
-          _currentOrderId!,
-          _currentServiceType,
-          items,
-          subtotal,
-          tax,
-          discount,
-          total,
-        );
-      } else {
-        // Create a new order in the database
-        final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
-        order = await _apiService.createOrder(
-          _currentServiceType,
-          items,
-          subtotal,
-          tax,
-          discount,
-          total,
-        );
-      }
-
-      // If this is a table order, update the table status to occupied
-      if (tableNumber != null && context.mounted) { // Added mounted check
-        final tableProvider = Provider.of<TableProvider>(context, listen: false);
-        final table = tableProvider.tables.firstWhere(
-          (table) => table.number == tableNumber,
-          orElse: () => TableModel(id: '', number: tableNumber!, isOccupied: false)
-        );
-        
-        if (table.id.isNotEmpty) {
-          // Set the table as occupied
-          final updatedTable = TableModel(
-            id: table.id,
-            number: table.number,
-            isOccupied: true,
-            capacity: table.capacity,
-            note: table.note,
-          );
-          
-          await tableProvider.updateTable(updatedTable);
-          debugPrint('Table ${tableNumber.toString()} status updated to occupied');
-        } else if (tableNumber > 0) { // Ensure non-null, non-zero table number
-          // If the table wasn't found in the provider but we have a valid number,
-          // try to update it by number
-          await tableProvider.setTableStatus(tableNumber, true);
-          debugPrint('Table ${tableNumber.toString()} status set to occupied by number');
-        }
-      }
-
-      if (order != null) {
-        // Clear the current service type's cart
-        clearCart();
-        // Reset the current order ID
-        _currentOrderId = null;
-        
-        return {
-          'success': true,
-          'message': billResult['message'],
-          'order': order,
-          'billPrinted': billResult['printed'],
-          'billSaved': billResult['saved'],
-        };
-      } else {
-        return {
-          'success': false,
-          'message': 'Failed to create or update order in the system',
-        };
-      }
-    } catch (error) {
-      debugPrint('Error processing order: $error');
-      return {
-        'success': false,
-        'message': 'Error processing order: $error',
-      };
-    }
+  // First check if we have items in the cart
+  if (_currentServiceType.isEmpty || cartItems.isEmpty) {
+    return {
+      'success': false,
+      'message': 'No items in cart',
+    };
   }
 
+  try {
+    // Extract table number from service type if this is a dining order
+    String? tableInfo;
+    int? tableNumber;
+    
+    if (_currentServiceType.startsWith('Dining - Table')) {
+      tableInfo = _currentServiceType;
+      // Extract the table number
+      final tableNumberString = _currentServiceType.split('Table ').last;
+      tableNumber = int.tryParse(tableNumberString);
+    }
+    
+    // Create or update the order first (to get the order ID)
+    Order? order;
+    if (_currentOrderId != null) {
+      // Update existing order
+      final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
+      order = await _apiService.updateOrder(
+        _currentOrderId!,
+        _currentServiceType,
+        items,
+        subtotal,
+        tax,
+        discount,
+        total,
+      );
+    } else {
+      // Create a new order in the database
+      final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
+      order = await _apiService.createOrder(
+        _currentServiceType,
+        items,
+        subtotal,
+        tax,
+        discount,
+        total,
+      );
+    }
+    
+    if (order == null) {
+      return {
+        'success': false,
+        'message': 'Failed to create or update order in the system',
+      };
+    }
+    
+    // Now print the kitchen receipt with the order ID
+    final String orderNumberPadded = order.id.toString().padLeft(4, '0');
+    Map<String, dynamic> printResult = await BillService.printKitchenOrderReceipt(
+      items: cartItems,
+      serviceType: _currentServiceType,
+      tableInfo: tableInfo,
+      orderNumber: orderNumberPadded,
+      context: context, // Pass context for dialog if needed
+    );
+    
+    // If this is a table order, update the table status to occupied
+    if (tableNumber != null && context.mounted) {
+      final tableProvider = Provider.of<TableProvider>(context, listen: false);
+      final table = tableProvider.tables.firstWhere(
+        (table) => table.number == tableNumber,
+        orElse: () => TableModel(id: '', number: tableNumber!, isOccupied: false)
+      );
+      
+      if (table.id.isNotEmpty) {
+        // Set the table as occupied
+        final updatedTable = TableModel(
+          id: table.id,
+          number: table.number,
+          isOccupied: true,
+          capacity: table.capacity,
+          note: table.note,
+        );
+        
+        await tableProvider.updateTable(updatedTable);
+        debugPrint('Table ${tableNumber.toString()} status updated to occupied');
+      } else if (tableNumber > 0) {
+        // If the table wasn't found in the provider but we have a valid number,
+        // try to update it by number
+        await tableProvider.setTableStatus(tableNumber, true);
+        debugPrint('Table ${tableNumber.toString()} status set to occupied by number');
+      }
+    }
+
+    // Clear the current service type's cart
+    clearCart();
+    // Reset the current order ID
+    _currentOrderId = null;
+    
+    return {
+      'success': true,
+      'message': printResult['message'] ?? 'Order processed successfully',
+      'order': order,
+      'billPrinted': printResult['printed'] ?? false,
+      'billSaved': printResult['saved'] ?? false,
+    };
+  } catch (error) {
+    debugPrint('Error processing order: $error');
+    return {
+      'success': false,
+      'message': 'Error processing order: $error',
+    };
+  }
+}
   // Place order for current service type (original method kept for compatibility)
   Future<bool> placeOrder(String serviceType) async {
     if (_currentServiceType.isEmpty || _serviceTypeCarts[_currentServiceType]!.isEmpty) {

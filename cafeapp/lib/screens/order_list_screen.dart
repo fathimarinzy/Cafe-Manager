@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/order_history.dart';
 import '../providers/order_history_provider.dart';
 import 'order_details_screen.dart';
+import '../screens/dashboard_screen.dart';
 import 'dart:async';
 
 class OrderListScreen extends StatefulWidget {
@@ -66,7 +67,17 @@ class _OrderListScreenState extends State<OrderListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+      return WillPopScope(
+    // Handle back button press
+    onWillPop: () async {
+      // Navigate to dashboard screen instead of simply popping
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const DashboardScreen()),
+        (route) => false,
+      );
+      return false; // Return false to prevent default pop behavior
+    },
+    child: Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
@@ -75,8 +86,15 @@ class _OrderListScreenState extends State<OrderListScreen> {
           : 'All Orders'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+          onPressed: () {
+            // Use the same navigation logic as WillPopScope
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const DashboardScreen()),
+              (route) => false,
+            );
+          },
+        ),   
+
         actions: [
           // Time display
           Padding(
@@ -102,6 +120,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 
