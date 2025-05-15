@@ -381,7 +381,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                         icon: const Icon(Icons.add),
                         label: const Text('Add Item'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
+                          backgroundColor: Colors.blue,
                           foregroundColor: Colors.white,
                         ),
                       ),
@@ -450,7 +450,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                       // );
                     }
                   },
-                  child: const Text('Save Changes'),
+                  child: const Text('Save '),
                 ),
               ],
             );
@@ -482,218 +482,229 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   }
   
   // Dialog to add a new item to the order
-  Future<void> _showAddItemDialog(BuildContext context, List<OrderItem> items, StateSetter setState) async {
-    // Get all menu items from provider
-    final menuProvider = Provider.of<MenuProvider>(context, listen: false);
-    await menuProvider.fetchMenu();
-    await menuProvider.fetchCategories();
-    final menuItems = menuProvider.items;
-    final categories = menuProvider.categories;
-    
-    // State variables for the dialog
-    MenuItem? selectedItem;
-    int quantity = 1;
-    String searchQuery = '';
-    String? selectedCategory;
-    
-    // Filtered items list
-    List<MenuItem> filteredItems = menuItems;
-    
-    showDialog(
-      context: context,
-      builder: (BuildContext ctx) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            // Filter items based on search query and selected category
-            filteredItems = menuItems.where((item) {
-              bool matchesSearch = searchQuery.isEmpty || 
-                  item.name.toLowerCase().contains(searchQuery.toLowerCase());
-              
-              bool matchesCategory = selectedCategory == null || 
-                  item.category == selectedCategory;
-                  
-              return matchesSearch && matchesCategory;
-            }).toList();
+Future<void> _showAddItemDialog(BuildContext context, List<OrderItem> items, StateSetter setState) async {
+  // Get all menu items from provider
+  final menuProvider = Provider.of<MenuProvider>(context, listen: false);
+  await menuProvider.fetchMenu();
+  await menuProvider.fetchCategories();
+  final menuItems = menuProvider.items;
+  final categories = menuProvider.categories;
+  
+  // State variables for the dialog
+  MenuItem? selectedItem;
+  int quantity = 1;
+  String searchQuery = '';
+  String? selectedCategory;
+  
+  // Filtered items list
+  List<MenuItem> filteredItems = menuItems;
+  
+  showDialog(
+    context: context,
+    builder: (BuildContext ctx) {
+      return StatefulBuilder(
+        builder: (context, setDialogState) {
+          // Filter items based on search query and selected category
+          filteredItems = menuItems.where((item) {
+            // Case-insensitive search
+            bool matchesSearch = searchQuery.isEmpty || 
+                item.name.toLowerCase().contains(searchQuery.toLowerCase());
             
-            return AlertDialog(
-              title: const Text('Add Menu Item'),
-              content: SizedBox(
-                width: MediaQuery.of(context).size.width * 0.8,
-                height: MediaQuery.of(context).size.height * 0.7,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Search bar
-                    TextField(
-                      decoration: const InputDecoration(
-                        labelText: 'Search Items',
-                        prefixIcon: Icon(Icons.search),
-                        border: OutlineInputBorder(),
-                      ),
-                      onChanged: (value) {
-                        setDialogState(() {
-                          searchQuery = value;
-                        });
-                      },
-                    ),
-                    
-                    const SizedBox(height: 16),
-                    
-                    // Category filter dropdown
-                    DropdownButtonFormField<String?>(
-                      decoration: const InputDecoration(
-                        labelText: 'Filter by Category',
-                        border: OutlineInputBorder(),
-                      ),
-                      value: selectedCategory,
-                      items: [
-                        const DropdownMenuItem<String?>(
-                          value: null,
-                          child: Text('All Categories'),
-                        ),
-                        ...categories.map((category) {
-                          return DropdownMenuItem<String?>(
-                            value: category,
-                            child: Text(category),
-                          );
-                        }),
-                      ],
-                      onChanged: (value) {
-                        setDialogState(() {
-                          selectedCategory = value;
-                        });
-                      },
-                      isExpanded: true,
-                    ),
-                    
-                    const SizedBox(height: 16),
-                    
-                    // Show selected item info
-                    if (selectedItem != null)
-                      Card(
-                        color: Colors.blue.shade50,
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                ' ${selectedItem!.name}',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              Text('Price: ${NumberFormat.currency(symbol: '', decimalDigits: 3).format(selectedItem!.price)}'),
-                              Text('Category: ${selectedItem!.category}'),
-                            ],
+            bool matchesCategory = selectedCategory == null || 
+                item.category == selectedCategory;
+                
+            return matchesSearch && matchesCategory;
+          }).toList();
+          
+          return AlertDialog(
+            title: const Text('Add Menu Item'),
+            content: SizedBox(
+              width: MediaQuery.of(context).size.width * 0.8,
+              height: MediaQuery.of(context).size.height * 0.7,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Search and filter row - each takes half width
+                  Row(
+                    children: [
+                      // Search bar - Takes up half the width
+                      Expanded(
+                        child: TextField(
+                          decoration: const InputDecoration(
+                            labelText: 'Search Items',
+                            prefixIcon: Icon(Icons.search),
+                            border: OutlineInputBorder(),
                           ),
+                          onChanged: (value) {
+                            setDialogState(() {
+                              searchQuery = value;
+                            });
+                          },
                         ),
                       ),
-                    
-                    const SizedBox(height: 16),
-                    
-                    // Filtered items list
-                    Expanded(
-                      child: filteredItems.isEmpty
-                          ? const Center(child: Text('No matching items found'))
-                          : ListView.builder(
-                              itemCount: filteredItems.length,
-                              itemBuilder: (context, index) {
-                                final item = filteredItems[index];
-                                final bool isSelected = selectedItem?.id == item.id;
-                                
-                                return Card(
-                                  elevation: isSelected ? 4 : 1,
-                                  color: isSelected ? Colors.blue.shade100 : Colors.white,
-                                  child: ListTile(
-                                    title: Text(
-                                      item.name,
-                                      style: TextStyle(
-                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                      ),
-                                    ),
-                                    subtitle: Text(
-                                      '${NumberFormat.currency(symbol: '', decimalDigits: 3).format(item.price)} - ${item.category}',
-                                    ),
-                                    trailing: isSelected 
-                                        ? const Icon(Icons.check_circle, color: Colors.blue)
-                                        : null,
-                                    onTap: () {
-                                      setDialogState(() {
-                                        selectedItem = item;
-                                      });
-                                    },
-                                  ),
-                                );
-                              },
+                      
+                      const SizedBox(width: 10),
+                      
+                      // Category filter dropdown - Takes up half the width
+                      Expanded(
+                        child: DropdownButtonFormField<String?>(
+                          decoration: const InputDecoration(
+                            // labelText: 'Filter by Category',
+                            border: OutlineInputBorder(),
+                          ),
+                          value: selectedCategory,
+                          items: [
+                            const DropdownMenuItem<String?>(
+                              value: null,
+                              child: Text('Categories'),
                             ),
-                    ),
-                    
-                    const SizedBox(height: 16),
-                    
-                    // Quantity selector
-                    if (selectedItem != null)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text('Quantity: ', style: TextStyle(fontSize: 16)),
-                          IconButton(
-                            icon: const Icon(Icons.remove_circle_outline),
-                            onPressed: () {
-                              if (quantity > 1) {
-                                setDialogState(() {
-                                  quantity--;
-                                });
-                              }
-                            },
-                          ),
-                          Text(
-                            '$quantity',
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.add_circle_outline),
-                            onPressed: () {
-                              setDialogState(() {
-                                quantity++;
-                              });
-                            },
-                          ),
-                        ],
+                            ...categories.map((category) {
+                              return DropdownMenuItem<String?>(
+                                value: category,
+                                child: Text(category),
+                              );
+                            }),
+                          ],
+                          onChanged: (value) {
+                            setDialogState(() {
+                              selectedCategory = value;
+                            });
+                          },
+                          isExpanded: true,
+                        ),
                       ),
-                  ],
-                ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Show selected item info
+                  if (selectedItem != null)
+                    Card(
+                      color: Colors.blue.shade50,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              selectedItem!.name,
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            Text('Price: ${NumberFormat.currency(symbol: '', decimalDigits: 3).format(selectedItem!.price)}'),
+                            Text('Category: ${selectedItem!.category}'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Filtered items list
+                  Expanded(
+                    child: filteredItems.isEmpty
+                        ? const Center(child: Text('No matching items found'))
+                        : ListView.builder(
+                            itemCount: filteredItems.length,
+                            itemBuilder: (context, index) {
+                              final item = filteredItems[index];
+                              final bool isSelected = selectedItem?.id == item.id;
+                              
+                              return Card(
+                                elevation: isSelected ? 4 : 1,
+                                color: isSelected ? Colors.blue.shade100 : Colors.white,
+                                child: ListTile(
+                                  title: Text(
+                                    item.name,
+                                    style: TextStyle(
+                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    '${NumberFormat.currency(symbol: '', decimalDigits: 3).format(item.price)} - ${item.category}',
+                                  ),
+                                  trailing: isSelected 
+                                      ? const Icon(Icons.check_circle, color: Colors.blue)
+                                      : null,
+                                  onTap: () {
+                                    setDialogState(() {
+                                      selectedItem = item;
+                                    });
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Quantity selector
+                  if (selectedItem != null)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('Quantity: ', style: TextStyle(fontSize: 16)),
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle_outline),
+                          onPressed: () {
+                            if (quantity > 1) {
+                              setDialogState(() {
+                                quantity--;
+                              });
+                            }
+                          },
+                        ),
+                        Text(
+                          '$quantity',
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add_circle_outline),
+                          onPressed: () {
+                            setDialogState(() {
+                              quantity++;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                ],
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: selectedItem == null ? null : () {
-                    // Create new OrderItem from MenuItem
-                    final newItem = OrderItem(
-                      id: int.parse(selectedItem!.id),
-                      name: selectedItem!.name,
-                      price: selectedItem!.price,
-                      quantity: quantity,
-                      kitchenNote: selectedItem!.kitchenNote,
-                    );
-                    
-                    // Add to the items list
-                    setState(() {
-                      items.add(newItem);
-                    });
-                    
-                    Navigator.of(ctx).pop();
-                  },
-                  child: const Text('Add Item'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: selectedItem == null ? null : () {
+                  // Create new OrderItem from MenuItem
+                  final newItem = OrderItem(
+                    id: int.parse(selectedItem!.id),
+                    name: selectedItem!.name,
+                    price: selectedItem!.price,
+                    quantity: quantity,
+                    kitchenNote: selectedItem!.kitchenNote,
+                  );
+                  
+                  // Add to the items list
+                  setState(() {
+                    items.add(newItem);
+                  });
+                  
+                  Navigator.of(ctx).pop();
+                },
+                child: const Text('Add Item'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
+  
 
   @override
   Widget build(BuildContext context) {
@@ -842,23 +853,23 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                         ),
                       ),
                       // Show "Edited" badge if order was edited
-                      if (_wasEdited)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.orange.shade600),
-                          ),
-                          child: Text(
-                            'Edited',
-                            style: TextStyle(
-                              color: Colors.orange.shade900,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
+                      // if (_wasEdited)
+                      //   Container(
+                      //     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      //     decoration: BoxDecoration(
+                      //       color: Colors.orange.shade100,
+                      //       borderRadius: BorderRadius.circular(12),
+                      //       border: Border.all(color: Colors.orange.shade600),
+                      //     ),
+                      //     child: Text(
+                      //       'Edited',
+                      //       style: TextStyle(
+                      //         color: Colors.orange.shade900,
+                      //         fontWeight: FontWeight.bold,
+                      //         fontSize: 14,
+                      //       ),
+                      //     ),
+                      //   ),
                     ],
                   ),
                   const SizedBox(height: 16),

@@ -1644,6 +1644,7 @@ class _TenderScreenState extends State<TenderScreen> {
       personName: null,
       tableInfo: widget.order.serviceType.contains('Table') ? widget.order.serviceType : null,
       isEdited: widget.isEdited,
+      orderNumber: widget.order.orderNumber,
     );
     
     return pdf;

@@ -129,6 +129,7 @@ class ThermalPrinterService {
     String? personName,
     String? tableInfo,
     bool isEdited = false, // Add parameter to indicate if order was edited
+    String? orderNumber = null, 
   }) async {
     final ip = await getPrinterIp();
     final port = await getPrinterPort();
@@ -146,8 +147,8 @@ class ThermalPrinterService {
         return false;
       }
       
-      // Generate order number
-      final orderNumber = DateTime.now().millisecondsSinceEpoch % 10000;
+        // Use provided order number or generate a new one
+        final billNumber = orderNumber ?? (DateTime.now().millisecondsSinceEpoch % 10000).toString();
       
       // Print receipt header
       printer.text('SIMS RESTO CAFE', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
@@ -182,7 +183,7 @@ class ThermalPrinterService {
         printer.text('', styles: const PosStyles(align: PosAlign.center));
       }
       
-      printer.text('ORDER #$orderNumber', styles: const PosStyles(align: PosAlign.center, bold: true));
+      printer.text('ORDER #$billNumber', styles: const PosStyles(align: PosAlign.center, bold: true));
       
       // Current date and time
       final now = DateTime.now();

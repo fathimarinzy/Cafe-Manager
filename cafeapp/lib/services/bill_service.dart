@@ -9,6 +9,7 @@ import '../models/menu_item.dart';
 import './thermal_printer_service.dart';
 import '../models/order_history.dart';
 
+
 class BillService {
   // Generate PDF bill for order
   static Future<pw.Document> generateBill({
@@ -21,6 +22,7 @@ class BillService {
     String? personName,
     String? tableInfo,
     bool isEdited = false, // Add parameter to indicate if order was edited
+    String? orderNumber,
   }) async {
     final pdf = pw.Document();
     
@@ -42,7 +44,7 @@ class BillService {
     final formattedTime = timeFormatter.format(now);
     
     // Generate order number (simple implementation)
-    final orderNumber = '${now.millisecondsSinceEpoch % 10000}';
+    final billNumber = orderNumber ?? '${now.millisecondsSinceEpoch % 10000}';
     
     pdf.addPage(
       pw.Page(
@@ -55,10 +57,17 @@ class BillService {
               pw.Center(
                 child: pw.Column(
                   children: [
-                    pw.Text('SIMS RESTO CAFE', 
+                     pw.Text('RECEIPT', 
                       style: pw.TextStyle(
                         font: ttf, 
                         fontSize: 14, 
+                        fontWeight: pw.FontWeight.bold
+                      )
+                    ),
+                    pw.Text('SIMS RESTO CAFE', 
+                      style: pw.TextStyle(
+                        font: ttf, 
+                        fontSize: 12, 
                         fontWeight: pw.FontWeight.bold
                       )
                     ),
@@ -93,7 +102,7 @@ class BillService {
                     
                     pw.SizedBox(height: 3),
                     
-                    pw.Text('ORDER #$orderNumber', 
+                    pw.Text('ORDER #$billNumber', 
                       style: pw.TextStyle(
                         font: ttf, 
                         fontSize: 12, 
@@ -432,6 +441,7 @@ class BillService {
         personName: null, // No customer info in OrderHistory
         tableInfo: tableInfo,
         isEdited: isEdited, // Pass the edited flag
+        orderNumber: order.orderNumber
       );
       
       return printed;
@@ -452,6 +462,7 @@ class BillService {
     String? personName,
     String? tableInfo,
     bool isEdited = false, // Add parameter to indicate if order was edited
+    String? orderNumber,
   }) async {
     try {
       // Use direct ESC/POS commands for printing
@@ -465,6 +476,7 @@ class BillService {
         personName: personName,
         tableInfo: tableInfo,
         isEdited: isEdited, // Pass the edited flag
+        orderNumber: orderNumber,
       );
       
       return printed;
@@ -622,6 +634,7 @@ class BillService {
       personName: personName,
       tableInfo: tableInfo,
       isEdited: isEdited, // Pass the edited flag
+  
     );
     
     // Save using native Android intent

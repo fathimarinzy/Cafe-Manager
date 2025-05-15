@@ -32,7 +32,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
     final formattedTime = timeFormatter.format(now);
     
     // Generate order number (simple implementation)
-    final orderNumber = '${now.millisecondsSinceEpoch % 10000}';
+    // final orderNumber = '${now.millisecondsSinceEpoch % 10000}';
     
     return Scaffold(
       appBar: AppBar(
@@ -69,14 +69,14 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            Text(
-                              '#$orderNumber',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue,
-                              ),
-                            ),
+                            // Text(
+                            //   '#$orderNumber',
+                            //   style: const TextStyle(
+                            //     fontSize: 16,
+                            //     fontWeight: FontWeight.bold,
+                            //     color: Colors.blue,
+                            //   ),
+                            // ),
                           ],
                         ),
                         const SizedBox(height: 8),
