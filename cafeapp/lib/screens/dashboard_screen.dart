@@ -1,3 +1,5 @@
+// lib/screens/dashboard_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/order_provider.dart';
@@ -6,6 +8,7 @@ import 'menu_screen.dart';
 import 'dining_table_screen.dart';
 import 'order_list_screen.dart';
 import 'login_screen.dart';
+import '../utils/app_localization.dart'; // Import the localization utility
 import 'package:cafeapp/main.dart';
 import '../widgets/settings_password_dialog.dart';
 
@@ -42,9 +45,9 @@ class DashboardScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'SIMS RESTO CAFE',
-          style: TextStyle(
+        title: Text(
+          'appTitle'.tr(), // Translated app title
+          style: const TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
             color: Colors.white,
@@ -59,11 +62,11 @@ class DashboardScreen extends StatelessWidget {
             onPressed: () {
               Navigator.of(context).pushNamed(AppRoutes.printerConfig);
             },
-            tooltip: 'Printer Settings',
+            tooltip: 'printerSettings'.tr(), // Translated tooltip
           ),
           IconButton(
             icon: const Icon(Icons.settings),
-            tooltip: 'Settings',
+            tooltip: 'settings'.tr(), // Translated tooltip
             onPressed: () {
                // Show password dialog before navigating to settings
               showDialog(
@@ -78,12 +81,12 @@ class DashboardScreen extends StatelessWidget {
               showDialog(
                 context: context,
                 builder: (ctx) => AlertDialog(
-                  title: const Text('Logout', style: TextStyle(color: primaryColor)),
-                  content: const Text('Are you sure you want to logout?'),
+                  title: Text('logout'.tr(), style: const TextStyle(color: primaryColor)), // Translated
+                  content: Text('are you sure you want to logout?'.tr()), // Add this to translations
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.of(ctx).pop(),
-                      child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                      child: Text('cancel'.tr(), style: const TextStyle(color: Colors.grey)), // Translated
                     ),
                     TextButton(
                       onPressed: () {
@@ -94,7 +97,7 @@ class DashboardScreen extends StatelessWidget {
                           (route) => false,
                         );
                       },
-                      child: const Text('Logout', style: TextStyle(color: Colors.red)),
+                      child: Text('logout'.tr(), style: const TextStyle(color: Colors.red)), // Translated
                     ),
                   ],
                 ),
@@ -127,7 +130,7 @@ class DashboardScreen extends StatelessWidget {
                       children: [
                         _buildServiceCard(
                           context: context,
-                          title: 'Dining',
+                          title: 'dining',
                           icon: Icons.restaurant,
                           color: diningColor,
                           isDining: true,
@@ -135,35 +138,35 @@ class DashboardScreen extends StatelessWidget {
                         ),
                         _buildServiceCard(
                           context: context,
-                          title: 'Takeout',
+                          title: 'takeout',
                           icon: Icons.takeout_dining,
                           color: takeoutColor,
                           screenSize: screenSize,
                         ),
                         _buildServiceCard(
                           context: context,
-                          title: 'Delivery',
+                          title: 'delivery',
                           icon: Icons.delivery_dining,
                           color: deliveryColor,
                           screenSize: screenSize,
                         ),
                         _buildServiceCard(
                           context: context,
-                          title: 'Drive Through',
+                          title: 'driveThrough',
                           icon: Icons.drive_eta,
                           color: driveThroughColor,
                           screenSize: screenSize,
                         ),
                         _buildServiceCard(
                           context: context,
-                          title: 'Catering',
+                          title: 'catering',
                           icon: Icons.cake,
                           color: cateringColor,
                           screenSize: screenSize,
                         ),
                         _buildServiceCard(
                           context: context,
-                          title: 'Order List',
+                          title: 'orderList',
                           icon: Icons.list_alt,
                           color: orderListColor,
                           screenSize: screenSize,
@@ -206,17 +209,17 @@ class DashboardScreen extends StatelessWidget {
               builder: (ctx) => const DiningTableScreen(),
             ),
           );
-        } else if (title == 'Order List') {
+        } else if (title == 'orderList') {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (ctx) => const OrderListScreen(),
             ),
           );
         } else {
-          orderProvider.setCurrentServiceType(title);
+          orderProvider.setCurrentServiceType(title.tr()); // Translate service type
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (ctx) => MenuScreen(serviceType: title,serviceColor: color,),
+              builder: (ctx) => MenuScreen(serviceType: title.tr(), serviceColor: color),
             ),
           );
         }
@@ -258,7 +261,7 @@ class DashboardScreen extends StatelessWidget {
               FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(
-                  title,
+                  title.tr(), // Translate the service card title
                   style: TextStyle(
                     fontSize: fontSize,
                     fontWeight: FontWeight.w600,

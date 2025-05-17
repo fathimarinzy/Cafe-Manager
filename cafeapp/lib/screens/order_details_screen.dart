@@ -9,7 +9,7 @@ import '../models/menu_item.dart';
 import 'tender_screen.dart';
 // Import ApiService and BillService
 import '../services/api_service.dart';
-import '../services/bill_service.dart';
+// import '../services/bill_service.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
   final int orderId;
@@ -79,6 +79,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       _saveOrderChangesToBackend().catchError((error) {
         // Just log errors but continue with navigation
         debugPrint('Error saving before tender: $error');
+         throw error;
       });
     }
     
@@ -98,49 +99,49 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     });
   }
   // Print receipt with changes
-  Future<void> _printReceipt() async {
-    if (_order == null) return;
+  // Future<void> _printReceipt() async {
+  //   if (_order == null) return;
     
-    try {
-      // Convert order items to MenuItem objects
-      final items = _order!.items.map((item) => 
-        MenuItem(
-          id: item.id.toString(),
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-          imageUrl: '',
-          category: '',
-          kitchenNote: item.kitchenNote,
-        )
-      ).toList();
+  //   try {
+  //     // Convert order items to MenuItem objects
+  //     final items = _order!.items.map((item) => 
+  //       MenuItem(
+  //         id: item.id.toString(),
+  //         name: item.name,
+  //         price: item.price,
+  //         quantity: item.quantity,
+  //         imageUrl: '',
+  //         category: '',
+  //         kitchenNote: item.kitchenNote,
+  //       )
+  //     ).toList();
       
-      // Extract tableInfo if this is a dining order
-      String? tableInfo;
-      if (_order!.serviceType.startsWith('Dining - Table')) {
-        tableInfo = _order!.serviceType;
-      }
+  //     // Extract tableInfo if this is a dining order
+  //     String? tableInfo;
+  //     if (_order!.serviceType.startsWith('Dining - Table')) {
+  //       tableInfo = _order!.serviceType;
+  //     }
       
-      // Use the bill service to print the receipt, passing the edited flag
-      await BillService.printBill(
-        items: items,
-        serviceType: _order!.serviceType,
-        subtotal: _order!.total - (_order!.total * 0.05),
-        tax: _order!.total * 0.05,
-        discount: 0,
-        total: _order!.total,
-        personName: null,
-        tableInfo: tableInfo,
-        isEdited: _wasEdited, // Pass the edited flag
-      );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error printing receipt: $e')),
-        );
-      }
-    }
-  }
+  //     // Use the bill service to print the receipt, passing the edited flag
+  //     await BillService.printBill(
+  //       items: items,
+  //       serviceType: _order!.serviceType,
+  //       subtotal: _order!.total - (_order!.total * 0.05),
+  //       tax: _order!.total * 0.05,
+  //       discount: 0,
+  //       total: _order!.total,
+  //       personName: null,
+  //       tableInfo: tableInfo,
+  //       isEdited: _wasEdited, // Pass the edited flag
+  //     );
+  //   } catch (e) {
+  //     if (mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(content: Text('Error printing receipt: $e')),
+  //       );
+  //     }
+  //   }
+  // }
 
   // Method to save order changes to the backend
   Future<bool> _saveOrderChangesToBackend() async {
@@ -738,6 +739,7 @@ Future<void> _showAddItemDialog(BuildContext context, List<OrderItem> items, Sta
             // as we want to ensure navigation happens either way
             _saveOrderChangesToBackend().catchError((error) {
               debugPrint('Error during save on back: $error');
+              throw error;
             });
           }
         }

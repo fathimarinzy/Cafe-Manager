@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
+// import '../providers/auth_provider.dart';
 import '../providers/table_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/backup_service.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+// import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'login_screen.dart';
-import '../services/settings_password_service.dart';
+// import 'login_screen.dart';
+// import '../services/settings_password_service.dart';
 import 'modifier_screen.dart'; // Import the ModifierScreen
 import 'table_management_screen.dart'; // Import the TableManagementScreen
 import 'printer_settings_screen.dart'; // Import the PrinterSettingsScreen
+import '../utils/app_localization.dart';
 
 class SettingsScreen extends StatefulWidget {
   final String userType;
@@ -473,71 +474,71 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
   
-  void _showClearDataDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Clear All Data'),
-          content: const Text(
-            'This will delete all app data including orders, settings, and login information.\n\n'
-            'This action cannot be undone. Are you sure you want to continue?'
-          ),
-          actions: [
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () => Navigator.pop(dialogContext),
-            ),
-            TextButton(
-              child: const Text('Clear All Data', style: TextStyle(color: Colors.red)),
-              onPressed: () {
-                Navigator.pop(dialogContext);
-                _clearAllData();
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
+  // void _showClearDataDialog() {
+  //   showDialog(
+  //     context: context,
+  //     builder: (BuildContext dialogContext) {
+  //       return AlertDialog(
+  //         title: const Text('Clear All Data'),
+  //         content: const Text(
+  //           'This will delete all app data including orders, settings, and login information.\n\n'
+  //           'This action cannot be undone. Are you sure you want to continue?'
+  //         ),
+  //         actions: [
+  //           TextButton(
+  //             child: const Text('Cancel'),
+  //             onPressed: () => Navigator.pop(dialogContext),
+  //           ),
+  //           TextButton(
+  //             child: const Text('Clear All Data', style: TextStyle(color: Colors.red)),
+  //             onPressed: () {
+  //               Navigator.pop(dialogContext);
+  //               _clearAllData();
+  //             },
+  //           ),
+  //         ],
+  //       );
+  //     },
+  //   );
+  // }
   
-  Future<void> _clearAllData() async {
-    try {
-      setState(() {
-        _isLoading = true;
-      });
+  // Future<void> _clearAllData() async {
+  //   try {
+  //     setState(() {
+  //       _isLoading = true;
+  //     });
       
-      // Reset settings provider
-      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-      await settingsProvider.resetSettings();
+  //     // Reset settings provider
+  //     final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+  //     await settingsProvider.resetSettings();
       
-      // Clear secure storage
-      const storage = FlutterSecureStorage();
-      await storage.deleteAll();
+  //     // Clear secure storage
+  //     const storage = FlutterSecureStorage();
+  //     await storage.deleteAll();
       
-      // Check if widget is still mounted before accessing context
-      if (!mounted) return;
+  //     // Check if widget is still mounted before accessing context
+  //     if (!mounted) return;
       
-      // Log out the user
-      Provider.of<AuthProvider>(context, listen: false).logout();
+  //     // Log out the user
+  //     Provider.of<AuthProvider>(context, listen: false).logout();
       
-      // Navigate to login screen
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-        (route) => false,
-      );
-    } catch (e) {
-      debugPrint('Error clearing data: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error clearing data: $e')),
-        );
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
+  //     // Navigate to login screen
+  //     Navigator.of(context).pushAndRemoveUntil(
+  //       MaterialPageRoute(builder: (context) => const LoginScreen()),
+  //       (route) => false,
+  //     );
+  //   } catch (e) {
+  //     debugPrint('Error clearing data: $e');
+  //     if (mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(content: Text('Error clearing data: $e')),
+  //       );
+  //       setState(() {
+  //         _isLoading = false;
+  //       });
+  //     }
+  //   }
+  // }
 
   // Add the Tables section widget with dining table layout option
   Widget _buildTablesSection() {
@@ -870,31 +871,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Card(
                   child: Column(
                     children: [
-                      ListTile(
-                        title: const Text('Theme'),
-                        subtitle: Text(_selectedTheme),
-                        trailing: DropdownButton<String>(
-                          value: _selectedTheme,
-                          onChanged: (String? newValue) {
-                            if (newValue != null) {
-                              setState(() {
-                                _selectedTheme = newValue;
-                              });
-                            }
-                          },
-                          items: <String>['Light', 'Dark', 'System Default']
-                              .map<DropdownMenuItem<String>>((String value) {
-                            return DropdownMenuItem<String>(
-                              value: value,
-                              child: Text(value),
-                            );
-                          }).toList(),
-                          underline: Container(),
-                        ),
-                      ),
+                      // ListTile(
+                      //   title: const Text('Theme'),
+                      //   subtitle: Text(_selectedTheme),
+                      //   trailing: DropdownButton<String>(
+                      //     value: _selectedTheme,
+                      //     onChanged: (String? newValue) {
+                      //       if (newValue != null) {
+                      //         setState(() {
+                      //           _selectedTheme = newValue;
+                      //         });
+                      //       }
+                      //     },
+                      //     items: <String>['Light', 'Dark', 'System Default']
+                      //         .map<DropdownMenuItem<String>>((String value) {
+                      //       return DropdownMenuItem<String>(
+                      //         value: value,
+                      //         child: Text(value),
+                      //       );
+                      //     }).toList(),
+                      //     underline: Container(),
+                      //   ),
+                      // ),
                       const Divider(height: 1, indent: 16),
                       ListTile(
-                        title: const Text('Language'),
+                        title: Text('language'.tr()),
                         subtitle: Text(_selectedLanguage),
                         trailing: DropdownButton<String>(
                           value: _selectedLanguage,
@@ -903,9 +904,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               setState(() {
                                 _selectedLanguage = newValue;
                               });
+                              
+                              // Apply the language change
+                              final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+                              settingsProvider.setLanguage(newValue);
+                                
+                              // Show a confirmation message
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('languageChanged'.tr()),
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
                             }
                           },
-                          items: <String>['English', 'Spanish', 'French', 'Arabic']
+                          items: <String>['English', 'Arabic']
                               .map<DropdownMenuItem<String>>((String value) {
                             return DropdownMenuItem<String>(
                               value: value,
@@ -915,10 +928,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           underline: Container(),
                         ),
                       ),
-                    ],
+                                          ],
                   ),
                 ),
-                const Divider(),
+                // const Divider(),
                 
                 // ADVANCED SETTINGS TOGGLE
                 InkWell(
@@ -932,61 +945,61 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          _showAdvancedSettings 
-                              ? Icons.keyboard_arrow_up 
-                              : Icons.keyboard_arrow_down,
-                          color: Colors.grey[600],
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _showAdvancedSettings
-                              ? 'Hide Advanced Settings'
-                              : 'Show Advanced Settings',
-                          style: TextStyle(
-                            color: Colors.grey[700],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
+                        // Icon(
+                        //   _showAdvancedSettings 
+                        //       ? Icons.keyboard_arrow_up 
+                        //       : Icons.keyboard_arrow_down,
+                        //   color: Colors.grey[600],
+                        // ),
+                        // const SizedBox(width: 8),
+                        // Text(
+                        //   _showAdvancedSettings
+                        //       ? 'Hide Advanced Settings'
+                        //       : 'Show Advanced Settings',
+                        //   style: TextStyle(
+                        //     color: Colors.grey[700],
+                        //     fontWeight: FontWeight.w500,
+                        //   ),
+                        // ),
                       ],
                     ),
                   ),
                 ),
                 
-                // ADVANCED SETTINGS (hidden by default)
-                if (_showAdvancedSettings) ...[
-                  const Divider(),
-                  _buildSectionHeader('Advanced Settings'),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: TextFormField(
-                      controller: _serverUrlController,
-                      decoration: const InputDecoration(
-                        labelText: 'Server URL',
-                        border: OutlineInputBorder(),
-                        hintText: 'https://example.com/api',
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter server URL';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
+              //   // ADVANCED SETTINGS (hidden by default)
+              //   if (_showAdvancedSettings) ...[
+              //     const Divider(),
+              //     _buildSectionHeader('Advanced Settings'),
+              //     Padding(
+              //       padding: const EdgeInsets.only(bottom: 16),
+              //       child: TextFormField(
+              //         controller: _serverUrlController,
+              //         decoration: const InputDecoration(
+              //           labelText: 'Server URL',
+              //           border: OutlineInputBorder(),
+              //           hintText: 'https://example.com/api',
+              //         ),
+              //         validator: (value) {
+              //           if (value == null || value.isEmpty) {
+              //             return 'Please enter server URL';
+              //           }
+              //           return null;
+              //         },
+              //       ),
+              //     ),
                   
-                  ListTile(
-                    leading: const Icon(Icons.delete_forever, color: Colors.red),
-                    title: const Text('Clear All App Data'),
-                    subtitle: const Text('Delete all saved data (Caution: Cannot be undone)'),
-                    onTap: _showClearDataDialog,
-                  ),
-                  // PASSWORD MANAGEMENT SECTION - only for owner
-                    const Divider(),
-                    _buildSectionHeader('Password Management'),
-                    _buildPasswordManagementSection(),
+              //     ListTile(
+              //       leading: const Icon(Icons.delete_forever, color: Colors.red),
+              //       title: const Text('Clear All App Data'),
+              //       subtitle: const Text('Delete all saved data (Caution: Cannot be undone)'),
+              //       onTap: _showClearDataDialog,
+              //     ),
+              //     // PASSWORD MANAGEMENT SECTION - only for owner
+              //       const Divider(),
+              //       _buildSectionHeader('Password Management'),
+              //       _buildPasswordManagementSection(),
                 
-              ],
+              // ],
 
                 
                 // ABOUT
@@ -1040,99 +1053,99 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
   // Add this new method to build the password management section
-  Widget _buildPasswordManagementSection() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Change Settings Passwords',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
+  // Widget _buildPasswordManagementSection() {
+  //   return Card(
+  //     child: Padding(
+  //       padding: const EdgeInsets.all(16),
+  //       child: Column(
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           const Text(
+  //             'Change Settings Passwords',
+  //             style: TextStyle(
+  //               fontSize: 16,
+  //               fontWeight: FontWeight.bold,
+  //             ),
+  //           ),
+  //           const SizedBox(height: 16),
             
-            // Staff password field
-            TextFormField(
-              decoration: const InputDecoration(
-                labelText: 'Staff Password',
-                border: OutlineInputBorder(),
-                helperText: 'Change password for staff members',
-              ),
-              obscureText: true,
-              onChanged: (value) {
-                // Store password temporarily
-                _tempStaffPassword = value;
-              },
-            ),
-            const SizedBox(height: 16),
+  //           // Staff password field
+  //           TextFormField(
+  //             decoration: const InputDecoration(
+  //               labelText: 'Staff Password',
+  //               border: OutlineInputBorder(),
+  //               helperText: 'Change password for staff members',
+  //             ),
+  //             obscureText: true,
+  //             onChanged: (value) {
+  //               // Store password temporarily
+  //               _tempStaffPassword = value;
+  //             },
+  //           ),
+  //           const SizedBox(height: 16),
             
-            // Owner password field
-            TextFormField(
-              decoration: const InputDecoration(
-                labelText: 'Owner Password',
-                border: OutlineInputBorder(),
-                helperText: 'Change password for owners',
-              ),
-              obscureText: true,
-              onChanged: (value) {
-                // Store password temporarily
-                _tempOwnerPassword = value;
-              },
-            ),
-            const SizedBox(height: 16),
+  //           // Owner password field
+  //           TextFormField(
+  //             decoration: const InputDecoration(
+  //               labelText: 'Owner Password',
+  //               border: OutlineInputBorder(),
+  //               helperText: 'Change password for owners',
+  //             ),
+  //             obscureText: true,
+  //             onChanged: (value) {
+  //               // Store password temporarily
+  //               _tempOwnerPassword = value;
+  //             },
+  //           ),
+  //           const SizedBox(height: 16),
             
-            // Save passwords button
-            ElevatedButton(
-              onPressed: _savePasswords,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue.shade700,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Update Passwords'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  //           // Save passwords button
+  //           ElevatedButton(
+  //             onPressed: _savePasswords,
+  //             style: ElevatedButton.styleFrom(
+  //               backgroundColor: Colors.blue.shade700,
+  //               foregroundColor: Colors.white,
+  //             ),
+  //             child: const Text('Update Passwords'),
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
   // Store temporary passwords
-  String _tempStaffPassword = '';
-  String _tempOwnerPassword = '';
+  // String _tempStaffPassword = '';
+  // String _tempOwnerPassword = '';
   
   // Method to save updated passwords
-  Future<void> _savePasswords() async {
-    final passwordService = SettingsPasswordService();
-    bool staffUpdated = false;
-    bool ownerUpdated = false;
+//   Future<void> _savePasswords() async {
+//     final passwordService = SettingsPasswordService();
+//     bool staffUpdated = false;
+//     bool ownerUpdated = false;
     
-    if (_tempStaffPassword.isNotEmpty) {
-      staffUpdated = await passwordService.updatePassword(1, _tempStaffPassword);
-    }
+//     if (_tempStaffPassword.isNotEmpty) {
+//       staffUpdated = await passwordService.updatePassword(1, _tempStaffPassword);
+//     }
     
-    if (_tempOwnerPassword.isNotEmpty) {
-      ownerUpdated = await passwordService.updatePassword(2, _tempOwnerPassword);
-    }
+//     if (_tempOwnerPassword.isNotEmpty) {
+//       ownerUpdated = await passwordService.updatePassword(2, _tempOwnerPassword);
+//     }
     
-    if (staffUpdated || ownerUpdated) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Passwords updated successfully')),
-        );
-      }
-    } else if (_tempStaffPassword.isNotEmpty || _tempOwnerPassword.isNotEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No passwords were updated')),
-        );
-      }
-    }
+//     if (staffUpdated || ownerUpdated) {
+//       if (mounted) {
+//         ScaffoldMessenger.of(context).showSnackBar(
+//           const SnackBar(content: Text('Passwords updated successfully')),
+//         );
+//       }
+//     } else if (_tempStaffPassword.isNotEmpty || _tempOwnerPassword.isNotEmpty) {
+//       if (mounted) {
+//         ScaffoldMessenger.of(context).showSnackBar(
+//           const SnackBar(content: Text('No passwords were updated')),
+//         );
+//       }
+//     }
+//   }
   }
-}
   
   Widget _buildSectionHeader(String title) {
     return Padding(

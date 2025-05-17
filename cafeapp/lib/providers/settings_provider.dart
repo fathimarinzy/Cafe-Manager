@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/app_localization.dart';
 
 class SettingsProvider with ChangeNotifier {
   // Server settings
@@ -35,7 +36,17 @@ class SettingsProvider with ChangeNotifier {
   
   // Theme mode
   ThemeMode _themeMode = ThemeMode.light;
-  
+  // Get the language code from language name
+String get languageCode {
+  switch (_appLanguage.toLowerCase()) {
+    case 'arabic':
+      return 'ar';
+    case 'english':
+    default:
+      return 'en';
+  }
+}
+
   // Getters
   String get serverUrl => _serverUrl;
   bool get autoPrintReceipts => _autoPrintReceipts;
@@ -55,7 +66,10 @@ class SettingsProvider with ChangeNotifier {
   ThemeMode get themeMode => _themeMode;
   
   SettingsProvider() {
-    _loadSettings();
+      _loadSettings().then((_) {
+    // Initialize the language after settings are loaded
+    initializeLanguage();
+  });
   }
   
   // Convert string theme to ThemeMode
@@ -81,7 +95,25 @@ class SettingsProvider with ChangeNotifier {
         return 'Light';
     }
   }
-  
+  // Update the setLanguage method
+Future<void> setLanguage(String language) async {
+  if (_appLanguage != language) {
+    await setSetting('app_language', language);
+    _appLanguage = language;
+    
+    // Update the AppLocalization instance with the new language code
+    AppLocalization().setLanguage(languageCode);
+    
+    notifyListeners();
+  }
+}
+
+// Initialize language on app start
+void initializeLanguage() {
+  AppLocalization().setLanguage(languageCode);
+}
+
+    
   // Load settings from SharedPreferences
   Future<void> _loadSettings() async {
     _isLoading = true;

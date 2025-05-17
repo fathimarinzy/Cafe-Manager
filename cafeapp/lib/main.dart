@@ -141,9 +141,10 @@ import 'providers/person_provider.dart';
 import 'providers/settings_provider.dart';
 import 'services/api_service.dart'; 
 import 'providers/order_history_provider.dart';
-
+// import 'utils/app_localization.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -196,6 +197,7 @@ class MyApp extends StatelessWidget {
             ),
             themeMode: settingsProvider.themeMode,
             debugShowCheckedModeBanner: false,
+         
             home: Consumer<AuthProvider>(
               builder: (ctx, auth, _) {
                 return auth.isInitialized 
