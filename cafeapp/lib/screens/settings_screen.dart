@@ -6,9 +6,11 @@ import '../providers/settings_provider.dart';
 import '../services/backup_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'login_screen.dart';
+import '../services/settings_password_service.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  final String userType;
+  const SettingsScreen({super.key,this.userType = 'staff'});
    
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -18,6 +20,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   bool _showAdvancedSettings = false;
+  bool get _isOwner => widget.userType == 'owner';
   
   // Business Information
   final _businessNameController = TextEditingController();
@@ -144,14 +147,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
       } catch (e) {
         debugPrint('Error parsing tax rate: $e');
       }
+        // Business info settings - only owner can change
+      if (_isOwner) {
+        await settingsProvider.saveAllSettings(
+          // Business info
+          businessName: _businessNameController.text,
+          businessAddress: _addressController.text,
+          businessPhone: _phoneController.text,
+          
+          // Tax settings
+          taxRate: taxRate,
+          
+          // Table layout
+          tableRows: _tableRows,
+          tableColumns: _tableColumns,
+          
+          // Server URL
+          serverUrl: _showAdvancedSettings ? _serverUrlController.text : null,
+        );
+      }
       
       // Save all settings at once
       await settingsProvider.saveAllSettings(
-        // Business info
-        businessName: _businessNameController.text,
-        businessAddress: _addressController.text,
-        businessPhone: _phoneController.text,
-        
+     
         // Printer settings
         autoPrintReceipts: _autoPrintReceipts,
         autoPrintKitchenOrders: _autoPrintKitchenOrders,
@@ -521,7 +539,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: Text('Settings ${_isOwner ? "(Owner)" : ""}'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         actions: [
@@ -548,10 +566,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   padding: const EdgeInsets.only(bottom: 16),
                   child: TextFormField(
                     controller: _businessNameController,
-                    decoration: const InputDecoration(
+                    decoration:  InputDecoration(
                       labelText: 'Restaurant Name',
                       border: OutlineInputBorder(),
                       hintText: 'Enter your restaurant name',
+                      enabled: _isOwner, 
+                      fillColor: _isOwner ? null : Colors.grey.shade100,
+                      filled: !_isOwner,
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -565,10 +586,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   padding: const EdgeInsets.only(bottom: 16),
                   child: TextFormField(
                     controller: _addressController,
-                    decoration: const InputDecoration(
+                    decoration:  InputDecoration(
                       labelText: 'Address',
                       border: OutlineInputBorder(),
                       hintText: 'Enter your restaurant address',
+                      enabled: _isOwner, // Disable for staff
+                      fillColor: _isOwner ? null : Colors.grey.shade100,
+                      filled: !_isOwner,
+
                     ),
                     maxLines: 2,
                   ),
@@ -577,10 +602,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   padding: const EdgeInsets.only(bottom: 16),
                   child: TextFormField(
                     controller: _phoneController,
-                    decoration: const InputDecoration(
+                    decoration:  InputDecoration(
                       labelText: 'Phone Number',
                       border: OutlineInputBorder(),
                       hintText: 'Enter your restaurant phone number',
+                      enabled: _isOwner, // Disable for staff
+                      fillColor: _isOwner ? null : Colors.grey.shade100,
+                      filled: !_isOwner,
                     ),
                     keyboardType: TextInputType.phone,
                   ),
@@ -878,7 +906,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: const Text('Delete all saved data (Caution: Cannot be undone)'),
                     onTap: _showClearDataDialog,
                   ),
-                ],
+                  // PASSWORD MANAGEMENT SECTION - only for owner
+                    const Divider(),
+                    _buildSectionHeader('Password Management'),
+                    _buildPasswordManagementSection(),
+                
+              ],
+
                 
                 // ABOUT
                 const Divider(),
@@ -893,6 +927,100 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
     );
   }
+  // Add this new method to build the password management section
+  Widget _buildPasswordManagementSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Change Settings Passwords',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            // Staff password field
+            TextFormField(
+              decoration: const InputDecoration(
+                labelText: 'Staff Password',
+                border: OutlineInputBorder(),
+                helperText: 'Change password for staff members',
+              ),
+              obscureText: true,
+              onChanged: (value) {
+                // Store password temporarily
+                _tempStaffPassword = value;
+              },
+            ),
+            const SizedBox(height: 16),
+            
+            // Owner password field
+            TextFormField(
+              decoration: const InputDecoration(
+                labelText: 'Owner Password',
+                border: OutlineInputBorder(),
+                helperText: 'Change password for owners',
+              ),
+              obscureText: true,
+              onChanged: (value) {
+                // Store password temporarily
+                _tempOwnerPassword = value;
+              },
+            ),
+            const SizedBox(height: 16),
+            
+            // Save passwords button
+            ElevatedButton(
+              onPressed: _savePasswords,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue.shade700,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Update Passwords'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  // Store temporary passwords
+  String _tempStaffPassword = '';
+  String _tempOwnerPassword = '';
+  
+  // Method to save updated passwords
+  Future<void> _savePasswords() async {
+    final passwordService = SettingsPasswordService();
+    bool staffUpdated = false;
+    bool ownerUpdated = false;
+    
+    if (_tempStaffPassword.isNotEmpty) {
+      staffUpdated = await passwordService.updatePassword(1, _tempStaffPassword);
+    }
+    
+    if (_tempOwnerPassword.isNotEmpty) {
+      ownerUpdated = await passwordService.updatePassword(2, _tempOwnerPassword);
+    }
+    
+    if (staffUpdated || ownerUpdated) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Passwords updated successfully')),
+        );
+      }
+    } else if (_tempStaffPassword.isNotEmpty || _tempOwnerPassword.isNotEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No passwords were updated')),
+        );
+      }
+    }
+  }
+}
   
   Widget _buildSectionHeader(String title) {
     return Padding(
@@ -919,5 +1047,4 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
-  }
 }

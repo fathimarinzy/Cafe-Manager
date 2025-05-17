@@ -6,8 +6,8 @@ import 'menu_screen.dart';
 import 'dining_table_screen.dart';
 import 'order_list_screen.dart';
 import 'login_screen.dart';
-import 'settings_screen.dart';
 import 'package:cafeapp/main.dart';
+import '../widgets/settings_password_dialog.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -65,8 +65,10 @@ class DashboardScreen extends StatelessWidget {
             icon: const Icon(Icons.settings),
             tooltip: 'Settings',
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+               // Show password dialog before navigating to settings
+              showDialog(
+                context: context,
+                builder: (_) => const SettingsPasswordDialog(),
               );
             },
           ),
