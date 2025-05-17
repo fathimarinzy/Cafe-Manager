@@ -354,7 +354,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
               // _buildNavButton(null, null, 'Sales hold list'),
               // _buildNavButton(null, null, 'Hold'),
               // _buildNavButton(null, null, 'Memo'),
-              _buildNavButton(null, null, 'Product'),
+              // _buildNavButton(null, null, 'Product'),
               _buildNavButton(null, null, 'Kitchen note'),
               _buildNavButton(null, null, 'Clear'),
               _buildNavButton(null, null, 'Remove'),

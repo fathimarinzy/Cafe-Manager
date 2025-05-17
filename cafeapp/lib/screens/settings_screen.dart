@@ -5,8 +5,12 @@ import '../providers/table_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/backup_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'login_screen.dart';
 import '../services/settings_password_service.dart';
+import 'modifier_screen.dart'; // Import the ModifierScreen
+import 'table_management_screen.dart'; // Import the TableManagementScreen
+import 'printer_settings_screen.dart'; // Import the PrinterSettingsScreen
 
 class SettingsScreen extends StatefulWidget {
   final String userType;
@@ -535,6 +539,134 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  // Add the Tables section widget with dining table layout option
+  Widget _buildTablesSection() {
+    return Card(
+      child: Column(
+        children: [
+          ListTile(
+            leading: Icon(Icons.table_bar, color: Colors.blue[700]),
+            title: const Text('Table Management'),
+            subtitle: const Text('Configure dining tables and layout'),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const TableManagementScreen(),
+                ),
+              );
+            },
+          ),
+          const Divider(height: 1, indent: 70),
+          ListTile(
+            leading: Icon(Icons.grid_view, color: Colors.blue[700]),
+            title: const Text('Dining Table Layout'),
+            subtitle: const Text('Configure table rows and columns'),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: _showLayoutDialog,
+          ),
+        ],
+      ),
+    );
+  }
+  
+  // Show layout selection dialog (copied from DiningTableScreen)
+  void _showLayoutDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        // Get screen width to calculate dialog width
+        final screenWidth = MediaQuery.of(context).size.width;
+        
+        return AlertDialog(
+          title: const Text(
+            'Select Table Layout',
+            style: TextStyle(
+              fontSize: 18, // Smaller title font
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+          // Make dialog narrower - only 65% of screen width
+          content: SizedBox(
+            width: screenWidth * 0.65,
+            child: ListView(
+              shrinkWrap: true,
+              children: _layoutOptions.map((option) {
+                return ListTile(
+                  dense: true, // Makes the list tile more compact
+                  title: Text(
+                    option['label'],
+                    style: const TextStyle(
+                      fontSize: 14, // Smaller font for options
+                    ),
+                  ),
+                  onTap: () {
+                    setState(() {
+                      _tableRows = option['rows'];
+                      _tableColumns = option['columns'];
+                    });
+                    // Save the selected layout to persist it
+                    _saveLayout(option['rows'], option['columns']);
+                    Navigator.pop(context);
+                  },
+                  trailing: (_tableRows == option['rows'] && _tableColumns == option['columns']) 
+                    ? const Icon(Icons.check, color: Colors.green, size: 18) // Smaller checkmark
+                    : null,
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(fontSize: 14), // Smaller font for button
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+  
+  // Save layout configuration to SharedPreferences
+  Future<void> _saveLayout(int rows, int columns) async {
+    try {
+      // First update the SettingsProvider
+      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+      await settingsProvider.saveAllSettings(
+        tableRows: rows,
+        tableColumns: columns,
+      );
+      
+      // Also directly update the shared preferences with the exact same keys used in DiningTableScreen
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('dining_table_rows', rows);
+      await prefs.setInt('dining_table_columns', columns);
+      
+      // Show a confirmation message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Table layout saved')),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error saving layout settings: $e');
+    }
+  }
+  
+  // Predefined layout options (same as DiningTableScreen)
+  final List<Map<String, dynamic>> _layoutOptions = [
+    {'label': '3x4 Layout', 'rows': 3, 'columns': 4},
+    {'label': '4x4 Layout', 'rows': 4, 'columns': 4},
+    {'label': '4x5 Layout', 'rows': 4, 'columns': 5},
+    {'label': '4x6 Layout', 'rows': 4, 'columns': 6},
+    {'label': '4x8 Layout', 'rows': 4, 'columns': 8},
+    {'label': '5x6 Layout', 'rows': 5, 'columns': 6},
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -647,21 +779,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const Divider(),
                 
                 // RECEIPT SETTINGS
-                _buildSectionHeader('Receipt Settings'),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: TextFormField(
-                    controller: _receiptFooterController,
-                    decoration: const InputDecoration(
-                      labelText: 'Receipt Footer Message',
-                      border: OutlineInputBorder(),
-                      hintText: 'Thank you message for receipt',
-                    ),
-                    maxLines: 2,
-                  ),
-                ),
+                // _buildSectionHeader('Receipt Settings'),
+                // Padding(
+                //   padding: const EdgeInsets.only(bottom: 16),
+                //   child: TextFormField(
+                //     controller: _receiptFooterController,
+                //     decoration: const InputDecoration(
+                //       labelText: 'Receipt Footer Message',
+                //       border: OutlineInputBorder(),
+                //       hintText: 'Thank you message for receipt',
+                //     ),
+                //     maxLines: 2,
+                //   ),
+                // ),
                 
-                // PRINTER SETTINGS
+                // PRINTER SETTINGS SECTION
+                _buildSectionHeader('Printer Settings'),
+                _buildPrinterSettingsSection(),
+                const Divider(),
+                
+                // PRINTER SETTINGS SUBSECTION
                 _buildSubsectionHeader('Printer Options'),
                 SwitchListTile(
                   title: const Text('Auto-print receipts'),
@@ -694,77 +831,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 const Divider(),
+              
+                // PRODUCT MANAGEMENT - Add the new section
+                _buildSectionHeader('Products'),
+                _buildProductSection(),
+                const Divider(),
                 
-                // TABLE LAYOUT
-                _buildSectionHeader('Dining Tables Layout'),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Number of Rows'),
-                            const SizedBox(height: 8),
-                            DropdownButtonFormField<int>(
-                              value: _tableRows,
-                              decoration: const InputDecoration(
-                                border: OutlineInputBorder(),
-                                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              ),
-                              onChanged: (int? newValue) {
-                                if (newValue != null) {
-                                  setState(() {
-                                    _tableRows = newValue;
-                                  });
-                                }
-                              },
-                              items: List.generate(8, (index) => index + 1)
-                                  .map<DropdownMenuItem<int>>((int value) {
-                                return DropdownMenuItem<int>(
-                                  value: value,
-                                  child: Text(value.toString()),
-                                );
-                              }).toList(),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Number of Columns'),
-                            const SizedBox(height: 8),
-                            DropdownButtonFormField<int>(
-                              value: _tableColumns,
-                              decoration: const InputDecoration(
-                                border: OutlineInputBorder(),
-                                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              ),
-                              onChanged: (int? newValue) {
-                                if (newValue != null) {
-                                  setState(() {
-                                    _tableColumns = newValue;
-                                  });
-                                }
-                              },
-                              items: List.generate(8, (index) => index + 1)
-                                  .map<DropdownMenuItem<int>>((int value) {
-                                return DropdownMenuItem<int>(
-                                  value: value,
-                                  child: Text(value.toString()),
-                                );
-                              }).toList(),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                // TABLE MANAGEMENT - Add the new section
+                _buildSectionHeader('Tables'),
+                _buildTablesSection(),
                 const Divider(),
                 
                 // DATA MANAGEMENT
@@ -925,6 +1000,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
+    );
+  }
+  // Add the Product section widget
+  Widget _buildProductSection() {
+    return Card(
+      child: ListTile(
+        leading: Icon(Icons.inventory, color: Colors.blue[700]),
+        title: const Text('Product Management'),
+        subtitle: const Text('Add, edit, or remove menu items'),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const ModifierScreen(),
+            ),
+          );
+        },
+      ),
+    );
+  }
+  
+  // Add the Printer Settings section widget
+  Widget _buildPrinterSettingsSection() {
+    return Card(
+      child: ListTile(
+        leading: Icon(Icons.print, color: Colors.blue[700]),
+        title: const Text('Printer Configuration'),
+        subtitle: const Text('Configure thermal printer settings'),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const PrinterSettingsScreen(),
+            ),
+          );
+        },
+      ),
     );
   }
   // Add this new method to build the password management section

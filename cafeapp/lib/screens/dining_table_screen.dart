@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'menu_screen.dart';
-import 'table_management_screen.dart';
+// import 'table_management_screen.dart';
 import 'table_orders_screen.dart'; // Import the new screen
 import '../providers/order_provider.dart';
 import '../providers/table_provider.dart';
@@ -24,15 +24,15 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
   int _columns = 4; // Default columns
   int _rows = 4;    // Default rows
   
-  // Predefined layout options
-  final List<Map<String, dynamic>> _layoutOptions = [
-    {'label': '3x4 Layout', 'rows': 3, 'columns': 4},
-    {'label': '4x4 Layout', 'rows': 4, 'columns': 4},
-    {'label': '4x5 Layout', 'rows': 4, 'columns': 5},
-    {'label': '4x6 Layout', 'rows': 4, 'columns': 6},
-    {'label': '4x8 Layout', 'rows': 4, 'columns': 8},
-    {'label': '5x6 Layout', 'rows': 5, 'columns': 6},
-  ];
+  // // Predefined layout options
+  // final List<Map<String, dynamic>> _layoutOptions = [
+  //   {'label': '3x4 Layout', 'rows': 3, 'columns': 4},
+  //   {'label': '4x4 Layout', 'rows': 4, 'columns': 4},
+  //   {'label': '4x5 Layout', 'rows': 4, 'columns': 5},
+  //   {'label': '4x6 Layout', 'rows': 4, 'columns': 6},
+  //   {'label': '4x8 Layout', 'rows': 4, 'columns': 8},
+  //   {'label': '5x6 Layout', 'rows': 5, 'columns': 6},
+  // ];
   
   @override
   void initState() {
@@ -78,16 +78,16 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
   }
   
   // Save layout configuration to SharedPreferences
-  Future<void> _saveLayout(int rows, int columns) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
+  // Future<void> _saveLayout(int rows, int columns) async {
+  //   try {
+  //     final prefs = await SharedPreferences.getInstance();
       
-      await prefs.setInt('dining_table_rows', rows);
-      await prefs.setInt('dining_table_columns', columns);
-    } catch (e) {
-      debugPrint('Error saving layout settings: $e');
-    }
-  }
+  //     await prefs.setInt('dining_table_rows', rows);
+  //     await prefs.setInt('dining_table_columns', columns);
+  //   } catch (e) {
+  //     debugPrint('Error saving layout settings: $e');
+  //   }
+  // }
   
   @override
   void dispose() {
@@ -106,83 +106,83 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
   }
 
   // Show layout selection dialog
-  void _showLayoutDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        // Get screen width to calculate dialog width
-        final screenWidth = MediaQuery.of(context).size.width;
+  // void _showLayoutDialog() {
+  //   showDialog(
+  //     context: context,
+  //     builder: (BuildContext context) {
+  //       // Get screen width to calculate dialog width
+  //       final screenWidth = MediaQuery.of(context).size.width;
         
-        return AlertDialog(
-          title: const Text(
-            'Select Table Layout',
-            style: TextStyle(
-              fontSize: 18, // Smaller title font
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-          // Make dialog narrower - only 65% of screen width
-          content: SizedBox(
-            width: screenWidth * 0.65,
-            child: ListView(
-              shrinkWrap: true,
-              children: _layoutOptions.map((option) {
-                return ListTile(
-                  dense: true, // Makes the list tile more compact
-                  title: Text(
-                    option['label'],
-                    style: const TextStyle(
-                      fontSize: 14, // Smaller font for options
-                    ),
-                  ),
-                  onTap: () {
-                    setState(() {
-                      _rows = option['rows'];
-                      _columns = option['columns'];
-                    });
-                    // Save the selected layout to persist it
-                    _saveLayout(option['rows'], option['columns']);
-                    Navigator.pop(context);
-                  },
-                  trailing: (_rows == option['rows'] && _columns == option['columns']) 
-                    ? const Icon(Icons.check, color: Colors.green, size: 18) // Smaller checkmark
-                    : null,
-                );
-              }).toList(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(fontSize: 14), // Smaller font for button
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
+  //       return AlertDialog(
+  //         title: const Text(
+  //           'Select Table Layout',
+  //           style: TextStyle(
+  //             fontSize: 18, // Smaller title font
+  //             fontWeight: FontWeight.bold,
+  //           ),
+  //         ),
+  //         contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+  //         // Make dialog narrower - only 65% of screen width
+  //         content: SizedBox(
+  //           width: screenWidth * 0.65,
+  //           child: ListView(
+  //             shrinkWrap: true,
+  //             children: _layoutOptions.map((option) {
+  //               return ListTile(
+  //                 dense: true, // Makes the list tile more compact
+  //                 title: Text(
+  //                   option['label'],
+  //                   style: const TextStyle(
+  //                     fontSize: 14, // Smaller font for options
+  //                   ),
+  //                 ),
+  //                 onTap: () {
+  //                   setState(() {
+  //                     _rows = option['rows'];
+  //                     _columns = option['columns'];
+  //                   });
+  //                   // Save the selected layout to persist it
+  //                   _saveLayout(option['rows'], option['columns']);
+  //                   Navigator.pop(context);
+  //                 },
+  //                 trailing: (_rows == option['rows'] && _columns == option['columns']) 
+  //                   ? const Icon(Icons.check, color: Colors.green, size: 18) // Smaller checkmark
+  //                   : null,
+  //               );
+  //             }).toList(),
+  //           ),
+  //         ),
+  //         actions: [
+  //           TextButton(
+  //             onPressed: () => Navigator.pop(context),
+  //             child: const Text(
+  //               'Cancel',
+  //               style: TextStyle(fontSize: 14), // Smaller font for button
+  //             ),
+  //           ),
+  //         ],
+  //       );
+  //     },
+  //   );
+  // }
 
   // Method to handle table management navigation
-  Future<void> _navigateToTableManagement() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const TableManagementScreen(),
-      ),
-    );
+  // Future<void> _navigateToTableManagement() async {
+  //   await Navigator.of(context).push(
+  //     MaterialPageRoute(
+  //       builder: (context) => const TableManagementScreen(),
+  //     ),
+  //   );
 
-    // Check if the widget is still mounted before using setState
-    if (mounted) {
-      // Refresh the table state when coming back from table management
-      final tableProvider = Provider.of<TableProvider>(context, listen: false);
-      tableProvider.refreshTables();
-      // Force a rebuild of the current screen
-      setState(() {});
-    }
-  }
+  //   // Check if the widget is still mounted before using setState
+  //   if (mounted) {
+  //     // Refresh the table state when coming back from table management
+  //     final tableProvider = Provider.of<TableProvider>(context, listen: false);
+  //     tableProvider.refreshTables();
+  //     // Force a rebuild of the current screen
+  //     setState(() {});
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -202,32 +202,32 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
         ),
         actions: [
           // Layout selector button
-          TextButton.icon(
-            onPressed: _showLayoutDialog,
-            icon: const Icon(Icons.grid_view, color: Colors.black),
-            label: Text('$_rows x $_columns', style: const TextStyle(color: Colors.black)),
+          // TextButton.icon(
+          //   onPressed: _showLayoutDialog,
+          //   icon: const Icon(Icons.grid_view, color: Colors.black),
+          //   label: Text('$_rows x $_columns', style: const TextStyle(color: Colors.black)),
 
-          ),
+          // ),
           const SizedBox(width: 10),
           // Tables management button
-          TextButton.icon(
-            onPressed: _navigateToTableManagement,
-            icon: const Icon(Icons.table_bar, color: Colors.black),
-            label: const Text('Tables', style: TextStyle(color: Colors.black)),
-          ),
+          // TextButton.icon(
+          //   onPressed: _navigateToTableManagement,
+          //   icon: const Icon(Icons.table_bar, color: Colors.black),
+          //   label: const Text('Tables', style: TextStyle(color: Colors.black)),
+          // ),
           const SizedBox(width: 10),
           // Refresh button to manually update table status
-          IconButton(
-            onPressed: () {
-              tableProvider.refreshTables();
-              setState(() {});
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Tables refreshed')),
-              );
-            },
-            icon: const Icon(Icons.refresh, color: Colors.black),
-            tooltip: 'Refresh tables',
-          ),
+          // IconButton(
+          //   onPressed: () {
+          //     tableProvider.refreshTables();
+          //     setState(() {});
+          //     ScaffoldMessenger.of(context).showSnackBar(
+          //       const SnackBar(content: Text('Tables refreshed')),
+          //     );
+          //   },
+          //   icon: const Icon(Icons.refresh, color: Colors.black),
+          //   tooltip: 'Refresh tables',
+          // ),
           const SizedBox(width: 10),
           // Time display
           Padding(
