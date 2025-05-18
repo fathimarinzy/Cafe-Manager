@@ -52,6 +52,7 @@ dependencies:
   esc_pos_utils: ^1.1.0  # For ESC/POS commands generation
   image: ^3.0.2  # Required for image processing with esc_pos_utils
   network_info_plus: ^4.0.2  # To get network information
+  flutter_pdfview: ^1.3.1
 
 
 dev_dependencies:

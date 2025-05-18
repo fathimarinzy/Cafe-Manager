@@ -63,10 +63,19 @@ class _TenderScreenState extends State<TenderScreen> {
   @override
   void initState() {
     super.initState();
-    // Initialize balance amount to the order total
+     // Initialize balance amount based on order status
+  _orderStatus = widget.order.status; // Initialize with current status
+  
+  // If order is already completed, set balance to 0 and paid to total
+  if (_orderStatus.toLowerCase() == 'completed') {
+    _balanceAmount = 0.0;
+    _paidAmount = widget.order.total;
+  } else {
+    // Normal initialization for pending orders
     _balanceAmount = widget.order.total;
     _paidAmount = 0.0;
-    _orderStatus = widget.order.status; // Initialize with current status
+  }
+ 
     debugPrint('Initial balance: $_balanceAmount, Initial paid: $_paidAmount, Status: $_orderStatus');
   }
   
@@ -1787,8 +1796,8 @@ class _TenderScreenState extends State<TenderScreen> {
             
             // View Bill button
             ElevatedButton(
-              onPressed: (_balanceAmount == widget.order.total || _selectedPaymentMethod == null) 
-                ? null  // Disable if no payment has been made or no payment method selected
+              onPressed: (_balanceAmount == widget.order.total && _orderStatus.toLowerCase() != 'completed') 
+              ? null // Disable if no payment has been made or no payment method selected
                 : () async {
                   // Generate the receipt PDF
                   final pdf = await _generateReceipt();
