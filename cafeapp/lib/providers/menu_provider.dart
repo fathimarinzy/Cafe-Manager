@@ -10,20 +10,25 @@ class MenuProvider with ChangeNotifier {
   List<MenuItem> get items => [..._items];
   List<String> get categories => [..._categories];
 
-  Future<void> fetchMenu() async {
-    try {
-      final menuItems = await _apiService.getMenu();
-      
-      // Only update and notify if there's an actual change
-      if (!_itemListsEqual(_items, menuItems)) {
-        _items = menuItems;
-        notifyListeners();
-      }
-    } catch (error) {
-      debugPrint('Error fetching menu: $error');
-      rethrow; // Preserves original stack trace
-    }
+   Future<void> fetchMenu({bool forceRefresh = false}) async {
+  // Don't fetch if items already loaded and no force refresh
+  if (items.isNotEmpty && !forceRefresh) {
+    return;
   }
+  
+  try {
+    final menuItems = await _apiService.getMenu();
+    
+    // Only update and notify if there's an actual change
+    if (!_itemListsEqual(_items, menuItems)) {
+      _items = menuItems;
+      notifyListeners();
+    }
+  } catch (error) {
+    debugPrint('Error fetching menu: $error');
+    rethrow;
+  }
+}
 
   // Helper to check if two item lists are logically equal
   bool _itemListsEqual(List<MenuItem> list1, List<MenuItem> list2) {
@@ -59,20 +64,26 @@ class MenuProvider with ChangeNotifier {
     return a.length == b.length && a.containsAll(b);
   }
 
-  Future<void> fetchCategories() async {
-    try {
-      final categories = await _apiService.getCategories();
-      
-      // Only update and notify if there's an actual change
-      if (!_listsEqual(_categories, categories)) {
-        _categories = categories;
-        notifyListeners();
-      }
-    } catch (error) {
-      debugPrint('Error fetching categories: $error');
-      rethrow; // Preserves original stack trace
-    }
+  Future<void> fetchCategories({bool forceRefresh = false}) async {
+  // Don't fetch if categories already loaded and no force refresh
+  if (categories.isNotEmpty && !forceRefresh) {
+    return;
   }
+  
+  try {
+    final newCategories = await _apiService.getCategories();
+    
+    // Only update and notify if there's an actual change
+    if (!_listsEqual(_categories, newCategories)) {
+      _categories = newCategories;
+      notifyListeners();
+    }
+  } catch (error) {
+    debugPrint('Error fetching categories: $error');
+    rethrow;
+  }
+}
+
   
   // Helper to check if two lists are equal
   bool _listsEqual<T>(List<T> list1, List<T> list2) {

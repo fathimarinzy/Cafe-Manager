@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import 'dashboard_screen.dart';
-
+import '../utils/app_localization.dart';
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
   @override
@@ -61,7 +61,7 @@ class LoginScreenState extends State<LoginScreen> {
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Login Failed. Please check your credentials.')),
+           SnackBar(content: Text('Login Failed. Please check your credentials.'.tr())),
         );
       }
     } catch (error) {
@@ -93,7 +93,7 @@ class LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'SIMS RESTO CAFE',
+                  'SIMS RESTO CAFE'.tr(),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 28,
@@ -105,7 +105,7 @@ class LoginScreenState extends State<LoginScreen> {
                 TextFormField(
                   controller: _usernameController,
                   decoration: InputDecoration(
-                    labelText: 'Username',
+                    labelText: 'Username'.tr(),
                     border: const OutlineInputBorder(),
                     prefixIcon: const Icon(Icons.person),
                     focusedBorder: OutlineInputBorder(
@@ -123,7 +123,7 @@ class LoginScreenState extends State<LoginScreen> {
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please enter your username';
+                      return 'Please enter your username'.tr();
                     }
                     return null;
                   },
@@ -132,7 +132,7 @@ class LoginScreenState extends State<LoginScreen> {
                 TextFormField(
                   controller: _passwordController,
                   decoration: InputDecoration(
-                    labelText: 'Password',
+                    labelText: 'Password'.tr(),
                     border: const OutlineInputBorder(),
                     prefixIcon: const Icon(Icons.lock),
                     // Add suffix icon for toggling password visibility
@@ -163,7 +163,7 @@ class LoginScreenState extends State<LoginScreen> {
                   obscureText: _obscurePassword, // Use the state variable here
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please enter your password';
+                      return 'Please enter your password'.tr();
                     }
                     return null;
                   },
@@ -186,7 +186,7 @@ class LoginScreenState extends State<LoginScreen> {
                           ),
                         )
                       : Text(
-                          'Login', 
+                          'Login'.tr(), 
                           style: TextStyle(
                             fontSize: 16,
                             color: Colors.blue[900],

@@ -97,7 +97,12 @@ class _SettingsPasswordDialogState extends State<SettingsPasswordDialog> {
   }
 
   Widget contentBox(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final dialogWidth = screenWidth < 800 ? screenWidth * 0.9 : 500.0;
+  
     return Container(
+      width: dialogWidth,
+      height: 270,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         shape: BoxShape.rectangle,
@@ -115,20 +120,20 @@ class _SettingsPasswordDialogState extends State<SettingsPasswordDialog> {
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           const Text(
-            'Settings Password',
+            'Enter Password',
             style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
+              fontSize: 20,
+              fontWeight: FontWeight.w500,
             ),
           ),
           const SizedBox(height: 15),
-          const Text(
-            'Please enter the password to access settings',
-            style: TextStyle(
-              fontSize: 14,
-            ),
-            textAlign: TextAlign.center,
-          ),
+          // const Text(
+          //   'Please enter the password to access settings',
+          //   style: TextStyle(
+          //     fontSize: 14,
+          //   ),
+          //   textAlign: TextAlign.center,
+          // ),
           const SizedBox(height: 20),
           TextField(
             controller: _passwordController,

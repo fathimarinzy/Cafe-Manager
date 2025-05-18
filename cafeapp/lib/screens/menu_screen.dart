@@ -15,6 +15,7 @@ import '../screens/table_management_screen.dart';
 import '../screens/order_confirmation_screen.dart';
 import '../screens/order_list_screen.dart';
 import '../widgets/kitchen_note_dialog.dart';
+import '../utils/app_localization.dart';
 
 class MenuScreen extends StatefulWidget {
   final String serviceType;
@@ -41,6 +42,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
   List<MenuItem>? _cachedItems;
   String _lastCategory = '';
   String _lastSearchQuery = '';
+  final Map<String, Uint8List> _imageCache = {};
 
   @override
   void initState() {
@@ -143,51 +145,55 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _loadMenu() async {
-    if (!mounted) return;
-    
+  if (!mounted) return;
+  
+  // Only show loading indicator for first load
+  final menuProvider = Provider.of<MenuProvider>(context, listen: false);
+  final bool isEmpty = menuProvider.items.isEmpty || menuProvider.categories.isEmpty;
+  
+  if (isEmpty) {
     setState(() {
       _isLoading = true;
-      // Invalidate cache
       _cachedItems = null;
     });
-    
-    try {
-      final menuProvider = Provider.of<MenuProvider>(context, listen: false);
-      await menuProvider.fetchMenu();
-      await menuProvider.fetchCategories();
-      
-      if (menuProvider.categories.isNotEmpty && mounted) {
-        setState(() {
-          // Only set the category if it's empty or no longer exists
-          if (_selectedCategory.isEmpty || 
-              !menuProvider.categories.contains(_selectedCategory)) {
-            _selectedCategory = menuProvider.categories.first;
-          }
-        });
-      }
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to load menu. Please try again.')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
   }
   
-// Add this method to _MenuScreenState class
- // Only including the fixed part with the error on line 165
-// This is just the _showKitchenNoteDialog method that needs to be fixed
+  try {
+    // Use Future.wait to load menu and categories in parallel
+    await Future.wait([
+      menuProvider.fetchMenu(),
+      menuProvider.fetchCategories()
+    ]);
+    
+    if (mounted) {
+      setState(() {
+        // Only set the category if it's empty or no longer exists
+        if (_selectedCategory.isEmpty || 
+            !menuProvider.categories.contains(_selectedCategory)) {
+          _selectedCategory = menuProvider.categories.isNotEmpty ? 
+              menuProvider.categories.first : '';
+        }
+        _isLoading = false;
+      });
+    }
+  } catch (error) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Failed to load menu. Please try again.')),
+    );
+    setState(() {
+      _isLoading = false;
+    });
+  }
+}
+  
+  // _showKitchenNoteDialog method 
 
   void _showKitchenNoteDialog(MenuItem? item) async {
   // Ensure we have a non-null item
   if (item == null) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Please select an item first')),
+       SnackBar(content: Text('Please select an item first'.tr())),
     );
     return;
   }
@@ -232,8 +238,8 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
       }
       
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Kitchen note added'),
+         SnackBar(
+          content: Text('Kitchen note added'.tr()),
           duration: Duration(seconds: 1),
         ),
       );
@@ -280,7 +286,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                 );
               },
               icon: const Icon(Icons.receipt_long, color: Colors.black, size: 20),
-              label: const Text('Order List', style: TextStyle(color: Colors.black, fontSize: 14)),
+              label:  Text('Order List'.tr(), style: TextStyle(color: Colors.black, fontSize: 14)),
             ),
             const SizedBox(width: 8),
             // Time display
@@ -350,17 +356,17 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
           child: Row(
             children: [
               _buildNavButton(Icons.arrow_back_ios, null, ''),
-              _buildNavButton(null, null, 'Discount'),
+              _buildNavButton(null, null, 'Discount'.tr()),
               // _buildNavButton(null, null, 'Sales hold list'),
               // _buildNavButton(null, null, 'Hold'),
               // _buildNavButton(null, null, 'Memo'),
               // _buildNavButton(null, null, 'Product'),
-              _buildNavButton(null, null, 'Kitchen note'),
-              _buildNavButton(null, null, 'Clear'),
-              _buildNavButton(null, null, 'Remove'),
+              _buildNavButton(null, null, 'Kitchen note'.tr()),
+              _buildNavButton(null, null, 'Clear'.tr()),
+              _buildNavButton(null, null, 'Remove'.tr()),
               // _buildNavButton(null, null, 'Amount split'),
               // _buildNavButton(null, null, 'Item split'),
-              _buildNavButton(null, null, 'Order list'),
+              _buildNavButton(null, null, 'Order List'.tr()),
               // _buildNavButton(null, null, 'Tables'),
               _buildNavButton(Icons.arrow_forward_ios, null, ''),
             ],
@@ -380,7 +386,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
         ),
         child: TextButton(
           onPressed: () {
-            if (text == 'Modifier') {
+            if (text == 'Product'.tr()) {
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -390,7 +396,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                 // Refresh when returning from ModifierScreen
                 _loadMenu();
               });
-            } else if (text == 'Clear') {
+            } else if (text == 'Clear'.tr()) {
               // Clear the current cart with visual feedback
               final orderProvider = Provider.of<OrderProvider>(context, listen: false);
               
@@ -399,26 +405,26 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                 showDialog(
                   context: context,
                   builder: (ctx) => AlertDialog(
-                    title: const Text('Clear Order',style: TextStyle(
+                    title:  Text('Clear Order'.tr(),style: TextStyle(
                       fontSize: 18, // Smaller font size (default is usually 20-22)
                       fontWeight: FontWeight.bold,
                     ),
                     ),
-                    content: const Text('Are you sure you want to clear all items from this order?'),
+                    content:  Text('Are you sure you want to clear all items from this order?'.tr()),
                     actions: [
                       TextButton(
-                        child: const Text('Cancel'),
+                        child:  Text('Cancel'.tr()),
                         onPressed: () => Navigator.of(ctx).pop(),
                       ),
                       TextButton(
-                        child: const Text('Clear', style: TextStyle(color: Colors.red)),
+                        child:  Text('Clear'.tr(), style: TextStyle(color: Colors.red)),
                         onPressed: () {
                           orderProvider.clearCart();
                           Navigator.of(ctx).pop();
                           // Show success message
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Order cleared successfully'),
+                             SnackBar(
+                              content: Text('Order cleared successfully'.tr()),
                               duration: Duration(seconds: 1),
                             ),
                           );
@@ -430,13 +436,13 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
               } else {
                 // If the cart is already empty, just show a message
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Order is already empty'),
+                  SnackBar(
+                    content: Text('Order is already empty'.tr()),
                     duration: Duration(seconds: 1),
                   ),
                 );
               }
-            } else if (text == 'Tables' ) {
+            } else if (text == 'Tables'.tr() ) {
               // Handle Tables navigation
               Navigator.push(
                 context,
@@ -447,7 +453,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                 // Refresh when returning from TableManagementScreen
                 _loadMenu();
               });
-            }else if (text == 'Order list') {
+            }else if (text == 'Order list'.tr()) {
               // Navigate to OrderListScreen with current service type
               Navigator.push(
                 context,
@@ -455,14 +461,14 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                   builder: (context) => OrderListScreen(serviceType: widget.serviceType),
                 ),
               );
-            }else if (text == 'Kitchen note') {
+            }else if (text == 'Kitchen note'.tr()) {
             // Show kitchen note dialog if an item is selected
             if (_selectedItem != null) {
               _showKitchenNoteDialog(_selectedItem!);
             } else {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Please select a menu item first'),
+                 SnackBar(
+                  content: Text('Please select a menu item first'.tr()),
                   duration: Duration(seconds: 2),
                 ),
               );
@@ -504,7 +510,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
             padding: const EdgeInsets.all(8.0),
             child: TextField(
               decoration: InputDecoration(
-                hintText: "Search Menu...",
+                hintText: "Search Menu...".tr(),
                 prefixIcon: const Icon(Icons.search, size: 20),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -611,7 +617,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
     child: Padding(
       padding: const EdgeInsets.all(16.0),
       child: items.isEmpty 
-          ? const Center(child: Text('No items found in this category'))
+          ? Center(child: Text('No items found in this category'.tr()))
           : GridView.builder(
         padding: EdgeInsets.zero,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -652,7 +658,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                 if (!item.isAvailable) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('"${item.name}" is out of stock but has been added to your order'),
+                      content: Text('"${item.name}" is out of stock but has been added to your order'.tr()),
                       duration: const Duration(seconds: 2),
                     ),
                   );
@@ -675,9 +681,9 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                               color: Colors.black54,
                               borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
                             ),
-                            child: const Center(
+                            child:  Center(
                               child: Text(
-                                'Out of stock',
+                                'Out of stock'.tr(),
                                 style: TextStyle(color: Colors.white, fontSize: 14),
                               ),
                             ),
@@ -708,7 +714,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              item.isAvailable ? 'Available' : 'Out of stock',
+                              item.isAvailable ? 'Available'.tr() : 'Out of stock'.tr(),
                               style: TextStyle(
                                 color: item.isAvailable ? Colors.green : Colors.red,
                                 fontSize: 10,
@@ -750,32 +756,36 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
     // Handle base64 images
     if (item.imageUrl.startsWith('data:image')) {
       try {
+        if (!_imageCache.containsKey(item.id)) {
+
         // Parse base64 data
         final parts = item.imageUrl.split(',');
         if (parts.length != 2) {
           return Container(color: Colors.grey.shade300, child: const Icon(Icons.broken_image));
         }
         
+        
         String base64String = parts[1];
         
         // Clean and prepare base64 data - only do this once
         base64String = base64String.replaceAll(RegExp(r'\s+'), '');
-        base64String = base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+        // base64String = base64String.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
         
         // Fix padding
         int padding = (4 - (base64String.length % 4)) % 4;
         base64String = base64String.padRight(base64String.length + padding, '=');
-        
-        // Decode and display with memory caching
-        final Uint8List decodedBytes = base64Decode(base64String);
-        return Image.memory(
-          decodedBytes,
-          fit: BoxFit.cover,
-          key: imageKey,
-          gaplessPlayback: true, // Prevents flickering during image changes
-          cacheWidth: 300, // Set appropriate cache sizes
-          cacheHeight: 300,
-        );
+        // Decode and store in cache
+        _imageCache[item.id] = base64Decode(base64String);
+      }
+         // Use cached decoded data
+      return Image.memory(
+        _imageCache[item.id]!,
+        fit: BoxFit.cover,
+        key: imageKey,
+        gaplessPlayback: true,
+        cacheWidth: 300,
+        cacheHeight: 300,
+      );
       } catch (e) {
         return Container(color: Colors.grey.shade300, child: const Icon(Icons.broken_image));
       }
@@ -825,8 +835,8 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
           decoration: BoxDecoration(
             border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
           ),
-          child: const Text(
-            'Order Items',
+          child:  Text(
+            'Order Items'.tr(),
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -880,7 +890,7 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
                                                 borderRadius: BorderRadius.circular(4),
                                               ),
                                               child: Text(
-                                                'Out of stock',
+                                                'Out of stock'.tr(),
                                                 style: TextStyle(
                                                   color: Colors.red.shade900,
                                                   fontSize: 9,
@@ -985,25 +995,25 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Sub total', style: TextStyle(fontWeight: FontWeight.w500)),
+                           Text('Sub total'.tr(), style: TextStyle(fontWeight: FontWeight.w500)),
                           Text(orderProvider.subtotal.toStringAsFixed(3), style: const TextStyle(fontWeight: FontWeight.w500)),
                         ],
                       ),
                       const SizedBox(height: 8),
                       
                       // Additional charges rows
-                      _buildSummaryRow('Tax amount', '0.000'),
-                      _buildSummaryRow('Item discount', '0.000'),
-                      _buildSummaryRow('Bill discount', '0.000'),
-                      _buildSummaryRow('Delivery charge', '0.000'),
-                      _buildSummaryRow('Surcharge', '0.000'),
+                      _buildSummaryRow('Tax amount'.tr(), '0.000'),
+                      _buildSummaryRow('Item discount'.tr(), '0.000'),
+                      _buildSummaryRow('Bill discount'.tr(), '0.000'),
+                      _buildSummaryRow('Delivery charge'.tr(), '0.000'),
+                      _buildSummaryRow('Surcharge'.tr(), '0.000'),
                       
                       const SizedBox(height: 8),
                       // Grand total
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Grand total', style: TextStyle(fontWeight: FontWeight.bold)),
+                           Text('Grand total'.tr(), style: TextStyle(fontWeight: FontWeight.bold)),
                           Text(orderProvider.total.toStringAsFixed(3), style: const TextStyle(fontWeight: FontWeight.bold)),
                         ],
                       ),
@@ -1017,7 +1027,7 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('Date visited', style: TextStyle(fontSize: 11)),
+                                 Text('Date visited'.tr(), style: TextStyle(fontSize: 11)),
                                 const SizedBox(height: 6),
                                 Container(
                                   height: 40,
@@ -1042,7 +1052,7 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('Count visited', style: TextStyle(fontSize: 11)),
+                                 Text('Count visited'.tr(), style: TextStyle(fontSize: 11)),
                                 const SizedBox(height: 6),
                                 Container(
                                   height: 40,
@@ -1059,7 +1069,7 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('Point', style: TextStyle(fontSize: 11)),
+                                 Text('Point'.tr(), style: TextStyle(fontSize: 11)),
                                 const SizedBox(height: 6),
                                 Container(
                                   height: 40,
@@ -1131,11 +1141,11 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
               Row(
                 children: [
                   Expanded(
-                    child: _buildPaymentButton('Cash', Colors.grey.shade100),
+                    child: _buildPaymentButton('Cash'.tr(), Colors.grey.shade100),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _buildPaymentButton('Credit', Colors.grey.shade100),
+                    child: _buildPaymentButton('Credit'.tr(), Colors.grey.shade100),
                   ),
                 ],
               ),
@@ -1144,11 +1154,11 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
               Row(
                 children: [
                   Expanded(
-                    child: _buildPaymentButton('Order', Colors.grey.shade100),
+                    child: _buildPaymentButton('Order'.tr(), Colors.grey.shade100),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _buildPaymentButton('Tender', Colors.grey.shade100),
+                    child: _buildPaymentButton('Tender'.tr(), Colors.grey.shade100),
                   ),
                 ],
               ),
@@ -1175,7 +1185,7 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
           ),
           const SizedBox(height: 16),
           Text(
-            'Your cart is empty',
+            'Your cart is empty'.tr(),
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -1223,13 +1233,13 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
       height: 50,
       child: OutlinedButton(
         onPressed: () {
-          if (text == "Order") {
+          if (text == "Order".tr()) {
             final orderProvider = Provider.of<OrderProvider>(context, listen: false);
             
             // Check if cart is empty
             if (orderProvider.cartItems.isEmpty) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Please add items to your order')),
+                 SnackBar(content: Text('Please add items to your order'.tr())),
               );
               return;
             }
@@ -1242,13 +1252,13 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
                 ),
               ),
             );
-          } else if (text == "Cash") {
+          } else if (text == "Cash".tr()) {
             final orderProvider = Provider.of<OrderProvider>(context, listen: false);
             
             // Check if cart is empty
             if (orderProvider.cartItems.isEmpty) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Please add items to your order')),
+                 SnackBar(content: Text('Please add items to your order'.tr())),
               );
               return;
             }
