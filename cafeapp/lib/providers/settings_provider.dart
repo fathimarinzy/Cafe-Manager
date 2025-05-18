@@ -112,7 +112,22 @@ Future<void> setLanguage(String language) async {
 void initializeLanguage() {
   AppLocalization().setLanguage(languageCode);
 }
-
+ 
+ // Method specifically for updating tax rate
+  Future<void> updateTaxRate(double newRate) async {
+    if (newRate < 0 || newRate > 100) {
+      throw Exception('Tax rate must be between 0 and 100');
+    }
+    
+    await setSetting('tax_rate', newRate);
+    _taxRate = newRate;
+    
+    // Make sure to notify listeners so all dependent widgets update
+    notifyListeners();
+    
+    // Log for debugging
+    debugPrint('Tax rate updated to $_taxRate%');
+  }
     
   // Load settings from SharedPreferences
   Future<void> _loadSettings() async {

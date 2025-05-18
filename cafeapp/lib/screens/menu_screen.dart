@@ -16,6 +16,7 @@ import '../screens/order_confirmation_screen.dart';
 import '../screens/order_list_screen.dart';
 import '../widgets/kitchen_note_dialog.dart';
 import '../utils/app_localization.dart';
+import '../providers/settings_provider.dart';
 
 class MenuScreen extends StatefulWidget {
   final String serviceType;
@@ -251,6 +252,24 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final menuProvider = Provider.of<MenuProvider>(context);
     final orderProvider = Provider.of<OrderProvider>(context);
+     // Watch settings changes without creating an unused variable
+    context.watch<SettingsProvider>();
+
+      // When the tax rate changes in settings, update the orderProvider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      orderProvider.setContext(context);
+      
+      // Recalculate totals when tax rate changes
+      final currentCart = orderProvider.cartItems;
+      if (currentCart.isNotEmpty) {
+        // Force a recalculation of totals by triggering a change
+        // This is a hacky way to ensure totals are updated when tax rate changes
+        for (var item in currentCart) {
+          orderProvider.updateItemQuantity(item.id, item.quantity);
+          break; // Just need to update one item to trigger recalculation
+        }
+      }
+    });
 
     // Use the cached/memoized items list
     List<MenuItem> displayedItems = _getDisplayedItems(menuProvider);

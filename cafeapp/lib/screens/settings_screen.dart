@@ -750,34 +750,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 
                 // TAX SETTINGS - Important for sales
                 _buildSectionHeader('Tax Settings'),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: TextFormField(
-                    controller: _taxRateController,
-                    decoration: const InputDecoration(
-                      labelText: 'Sales Tax Rate (%)',
-                      border: OutlineInputBorder(),
-                      suffixText: '%',
-                      hintText: 'Enter your tax rate (e.g., 5.0)',
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Current Tax Rate: ${_taxRateController.text}%',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // const Text(
+                        //   'This tax rate will be applied to all orders throughout the app',
+                        //   style: TextStyle(fontSize: 12, color: Colors.grey),
+                        // ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _taxRateController,
+                          decoration: const InputDecoration(
+                            labelText: 'Sales Tax Rate (%)',
+                            border: OutlineInputBorder(),
+                            suffixText: '%',
+                            hintText: 'Enter your tax rate (e.g., 5.0)',
+                            // helperText: 'Sets the tax rate for all calculations in the app',
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter tax rate';
+                            }
+                            try {
+                              final rate = double.parse(value);
+                              if (rate < 0 || rate > 100) {
+                                return 'Tax rate must be between 0 and 100';
+                              }
+                            } catch (e) {
+                              return 'Please enter a valid number';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
                     ),
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter tax rate';
-                      }
-                      try {
-                        final rate = double.parse(value);
-                        if (rate < 0 || rate > 100) {
-                          return 'Tax rate must be between 0 and 100';
-                        }
-                      } catch (e) {
-                        return 'Please enter a valid number';
-                      }
-                      return null;
-                    },
                   ),
-                ),
-                const Divider(),
+                  const Divider(),
                 
                 // RECEIPT SETTINGS
                 // _buildSectionHeader('Receipt Settings'),

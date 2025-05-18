@@ -17,6 +17,20 @@ class OrderConfirmationScreen extends StatefulWidget {
 }
 
 class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
+ 
+  @override
+  void initState() {
+    super.initState();
+    
+    // Make sure OrderProvider has the context
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+        orderProvider.setContext(context);
+      }
+    });
+  }
+ 
   bool _isProcessing = false;
 
   @override

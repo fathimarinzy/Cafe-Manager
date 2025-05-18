@@ -19,8 +19,9 @@ import '../providers/table_provider.dart';
 class TenderScreen extends StatefulWidget {
   final OrderHistory order;
   final bool isEdited;
+  final double taxRate;
 
-  const TenderScreen({super.key, required this.order,this.isEdited = false,});
+  const TenderScreen({super.key, required this.order,this.isEdited = false, this.taxRate = 5.0,});
 
   @override
   State<TenderScreen> createState() => _TenderScreenState();
@@ -153,7 +154,7 @@ class _TenderScreenState extends State<TenderScreen> {
 
     bool printed = false;
     try {
-      printed = await BillService.printThermalBill(widget.order,isEdited: widget.isEdited);
+      printed = await BillService.printThermalBill(widget.order,isEdited: widget.isEdited, taxRate: widget.taxRate,);
     } catch (e) {
       debugPrint('Printing error: $e');
       // Log which printer was attempted
@@ -894,7 +895,7 @@ class _TenderScreenState extends State<TenderScreen> {
     
     bool printed = false;
     try {
-      printed = await BillService.printThermalBill(widget.order,isEdited: widget.isEdited);
+      printed = await BillService.printThermalBill(widget.order,isEdited: widget.isEdited,taxRate: widget.taxRate,);
     } catch (e) {
       debugPrint('Printing error: $e');
     }
@@ -1303,13 +1304,23 @@ class _TenderScreenState extends State<TenderScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('Total amount :', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                Text(
-                  formatCurrency.format(widget.order.total),
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)
-                ),
+                Row(
+                  children: [
+                    Text(
+                      formatCurrency.format(widget.order.total),
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)
+                    ),
+                    const SizedBox(width: 4),
+                    // Text(
+                    //   '(Tax: ${widget.taxRate}%)',
+                    //   style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                    // ),
+                  ],
+                ), 
               ],
             ),
           ),
+
         ],
       ),
     );
@@ -1633,18 +1644,22 @@ class _TenderScreenState extends State<TenderScreen> {
 
   // Generate the receipt using the PDF library
   Future<pw.Document> _generateReceipt() async {
+     double subtotal = widget.order.total / (1 + (widget.taxRate / 100.0)); // Calculate subtotal from total
+    double tax = widget.order.total - subtotal; // Calculate tax based on subtotal and tax rate
+    
     
     final pdf = await BillService.generateBill(
       items: widget.order.items.map((item) => item.toMenuItem()).toList(),
       serviceType: widget.order.serviceType,
-      subtotal: widget.order.total - (widget.order.total * 0.05),
-      tax: widget.order.total * 0.05,
+      subtotal: subtotal,
+      tax: tax,
       discount: 0,
       total: widget.order.total,
       personName: null,
       tableInfo: widget.order.serviceType.contains('Table') ? widget.order.serviceType : null,
       isEdited: widget.isEdited,
       orderNumber: widget.order.orderNumber,
+      taxRate: widget.taxRate,
     );
     
     return pdf;

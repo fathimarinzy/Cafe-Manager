@@ -7,6 +7,7 @@ import '../models/table_model.dart';
 import '../providers/table_provider.dart';
 import '../services/api_service.dart';
 import '../services/bill_service.dart';
+import '../providers/settings_provider.dart';
 
 class OrderProvider with ChangeNotifier {
   // Map to store cart items for each service type or table
@@ -44,9 +45,11 @@ class OrderProvider with ChangeNotifier {
   }
 
   // Set current service type and notify listeners
-  void setCurrentServiceType(String serviceType) {
+  void setCurrentServiceType(String serviceType, [BuildContext? context]) {
     _currentServiceType = serviceType;
-    
+    if (context != null) {
+      _context = context;
+    }
     // Initialize the cart for this service type if it doesn't exist
     if (!_serviceTypeCarts.containsKey(serviceType)) {
       _serviceTypeCarts[serviceType] = [];
@@ -203,13 +206,24 @@ class OrderProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Update totals for a specific service type
+   // Update _updateTotals to use the tax rate from settings
   void _updateTotals(String serviceType) {
     if (!_serviceTypeCarts.containsKey(serviceType)) return;
 
     final cartItems = _serviceTypeCarts[serviceType]!;
     final subtotal = cartItems.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
-    final tax = subtotal * 0.05;
+    
+    // Get tax rate from SettingsProvider (need to pass context)
+    final BuildContext? context = _context;
+    double taxRate = 5.0; // Default value
+    
+    if (context != null && context.mounted) {
+      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+      taxRate = settingsProvider.taxRate;
+    }
+    
+    // Calculate tax using the configured tax rate
+    final tax = subtotal * (taxRate / 100.0);
     final discount = _serviceTotals[serviceType]?['discount'] ?? 0.0;
     final calculatedTotal = (subtotal + tax - discount).clamp(0.0, double.infinity);
 
@@ -219,6 +233,13 @@ class OrderProvider with ChangeNotifier {
       'discount': discount,
       'total': calculatedTotal,
     };
+  }
+   // For this to work, we need to store the BuildContext
+  BuildContext? _context;
+  
+  // Method to set context
+  void setContext(BuildContext context) {
+    _context = context;
   }
 
   // Set discount for current service type

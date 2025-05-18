@@ -130,7 +130,11 @@ class ThermalPrinterService {
     String? tableInfo,
     bool isEdited = false, // Add parameter to indicate if order was edited
     String? orderNumber = null, 
+    double? taxRate,
   }) async {
+    // If tax rate is not provided, use a default
+    final effectiveTaxRate = taxRate ?? 5.0;
+    
     final ip = await getPrinterIp();
     final port = await getPrinterPort();
     
@@ -238,9 +242,9 @@ class ThermalPrinterService {
         PosColumn(text: subtotal.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right)),
       ]);
       
-      printer.row([
-        PosColumn(text: 'Tax:', width: 6, styles: const PosStyles(align: PosAlign.right)),
-        PosColumn(text: tax.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right)),
+       printer.row([
+      PosColumn(text: 'Tax (${effectiveTaxRate.toStringAsFixed(1)}%):', width: 6, styles: const PosStyles(align: PosAlign.right)),
+      PosColumn(text: tax.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right)),
       ]);
       
       if (discount > 0) {

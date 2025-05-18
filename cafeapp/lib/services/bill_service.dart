@@ -11,7 +11,7 @@ import '../models/order_history.dart';
 
 
 class BillService {
-  // Generate PDF bill for order
+  // Generate PDF bill for order with dynamic tax rate
   static Future<pw.Document> generateBill({
     required List<MenuItem> items,
     required String serviceType,
@@ -23,8 +23,12 @@ class BillService {
     String? tableInfo,
     bool isEdited = false, // Add parameter to indicate if order was edited
     String? orderNumber,
+    double? taxRate, // Add tax rate parameter
   }) async {
     final pdf = pw.Document();
+    
+    // If tax rate is not provided, use a default
+    final effectiveTaxRate = taxRate ?? 5.0;
     
     // Try to load custom font if available
     pw.Font? ttf;
@@ -303,7 +307,7 @@ class BillService {
                     pw.Expanded(
                       flex: 6, 
                       child: pw.Text(
-                        'Tax:', 
+                        'Tax (${effectiveTaxRate.toStringAsFixed(1)}%):', 
                         style: pw.TextStyle(font: ttf, fontSize: 10), 
                         textAlign: pw.TextAlign.right
                       )
@@ -409,8 +413,11 @@ class BillService {
   }
 
   // Direct thermal printing of a bill
-  static Future<bool> printThermalBill(OrderHistory order, {bool isEdited = false}) async {
+  static Future<bool> printThermalBill(OrderHistory order, {bool isEdited = false, double? taxRate}) async {
     try {
+      // Get the tax rate from settings if not provided
+      final effectiveTaxRate = taxRate ?? 5.0;
+      
       // Convert order items to MenuItem objects
       final items = order.items.map((item) => 
         MenuItem(
@@ -434,14 +441,15 @@ class BillService {
       final printed = await ThermalPrinterService.printOrderReceipt(
         items: items,
         serviceType: order.serviceType,
-        subtotal: order.total - (order.total * 0.05), // Estimate subtotal as 95% of total
-        tax: order.total * 0.05, // Estimate tax as 5% of total
+        subtotal: order.total - (order.total * (effectiveTaxRate / 100)), // Use effective tax rate
+        tax: order.total * (effectiveTaxRate / 100), // Use effective tax rate
         discount: 0, // No discount info in OrderHistory
         total: order.total,
         personName: null, // No customer info in OrderHistory
         tableInfo: tableInfo,
         isEdited: isEdited, // Pass the edited flag
-        orderNumber: order.orderNumber
+        orderNumber: order.orderNumber,
+        taxRate: effectiveTaxRate, // Pass the tax rate
       );
       
       return printed;
@@ -463,8 +471,12 @@ class BillService {
     String? tableInfo,
     bool isEdited = false, // Add parameter to indicate if order was edited
     String? orderNumber,
+    double? taxRate, // Add tax rate parameter
   }) async {
     try {
+      // Get the tax rate from settings if not provided
+      final effectiveTaxRate = taxRate ?? 5.0;
+      
       // Use direct ESC/POS commands for printing
       final printed = await ThermalPrinterService.printOrderReceipt(
         items: items,
@@ -477,6 +489,7 @@ class BillService {
         tableInfo: tableInfo,
         isEdited: isEdited, // Pass the edited flag
         orderNumber: orderNumber,
+        taxRate: effectiveTaxRate, // Pass the tax rate
       );
       
       return printed;
@@ -550,7 +563,7 @@ class BillService {
     );
   }
 
-  // Process the order (try printing, if fails save as PDF)
+  // Process the order (try printing, if fails save as PDF) with tax rate
   static Future<Map<String, dynamic>> processOrderBill({
     required List<MenuItem> items,
     required String serviceType,
@@ -562,7 +575,11 @@ class BillService {
     String? tableInfo,
     required BuildContext context,
     bool isEdited = false, // Add parameter to indicate if order was edited
+    double? taxRate, // Add tax rate parameter
   }) async {
+    // Get the effective tax rate
+    final effectiveTaxRate = taxRate ?? 5.0;
+    
     // Try to print the bill using direct ESC/POS commands only
     final printed = await printBill(
       items: items,
@@ -574,6 +591,7 @@ class BillService {
       personName: personName,
       tableInfo: tableInfo,
       isEdited: isEdited, // Pass the edited flag
+      taxRate: effectiveTaxRate, // Pass the tax rate
     );
     
     if (printed) {
@@ -634,7 +652,7 @@ class BillService {
       personName: personName,
       tableInfo: tableInfo,
       isEdited: isEdited, // Pass the edited flag
-  
+      taxRate: effectiveTaxRate, // Pass the tax rate
     );
     
     // Save using native Android intent
@@ -659,255 +677,261 @@ class BillService {
       'filePath': null,
     };
   }
-   // Generate PDF kitchen receipt (simplified format)
-static Future<pw.Document> generateKitchenBill({
-  required List<MenuItem> items,
-  required String serviceType,
-  String? tableInfo,
-  String? orderNumber,
-}) async {
-  final pdf = pw.Document();
   
-  // Try to load custom font if available
-  pw.Font? ttf;
-  try {
-    final fontData = await rootBundle.load("assets/fonts/open-sans.regular.ttf");
-    ttf = pw.Font.ttf(fontData.buffer.asByteData());
-  } catch (e) {
-    debugPrint('Could not load font, using default: $e');
-    // Continue without custom font
-  }
+  // Generate PDF kitchen receipt (simplified format) with tax rate
+  static Future<pw.Document> generateKitchenBill({
+    required List<MenuItem> items,
+    required String serviceType,
+    String? tableInfo,
+    String? orderNumber,
   
-  // Format current date and time
-  final now = DateTime.now();
-  final dateFormatter = DateFormat('dd-MM-yyyy');
-  final timeFormatter = DateFormat('hh:mm a');
-  final formattedDate = dateFormatter.format(now);
-  final formattedTime = timeFormatter.format(now);
-  
-  // Use provided order number or generate a new one
-  final billNumber = orderNumber ?? '${now.millisecondsSinceEpoch % 10000}';
-  
-  pdf.addPage(
-    pw.Page(
-      pageFormat: PdfPageFormat.roll80, // Standard receipt roll width
-      build: (pw.Context context) {
-        return pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            // Header
-            pw.Center(
-              child: pw.Column(
-                children: [
-                  pw.Text('KITCHEN ORDER', 
-                    style: pw.TextStyle(
-                      font: ttf, 
-                      fontSize: 16, 
-                      fontWeight: pw.FontWeight.bold
-                    )
-                  ),
-                  pw.SizedBox(height: 5),
-                  
-                  pw.Text('ORDER #$billNumber', 
-                    style: pw.TextStyle(
-                      font: ttf, 
-                      fontSize: 14, 
-                      fontWeight: pw.FontWeight.bold
-                    )
-                  ),
-                  pw.SizedBox(height: 3),
-                  pw.Text('$formattedDate at $formattedTime', 
-                    style: pw.TextStyle(font: ttf, fontSize: 10)
-                  ),
-                  pw.SizedBox(height: 3),
-                  pw.Text('Service: $serviceType', 
-                    style: pw.TextStyle(
-                      font: ttf, 
-                      fontSize: 12, 
-                      fontWeight: pw.FontWeight.bold
-                    )
-                  ),
-                  if (tableInfo != null)
-                    pw.Text(tableInfo, style: pw.TextStyle(font: ttf, fontSize: 12)),
-                ],
-              ),
-            ),
-            
-            pw.SizedBox(height: 10),
-            
-            // Divider
-            pw.Divider(thickness: 1),
-            
-            // Item header - simplified for kitchen
-            pw.Row(
-              children: [
-                pw.Expanded(
-                  flex: 6, 
-                  child: pw.Text(
-                    'Item', 
-                    style: pw.TextStyle(
-                      font: ttf, 
-                      fontSize: 12, 
-                      fontWeight: pw.FontWeight.bold
-                    )
-                  )
-                ),
-                pw.Expanded(
-                  flex: 2, 
-                  child: pw.Text(
-                    'Qty', 
-                    style: pw.TextStyle(
-                      font: ttf, 
-                      fontSize: 12, 
-                      fontWeight: pw.FontWeight.bold
-                    ), 
-                    textAlign: pw.TextAlign.right
-                  )
-                ),
-              ],
-            ),
-            
-            pw.Divider(thickness: 1),
-            
-            // Items - with focus on name, quantity, and kitchen notes
-            pw.Column(
-              children: items.map((item) {
-                return pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+  }) async {
+    final pdf = pw.Document();
+    
+    // Try to load custom font if available
+    pw.Font? ttf;
+    try {
+      final fontData = await rootBundle.load("assets/fonts/open-sans.regular.ttf");
+      ttf = pw.Font.ttf(fontData.buffer.asByteData());
+    } catch (e) {
+      debugPrint('Could not load font, using default: $e');
+      // Continue without custom font
+    }
+    
+    // Format current date and time
+    final now = DateTime.now();
+    final dateFormatter = DateFormat('dd-MM-yyyy');
+    final timeFormatter = DateFormat('hh:mm a');
+    final formattedDate = dateFormatter.format(now);
+    final formattedTime = timeFormatter.format(now);
+    
+    // Use provided order number or generate a new one
+    final billNumber = orderNumber ?? '${now.millisecondsSinceEpoch % 10000}';
+    
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.roll80, // Standard receipt roll width
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              // Header
+              pw.Center(
+                child: pw.Column(
                   children: [
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.only(top: 5, bottom: 2),
-                      child: pw.Row(
-                        crossAxisAlignment: pw.CrossAxisAlignment.start,
-                        children: [
-                          pw.Expanded(
-                            flex: 6, 
-                            child: pw.Text(
-                              item.name, 
-                              style: pw.TextStyle(font: ttf, fontSize: 12)
-                            )
-                          ),
-                          pw.Expanded(
-                            flex: 2, 
-                            child: pw.Text(
-                              '${item.quantity}', 
-                              style: pw.TextStyle(font: ttf, fontSize: 12), 
-                              textAlign: pw.TextAlign.right
-                            )
-                          ),
-                        ],
-                      ),
-                    ),
-                    
-                    // Add kitchen note if it exists - important for kitchen staff
-                    if (item.kitchenNote.isNotEmpty)
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.only(left: 10, bottom: 5),
-                        child: pw.Text(
-                          'NOTE: ${item.kitchenNote}',
-                          style: pw.TextStyle(
-                            font: ttf,
-                            fontSize: 10,
-                            fontWeight: pw.FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    
-                    // Add space between items
-                    pw.SizedBox(height: 2),
-                  ],
-                );
-              }).toList(),
-            ),
-            
-            pw.Divider(thickness: 1),
-            
-            // Footer with table reference if applicable
-            pw.SizedBox(height: 10),
-            pw.Center(
-              child: pw.Column(
-                children: [
-                  if (tableInfo != null)
-                    pw.Text(
-                      'TABLE: ${tableInfo.split("Table ").last}', 
+                    pw.Text('KITCHEN ORDER', 
                       style: pw.TextStyle(
                         font: ttf, 
-                        fontSize: 14,
+                        fontSize: 16, 
                         fontWeight: pw.FontWeight.bold
                       )
                     ),
+                    pw.SizedBox(height: 5),
+                    
+                    pw.Text('ORDER #$billNumber', 
+                      style: pw.TextStyle(
+                        font: ttf, 
+                        fontSize: 14, 
+                        fontWeight: pw.FontWeight.bold
+                      )
+                    ),
+                    pw.SizedBox(height: 3),
+                    pw.Text('$formattedDate at $formattedTime', 
+                      style: pw.TextStyle(font: ttf, fontSize: 10)
+                    ),
+                    pw.SizedBox(height: 3),
+                    pw.Text('Service: $serviceType', 
+                      style: pw.TextStyle(
+                        font: ttf, 
+                        fontSize: 12, 
+                        fontWeight: pw.FontWeight.bold
+                      )
+                    ),
+                    if (tableInfo != null)
+                      pw.Text(tableInfo, style: pw.TextStyle(font: ttf, fontSize: 12)),
+                  ],
+                ),
+              ),
+              
+              pw.SizedBox(height: 10),
+              
+              // Divider
+              pw.Divider(thickness: 1),
+              
+              // Item header - simplified for kitchen
+              pw.Row(
+                children: [
+                  pw.Expanded(
+                    flex: 6, 
+                    child: pw.Text(
+                      'Item', 
+                      style: pw.TextStyle(
+                        font: ttf, 
+                        fontSize: 12, 
+                        fontWeight: pw.FontWeight.bold
+                      )
+                    )
+                  ),
+                  pw.Expanded(
+                    flex: 2, 
+                    child: pw.Text(
+                      'Qty', 
+                      style: pw.TextStyle(
+                        font: ttf, 
+                        fontSize: 12, 
+                        fontWeight: pw.FontWeight.bold
+                      ), 
+                      textAlign: pw.TextAlign.right
+                    )
+                  ),
                 ],
               ),
-            ),
-          ],
-        );
-      },
-    ),
-  );
-  
-  return pdf;
-}
- // Print a kitchen-focused receipt (just item names, quantities, and notes)
-static Future<Map<String, dynamic>> printKitchenOrderReceipt({
-  required List<MenuItem> items,
-  required String serviceType,
-  String? tableInfo,
-  String? orderNumber,
-  BuildContext? context,
-}) async {
-  try {
-    // Try direct ESC/POS commands for printing a kitchen-focused receipt
-    final printed = await ThermalPrinterService.printKitchenReceipt(
-      items: items,
-      serviceType: serviceType,
-      tableInfo: tableInfo,
-      orderNumber: orderNumber,
+              
+              pw.Divider(thickness: 1),
+              
+              // Items - with focus on name, quantity, and kitchen notes
+              pw.Column(
+                children: items.map((item) {
+                  return pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(top: 5, bottom: 2),
+                        child: pw.Row(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Expanded(
+                              flex: 6, 
+                              child: pw.Text(
+                                item.name, 
+                                style: pw.TextStyle(font: ttf, fontSize: 12)
+                              )
+                            ),
+                            pw.Expanded(
+                              flex: 2, 
+                              child: pw.Text(
+                                '${item.quantity}', 
+                                style: pw.TextStyle(font: ttf, fontSize: 12), 
+                                textAlign: pw.TextAlign.right
+                              )
+                            ),
+                          ],
+                        ),
+                      ),
+                      
+                      // Add kitchen note if present - this is important for kitchen staff
+                      if (item.kitchenNote.isNotEmpty)
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.only(left: 10, bottom: 5),
+                          child: pw.Text(
+                            'NOTE: ${item.kitchenNote}',
+                            style: pw.TextStyle(
+                              font: ttf,
+                              fontSize: 10,
+                              fontWeight: pw.FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      
+                      // Add a small space between items
+                      pw.SizedBox(height: 2),
+                    ],
+                  );
+                }).toList(),
+              ),
+              
+              pw.Divider(thickness: 1),
+              
+              // Footer with table number or service type for reference
+              pw.SizedBox(height: 10),
+              pw.Center(
+                child: pw.Column(
+                  children: [
+                    if (tableInfo != null)
+                      pw.Text(
+                        'TABLE: ${tableInfo.split("Table ").last}', 
+                        style: pw.TextStyle(
+                          font: ttf, 
+                          fontSize: 14,
+                          fontWeight: pw.FontWeight.bold
+                        )
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
     
-    if (printed) {
-      return {
-        'success': true,
-        'message': 'Kitchen receipt printed successfully',
-        'printed': true,
-        'saved': false,
-      };
-    }
-    
-    // If printing failed, try to save as PDF
-    if (context != null && context.mounted) {
-      // Generate the PDF
-      final pdf = await generateKitchenBill(
+    return pdf;
+  }
+  
+  // Print a kitchen-focused receipt (just item names, quantities, and notes) with tax rate
+  static Future<Map<String, dynamic>> printKitchenOrderReceipt({
+    required List<MenuItem> items,
+    required String serviceType,
+    String? tableInfo,
+    String? orderNumber,
+    BuildContext? context,
+  
+  }) async {
+    try {
+      // Try direct ESC/POS commands for printing a kitchen-focused receipt
+      final printed = await ThermalPrinterService.printKitchenReceipt(
         items: items,
         serviceType: serviceType,
         tableInfo: tableInfo,
         orderNumber: orderNumber,
       );
       
-      // Show dialog to ask if user wants to save PDF
-      final shouldSave = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: const Text('Printer Not Available'),
-            content: const Text('Could not print kitchen receipt. Would you like to save it as a PDF?'),
-            actions: <Widget>[
-              TextButton(
-                child: const Text('Cancel'),
-                onPressed: () {
-                  Navigator.of(context).pop(false);
-                },
-              ),
-              TextButton(
-                child: const Text('Save PDF'),
-                onPressed: () {
-                  Navigator.of(context).pop(true);
-                },
-              ),
-            ],
-          );
-        },
-      ) ?? false;
+      if (printed) {
+        return {
+          'success': true,
+          'message': 'Kitchen receipt printed successfully',
+          'printed': true,
+          'saved': false,
+        };
+      }
+      
+      // If printing failed, try to save as PDF
+      if (context != null && context.mounted) {
+        // Generate the PDF
+        final pdf = await generateKitchenBill(
+          items: items,
+          serviceType: serviceType,
+          tableInfo: tableInfo,
+          orderNumber: orderNumber,
+        
+        );
+        
+        // Show dialog to ask if user wants to save PDF
+        final shouldSave = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Text('Printer Not Available'),
+              content: const Text('Could not print kitchen receipt. Would you like to save it as a PDF?'),
+              actions: <Widget>[
+                TextButton(
+                  child: const Text('Cancel'),
+                  onPressed: () {
+                    Navigator.of(context).pop(false);
+                  },
+                ),
+                TextButton(
+                  child: const Text('Save PDF'),
+                  onPressed: () {
+                    Navigator.of(context).pop(true);
+                  },
+                ),
+              ],
+            );
+          },
+        ) ?? false;
+        
       
       if (shouldSave) {
         // Save the PDF using Android intent
