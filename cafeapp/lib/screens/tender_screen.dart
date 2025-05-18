@@ -4,7 +4,6 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 import '../models/order_history.dart';
 import '../services/bill_service.dart';
 import '../utils/extensions.dart';
@@ -15,6 +14,7 @@ import 'dashboard_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import '../providers/table_provider.dart';
+import 'package:flutter_pdfview/flutter_pdfview.dart';
 
 class TenderScreen extends StatefulWidget {
   final OrderHistory order;
@@ -89,6 +89,149 @@ class _TenderScreenState extends State<TenderScreen> {
     _receivedFocusNode.dispose();
     super.dispose();
   }
+  // Alternative approach using native PDF viewer through Intent (Android only)
+// Future<void> _showBillPreviewWithIntent() async {
+//   // Show loading indicator
+//   showDialog(
+//     context: context,
+//     barrierDismissible: false,
+//     builder: (context) => const Center(
+//       child: CircularProgressIndicator(),
+//     ),
+//   );
+  
+//   try {
+//     // Generate PDF
+//     final pdf = await _generateReceipt();
+    
+//     // Save to temp file
+//     final tempDir = await getTemporaryDirectory();
+//     final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+//     final pdfPath = '${tempDir.path}/bill_preview_${widget.order.id}_$timestamp.pdf';
+//     final file = File(pdfPath);
+//     await file.writeAsBytes(await pdf.save());
+    
+//     // Close loading dialog
+//     if (!mounted) return;
+//     Navigator.of(context).pop();
+    
+//     // Open PDF with default viewer
+//     try {
+//       // Use platform channel to open PDF with intent
+//       await _channel.invokeMethod('openPdfWithIntent', {'path': pdfPath});
+//     } catch (e) {
+//       debugPrint('Error opening PDF with intent: $e');
+//       if (mounted) {
+//         ScaffoldMessenger.of(context).showSnackBar(
+//           SnackBar(content: Text('Error opening PDF viewer: $e')),
+//         );
+//       }
+//     }
+//   } catch (e) {
+//     // Close loading dialog
+//     if (mounted) Navigator.of(context).pop();
+    
+//     // Show error message
+//     if (mounted) {
+//       ScaffoldMessenger.of(context).showSnackBar(
+//         SnackBar(content: Text('Error generating bill preview: $e')),
+//       );
+//     }
+//   }
+// }
+  // Add this new method to your _TenderScreenState class
+Future<void> _showBillPreviewDialog() async {
+  // Show loading indicator
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => const Center(
+      child: CircularProgressIndicator(),
+    ),
+  );
+  
+  try {
+    // Generate PDF
+    final pdf = await _generateReceipt();
+    
+    // Save to temp file
+    final tempDir = await getTemporaryDirectory();
+    final pdfPath = '${tempDir.path}/bill_preview_${widget.order.id}.pdf';
+    final file = File(pdfPath);
+    await file.writeAsBytes(await pdf.save());
+    
+    // Close loading dialog
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    
+    // Show the preview in a fullscreen dialog
+    await showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        insetPadding: EdgeInsets.zero, // Full screen dialog
+        child: Column(
+          children: [
+            // App bar with close button
+            Container(
+              color: Colors.blue.shade700,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  const Text(
+                    'Preview',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                 
+                
+                ],
+              ),
+            ),
+            // PDF Viewer
+            Expanded(
+              child: PDFView(
+                filePath: pdfPath,
+                enableSwipe: true,
+                swipeHorizontal: false,
+                autoSpacing: false,
+                pageFling: true,
+                fitPolicy: FitPolicy.BOTH,
+                fitEachPage: false,    
+                defaultPage: 0,
+                onError: (error) {
+                  debugPrint('Error loading PDF: $error');
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Error loading PDF preview')),
+                    );
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  } catch (e) {
+    // Close loading dialog
+    if (mounted) Navigator.of(context).pop();
+    
+    // Show error message
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error generating bill preview: $e')),
+      );
+    }
+  }
+}
 
   // Update order status in the backend
   Future<bool> _updateOrderStatus(String status) async {
@@ -1798,25 +1941,10 @@ class _TenderScreenState extends State<TenderScreen> {
             ElevatedButton(
               onPressed: (_balanceAmount == widget.order.total && _orderStatus.toLowerCase() != 'completed') 
               ? null // Disable if no payment has been made or no payment method selected
-                : () async {
-                  // Generate the receipt PDF
-                  final pdf = await _generateReceipt();
+                : ()  {
+                _showBillPreviewDialog(); // or _showBillPreviewWithIntent() for Android
+              },
                   
-                  // Show the PDF preview using Share
-                  if (!mounted) return;
-                  
-                  // Save to a temp file and use Share API
-                  final tempDir = await getTemporaryDirectory();
-                  final file = File('${tempDir.path}/bill_preview_${widget.order.id}.pdf');
-                  await file.writeAsBytes(await pdf.save());
-                  
-                  // Share the file
-                  await Share.shareXFiles(
-                    [XFile(file.path)],
-                    subject: 'Order Receipt Preview',
-                    text: 'Bill Preview for Order #${widget.order.orderNumber}',
-                  );
-                },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green.shade100,
                 foregroundColor: Colors.green.shade900,

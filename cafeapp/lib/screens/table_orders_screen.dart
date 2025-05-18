@@ -132,11 +132,11 @@ class _TableOrdersScreenState extends State<TableOrdersScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadOrders,
-            tooltip: 'Refresh',
-          ),
+          // IconButton(
+          //   icon: const Icon(Icons.refresh),
+          //   onPressed: _loadOrders,
+          //   tooltip: 'Refresh',
+          // ),
         ],
       ),
       body: _isLoading

@@ -384,11 +384,11 @@ class _OrderListScreenState extends State<OrderListScreen> {
   Color serviceColor = _getServiceTypeColor(order.serviceType);
   
   // Determine status color
-  Color statusColor = Colors.green;
+  Color statusColor = Colors.white;
   if (order.status.toLowerCase() == 'pending') {
-    statusColor = Colors.orange;
+    statusColor = Colors.white;
   } else if (order.status.toLowerCase() == 'cancelled') {
-    statusColor = Colors.red;
+    statusColor = Colors.white;
   }
   
   // Choose text color based on background brightness

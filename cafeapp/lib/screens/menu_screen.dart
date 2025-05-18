@@ -382,7 +382,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
               // _buildNavButton(null, null, 'Product'),
               _buildNavButton(null, null, 'Kitchen note'.tr()),
               _buildNavButton(null, null, 'Clear'.tr()),
-              _buildNavButton(null, null, 'Remove'.tr()),
+              // _buildNavButton(null, null, 'Remove'.tr()),
               // _buildNavButton(null, null, 'Amount split'),
               // _buildNavButton(null, null, 'Item split'),
               _buildNavButton(null, null, 'Order List'.tr()),
@@ -472,7 +472,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                 // Refresh when returning from TableManagementScreen
                 _loadMenu();
               });
-            }else if (text == 'Order list'.tr()) {
+            }else if (text == 'Order List'.tr()) {
               // Navigate to OrderListScreen with current service type
               Navigator.push(
                 context,
