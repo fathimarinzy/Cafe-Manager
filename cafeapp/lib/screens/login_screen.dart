@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import 'dashboard_screen.dart';
 import '../utils/app_localization.dart';
+import '../providers/settings_provider.dart';
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
   @override
@@ -81,6 +83,14 @@ class LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+     // Get settings provider to access business name
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    
+    // Get business name from settings (or use default)
+    final String businessName = settingsProvider.businessName.isNotEmpty 
+        ? settingsProvider.businessName
+        : 'SIMS RESTO CAFE';
+
     return Scaffold(
       body: Center(
         child: Container(
@@ -93,7 +103,7 @@ class LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'SIMS RESTO CAFE'.tr(),
+                  businessName.tr(),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 28,

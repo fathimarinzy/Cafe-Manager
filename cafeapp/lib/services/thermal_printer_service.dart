@@ -62,6 +62,16 @@ class ThermalPrinterService {
       return false;
     }
   }
+  // Add a method to get business information
+  static Future<Map<String, String>> getBusinessInfo() async {
+    final prefs = await SharedPreferences.getInstance();
+    return {
+      'name': prefs.getString('business_name') ?? 'SIMS RESTO CAFE',
+      'address': prefs.getString('business_address') ?? '123 Cafe Street, City',
+      'phone': prefs.getString('business_phone') ?? '+1234567890',
+      'footer': prefs.getString('receipt_footer') ?? 'Thank you for your visit! Please come again.',
+    };
+  }
 
   // Print kitchen ticket directly to network printer
   static Future<bool> printKitchenTicket(MenuItem item) async {
@@ -129,7 +139,7 @@ class ThermalPrinterService {
     String? personName,
     String? tableInfo,
     bool isEdited = false, // Add parameter to indicate if order was edited
-    String? orderNumber = null, 
+    String? orderNumber , 
     double? taxRate,
   }) async {
     // If tax rate is not provided, use a default
@@ -137,6 +147,7 @@ class ThermalPrinterService {
     
     final ip = await getPrinterIp();
     final port = await getPrinterPort();
+    final businessInfo = await getBusinessInfo();
     
     try {
       // Initialize printer
@@ -155,11 +166,13 @@ class ThermalPrinterService {
         final billNumber = orderNumber ?? (DateTime.now().millisecondsSinceEpoch % 10000).toString();
       
       // Print receipt header
-      printer.text('SIMS RESTO CAFE', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
-      printer.text('123 Cafe Street, City', styles: const PosStyles(align: PosAlign.center));
-      printer.text('Tel: +1234567890', styles: const PosStyles(align: PosAlign.center));
+        // Print receipt header using business info from settings
+      printer.text('RECEIPT', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
+      printer.text(businessInfo['name']!, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
       printer.text('', styles: const PosStyles(align: PosAlign.center));
-      
+      printer.text(businessInfo['address']!, styles: const PosStyles(align: PosAlign.center));
+      printer.text('Tel: ${businessInfo['phone']}', styles: const PosStyles(align: PosAlign.center));
+
       // Add EDITED indicator if order was edited
       if (isEdited) {
         printer.row([

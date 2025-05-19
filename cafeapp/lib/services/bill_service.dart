@@ -8,10 +8,21 @@ import 'package:intl/intl.dart';
 import '../models/menu_item.dart';
 import './thermal_printer_service.dart';
 import '../models/order_history.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 
 class BillService {
-  // Generate PDF bill for order with dynamic tax rate
+  // Get business information from shared preferences
+  static Future<Map<String, String>> getBusinessInfo() async {
+    final prefs = await SharedPreferences.getInstance();
+    return {
+      'name': prefs.getString('business_name') ?? 'SIMS RESTO CAFE',
+      'address': prefs.getString('business_address') ?? '123 Cafe Street, City',
+      'phone': prefs.getString('business_phone') ?? '+1234567890',
+      'footer': prefs.getString('receipt_footer') ?? 'Thank you for your visit! Please come again.',
+    };
+  }
+  // Generate PDF bill for order 
   static Future<pw.Document> generateBill({
     required List<MenuItem> items,
     required String serviceType,
@@ -26,6 +37,7 @@ class BillService {
     double? taxRate, // Add tax rate parameter
   }) async {
     final pdf = pw.Document();
+     final businessInfo = await getBusinessInfo();
     
     // If tax rate is not provided, use a default
     final effectiveTaxRate = taxRate ?? 5.0;
@@ -68,7 +80,7 @@ class BillService {
                         fontWeight: pw.FontWeight.bold
                       )
                     ),
-                    pw.Text('SIMS RESTO CAFE', 
+                    pw.Text(businessInfo['name']!, 
                       style: pw.TextStyle(
                         font: ttf, 
                         fontSize: 12, 
@@ -76,10 +88,10 @@ class BillService {
                       )
                     ),
                     pw.SizedBox(height: 5),
-                    pw.Text('123 Cafe Street, City', 
+                    pw.Text(businessInfo['address']!, 
                       style: pw.TextStyle(font: ttf, fontSize: 10)
                     ),
-                    pw.Text('Tel: +1234567890', 
+                    pw.Text('Tel: ${businessInfo['phone']}', 
                       style: pw.TextStyle(font: ttf, fontSize: 10)
                     ),
                     pw.SizedBox(height: 3),

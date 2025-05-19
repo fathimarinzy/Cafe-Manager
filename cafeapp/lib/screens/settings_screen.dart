@@ -695,57 +695,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 // BUSINESS INFORMATION - Most important, at the top
                 _buildSectionHeader('Business Information'),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: TextFormField(
-                    controller: _businessNameController,
-                    decoration:  InputDecoration(
-                      labelText: 'Restaurant Name',
-                      border: OutlineInputBorder(),
-                      hintText: 'Enter your restaurant name',
-                      enabled: _isOwner, 
-                      fillColor: _isOwner ? null : Colors.grey.shade100,
-                      filled: !_isOwner,
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter restaurant name';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: TextFormField(
-                    controller: _addressController,
-                    decoration:  InputDecoration(
-                      labelText: 'Address',
-                      border: OutlineInputBorder(),
-                      hintText: 'Enter your restaurant address',
-                      enabled: _isOwner, // Disable for staff
-                      fillColor: _isOwner ? null : Colors.grey.shade100,
-                      filled: !_isOwner,
+               _buildBusinessInfoSection(),
 
-                    ),
-                    maxLines: 2,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: TextFormField(
-                    controller: _phoneController,
-                    decoration:  InputDecoration(
-                      labelText: 'Phone Number',
-                      border: OutlineInputBorder(),
-                      hintText: 'Enter your restaurant phone number',
-                      enabled: _isOwner, // Disable for staff
-                      fillColor: _isOwner ? null : Colors.grey.shade100,
-                      filled: !_isOwner,
-                    ),
-                    keyboardType: TextInputType.phone,
-                  ),
-                ),
                 const Divider(),
                 
                 // TAX SETTINGS - Important for sales
@@ -1034,7 +985,110 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
     );
   }
-  // Add the Product section widget
+   // This will create the Business Information section as a ListTile
+Widget _buildBusinessInfoSection() {
+  return Card(
+    child: ListTile(
+      leading: Icon(Icons.business, color: _isOwner ? Colors.blue[700] : Colors.grey),
+      title: const Text('Business Information'),
+      subtitle: Text(_isOwner 
+          ? (_businessNameController.text.isNotEmpty 
+              ? _businessNameController.text 
+              : 'Configure restaurant details')
+          : 'Configure restaurant details'),
+      trailing: _isOwner ? const Icon(Icons.arrow_forward_ios, size: 16) : null,
+      onTap: _isOwner ? _showBusinessInfoDialog : null,
+      enabled: _isOwner,
+      tileColor: _isOwner ? null : Colors.grey.shade100,
+    ),
+  );
+}
+// Add this method to show the dialog with the text form fields
+void _showBusinessInfoDialog() {
+  // Create temporary controllers with current values
+  final businessNameController = TextEditingController(text: _businessNameController.text);
+  final addressController = TextEditingController(text: _addressController.text);
+  final phoneController = TextEditingController(text: _phoneController.text);
+  
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        title: const Text('Business Information'),
+        content: SingleChildScrollView(
+          child: Form(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: businessNameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Restaurant Name',
+                    border: OutlineInputBorder(),
+                    hintText: 'Enter your restaurant name',
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter restaurant name';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: addressController,
+                  decoration: const InputDecoration(
+                    labelText: 'Address',
+                    border: OutlineInputBorder(),
+                    hintText: 'Enter your restaurant address',
+                  ),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: phoneController,
+                  decoration: const InputDecoration(
+                    labelText: 'Phone Number',
+                    border: OutlineInputBorder(),
+                    hintText: 'Enter your restaurant phone number',
+                  ),
+                  keyboardType: TextInputType.phone,
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              // Update the main controllers with the dialog values
+              setState(() {
+                _businessNameController.text = businessNameController.text;
+                _addressController.text = addressController.text;
+                _phoneController.text = phoneController.text;
+              });
+              
+              // Close the dialog
+              Navigator.pop(context);
+              
+              // Show a snackbar to confirm changes
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Business information updated (not saved yet)')),
+              );
+            },
+            child: const Text('Update'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+    // Add the Product section widget
   Widget _buildProductSection() {
     return Card(
       child: ListTile(

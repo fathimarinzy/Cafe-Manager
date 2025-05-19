@@ -9,8 +9,9 @@ import 'dining_table_screen.dart';
 import 'order_list_screen.dart';
 import 'login_screen.dart';
 import '../utils/app_localization.dart'; // Import the localization utility
-import 'package:cafeapp/main.dart';
+// import 'package:cafeapp/main.dart'; 
 import '../widgets/settings_password_dialog.dart';
+import '../providers/settings_provider.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -42,11 +43,19 @@ class DashboardScreen extends StatelessWidget {
     final verticalPadding = screenSize.height * 0.02;
 
     final authProvider = Provider.of<AuthProvider>(context);
+     // Get settings provider to access business name
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    
+    // Get business name from settings (or use default app title if not set)
+    final String businessName = settingsProvider.businessName;
+    final String appTitle = businessName.isNotEmpty 
+        ? businessName 
+        : 'appTitle'.tr(); // Fallback to translated app title
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'appTitle'.tr(), // Translated app title
+          appTitle.tr(), // Translated app title
           style: const TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -57,13 +66,13 @@ class DashboardScreen extends StatelessWidget {
         elevation: 2,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.print),
-            onPressed: () {
-              Navigator.of(context).pushNamed(AppRoutes.printerConfig);
-            },
-            tooltip: 'printerSettings'.tr(), // Translated tooltip
-          ),
+          // IconButton(
+          //   icon: const Icon(Icons.print),
+          //   onPressed: () {
+          //     Navigator.of(context).pushNamed(AppRoutes.printerConfig);
+          //   },
+          //   tooltip: 'printerSettings'.tr(), // Translated tooltip
+          // ),
           IconButton(
             icon: const Icon(Icons.settings),
             tooltip: 'settings'.tr(), // Translated tooltip
