@@ -3,11 +3,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/order_provider.dart';
-import '../providers/auth_provider.dart';
+// import '../providers/auth_provider.dart';
 import 'menu_screen.dart';
 import 'dining_table_screen.dart';
 import 'order_list_screen.dart';
-import 'login_screen.dart';
+// import 'login_screen.dart';
 import '../utils/app_localization.dart'; // Import the localization utility
 // import 'package:cafeapp/main.dart'; 
 import '../widgets/settings_password_dialog.dart';
@@ -42,7 +42,7 @@ class DashboardScreen extends StatelessWidget {
     final horizontalPadding = screenSize.width * 0.03;
     final verticalPadding = screenSize.height * 0.02;
 
-    final authProvider = Provider.of<AuthProvider>(context);
+    // final authProvider = Provider.of<AuthProvider>(context);
      // Get settings provider to access business name
     final settingsProvider = Provider.of<SettingsProvider>(context);
     
@@ -84,99 +84,99 @@ class DashboardScreen extends StatelessWidget {
               );
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.exit_to_app),
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (ctx) => Dialog(
-                  // Add this to constrain and control the dialog size
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  // Control the dialog size with insets
-                  insetPadding: EdgeInsets.symmetric(
-                    horizontal: MediaQuery.of(context).size.width * 0.15, // 70% width
-                    vertical: MediaQuery.of(context).size.height * 0.3   // 40% height
-                  ),
-                  child: Container(
-                    // Explicit dimensions for the dialog content
-                    width: 400,
-                    padding: const EdgeInsets.all(24), // Increased padding for more space
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Logout'.tr(), 
-                          style: TextStyle(
-                            color: primaryColor,
-                            fontSize: 22, // Increased font size
-                            fontWeight: FontWeight.bold,
-                          )
-                        ),
-                        const SizedBox(height: 20), // More space
-                        Text(
-                          'Are you sure you want to logout?'.tr(),
-                          style: const TextStyle(
-                            fontSize: 16, // Increased font size
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 32), // More space
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly, // Space buttons evenly
-                          children: [
-                            SizedBox(
-                              width: 120, // Fixed width for buttons
-                              height: 48, // Taller buttons
-                              child: TextButton(
-                                onPressed: () => Navigator.of(ctx).pop(),
-                                style: TextButton.styleFrom(
-                                  foregroundColor: Colors.grey,
-                                  textStyle: const TextStyle(fontSize: 16), // Larger text
-                                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    side: BorderSide(color: Colors.grey.shade300),
-                                  ),
-                                ),
-                                child: Text('Cancel'.tr()),
-                              ),
-                            ),
-                            SizedBox(
-                              width: 120, // Fixed width for buttons
-                              height: 48, // Taller buttons
-                              child: TextButton(
-                                onPressed: () {
-                                  Navigator.of(ctx).pop();
-                                  authProvider.logout();
-                                  Navigator.of(context).pushAndRemoveUntil(
-                                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                                    (route) => false,
-                                  );
-                                },
-                                style: TextButton.styleFrom(
-                                  backgroundColor: Colors.red.shade50, // Background color
-                                  foregroundColor: Colors.red,
-                                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold), // Larger text
-                                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                    side: BorderSide(color: Colors.red.shade200),
-                                  ),
-                                ),
-                                child: Text('Logout'.tr()),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
+          // IconButton(
+          //   icon: const Icon(Icons.exit_to_app),
+          //   onPressed: () {
+          //     showDialog(
+          //       context: context,
+          //       builder: (ctx) => Dialog(
+          //         // Add this to constrain and control the dialog size
+          //         shape: RoundedRectangleBorder(
+          //           borderRadius: BorderRadius.circular(16),
+          //         ),
+          //         // Control the dialog size with insets
+          //         insetPadding: EdgeInsets.symmetric(
+          //           horizontal: MediaQuery.of(context).size.width * 0.15, // 70% width
+          //           vertical: MediaQuery.of(context).size.height * 0.3   // 40% height
+          //         ),
+          //         child: Container(
+          //           // Explicit dimensions for the dialog content
+          //           width: 400,
+          //           padding: const EdgeInsets.all(24), // Increased padding for more space
+          //           child: Column(
+          //             mainAxisSize: MainAxisSize.min,
+          //             children: [
+          //               Text(
+          //                 'Logout'.tr(), 
+          //                 style: TextStyle(
+          //                   color: primaryColor,
+          //                   fontSize: 22, // Increased font size
+          //                   fontWeight: FontWeight.bold,
+          //                 )
+          //               ),
+          //               const SizedBox(height: 20), // More space
+          //               Text(
+          //                 'Are you sure you want to logout?'.tr(),
+          //                 style: const TextStyle(
+          //                   fontSize: 16, // Increased font size
+          //                 ),
+          //                 textAlign: TextAlign.center,
+          //               ),
+          //               const SizedBox(height: 32), // More space
+          //               Row(
+          //                 mainAxisAlignment: MainAxisAlignment.spaceEvenly, // Space buttons evenly
+          //                 children: [
+          //                   SizedBox(
+          //                     width: 120, // Fixed width for buttons
+          //                     height: 48, // Taller buttons
+          //                     child: TextButton(
+          //                       onPressed: () => Navigator.of(ctx).pop(),
+          //                       style: TextButton.styleFrom(
+          //                         foregroundColor: Colors.grey,
+          //                         textStyle: const TextStyle(fontSize: 16), // Larger text
+          //                         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          //                         shape: RoundedRectangleBorder(
+          //                           borderRadius: BorderRadius.circular(8),
+          //                           side: BorderSide(color: Colors.grey.shade300),
+          //                         ),
+          //                       ),
+          //                       child: Text('Cancel'.tr()),
+          //                     ),
+          //                   ),
+          //                   SizedBox(
+          //                     width: 120, // Fixed width for buttons
+          //                     height: 48, // Taller buttons
+          //                     child: TextButton(
+          //                       onPressed: () {
+          //                         Navigator.of(ctx).pop();
+          //                         authProvider.logout();
+          //                         Navigator.of(context).pushAndRemoveUntil(
+          //                           MaterialPageRoute(builder: (_) => const LoginScreen()),
+          //                           (route) => false,
+          //                         );
+          //                       },
+          //                       style: TextButton.styleFrom(
+          //                         backgroundColor: Colors.red.shade50, // Background color
+          //                         foregroundColor: Colors.red,
+          //                         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold), // Larger text
+          //                         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          //                         shape: RoundedRectangleBorder(
+          //                           borderRadius: BorderRadius.circular(8),
+          //                           side: BorderSide(color: Colors.red.shade200),
+          //                         ),
+          //                       ),
+          //                       child: Text('Logout'.tr()),
+          //                     ),
+          //                   ),
+          //                 ],
+          //               ),
+          //             ],
+          //           ),
+          //         ),
+          //       ),
+          //     );
+          //   },
+          // ),
         ],
       ),
       backgroundColor: backgroundColor,

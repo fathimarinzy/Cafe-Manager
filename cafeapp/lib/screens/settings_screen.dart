@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-// import '../providers/auth_provider.dart';
+import '../providers/auth_provider.dart';
 import '../providers/table_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/backup_service.dart';
 // import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-// import 'login_screen.dart';
+import 'login_screen.dart';
 // import '../services/settings_password_service.dart';
 import 'modifier_screen.dart'; // Import the ModifierScreen
 import 'table_management_screen.dart'; // Import the TableManagementScreen
@@ -835,7 +835,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                
+                 const Divider(),
                 // APP APPEARANCE
                 _buildSectionHeader('Appearance'),
                 Card(
@@ -863,7 +863,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       //     underline: Container(),
                       //   ),
                       // ),
-                      const Divider(height: 1, indent: 16),
+                      // const Divider(height: 1, indent: 16),
                       ListTile(
                         title: Text('language'.tr()),
                         subtitle: Text(_selectedLanguage),
@@ -901,7 +901,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                           ],
                   ),
                 ),
-                // const Divider(),
+                const Divider(),
                 
                 // ADVANCED SETTINGS TOGGLE
                 InkWell(
@@ -970,7 +970,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               //       _buildPasswordManagementSection(),
                 
               // ],
-
+                 // logout section
+                _buildSectionHeader('Logout'),
+                _logoutsection(),
+             
                 
                 // ABOUT
                 const Divider(),
@@ -1087,6 +1090,100 @@ void _showBusinessInfoDialog() {
     },
   );
 }
+   // Show logout confirmation dialog
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        // Add this to constrain and control the dialog size
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        // Control the dialog size with insets
+        insetPadding: EdgeInsets.symmetric(
+          horizontal: MediaQuery.of(context).size.width * 0.15, // 70% width
+          vertical: MediaQuery.of(context).size.height * 0.3   // 40% height
+        ),
+        child: Container(
+          // Explicit dimensions for the dialog content
+          width: 400,
+          padding: const EdgeInsets.all(24), // Increased padding for more space
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Logout'.tr(), 
+                style: TextStyle(
+                  color: Colors.blue.shade900,
+                  fontSize: 22, // Increased font size
+                  fontWeight: FontWeight.bold,
+                )
+              ),
+              const SizedBox(height: 20), // More space
+              Text(
+                'Are you sure you want to logout?'.tr(),
+                style: const TextStyle(
+                  fontSize: 16, // Increased font size
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32), // More space
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly, // Space buttons evenly
+                children: [
+                  SizedBox(
+                    width: 120, // Fixed width for buttons
+                    height: 48, // Taller buttons
+                    child: TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.grey,
+                        textStyle: const TextStyle(fontSize: 16), // Larger text
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: BorderSide(color: Colors.grey.shade300),
+                        ),
+                      ),
+                      child: Text('Cancel'.tr()),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 120, // Fixed width for buttons
+                    height: 48, // Taller buttons
+                    child: TextButton(
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        // Get the auth provider and log out
+                        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                        authProvider.logout();
+                        // Navigate to login screen
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(builder: (_) => const LoginScreen()),
+                          (route) => false,
+                        );
+                      },
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.red.shade50, // Background color
+                        foregroundColor: Colors.red,
+                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold), // Larger text
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: BorderSide(color: Colors.red.shade200),
+                        ),
+                      ),
+                      child: Text('Logout'.tr()),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
     // Add the Product section widget
   Widget _buildProductSection() {
@@ -1106,6 +1203,20 @@ void _showBusinessInfoDialog() {
       ),
     );
   }
+  Widget _logoutsection(){  
+    return Card(
+      child: ListTile(
+        leading: Icon(Icons.inventory, color: Colors.blue[700]),
+        title: const Text('Logout'),
+        // subtitle: const Text('Add, edit, or remove menu items'),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: () {
+          _showLogoutDialog();
+        },
+      ),
+    );
+  }
+  
   
   // Add the Printer Settings section widget
   Widget _buildPrinterSettingsSection() {
