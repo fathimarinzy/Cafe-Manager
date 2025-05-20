@@ -521,17 +521,17 @@ class _ModifierScreenState extends State<ModifierScreen> {
       imageUrl = _base64Image!;
     }
     // New item with no image - require image
-    else {
-      if (!mounted) return;
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select an image'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
+    // else {
+    //   if (!mounted) return;
+    //   Navigator.of(context).pop();
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     const SnackBar(
+    //       content: Text('Please select an image'),
+    //       backgroundColor: Colors.red,
+    //     ),
+    //   );
+    //   return;
+    // }
 
     // Create the item with proper data
     final item = MenuItem(
@@ -946,14 +946,31 @@ class _ModifierScreenState extends State<ModifierScreen> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              Row(
+                               children: [
                               const Text(
-                                'Item Image',
+                                'Item Image (Optional)',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               const SizedBox(height: 8),
+                               if (_selectedImage != null || _base64Image != null)
+                                  TextButton.icon(
+                                    icon: const Icon(Icons.delete, size: 16, color: Colors.red),
+                                    label: const Text('Remove Image', style: TextStyle(color: Colors.red)),
+                                    onPressed: () {
+                                      setState(() {
+                                        _selectedImage = null;
+                                        _base64Image = null;
+                                      });
+                                    },
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                              
                               // Image upload buttons
                               Row(
                                 children: [
@@ -988,7 +1005,26 @@ class _ModifierScreenState extends State<ModifierScreen> {
                                 ),
                                 child: _isImageLoading ? 
                                   const Center(child: CircularProgressIndicator()) :
-                                  _buildImagePreview(),
+                                   ((_selectedImage == null && _base64Image == null && (_editingItem?.imageUrl.isEmpty ?? true)) ?
+                                  Center(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.image_outlined, size: 40, color: Colors.grey[400]),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'No image selected',
+                                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '(Images are optional)',
+                                          style: TextStyle(color: Colors.grey[500], fontSize: 11, fontStyle: FontStyle.italic),
+                                        ),
+                                      ],
+                                    ),
+                                  ) : 
+                                  _buildImagePreview()),
                               ),
                             ],
                           ),

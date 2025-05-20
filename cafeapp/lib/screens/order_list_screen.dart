@@ -9,8 +9,9 @@ import 'dart:async';
 
 class OrderListScreen extends StatefulWidget {
   final String? serviceType;
+  final bool fromMenuScreen;
 
-  const OrderListScreen({super.key, this.serviceType});
+  const OrderListScreen({super.key, this.serviceType, this.fromMenuScreen = false,});
 
   @override
   State<OrderListScreen> createState() => _OrderListScreenState();
@@ -70,12 +71,18 @@ class _OrderListScreenState extends State<OrderListScreen> {
       return WillPopScope(
     // Handle back button press
     onWillPop: () async {
-      // Navigate to dashboard screen instead of simply popping
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const DashboardScreen()),
-        (route) => false,
-      );
+      // If opened from MenuScreen, just pop normally instead of navigating to dashboard
+        if (widget.fromMenuScreen) {
+          return true; // Allow normal pop behavior
+        } else {
+          // Navigate to dashboard screen instead of simply popping
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const DashboardScreen()),
+            (route) => false,
+          );
+      
       return false; // Return false to prevent default pop behavior
+      }
     },
     child: Scaffold(
       appBar: AppBar(
@@ -88,10 +95,15 @@ class _OrderListScreenState extends State<OrderListScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             // Use the same navigation logic as WillPopScope
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (context) => const DashboardScreen()),
-              (route) => false,
-            );
+            if (widget.fromMenuScreen) {
+                Navigator.of(context).pop(); // Simply go back
+              } else {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const DashboardScreen()),
+                  (route) => false,
+           
+                );
+              }
           },
         ),   
 

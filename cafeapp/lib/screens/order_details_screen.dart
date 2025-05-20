@@ -625,38 +625,43 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     return PopScope(
       canPop: false,
       onPopInvoked: (didPop) async {
-        if (!didPop && _wasEdited) {
-          final bool shouldSave = await showDialog<bool>(
-            context: context,
-            builder: (BuildContext context) {
-              return AlertDialog(
-                title: const Text('Save Changes?'),
-                content: const Text('You have unsaved changes. Would you like to save them before going back?'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    child: const Text('Discard'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    child: const Text('Save'),
-                  ),
-                ],
-              );
-            },
-          ) ?? false;
+      if (didPop) {
+        // If didPop is true, the pop was already handled (no edits)
+        return;
+      }
+        
+          // final bool shouldSave = await showDialog<bool>(
+          //   context: context,
+          //   builder: (BuildContext context) {
+          //     return AlertDialog(
+          //       title: const Text('Save Changes?'),
+          //       content: const Text('You have unsaved changes. Would you like to save them before going back?'),
+          //       actions: [
+          //         TextButton(
+          //           onPressed: () => Navigator.of(context).pop(false),
+          //           child: const Text('Discard'),
+          //         ),
+          //         ElevatedButton(
+          //           onPressed: () => Navigator.of(context).pop(true),
+          //           child: const Text('Save'),
+          //         ),
+          //       ],
+          //     );
+          //   },
+          // ) ?? false;
           
-          if (shouldSave) {
+          if ( mounted) {
             _saveOrderChangesToBackend().catchError((error) {
               debugPrint('Error during save on back: $error');
               throw error;
             });
           }
-          if (mounted && shouldSave) {
-            Navigator.of(context).pop();
-          }
-        }
-      },
+
+          if (mounted) {
+          Navigator.of(context).pop();
+            }
+        },
+         
       child: Scaffold(
         appBar: AppBar(
           backgroundColor: Colors.white,

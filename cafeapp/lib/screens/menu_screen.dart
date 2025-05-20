@@ -300,7 +300,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => OrderListScreen(serviceType: widget.serviceType),
+                    builder: (context) => OrderListScreen(serviceType: widget.serviceType,fromMenuScreen: true, ),
                   ),
                 );
               },
@@ -477,7 +477,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => OrderListScreen(serviceType: widget.serviceType),
+                  builder: (context) => OrderListScreen(serviceType: widget.serviceType, fromMenuScreen: true, ),
                 ),
               );
             }else if (text == 'Kitchen note'.tr()) {
