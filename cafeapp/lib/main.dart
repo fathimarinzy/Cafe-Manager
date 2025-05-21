@@ -132,6 +132,7 @@ import 'screens/dashboard_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/printer_settings_screen.dart';
+import 'screens/expense_screen.dart';
 
 import 'providers/table_provider.dart';
 import 'providers/auth_provider.dart';
@@ -222,6 +223,8 @@ class MyApp extends StatelessWidget {
               AppRoutes.dashboard: (ctx) => const DashboardScreen(),
               AppRoutes.settings: (ctx) => const SettingsScreen(),
               AppRoutes.printerConfig: (ctx) => const PrinterSettingsScreen(),
+              AppRoutes.expense: (ctx) => const ExpenseScreen(),
+              
             },
           );
         },
@@ -236,5 +239,6 @@ class AppRoutes {
   static const String dashboard = '/dashboard';
   static const String settings = '/settings';
   static const String printerConfig = '/printer-settings';
+  static const String expense = '/expense'; 
 
 }

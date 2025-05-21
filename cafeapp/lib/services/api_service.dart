@@ -716,4 +716,121 @@ Future<bool> updateOrderStatus(int orderId, String status) async {
       return null;
     }
   }
+  // Add these methods to your lib/services/api_service.dart file
+
+// Create a new expense
+Future<bool> createExpense(Map<String, dynamic> expenseData) async {
+  try {
+    final token = await getToken();
+    if (token == null) return false;
+    
+    final response = await http.post(
+      Uri.parse('$baseUrl/expenses'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(expenseData),
+    );
+    
+    if (response.statusCode == 201) {
+      debugPrint('Expense created successfully');
+      return true;
+    } else if (response.statusCode == 401) {
+      final refreshed = await _handleExpiredToken(response);
+      if (refreshed) return createExpense(expenseData);
+    }
+    
+    debugPrint('Failed to create expense: ${response.body}');
+    return false;
+  } catch (e) {
+    debugPrint('Error creating expense: $e');
+    return false;
+  }
+}
+
+// Get all expenses
+Future<List<Map<String, dynamic>>> getExpenses() async {
+  try {
+    final token = await getToken();
+    if (token == null) return [];
+    
+    final response = await http.get(
+      Uri.parse('$baseUrl/expenses'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+    
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((expense) => expense as Map<String, dynamic>).toList();
+    } else if (response.statusCode == 401) {
+      final refreshed = await _handleExpiredToken(response);
+      if (refreshed) return getExpenses();
+    }
+    
+    return [];
+  } catch (e) {
+    debugPrint('Error getting expenses: $e');
+    return [];
+  }
+}
+
+// Get a specific expense by ID
+Future<Map<String, dynamic>?> getExpenseById(int id) async {
+  try {
+    final token = await getToken();
+    if (token == null) return null;
+    
+    final response = await http.get(
+      Uri.parse('$baseUrl/expenses/$id'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+    
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else if (response.statusCode == 401) {
+      final refreshed = await _handleExpiredToken(response);
+      if (refreshed) return getExpenseById(id);
+    }
+    
+    return null;
+  } catch (e) {
+    debugPrint('Error getting expense by ID: $e');
+    return null;
+  }
+}
+
+// Delete an expense
+Future<bool> deleteExpense(int id) async {
+  try {
+    final token = await getToken();
+    if (token == null) return false;
+    
+    final response = await http.delete(
+      Uri.parse('$baseUrl/expenses/$id'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+    
+    if (response.statusCode == 200) {
+      return true;
+    } else if (response.statusCode == 401) {
+      final refreshed = await _handleExpiredToken(response);
+      if (refreshed) return deleteExpense(id);
+    }
+    
+    return false;
+  } catch (e) {
+    debugPrint('Error deleting expense: $e');
+    return false;
+  }
+}
 }

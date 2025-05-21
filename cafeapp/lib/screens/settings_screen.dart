@@ -12,6 +12,7 @@ import 'modifier_screen.dart'; // Import the ModifierScreen
 import 'table_management_screen.dart'; // Import the TableManagementScreen
 import 'printer_settings_screen.dart'; // Import the PrinterSettingsScreen
 import '../utils/app_localization.dart';
+import '../screens/expense_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   final String userType;
@@ -698,6 +699,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                _buildBusinessInfoSection(),
 
                 const Divider(),
+                _buildSectionHeader('Expense'),
+                _expenseSection(),
+                 const Divider(),
                 
                 // TAX SETTINGS - Important for sales
                 _buildSectionHeader('Tax Settings'),
@@ -1064,13 +1068,32 @@ Widget _buildBusinessInfoSection() {
     ),
   );
 }
+Widget _expenseSection() {
+  return Card(
+    child: ListTile(
+      leading: Icon(Icons.money_off, color: Colors.blue[700]),
+          title: const Text('Expense Management'),
+          subtitle: const Text('Track and manage your expenses'),
+          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const ExpenseScreen(),
+              ),
+            );
+          },
+      // trailing: _isOwner ? const Icon(Icons.arrow_forward_ios, size: 16) : null,
+      // enabled: _isOwner,
+      // tileColor: _isOwner ? null : Colors.grey.shade100,
+    ),
+  );
+}
 // Add this method to show the dialog with the text form fields
 void _showBusinessInfoDialog() {
   // Create temporary controllers with current values
   final businessNameController = TextEditingController(text: _businessNameController.text);
   final addressController = TextEditingController(text: _addressController.text);
   final phoneController = TextEditingController(text: _phoneController.text);
-  
   showDialog(
     context: context,
     builder: (BuildContext context) {
