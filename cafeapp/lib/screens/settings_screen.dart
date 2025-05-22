@@ -13,6 +13,7 @@ import 'table_management_screen.dart'; // Import the TableManagementScreen
 import 'printer_settings_screen.dart'; // Import the PrinterSettingsScreen
 import '../utils/app_localization.dart';
 import '../screens/expense_screen.dart';
+import '../screens/report_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   final String userType;
@@ -702,7 +703,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildSectionHeader('Expense'),
                 _expenseSection(),
                  const Divider(),
-                
+                _buildSectionHeader('Reports'),
+                _buildReportsSection(),
+                const Divider(),
                 // TAX SETTINGS - Important for sales
                 _buildSectionHeader('Tax Settings'),
                   _buildTaxSettingsSection(),
@@ -1048,6 +1051,23 @@ void _showTaxSettingsDialog() {
         ],
       );
     },
+  );
+}
+Widget _buildReportsSection() {
+  return Card(
+    child: ListTile(
+      leading: Icon(Icons.analytics, color: Colors.blue[700]),
+      title: const Text('Reports'),
+      subtitle: const Text('View daily and monthly sales reports'),
+      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const ReportScreen(),
+          ),
+        );
+      },
+    ),
   );
 }
    // This will create the Business Information section as a ListTile

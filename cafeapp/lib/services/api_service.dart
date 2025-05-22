@@ -12,7 +12,120 @@ class ApiService {
 
   static const String baseUrl = 'https://ftrinzy.pythonanywhere.com/api'; // Use your backend URL
   final FlutterSecureStorage storage = FlutterSecureStorage();
+  // Helper method to safely convert to double
+double _toDouble(dynamic value) {
+  if (value == null) return 0.0;
+  if (value is double) return value;
+  if (value is int) return value.toDouble();
+  if (value is String) return double.tryParse(value) ?? 0.0;
+  return 0.0;
+}
 
+// Helper method to safely convert to int
+int _toInt(dynamic value) {
+  if (value == null) return 0;
+  if (value is int) return value;
+  if (value is double) return value.toInt();
+  if (value is String) return int.tryParse(value) ?? 0;
+  return 0;
+}
+
+// Helper method to process report data with safe type conversion
+Map<String, dynamic> _processReportData(Map<String, dynamic> rawData) {
+  // Process summary data
+  if (rawData['summary'] != null) {
+    final summary = rawData['summary'] as Map<String, dynamic>;
+    rawData['summary'] = {
+      'totalOrders': _toInt(summary['totalOrders']),
+      'totalRevenue': _toDouble(summary['totalRevenue']),
+      'averageOrderValue': _toDouble(summary['averageOrderValue']),
+      'totalItemsSold': _toInt(summary['totalItemsSold']),
+      'revenueGrowth': _toDouble(summary['revenueGrowth']),
+      'ordersGrowth': _toDouble(summary['ordersGrowth']),
+    };
+  }
+
+  // Process revenue data
+  if (rawData['revenue'] != null) {
+    final revenue = rawData['revenue'] as Map<String, dynamic>;
+    rawData['revenue'] = {
+      'subtotal': _toDouble(revenue['subtotal']),
+      'tax': _toDouble(revenue['tax']),
+      'discounts': _toDouble(revenue['discounts']),
+      'total': _toDouble(revenue['total']),
+    };
+  }
+
+  // Process orders data
+  if (rawData['orders'] != null) {
+    final orders = rawData['orders'] as List<dynamic>;
+    rawData['orders'] = orders.map((order) {
+      final orderMap = order as Map<String, dynamic>;
+      return {
+        'id': _toInt(orderMap['id']),
+        'serviceType': orderMap['serviceType']?.toString() ?? '',
+        'total': _toDouble(orderMap['total']),
+        'status': orderMap['status']?.toString() ?? 'pending',
+        'createdAt': orderMap['createdAt']?.toString() ?? DateTime.now().toIso8601String(),
+        'subtotal': _toDouble(orderMap['subtotal']),
+        'tax': _toDouble(orderMap['tax']),
+        'discount': _toDouble(orderMap['discount']),
+        'items': (orderMap['items'] as List<dynamic>? ?? []).map((item) {
+          final itemMap = item as Map<String, dynamic>;
+          return {
+            'id': _toInt(itemMap['id']),
+            'name': itemMap['name']?.toString() ?? '',
+            'price': _toDouble(itemMap['price']),
+            'quantity': _toInt(itemMap['quantity']),
+            'kitchenNote': itemMap['kitchenNote']?.toString() ?? '',
+          };
+        }).toList(),
+      };
+    }).toList();
+  }
+
+  // Process top items data
+  if (rawData['topItems'] != null) {
+    final topItems = rawData['topItems'] as List<dynamic>;
+    rawData['topItems'] = topItems.map((item) {
+      final itemMap = item as Map<String, dynamic>;
+      return {
+        'name': itemMap['name']?.toString() ?? '',
+        'quantity': _toInt(itemMap['quantity']),
+        'price': _toDouble(itemMap['price']),
+        'total_revenue': _toDouble(itemMap['total_revenue']),
+      };
+    }).toList();
+  }
+
+  // Process daily stats (for monthly reports)
+  if (rawData['dailyStats'] != null) {
+    final dailyStats = rawData['dailyStats'] as List<dynamic>;
+    rawData['dailyStats'] = dailyStats.map((stat) {
+      final statMap = stat as Map<String, dynamic>;
+      return {
+        'date': statMap['date']?.toString() ?? '',
+        'orders': _toInt(statMap['orders']),
+        'revenue': _toDouble(statMap['revenue']),
+      };
+    }).toList();
+  }
+
+  // Process service type stats (for monthly reports)
+  if (rawData['serviceTypeStats'] != null) {
+    final serviceStats = rawData['serviceTypeStats'] as List<dynamic>;
+    rawData['serviceTypeStats'] = serviceStats.map((stat) {
+      final statMap = stat as Map<String, dynamic>;
+      return {
+        'serviceType': statMap['serviceType']?.toString() ?? '',
+        'orders': _toInt(statMap['orders']),
+        'revenue': _toDouble(statMap['revenue']),
+      };
+    }).toList();
+  }
+
+  return rawData;
+}
   Future<String?> getToken() async {
     return await storage.read(key: 'token');
   }
@@ -839,6 +952,69 @@ Future<bool> deleteExpense(int id) async {
   } catch (e) {
     debugPrint('Error deleting expense: $e');
     return false;
+  }
+}
+  // Get daily report - UPDATED VERSION
+Future<Map<String, dynamic>> getDailyReport(DateTime date) async {
+  final token = await getToken();
+  if (token == null) throw Exception('Not authenticated');
+  
+  // Format date as YYYY-MM-DD
+  final dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  
+  try {
+    final response = await http.get(
+      Uri.parse('$baseUrl/reports/daily?date=$dateStr'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final rawData = jsonDecode(response.body) as Map<String, dynamic>;
+      return _processReportData(rawData);
+    } else if (response.statusCode == 401) {
+      final refreshed = await _handleExpiredToken(response);
+      if (refreshed) return getDailyReport(date);
+    }
+    
+    throw Exception('Failed to load daily report: ${response.statusCode}');
+  } catch (e) {
+    debugPrint('Error getting daily report: $e');
+    throw Exception('Error loading daily report: $e');
+  }
+}
+
+// Get monthly report - UPDATED VERSION
+Future<Map<String, dynamic>> getMonthlyReport(DateTime month) async {
+  final token = await getToken();
+  if (token == null) throw Exception('Not authenticated');
+  
+  // Format month as YYYY-MM
+  final monthStr = '${month.year}-${month.month.toString().padLeft(2, '0')}';
+  
+  try {
+    final response = await http.get(
+      Uri.parse('$baseUrl/reports/monthly?month=$monthStr'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final rawData = jsonDecode(response.body) as Map<String, dynamic>;
+      return _processReportData(rawData);
+    } else if (response.statusCode == 401) {
+      final refreshed = await _handleExpiredToken(response);
+      if (refreshed) return getMonthlyReport(month);
+    }
+    
+    throw Exception('Failed to load monthly report: ${response.statusCode}');
+  } catch (e) {
+    debugPrint('Error getting monthly report: $e');
+    throw Exception('Error loading monthly report: $e');
   }
 }
 }
