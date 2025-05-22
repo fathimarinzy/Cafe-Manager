@@ -716,13 +716,21 @@ Future<bool> updateOrderStatus(int orderId, String status) async {
       return null;
     }
   }
-  // Add these methods to your lib/services/api_service.dart file
 
-// Create a new expense
+ // Update the createExpense method in the ApiService class
 Future<bool> createExpense(Map<String, dynamic> expenseData) async {
   try {
     final token = await getToken();
     if (token == null) return false;
+    
+    // Remove unnecessary fields that aren't supported by backend
+    final Map<String, dynamic> filteredData = {
+      'date': expenseData['date'],
+      'cashier': expenseData['cashier'],
+      'accountType': expenseData['accountType'], // Include the account type
+      'items': expenseData['items'],
+      'grandTotal': expenseData['grandTotal'],
+    };
     
     final response = await http.post(
       Uri.parse('$baseUrl/expenses'),
@@ -730,7 +738,7 @@ Future<bool> createExpense(Map<String, dynamic> expenseData) async {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode(expenseData),
+      body: jsonEncode(filteredData),
     );
     
     if (response.statusCode == 201) {

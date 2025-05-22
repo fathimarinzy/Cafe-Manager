@@ -1,4 +1,3 @@
-// lib/screens/expense_screen.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
@@ -11,17 +10,27 @@ class ExpenseScreen extends StatefulWidget {
 }
 
 class _ExpenseScreenState extends State<ExpenseScreen> {
-  final _cashierController = TextEditingController(text: 'Cashier-1');
-  final _commentController = TextEditingController();
-  final _narrationController = TextEditingController();
-  bool _isAdvance = false;
+  // Add a controller with a default value for cashier type
+  final _cashierController = TextEditingController(text: '1');
+  // Add a variable to store the selected cashier type
+  String _selectedCashierType = 'Cashier'; // Default value
+  // List of available cashier types
+  final List<String> _cashierTypes = ['Cashier', 'Salesman'];
+  
   bool _isLoading = false;
   List<ExpenseItem> _expenseItems = [];
-  String _voucherNo = 'EXP${DateTime.now().millisecondsSinceEpoch % 10000}';
+  
+  // Date related variables
+  DateTime _selectedDate = DateTime.now();
   String _currentDate = DateFormat('dd-MM-yyyy').format(DateTime.now());
+  
   double _grandTotal = 0.0;
   
-  final List<String> _accountTypes = [
+  // Keep the existing account type selection
+  String _selectedAccountType = 'Cash Account';
+  final List<String> _accountTypes = ['Cash Account', 'Bank Account'];
+  
+  final List<String> _expenseCategories = [
     'Shop Expense',
     'Office Expense',
     'Food Expense',
@@ -53,8 +62,6 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   @override
   void dispose() {
     _cashierController.dispose();
-    _commentController.dispose();
-    _narrationController.dispose();
     
     // Dispose all controllers
     for (var controller in _searchControllers) {
@@ -67,6 +74,33 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     }
     
     super.dispose();
+  }
+
+  // Method to show date picker
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2020), // Allow dates from 2020
+      lastDate: DateTime.now().add(const Duration(days: 365)), // Allow future dates up to 1 year
+      builder: (BuildContext context, Widget? child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            primaryColor: Colors.blue,
+            colorScheme: const ColorScheme.light(primary: Colors.blue),
+            buttonTheme: const ButtonThemeData(textTheme: ButtonTextTheme.primary),
+          ),
+          child: child!,
+        );
+      },
+    );
+    
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+        _currentDate = DateFormat('dd-MM-yyyy').format(_selectedDate);
+      });
+    }
   }
   
   void _updateGrandTotal() {
@@ -86,7 +120,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     final remarksController = TextEditingController();
     
     _searchControllers.add(accountController);
-    _filteredOptions.add([..._accountTypes]);
+    _filteredOptions.add([..._expenseCategories]);
     _searchActiveStates.add(false);
     
     setState(() {
@@ -149,9 +183,9 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   void _filterOptions(int index, String query) {
     setState(() {
       if (query.isEmpty) {
-        _filteredOptions[index] = [..._accountTypes];
+        _filteredOptions[index] = [..._expenseCategories];
       } else {
-        _filteredOptions[index] = _accountTypes
+        _filteredOptions[index] = _expenseCategories
             .where((account) => account.toLowerCase().contains(query.toLowerCase()))
             .toList();
       }
@@ -197,14 +231,11 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     });
     
     try {
-      // Create expense data
+      // Create expense data including the selected account type and cashier type
       final expenseData = {
-        'voucherNo': _voucherNo,
-        'date': _currentDate,
-        'cashier': _cashierController.text,
-        'cashAccount': 'Cash Account',
-        'isAdvance': _isAdvance,
-        'comments': _commentController.text,
+        'date': _currentDate, // Use the selected date
+        'cashier': '${_selectedCashierType}-${_cashierController.text}', // Include cashier type
+        'accountType': _selectedAccountType, // Include selected account type
         'items': _expenseItems.map((item) => {
           'slNo': item.slNo,
           'account': item.account,
@@ -225,13 +256,24 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         });
         
         if (result) {
-          // Show success message
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Expense saved successfully')),
+          // Show success message with a more visible dialog instead of just a SnackBar
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Success'),
+              content: const Text('Expense records stored successfully!'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    // Reset form for new entry after confirmation
+                    _resetForm();
+                  },
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
           );
-          
-          // Reset form for new entry
-          _resetForm();
         } else {
           // Show error message
           ScaffoldMessenger.of(context).showSnackBar(
@@ -251,7 +293,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       }
     }
   }
-  
+
   void _resetForm() {
     // Dispose all current controllers
     for (var controller in _searchControllers) {
@@ -270,12 +312,16 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     
     setState(() {
       _expenseItems.clear();
-      _voucherNo = 'EXP${DateTime.now().millisecondsSinceEpoch % 10000}';
+      // Reset to current date
+      _selectedDate = DateTime.now();
       _currentDate = DateFormat('dd-MM-yyyy').format(DateTime.now());
-      _commentController.clear();
-      _narrationController.clear();
       _grandTotal = 0.0;
-      _isAdvance = false;
+      // Reset selected account type to default
+      _selectedAccountType = 'Cash Account';
+      // Reset cashier type to default
+      _selectedCashierType = 'Cashier';
+      // Reset cashier input field but keep existing structure
+      _cashierController.text = '1';
     });
     
     _addNewExpenseRow();
@@ -326,112 +372,155 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                                   ],
                                 ),
                               ),
-                              // Expanded(
-                              //   child: Row(
-                              //     children: [
-                              //       const Text('Voucher No:'),
-                              //       const SizedBox(width: 8),
-                              //       Expanded(
-                              //         child: TextField(
-                              //           readOnly: true,
-                              //           controller: TextEditingController(text: _voucherNo),
-                              //           decoration: const InputDecoration(
-                              //             isDense: true,
-                              //             contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                              //             border: OutlineInputBorder(),
-                              //           ),
-                              //         ),
-                              //       ),
-                              //     ],
-                              //   ),
-                              // ),
-                              const SizedBox(width: 16),
-                              // Expanded(
-                              //   child: Row(
-                              //     children: [
-                              //       const Icon(Icons.lock, size: 16),
-                              //       const SizedBox(width: 8),
-                              //       const Text('Voucher Date:'),
-                              //       const SizedBox(width: 8),
-                              //       Expanded(
-                              //         child: TextField(
-                              //           readOnly: true,
-                              //           controller: TextEditingController(text: _currentDate),
-                              //           decoration: const InputDecoration(
-                              //             isDense: true,
-                              //             contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                              //             border: OutlineInputBorder(),
-                              //           ),
-                              //         ),
-                              //       ),
-                              //     ],
-                              //   ),
-                              // ),
                             ],
                           ),
                           const SizedBox(height: 16),
+                          
+                          // First Row - Cash Account and Date
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              // Cash Account Section
                               Expanded(
+                                flex: 1,
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     const Text('Cash Account:'),
                                     const SizedBox(height: 4),
-                                    TextField(
-                                      readOnly: true,
-                                      controller: TextEditingController(text: 'Cash Account'),
-                                      decoration: const InputDecoration(
-                                        isDense: true,
-                                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                        border: OutlineInputBorder(),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        border: Border.all(color: Colors.grey),
+                                        borderRadius: BorderRadius.circular(4),
                                       ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    const Text('Cashier:'),
-                                    const SizedBox(height: 4),
-                                    TextField(
-                                      controller: _cashierController,
-                                      decoration: const InputDecoration(
-                                        isDense: true,
-                                        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                        border: OutlineInputBorder(),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      child: DropdownButtonHideUnderline(
+                                        child: DropdownButton<String>(
+                                          isExpanded: true,
+                                          value: _selectedAccountType,
+                                          items: _accountTypes.map((String value) {
+                                            return DropdownMenuItem<String>(
+                                              value: value,
+                                              child: Text(value),
+                                            );
+                                          }).toList(),
+                                          onChanged: (String? newValue) {
+                                            if (newValue != null) {
+                                              setState(() {
+                                                _selectedAccountType = newValue;
+                                              });
+                                            }
+                                          },
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
+                              
                               const SizedBox(width: 16),
+                              
+                              // Date Section
+                              Expanded(
+                                flex: 1,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('Date:'),
+                                    const SizedBox(height: 4),
+                                    InkWell(
+                                      onTap: () => _selectDate(context),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                        decoration: BoxDecoration(
+                                          border: Border.all(color: Colors.grey),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.calendar_today,
+                                              size: 20,
+                                              color: Colors.grey,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                _currentDate,
+                                                style: const TextStyle(fontSize: 16),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          
+                          const SizedBox(height: 16),
+                          
+                          // Second Row - Cashier/Salesman Section
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Role dropdown
+                              Expanded(
+                                flex: 1,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('Cashier:'),
+                                    const SizedBox(height: 4),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        border: Border.all(color: Colors.grey),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      child: DropdownButtonHideUnderline(
+                                        child: DropdownButton<String>(
+                                          isExpanded: true,
+                                          value: _selectedCashierType,
+                                          items: _cashierTypes.map((String value) {
+                                            return DropdownMenuItem<String>(
+                                              value: value,
+                                              child: Text(value),
+                                            );
+                                          }).toList(),
+                                          onChanged: (String? newValue) {
+                                            if (newValue != null) {
+                                              setState(() {
+                                                _selectedCashierType = newValue;
+                                              });
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              
+                              const SizedBox(width: 16),
+                              
+                              // ID text field
                               // Expanded(
+                              //   flex: 1,
                               //   child: Column(
                               //     crossAxisAlignment: CrossAxisAlignment.start,
                               //     children: [
-                              //       const Text('Comments:'),
+                              //       Text('${_selectedCashierType} ID:'),
                               //       const SizedBox(height: 4),
                               //       TextField(
-                              //         controller: _commentController,
-                              //         maxLines: 3,
+                              //         controller: _cashierController,
                               //         decoration: const InputDecoration(
                               //           isDense: true,
-                              //           contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                              //           contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                               //           border: OutlineInputBorder(),
-                              //           hintText: 'Enter comments',
                               //         ),
-                              //       ),
-                              //       const SizedBox(height: 8),
-                              //       Row(
-                              //         children: [
-                              //           Checkbox(
-                              //             value: _isAdvance,
-                              //             onChanged: (value) {
-                              //               setState(() {
-                              //                 _isAdvance = value ?? false;
-                              //               });
-                              //             },
-                              //           ),
-                              //           const Text('Advance'),
-                              //         ],
                               //       ),
                               //     ],
                               //   ),
@@ -461,7 +550,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                                 _buildHeaderCell('Account', 3),
                                 _buildHeaderCell('Narration', 3),
                                 _buildHeaderCell('Remarks', 2),
-                                _buildHeaderCell('OldBalance', 2),
+                                // _buildHeaderCell('OldBalance', 2),
                                 _buildHeaderCell('Amount', 2),
                                 _buildHeaderCell('NetAmount', 2),
                                 _buildHeaderCell('', 1), // Delete button column
@@ -760,21 +849,21 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
             ),
             
             // OldBalance
-            Expanded(
-              flex: 2,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                child: TextField(
-                  readOnly: true,
-                  controller: TextEditingController(text: '0.000'),
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ),
-            ),
+            // Expanded(
+            //   flex: 2,
+            //   child: Padding(
+            //     padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            //     child: TextField(
+            //       readOnly: true,
+            //       controller: TextEditingController(text: '0.000'),
+            //       decoration: const InputDecoration(
+            //         isDense: true,
+            //         contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            //         border: OutlineInputBorder(),
+            //       ),
+            //     ),
+            //   ),
+            // ),
             
             // Amount - Using dedicated controller
             Expanded(
@@ -788,6 +877,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                     contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                     border: OutlineInputBorder(),
                     // hintText: 'Amount',
+                    
                   ),
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (value) {
@@ -799,6 +889,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                   },
                 ),
               ),
+              
             ),
             
             // NetAmount
@@ -832,7 +923,6 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       ),
     );
   }
-  
 }
 
 class ExpenseItem {
