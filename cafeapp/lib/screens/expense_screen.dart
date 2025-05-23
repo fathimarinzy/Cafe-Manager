@@ -661,38 +661,38 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                         ),
                       ),
                       const SizedBox(width: 16),
-                      ElevatedButton.icon(
-                        onPressed: () {},
-                        icon: const Icon(Icons.print),
-                        label: const Text('Print'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue.shade400,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        ),
-                      ),
+                      // ElevatedButton.icon(
+                      //   onPressed: () {},
+                      //   icon: const Icon(Icons.print),
+                      //   label: const Text('Print'),
+                      //   style: ElevatedButton.styleFrom(
+                      //     backgroundColor: Colors.blue.shade400,
+                      //     foregroundColor: Colors.white,
+                      //     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      //   ),
+                      // ),
                       const SizedBox(width: 16),
-                      ElevatedButton.icon(
-                        onPressed: () {},
-                        icon: const Icon(Icons.share),
-                        label: const Text('Share'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue.shade400,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        ),
-                      ),
+                      // ElevatedButton.icon(
+                      //   onPressed: () {},
+                      //   icon: const Icon(Icons.share),
+                      //   label: const Text('Share'),
+                      //   style: ElevatedButton.styleFrom(
+                      //     backgroundColor: Colors.blue.shade400,
+                      //     foregroundColor: Colors.white,
+                      //     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      //   ),
+                      // ),
                       const SizedBox(width: 16),
-                      ElevatedButton.icon(
-                        onPressed: () {},
-                        icon: const Icon(Icons.search),
-                        label: const Text('Search'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue.shade400,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        ),
-                      ),
+                      // ElevatedButton.icon(
+                      //   onPressed: () {},
+                      //   icon: const Icon(Icons.search),
+                      //   label: const Text('Search'),
+                      //   style: ElevatedButton.styleFrom(
+                      //     backgroundColor: Colors.blue.shade400,
+                      //     foregroundColor: Colors.white,
+                      //     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      //   ),
+                      // ),
                     ],
                   ),
                 ],

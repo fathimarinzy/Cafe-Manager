@@ -1059,22 +1059,35 @@ Future<Map<String, dynamic>> getPaymentTotals(DateTime date, {bool isMonthly = f
   
   String url;
   
-  if (isMonthly) {
-    // Format month as YYYY-MM
-    final monthStr = '${date.year}-${date.month.toString().padLeft(2, '0')}';
-    url = '$baseUrl/reports/payment-totals?month=$monthStr';
-  } else if (endDate != null) {
-    // Custom date range
+  // ALWAYS use startDate/endDate parameters for all report types
+  // This ensures consistent behavior across report types
+  if (endDate != null) {
+    // Use provided date range (either custom range or monthly converted to range)
     final startDateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     final endDateStr = '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
     url = '$baseUrl/reports/payment-totals?startDate=$startDateStr&endDate=$endDateStr';
+    debugPrint('Using date range API endpoint with startDate=$startDateStr, endDate=$endDateStr');
+  } else if (isMonthly) {
+    // Convert monthly to date range (first and last day of month)
+    final firstDayOfMonth = DateTime(date.year, date.month, 1);
+    final lastDayOfMonth = (date.month < 12)
+        ? DateTime(date.year, date.month + 1, 0)
+        : DateTime(date.year + 1, 1, 0);
+        
+    final startDateStr = '${firstDayOfMonth.year}-${firstDayOfMonth.month.toString().padLeft(2, '0')}-${firstDayOfMonth.day.toString().padLeft(2, '0')}';
+    final endDateStr = '${lastDayOfMonth.year}-${lastDayOfMonth.month.toString().padLeft(2, '0')}-${lastDayOfMonth.day.toString().padLeft(2, '0')}';
+    
+    url = '$baseUrl/reports/payment-totals?startDate=$startDateStr&endDate=$endDateStr';
+    debugPrint('Using date range for monthly report with startDate=$startDateStr, endDate=$endDateStr');
   } else {
-    // Daily report
+    // For daily, use date range with same start and end date
     final dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-    url = '$baseUrl/reports/payment-totals?date=$dateStr';
+    url = '$baseUrl/reports/payment-totals?startDate=$dateStr&endDate=$dateStr';
+    debugPrint('Using date range for daily report with startDate=$dateStr, endDate=$dateStr');
   }
   
   try {
+    debugPrint('Calling API: $url');
     final response = await http.get(
       Uri.parse(url),
       headers: {
@@ -1083,8 +1096,15 @@ Future<Map<String, dynamic>> getPaymentTotals(DateTime date, {bool isMonthly = f
       },
     );
 
+    debugPrint('API response status: ${response.statusCode}');
     if (response.statusCode == 200) {
-      return jsonDecode(response.body) as Map<String, dynamic>;
+      final responseBody = response.body;
+      debugPrint('API response body: $responseBody');
+      
+      var data = jsonDecode(responseBody) as Map<String, dynamic>;
+      debugPrint('Parsed payment data: $data');
+      
+      return data;
     } else if (response.statusCode == 401) {
       final refreshed = await _handleExpiredToken(response);
       if (refreshed) return getPaymentTotals(date, isMonthly: isMonthly, endDate: endDate);
@@ -1096,6 +1116,7 @@ Future<Map<String, dynamic>> getPaymentTotals(DateTime date, {bool isMonthly = f
     throw Exception('Error loading payment totals: $e');
   }
 }
+
  // Add this to your ApiService class in lib/services/api_service.dart
 Future<bool> updateOrderPaymentMethod(int orderId, String paymentMethod) async {
   final token = await getToken();
