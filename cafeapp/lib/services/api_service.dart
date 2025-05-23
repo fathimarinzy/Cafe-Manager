@@ -1017,4 +1017,81 @@ Future<Map<String, dynamic>> getMonthlyReport(DateTime month) async {
     throw Exception('Error loading monthly report: $e');
   }
 }
+
+// Get custom date range report
+Future<Map<String, dynamic>> getCustomRangeReport(DateTime startDate, DateTime endDate) async {
+  final token = await getToken();
+  if (token == null) throw Exception('Not authenticated');
+  
+  // Format dates as YYYY-MM-DD
+  final startDateStr = '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}';
+  final endDateStr = '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
+  
+  try {
+    final response = await http.get(
+      Uri.parse('$baseUrl/reports/custom?startDate=$startDateStr&endDate=$endDateStr'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final rawData = jsonDecode(response.body) as Map<String, dynamic>;
+      return _processReportData(rawData);
+    } else if (response.statusCode == 401) {
+      final refreshed = await _handleExpiredToken(response);
+      if (refreshed) return getCustomRangeReport(startDate, endDate);
+    }
+    
+    throw Exception('Failed to load custom range report: ${response.statusCode}');
+  } catch (e) {
+    debugPrint('Error getting custom range report: $e');
+    throw Exception('Error loading custom range report: $e');
+  }
+}
+
+Future<Map<String, dynamic>> getPaymentTotals(DateTime date, {bool isMonthly = false, DateTime? endDate}) async {
+  final token = await getToken();
+  if (token == null) throw Exception('Not authenticated');
+  
+  String url;
+  
+  if (isMonthly) {
+    // Format month as YYYY-MM
+    final monthStr = '${date.year}-${date.month.toString().padLeft(2, '0')}';
+    url = '$baseUrl/reports/payment-totals?month=$monthStr';
+  } else if (endDate != null) {
+    // Custom date range
+    final startDateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final endDateStr = '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
+    url = '$baseUrl/reports/payment-totals?startDate=$startDateStr&endDate=$endDateStr';
+  } else {
+    // Daily report
+    final dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    url = '$baseUrl/reports/payment-totals?date=$dateStr';
+  }
+  
+  try {
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else if (response.statusCode == 401) {
+      final refreshed = await _handleExpiredToken(response);
+      if (refreshed) return getPaymentTotals(date, isMonthly: isMonthly, endDate: endDate);
+    }
+    
+    throw Exception('Failed to load payment totals: ${response.statusCode}');
+  } catch (e) {
+    debugPrint('Error getting payment totals: $e');
+    throw Exception('Error loading payment totals: $e');
+  }
+}
 }
