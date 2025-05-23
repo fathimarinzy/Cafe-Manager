@@ -1,4 +1,7 @@
 import 'order_item.dart'; // Ensure this import exists or define OrderItem in this file.
+import '../services/api_service.dart';
+import 'package:flutter/foundation.dart';
+
 
 class Order {
   final int? id;
@@ -51,4 +54,21 @@ class Order {
       'createdAt': createdAt,
     };
   }
+  
+Future<bool> updateOrderPaymentMethod(String paymentMethod) async {
+  // Instead of calling getToken() directly, we should use ApiService
+  final apiService = ApiService();
+  
+  if (id == null) {
+    debugPrint('Cannot update payment method: Order ID is null');
+    return false;
+  }
+  
+  try {
+    return await apiService.updateOrderPaymentMethod(id!, paymentMethod);
+  } catch (e) {
+    debugPrint('Error updating payment method: $e');
+    return false;
+  }
+}
 }

@@ -1050,6 +1050,7 @@ Widget _buildPaymentRow(
   Color backgroundColor,
   {bool isTotal = false}
 ) {
+
   return Container(
     padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
     color: backgroundColor,

@@ -786,7 +786,8 @@ Future<bool> updateOrderStatus(int orderId, String status) async {
     double subtotal, 
     double tax, 
     double discount, 
-    double total
+    double total,
+    {String paymentMethod = 'cash'}
   ) async {
     final token = await getToken();
     if (token == null) return null;
@@ -800,6 +801,7 @@ Future<bool> updateOrderStatus(int orderId, String status) async {
       'discount': discount,
       'total': total,
       'status': 'pending', // Keep status as pending for active orders
+      'paymentMethod': paymentMethod,
     };
     
     try {
@@ -818,7 +820,7 @@ Future<bool> updateOrderStatus(int orderId, String status) async {
       } else if (response.statusCode == 401) {
         final refreshed = await _handleExpiredToken(response);
         if (refreshed) {
-          return updateOrder(orderId, serviceType, items, subtotal, tax, discount, total);
+          return updateOrder(orderId, serviceType, items, subtotal, tax, discount, total, paymentMethod: paymentMethod);
         }
       }
       
@@ -1092,6 +1094,38 @@ Future<Map<String, dynamic>> getPaymentTotals(DateTime date, {bool isMonthly = f
   } catch (e) {
     debugPrint('Error getting payment totals: $e');
     throw Exception('Error loading payment totals: $e');
+  }
+}
+ // Add this to your ApiService class in lib/services/api_service.dart
+Future<bool> updateOrderPaymentMethod(int orderId, String paymentMethod) async {
+  final token = await getToken();
+  if (token == null) return false;
+  
+  try {
+    final response = await http.put(
+      Uri.parse('$baseUrl/orders/$orderId'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'paymentMethod': paymentMethod
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      debugPrint('Payment method updated successfully: $paymentMethod');
+      return true;
+    } else if (response.statusCode == 401) {
+      final refreshed = await _handleExpiredToken(response);
+      if (refreshed) return updateOrderPaymentMethod(orderId, paymentMethod);
+    }
+    
+    debugPrint('Failed to update payment method: ${response.body}');
+    return false;
+  } catch (e) {
+    debugPrint('Error updating payment method: $e');
+    return false;
   }
 }
 }

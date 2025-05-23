@@ -288,6 +288,28 @@ Future<void> _showBillPreviewDialog() async {
   }
 
   try {
+    // First update the order with the payment method
+    final apiService = ApiService();
+      // Store the correct payment method
+    final paymentMethod = _selectedPaymentMethod!.toLowerCase();
+    // Update the order status to completed with the selected payment method
+    await apiService.updateOrder(
+      widget.order.id,
+      widget.order.serviceType,
+      widget.order.items.map((item) => {
+        'id': item.id,
+        'name': item.name,
+        'price': item.price,
+        'quantity': item.quantity,
+        'kitchenNote': item.kitchenNote,
+      }).toList(),
+      widget.order.total - (widget.order.total * (widget.taxRate / 100)),
+      widget.order.total * (widget.taxRate / 100),
+      0, // No discount info in OrderHistory
+      widget.order.total,
+      paymentMethod: paymentMethod // Pass the payment method
+    );
+
     final statusUpdated = await _updateOrderStatus('completed');
     
     if (!statusUpdated) {
@@ -1033,6 +1055,26 @@ Future<void> _showBillPreviewDialog() async {
   });
 
   try {
+      // First update the order with the payment method
+    final apiService = ApiService();
+    
+    // Update the order with the selected payment method (always 'cash' for this method)
+    await apiService.updateOrder(
+      widget.order.id,
+      widget.order.serviceType,
+      widget.order.items.map((item) => {
+        'id': item.id,
+        'name': item.name,
+        'price': item.price,
+        'quantity': item.quantity,
+        'kitchenNote': item.kitchenNote,
+      }).toList(),
+      widget.order.total - (widget.order.total * (widget.taxRate / 100)),
+      widget.order.total * (widget.taxRate / 100),
+      0, // No discount info in OrderHistory
+      widget.order.total,
+      paymentMethod: 'cash' // Always set to 'cash' for cash payments
+    );
     final statusUpdated = await _updateOrderStatus('completed');
     
     if (!statusUpdated) {
