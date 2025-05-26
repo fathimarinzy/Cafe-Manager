@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+// import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
-import '../providers/settings_provider.dart';
+// import '../providers/settings_provider.dart';
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
@@ -95,8 +95,8 @@ class _ReportScreenState extends State<ReportScreen> {
       final results = await Future.wait([reportFuture, paymentTotalsFuture]);
       
       // Store results in cache
-      _reportCache[cacheKey] = results[0] as Map<String, dynamic>;
-      _paymentTotalsCache[cacheKey] = results[1] as Map<String, dynamic>;
+      _reportCache[cacheKey] = results[0] ;
+      _paymentTotalsCache[cacheKey] = results[1] ;
       
       // Only update state once with both results
       if (mounted) {
@@ -198,7 +198,7 @@ class _ReportScreenState extends State<ReportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final settingsProvider = Provider.of<SettingsProvider>(context);
+    // final settingsProvider = Provider.of<SettingsProvider>(context);
     
     return Scaffold(
       appBar: AppBar(

@@ -309,7 +309,7 @@ static Future<bool> printKitchenReceipt({
     final printer = NetworkPrinter(PaperSize.mm80, profile);
     
     debugPrint('Connecting to printer at $ip:$port for kitchen receipt');
-    final PosPrintResult result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 5));
+    final PosPrintResult result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 10));
     
     if (result != PosPrintResult.success) {
       debugPrint('Failed to connect to printer: ${result.msg}');

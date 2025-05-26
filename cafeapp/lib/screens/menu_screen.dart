@@ -17,6 +17,12 @@ import '../screens/order_list_screen.dart';
 import '../widgets/kitchen_note_dialog.dart';
 import '../utils/app_localization.dart';
 import '../providers/settings_provider.dart';
+import '../screens/tender_screen.dart';
+import '../models/order_history.dart';
+import '../models/order.dart';
+import '../models/order_item.dart';
+// import '../providers/order_history_provider.dart';
+import '../services/api_service.dart';
 
 class MenuScreen extends StatefulWidget {
   final String serviceType;
@@ -1243,61 +1249,122 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
       ),
     );
   }
-
   Widget _buildPaymentButton(String text, Color color) {
-  
-    
-    return SizedBox(
-      width: 130,
-      height: 50,
-      child: OutlinedButton(
-        onPressed: () {
-          if (text == "Order".tr()) {
-            final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-            
-            // Check if cart is empty
-            if (orderProvider.cartItems.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                 SnackBar(content: Text('Please add items to your order'.tr())),
-              );
-              return;
-            }
-            
-            // Navigate to order confirmation screen
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (ctx) => OrderConfirmationScreen(
-                  serviceType: widget.serviceType,
-                ),
-              ),
+  return SizedBox(
+    width: 130,
+    height: 50,
+    child: OutlinedButton(
+      onPressed: () async {
+        final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+        
+        // Check if cart is empty
+        if (orderProvider.cartItems.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Please add items to your order'.tr())),
+          );
+          return;
+        }
+        
+        if (text == "Cash".tr()) {
+          // Convert MenuItems to OrderItems
+          final orderItems = orderProvider.cartItems.map((menuItem) => 
+            OrderItem(
+              id: int.parse(menuItem.id), // Convert String to int if needed
+              name: menuItem.name,
+              price: menuItem.price,
+              quantity: menuItem.quantity,
+              kitchenNote: menuItem.kitchenNote,
+            )
+          ).toList();
+          
+          // Create an Order object from the current cart
+          // final order = Order(
+          //   id: orderProvider.currentOrderId,
+          //   serviceType: widget.serviceType,
+          //   items: orderItems,
+          //   subtotal: orderProvider.subtotal,
+          //   tax: orderProvider.tax,
+          //   discount: 0,
+          //   total: orderProvider.total,
+          //   status: 'pending',
+          // );
+          
+          // Save the order to backend first
+          final apiService = ApiService();
+          Order? savedOrder;
+          
+          if (orderProvider.currentOrderId != null) {
+            // Update existing order
+            savedOrder = await apiService.updateOrder(
+              orderProvider.currentOrderId!,
+              widget.serviceType,
+              orderItems.map((item) => item.toJson()).toList(),
+              orderProvider.subtotal,
+              orderProvider.tax,
+              0, // discount
+              orderProvider.total,
+              paymentMethod: 'cash' // Set payment method
             );
-          } else if (text == "Cash".tr()) {
-            final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-            
-            // Check if cart is empty
-            if (orderProvider.cartItems.isEmpty) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                 SnackBar(content: Text('Please add items to your order'.tr())),
-              );
-              return;
-            }
-            
-            // Navigate to order confirmation screen
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (ctx) => OrderConfirmationScreen(
-                  serviceType: widget.serviceType,
-                ),
-              ),
+          } else {
+            // Create new order
+            savedOrder = await apiService.createOrder(
+              widget.serviceType,
+              orderItems.map((item) => item.toJson()).toList(),
+              orderProvider.subtotal,
+              orderProvider.tax,
+              0, // discount
+              orderProvider.total,
             );
+            
+            // Set payment method after creation if needed
+            if (savedOrder != null) {
+              await apiService.updateOrderPaymentMethod(savedOrder.id!, 'cash');
+            }
           }
-        },
-        style: OutlinedButton.styleFrom(
-          backgroundColor: color,
-          side: BorderSide(color: Colors.grey.shade300),
-        ),
-        child: Text(text, style: const TextStyle(color: Colors.black)),
+          
+          if (savedOrder == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to save order')),
+            );
+            return;
+          }
+          
+          // Convert to OrderHistory
+          final orderHistory = OrderHistory.fromOrder(savedOrder);
+          
+          // // Refresh order list
+          // Provider.of<OrderHistoryProvider>(context, listen: false)
+          //   .loadOrdersByServiceType(widget.serviceType);
+          
+          // Navigate to TenderScreen with cash preselected
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TenderScreen(
+                order: orderHistory,
+                isEdited: orderProvider.currentOrderId != null,
+                taxRate: Provider.of<SettingsProvider>(context, listen: false).taxRate,
+                preselectedPaymentMethod: 'Cash',
+              ),
+            ),
+          );
+        } 
+        else if (text == "Order".tr()) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (ctx) => OrderConfirmationScreen(
+                serviceType: widget.serviceType,
+              ),
+            ),
+          );
+        }
+      },
+      style: OutlinedButton.styleFrom(
+        backgroundColor: color,
+        side: BorderSide(color: Colors.grey.shade300),
       ),
-    );
-  }
+      child: Text(text, style: const TextStyle(color: Colors.black)),
+    ),
+  );
+}
 }

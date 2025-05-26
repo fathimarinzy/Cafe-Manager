@@ -63,27 +63,22 @@ class OrderHistoryProvider with ChangeNotifier {
   }
 
   // Load orders for a specific service type
-  Future<void> loadOrdersByServiceType(String serviceType) async {
-    _setLoading(true);
-    _serviceTypeFilter = serviceType;
+ Future<void> loadOrdersByServiceType(String serviceType) async {
+  try {
+    _isLoading = true;
+    notifyListeners();
     
-    try {
-      final List<Order> apiOrders = await _apiService.getOrdersByServiceType(serviceType);
-      _orders = apiOrders.map((order) => OrderHistory.fromOrder(order)).toList();
-      
-      // Sort by newest first
-      _orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      
-      // Apply current filters
-      _applyFilters();
-    } catch (e) {
-      _errorMessage = 'Failed to load orders: $e';
-      debugPrint(_errorMessage);
-    } finally {
-      _setLoading(false);
-    }
+    final orders = await _apiService.getOrdersByServiceType(serviceType);
+    _orders = orders.map((order) => OrderHistory.fromOrder(order)).toList();
+    _errorMessage = '';
+  } catch (e) {
+    _errorMessage = e.toString();
+    debugPrint('Error loading orders: $e');
+  } finally {
+    _isLoading = false;
+    notifyListeners();
   }
-
+}
   // Load orders for a specific table
   Future<void> loadOrdersByTable(String tableInfo) async {
     _setLoading(true);

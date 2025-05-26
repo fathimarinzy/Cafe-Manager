@@ -15,13 +15,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import '../providers/table_provider.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
+import '../providers/order_provider.dart';
 
 class TenderScreen extends StatefulWidget {
   final OrderHistory order;
   final bool isEdited;
   final double taxRate;
+  final String? preselectedPaymentMethod; 
 
-  const TenderScreen({super.key, required this.order,this.isEdited = false, this.taxRate = 5.0,});
+  const TenderScreen({super.key, required this.order,this.isEdited = false, this.taxRate = 5.0,this.preselectedPaymentMethod,});
 
   @override
   State<TenderScreen> createState() => _TenderScreenState();
@@ -64,8 +66,15 @@ class _TenderScreenState extends State<TenderScreen> {
   void initState() {
     super.initState();
      // Initialize balance amount based on order status
-  _orderStatus = widget.order.status; // Initialize with current status
-  
+    _orderStatus = widget.order.status; // Initialize with current status
+    
+
+       // Set the preselected payment method if provided
+  if (widget.preselectedPaymentMethod != null) {
+      _selectedPaymentMethod = widget.preselectedPaymentMethod;
+      _isCashSelected = _selectedPaymentMethod == 'Cash';
+    }
+    
   // If order is already completed, set balance to 0 and paid to total
   if (_orderStatus.toLowerCase() == 'completed') {
     _balanceAmount = 0.0;
@@ -1124,6 +1133,11 @@ Future<void> _showBillPreviewDialog() async {
         debugPrint('Table $tableNumber status set to available after cash payment');
       }
     }
+    // Clear the cart items after successful payment
+    if (mounted) {
+      final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+      orderProvider.clearCart(); // This will clear all items from the current cart
+    }
     if (mounted) {
       await _showBalanceMessageDialog(change);
     }
@@ -1961,21 +1975,21 @@ Future<void> _showBillPreviewDialog() async {
             const SizedBox(width: 8), // Spacing between buttons
             
             // Save button
-            ElevatedButton(
-              onPressed: () {
-                // Save logic - just go back without finalizing
-                Navigator.of(context).pop();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue.shade100,
-                foregroundColor: Colors.blue.shade900,
-                elevation: 1,
-                padding: const EdgeInsets.symmetric(horizontal: 55, vertical: 10),
-                minimumSize: const Size(10, 36),
-                textStyle: const TextStyle(fontSize: 12),
-              ),
-              child: const Text('Save'),
-            ),
+            // ElevatedButton(
+            //   onPressed: () {
+            //     // Save logic - just go back without finalizing
+            //     Navigator.of(context).pop();
+            //   },
+            //   style: ElevatedButton.styleFrom(
+            //     backgroundColor: Colors.blue.shade100,
+            //     foregroundColor: Colors.blue.shade900,
+            //     elevation: 1,
+            //     padding: const EdgeInsets.symmetric(horizontal: 55, vertical: 10),
+            //     minimumSize: const Size(10, 36),
+            //     textStyle: const TextStyle(fontSize: 12),
+            //   ),
+            //   child: const Text('Save'),
+            // ),
             
             const SizedBox(width: 8), // Spacing between buttons
             
