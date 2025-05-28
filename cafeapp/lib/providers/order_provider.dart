@@ -29,7 +29,10 @@ class OrderProvider with ChangeNotifier {
     _currentOrderId = orderId;
     notifyListeners();
   }
-  
+  void resetCurrentOrder() {
+  _currentOrderId = null;
+  notifyListeners();
+}
   // Track selected person for order
   Person? _selectedPerson;
   

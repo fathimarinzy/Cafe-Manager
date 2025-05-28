@@ -375,6 +375,11 @@ Future<void> _showBillPreviewDialog() async {
         debugPrint('Table $tableNumber status set to available after payment');
       }
     }
+    // Clear the cart items after successful payment
+    if (mounted) {
+      final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+      orderProvider.clearCart(); // This will clear all items from the current cart
+    }
     if (mounted) {
       if (change > 0) {
         await _showBalanceMessageDialog(change);

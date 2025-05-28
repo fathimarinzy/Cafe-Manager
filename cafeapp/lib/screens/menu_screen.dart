@@ -1249,7 +1249,7 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
       ),
     );
   }
-  Widget _buildPaymentButton(String text, Color color) {
+ Widget _buildPaymentButton(String text, Color color) {
   return SizedBox(
     width: 130,
     height: 50,
@@ -1257,56 +1257,34 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
       onPressed: () async {
         final orderProvider = Provider.of<OrderProvider>(context, listen: false);
         
-        // Check if cart is empty
         if (orderProvider.cartItems.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Please add items to your order'.tr())),
           );
           return;
         }
-        
-        if (text == "Cash".tr()) {
-          // Convert MenuItems to OrderItems
+
+        try {
+          final apiService = ApiService();
+          Order? savedOrder;
+          final paymentMethod = text == "Cash".tr() ? 'cash' : 'bank';
+          
+          // Convert cart items to order items
           final orderItems = orderProvider.cartItems.map((menuItem) => 
             OrderItem(
-              id: int.parse(menuItem.id), // Convert String to int if needed
+              id: int.parse(menuItem.id),
               name: menuItem.name,
               price: menuItem.price,
               quantity: menuItem.quantity,
               kitchenNote: menuItem.kitchenNote,
             )
           ).toList();
-          
-          // Create an Order object from the current cart
-          // final order = Order(
-          //   id: orderProvider.currentOrderId,
-          //   serviceType: widget.serviceType,
-          //   items: orderItems,
-          //   subtotal: orderProvider.subtotal,
-          //   tax: orderProvider.tax,
-          //   discount: 0,
-          //   total: orderProvider.total,
-          //   status: 'pending',
-          // );
-          
-          // Save the order to backend first
-          final apiService = ApiService();
-          Order? savedOrder;
-          
-          if (orderProvider.currentOrderId != null) {
-            // Update existing order
-            savedOrder = await apiService.updateOrder(
-              orderProvider.currentOrderId!,
-              widget.serviceType,
-              orderItems.map((item) => item.toJson()).toList(),
-              orderProvider.subtotal,
-              orderProvider.tax,
-              0, // discount
-              orderProvider.total,
-              paymentMethod: 'cash' // Set payment method
-            );
-          } else {
-            // Create new order
+
+          // For both Cash and Tender buttons
+          if (text == "Cash".tr() || text == "Tender".tr()) {
+            // ALWAYS CREATE NEW ORDER - Clear existing ID first
+            orderProvider.setCurrentOrderId(null);
+            
             savedOrder = await apiService.createOrder(
               widget.serviceType,
               orderItems.map((item) => item.toJson()).toList(),
@@ -1314,49 +1292,44 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
               orderProvider.tax,
               0, // discount
               orderProvider.total,
+              paymentMethod: paymentMethod
             );
-            
-            // Set payment method after creation if needed
-            if (savedOrder != null) {
-              await apiService.updateOrderPaymentMethod(savedOrder.id!, 'cash');
+
+            if (savedOrder == null) {
+              throw Exception('Failed to create order');
             }
-          }
-          
-          if (savedOrder == null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Failed to save order')),
+
+            // Update the current order ID in provider
+            orderProvider.setCurrentOrderId(savedOrder.id);
+
+            // Navigate to TenderScreen
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => TenderScreen(
+                  order: OrderHistory.fromOrder(savedOrder!),
+                  isEdited: false, // Always false since we're creating new
+                  taxRate: Provider.of<SettingsProvider>(context, listen: false).taxRate,
+                  preselectedPaymentMethod: text == "Cash".tr() ? 'Cash' : 'Bank',
+                ),
+              ),
             );
-            return;
+          } 
+          else if (text == "Order".tr()) {
+            // Existing order flow
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (ctx) => OrderConfirmationScreen(
+                  serviceType: widget.serviceType,
+                ),
+              ),
+            );
           }
-          
-          // Convert to OrderHistory
-          final orderHistory = OrderHistory.fromOrder(savedOrder);
-          
-          // // Refresh order list
-          // Provider.of<OrderHistoryProvider>(context, listen: false)
-          //   .loadOrdersByServiceType(widget.serviceType);
-          
-          // Navigate to TenderScreen with cash preselected
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => TenderScreen(
-                order: orderHistory,
-                isEdited: orderProvider.currentOrderId != null,
-                taxRate: Provider.of<SettingsProvider>(context, listen: false).taxRate,
-                preselectedPaymentMethod: 'Cash',
-              ),
-            ),
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: ${e.toString()}')),
           );
-        } 
-        else if (text == "Order".tr()) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (ctx) => OrderConfirmationScreen(
-                serviceType: widget.serviceType,
-              ),
-            ),
-          );
+          debugPrint('Error processing payment: $e');
         }
       },
       style: OutlinedButton.styleFrom(
