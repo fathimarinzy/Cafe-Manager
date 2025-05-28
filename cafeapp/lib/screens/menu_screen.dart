@@ -1249,7 +1249,7 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
       ),
     );
   }
- Widget _buildPaymentButton(String text, Color color) {
+  Widget _buildPaymentButton(String text, Color color) {
   return SizedBox(
     width: 130,
     height: 50,
@@ -1280,8 +1280,8 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
             )
           ).toList();
 
-          // For both Cash and Tender buttons
-          if (text == "Cash".tr() || text == "Tender".tr()) {
+          // For Cash button
+          if (text == "Cash".tr()) {
             // ALWAYS CREATE NEW ORDER - Clear existing ID first
             orderProvider.setCurrentOrderId(null);
             
@@ -1310,11 +1310,47 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
                   order: OrderHistory.fromOrder(savedOrder!),
                   isEdited: false, // Always false since we're creating new
                   taxRate: Provider.of<SettingsProvider>(context, listen: false).taxRate,
-                  preselectedPaymentMethod: text == "Cash".tr() ? 'Cash' : 'Bank',
+                  preselectedPaymentMethod: 'Cash',
                 ),
               ),
             );
           } 
+          // For Tender button - show bank payment dialog
+          else if (text == "Tender".tr()) {
+            // ALWAYS CREATE NEW ORDER - Clear existing ID first
+            orderProvider.setCurrentOrderId(null);
+            
+            savedOrder = await apiService.createOrder(
+              widget.serviceType,
+              orderItems.map((item) => item.toJson()).toList(),
+              orderProvider.subtotal,
+              orderProvider.tax,
+              0, // discount
+              orderProvider.total,
+              paymentMethod: paymentMethod
+            );
+
+            if (savedOrder == null) {
+              throw Exception('Failed to create order');
+            }
+
+            // Update the current order ID in provider
+            orderProvider.setCurrentOrderId(savedOrder.id);
+
+            // Navigate to TenderScreen with Bank preselected and show bank dialog
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => TenderScreen(
+                  order: OrderHistory.fromOrder(savedOrder!),
+                  isEdited: false,
+                  taxRate: Provider.of<SettingsProvider>(context, listen: false).taxRate,
+                  preselectedPaymentMethod: 'Bank',
+                  showBankDialogOnLoad: true, // Add this parameter to trigger bank dialog
+                ),
+              ),
+            );
+          }
           else if (text == "Order".tr()) {
             // Existing order flow
             Navigator.of(context).push(

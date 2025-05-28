@@ -22,8 +22,9 @@ class TenderScreen extends StatefulWidget {
   final bool isEdited;
   final double taxRate;
   final String? preselectedPaymentMethod; 
+  final bool showBankDialogOnLoad; 
 
-  const TenderScreen({super.key, required this.order,this.isEdited = false, this.taxRate = 5.0,this.preselectedPaymentMethod,});
+  const TenderScreen({super.key, required this.order,this.isEdited = false, this.taxRate = 5.0,this.preselectedPaymentMethod,this.showBankDialogOnLoad = false,});
 
   @override
   State<TenderScreen> createState() => _TenderScreenState();
@@ -68,6 +69,7 @@ class _TenderScreenState extends State<TenderScreen> {
      // Initialize balance amount based on order status
     _orderStatus = widget.order.status; // Initialize with current status
     
+    
 
        // Set the preselected payment method if provided
   if (widget.preselectedPaymentMethod != null) {
@@ -86,6 +88,11 @@ class _TenderScreenState extends State<TenderScreen> {
   }
  
     debugPrint('Initial balance: $_balanceAmount, Initial paid: $_paidAmount, Status: $_orderStatus');
+    if (widget.showBankDialogOnLoad) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showBankPaymentDialog(); // This will automatically show the bank payment dialog
+    });
+  }
   }
   
   @override
