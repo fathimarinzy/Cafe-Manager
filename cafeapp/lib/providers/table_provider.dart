@@ -39,6 +39,7 @@ class TableProvider with ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final String tablesJson = jsonEncode(_tables.map((table) => table.toJson()).toList());
     await prefs.setString(_storageKey, tablesJson);
+     await prefs.reload();
   }
 
   Future<void> addTable() async {

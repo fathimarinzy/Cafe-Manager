@@ -120,6 +120,9 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
                         isThreeLine: true,
                         onTap: () {
                           // You can add details view or edit functionality here
+                           // Return the selected person when tapped
+                            Navigator.of(context).pop(person);
+
                         },
                       ),
                     );

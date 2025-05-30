@@ -16,6 +16,7 @@ import 'package:flutter/services.dart';
 import '../providers/table_provider.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import '../providers/order_provider.dart';
+import '../models/person.dart';
 
 class TenderScreen extends StatefulWidget {
   final OrderHistory order;
@@ -23,8 +24,9 @@ class TenderScreen extends StatefulWidget {
   final double taxRate;
   final String? preselectedPaymentMethod; 
   final bool showBankDialogOnLoad; 
+  final Person? customer;
 
-  const TenderScreen({super.key, required this.order,this.isEdited = false, this.taxRate = 5.0,this.preselectedPaymentMethod,this.showBankDialogOnLoad = false,});
+  const TenderScreen({super.key, required this.order,this.isEdited = false, this.taxRate = 5.0,this.preselectedPaymentMethod,this.showBankDialogOnLoad = false,this.customer,});
 
   @override
   State<TenderScreen> createState() => _TenderScreenState();
@@ -1453,9 +1455,12 @@ Future<void> _showBillPreviewDialog() async {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [ 
                 Text('Customer :', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                Text('NA', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                 Text(
+                widget.customer?.name ?? 'NA',
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              ),
               ],
             ),
           ),

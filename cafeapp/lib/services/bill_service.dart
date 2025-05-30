@@ -759,8 +759,8 @@ class BillService {
                         fontWeight: pw.FontWeight.bold
                       )
                     ),
-                    if (tableInfo != null)
-                      pw.Text(tableInfo, style: pw.TextStyle(font: ttf, fontSize: 12)),
+                    // if (tableInfo != null)
+                    //   pw.Text(tableInfo, style: pw.TextStyle(font: ttf, fontSize: 12)),
                   ],
                 ),
               ),
@@ -855,22 +855,22 @@ class BillService {
               pw.Divider(thickness: 1),
               
               // Footer with table number or service type for reference
-              pw.SizedBox(height: 10),
-              pw.Center(
-                child: pw.Column(
-                  children: [
-                    if (tableInfo != null)
-                      pw.Text(
-                        'TABLE: ${tableInfo.split("Table ").last}', 
-                        style: pw.TextStyle(
-                          font: ttf, 
-                          fontSize: 14,
-                          fontWeight: pw.FontWeight.bold
-                        )
-                      ),
-                  ],
-                ),
-              ),
+              // pw.SizedBox(height: 10),
+              // pw.Center(
+              //   child: pw.Column(
+              //     children: [
+              //       if (tableInfo != null)
+              //         pw.Text(
+              //           'TABLE: ${tableInfo.split("Table ").last}', 
+              //           style: pw.TextStyle(
+              //             font: ttf, 
+              //             fontSize: 14,
+              //             fontWeight: pw.FontWeight.bold
+              //           )
+              //         ),
+              //     ],
+              //   ),
+              // ),
             ],
           );
         },

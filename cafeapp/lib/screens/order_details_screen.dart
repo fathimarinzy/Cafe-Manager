@@ -9,6 +9,7 @@ import '../models/menu_item.dart';
 import 'tender_screen.dart';
 import '../services/api_service.dart';
 import '../providers/settings_provider.dart';
+import '../services/bill_service.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
   final int orderId;
@@ -158,6 +159,10 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           }
         });
       }
+       // Print kitchen receipt after successful update
+    if (updatedOrder != null) {
+      await _printKitchenReceipt();
+    }
       
       return updatedOrder != null;
     } catch (e) {
@@ -170,6 +175,58 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       return true;
     }
   }
+  Future<void> _printKitchenReceipt() async {
+  if (_order == null) return;
+  
+  try {
+    // Convert order items to MenuItem objects
+    final items = _order!.items.map((item) => 
+      MenuItem(
+        id: item.id.toString(),
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        imageUrl: '',
+        category: '',
+        kitchenNote: item.kitchenNote,
+      )
+    ).toList();
+    
+    // Extract tableInfo if this is a dining order
+    String? tableInfo;
+    if (_order!.serviceType.startsWith('Dining - Table')) {
+      tableInfo = _order!.serviceType;
+    }
+    
+    // Print kitchen receipt
+    final printed = await BillService.printKitchenOrderReceipt(
+      items: items,
+      serviceType: _order!.serviceType,
+      tableInfo: tableInfo,
+      orderNumber: _order!.orderNumber,
+      context: context,
+    );
+    
+    if (!printed['success'] && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to print kitchen receipt: ${printed['message']}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  } catch (e) {
+    debugPrint('Error printing kitchen receipt: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error printing kitchen receipt: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+}
 
   double _calculateSubtotal(List<OrderItem> items) {
     return items.fold(0.0, (sum, item) => sum + (item.price * item.quantity));

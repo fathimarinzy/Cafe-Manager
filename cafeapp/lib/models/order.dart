@@ -13,6 +13,8 @@ class Order {
   final double total;
   final String status;
   final String? createdAt;
+  final String? customerId; // Add customer reference
+
 
   Order({
     this.id,
@@ -24,6 +26,7 @@ class Order {
     required this.total,
     this.status = 'pending',
     this.createdAt,
+    this.customerId,
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
@@ -39,6 +42,7 @@ class Order {
       total: (json['total'] as num).toDouble(),
       status: json['status'] as String? ?? 'pending',
       createdAt: json['createdAt'] as String?,
+       customerId: json['customerId'] as String?,
     );
   }
 
@@ -52,6 +56,9 @@ class Order {
       'total': total,
       'status': status,
       'createdAt': createdAt,
+      'customerId': customerId,
+      if (customerId != null) 'customerId': customerId,
+
     };
   }
   

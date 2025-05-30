@@ -331,7 +331,7 @@ Map<String, dynamic> _processReportData(Map<String, dynamic> rawData) {
 
   // Update the createOrder method in ApiService to include kitchen notes
 
-    Future<Order?> createOrder(String serviceType, List<Map<String, dynamic>> items, double subtotal, double tax, double discount, double total, {String paymentMethod = 'cash'}) async {
+    Future<Order?> createOrder(String serviceType, List<Map<String, dynamic>> items, double subtotal, double tax, double discount, double total, {String paymentMethod = 'cash',String? customerId}) async {
       final token = await getToken();
       if (token == null) return null;
       
@@ -357,6 +357,8 @@ Map<String, dynamic> _processReportData(Map<String, dynamic> rawData) {
           'discount': discount,
           'total': total,
           'paymentMethod': paymentMethod,
+          if (customerId != null) 'customerId': customerId,
+
         }),
       );
 

@@ -23,6 +23,7 @@ import '../models/order.dart';
 import '../models/order_item.dart';
 // import '../providers/order_history_provider.dart';
 import '../services/api_service.dart';
+import '../models/person.dart';
 
 class MenuScreen extends StatefulWidget {
   final String serviceType;
@@ -1263,6 +1264,23 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
           );
           return;
         }
+          // For Credit button - just navigate to SearchPersonScreen
+        if (text == "Credit".tr()) {
+          final selectedPerson = await Navigator.push<Person>(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const SearchPersonScreen(),
+            ),
+          );
+          
+          if (selectedPerson != null) {
+            orderProvider.setSelectedPerson(selectedPerson);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Customer selected: ${selectedPerson.name}')),
+            );
+          }
+          return;
+        }
 
         try {
           final apiService = ApiService();
@@ -1292,7 +1310,8 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
               orderProvider.tax,
               0, // discount
               orderProvider.total,
-              paymentMethod: paymentMethod
+              paymentMethod: paymentMethod,
+              customerId: orderProvider.selectedPerson?.id, 
             );
 
             if (savedOrder == null) {
@@ -1311,6 +1330,7 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
                   isEdited: false, // Always false since we're creating new
                   taxRate: Provider.of<SettingsProvider>(context, listen: false).taxRate,
                   preselectedPaymentMethod: 'Cash',
+                  customer: orderProvider.selectedPerson, 
                 ),
               ),
             );
@@ -1327,7 +1347,9 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
               orderProvider.tax,
               0, // discount
               orderProvider.total,
-              paymentMethod: paymentMethod
+              paymentMethod: paymentMethod,
+              customerId: orderProvider.selectedPerson?.id, 
+
             );
 
             if (savedOrder == null) {
@@ -1347,6 +1369,7 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
                   taxRate: Provider.of<SettingsProvider>(context, listen: false).taxRate,
                   preselectedPaymentMethod: 'Bank',
                   showBankDialogOnLoad: true, // Add this parameter to trigger bank dialog
+                  customer: orderProvider.selectedPerson,
                 ),
               ),
             );
