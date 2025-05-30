@@ -444,6 +444,11 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
       final result = await orderProvider.processOrderWithBill(context);
       
       if (!mounted) return;
+      if (mounted) {
+        final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+        orderProvider.clearSelectedPerson(); // Add this line
+        orderProvider.clearCart();
+      }
       
       if (result['success']) {
         // Show success message

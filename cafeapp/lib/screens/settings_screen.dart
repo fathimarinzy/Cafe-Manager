@@ -942,7 +942,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const Divider(),
                 ListTile(
                   title: const Text('SIMS RESTO CAFE'),
-                  subtitle: const Text('Version 1.0.0'),
+                  subtitle: const Text('Version 1.0.1'),
                   leading: const Icon(Icons.info_outline),
                 ),
                 const SizedBox(height: 40),

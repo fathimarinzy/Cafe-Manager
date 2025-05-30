@@ -46,6 +46,10 @@ class OrderProvider with ChangeNotifier {
     _selectedPerson = person;
     notifyListeners();
   }
+  void clearSelectedPerson() {
+  _selectedPerson = null;
+  notifyListeners();
+}
 
   // Set current service type and notify listeners
   void setCurrentServiceType(String serviceType, [BuildContext? context]) {

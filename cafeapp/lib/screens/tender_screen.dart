@@ -387,6 +387,7 @@ Future<void> _showBillPreviewDialog() async {
     // Clear the cart items after successful payment
     if (mounted) {
       final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+      orderProvider.clearSelectedPerson(); 
       orderProvider.clearCart(); // This will clear all items from the current cart
     }
     if (mounted) {
@@ -1150,6 +1151,7 @@ Future<void> _showBillPreviewDialog() async {
     // Clear the cart items after successful payment
     if (mounted) {
       final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+      orderProvider.clearSelectedPerson(); 
       orderProvider.clearCart(); // This will clear all items from the current cart
     }
     if (mounted) {

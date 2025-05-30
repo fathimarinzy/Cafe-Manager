@@ -63,6 +63,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
   WidgetsBinding.instance.addPostFrameCallback((_) async {
     final orderProvider = Provider.of<OrderProvider>(context, listen: false);
     orderProvider.setCurrentServiceType(widget.serviceType);
+     orderProvider.clearSelectedPerson();
     
     // If an existing order ID was provided
     if (widget.existingOrderId != null) {
