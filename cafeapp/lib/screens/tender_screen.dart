@@ -17,6 +17,7 @@ import '../providers/table_provider.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import '../providers/order_provider.dart';
 import '../models/person.dart';
+import '../models/order.dart';
 
 class TenderScreen extends StatefulWidget {
   final OrderHistory order;
@@ -306,27 +307,59 @@ Future<void> _showBillPreviewDialog() async {
   }
 
   try {
-    // First update the order with the payment method
-    final apiService = ApiService();
-      // Store the correct payment method
+     // Store the correct payment method
     final paymentMethod = _selectedPaymentMethod!.toLowerCase();
-    // Update the order status to completed with the selected payment method
-    await apiService.updateOrder(
-      widget.order.id,
-      widget.order.serviceType,
-      widget.order.items.map((item) => {
-        'id': item.id,
-        'name': item.name,
-        'price': item.price,
-        'quantity': item.quantity,
-        'kitchenNote': item.kitchenNote,
-      }).toList(),
-      widget.order.total - (widget.order.total * (widget.taxRate / 100)),
-      widget.order.total * (widget.taxRate / 100),
-      0, // No discount info in OrderHistory
-      widget.order.total,
-      paymentMethod: paymentMethod // Pass the payment method
-    );
+    final apiService = ApiService();
+    Order? savedOrder;
+    
+    // Check if we're updating an existing order or creating a new one
+    if (widget.order.id != 0) {
+      // Update existing order
+      savedOrder = await apiService.updateOrder(
+        widget.order.id,
+        widget.order.serviceType,
+        widget.order.items.map((item) => {
+          'id': item.id,
+          'name': item.name,
+          'price': item.price,
+          'quantity': item.quantity,
+          'kitchenNote': item.kitchenNote,
+        }).toList(),
+        widget.order.total - (widget.order.total * (widget.taxRate / 100)),
+        widget.order.total * (widget.taxRate / 100),
+        0, // No discount
+        widget.order.total,
+        paymentMethod: paymentMethod
+      );
+    } else {
+      // Create a new order
+      savedOrder = await apiService.createOrder(
+        widget.order.serviceType,
+        widget.order.items.map((item) => {
+          'id': item.id,
+          'name': item.name,
+          'price': item.price,
+          'quantity': item.quantity,
+          'kitchenNote': item.kitchenNote,
+        }).toList(),
+        widget.order.total - (widget.order.total * (widget.taxRate / 100)),
+        widget.order.total * (widget.taxRate / 100),
+        0, // No discount
+        widget.order.total,
+        paymentMethod: paymentMethod,
+        customerId: widget.customer?.id,
+      );
+    }
+    
+    if (savedOrder == null) {
+      throw Exception('Failed to process order in the system');
+    }
+    
+    // Update the widget order ID if it was a new order
+    if (widget.order.id == 0) {
+      widget.order.id = savedOrder.id ?? 0;
+    }
+   
 
     final statusUpdated = await _updateOrderStatus('completed');
     
@@ -1079,26 +1112,57 @@ Future<void> _showBillPreviewDialog() async {
   });
 
   try {
-      // First update the order with the payment method
-    final apiService = ApiService();
+     final apiService = ApiService();
+    Order? savedOrder;
     
-    // Update the order with the selected payment method (always 'cash' for this method)
-    await apiService.updateOrder(
-      widget.order.id,
-      widget.order.serviceType,
-      widget.order.items.map((item) => {
-        'id': item.id,
-        'name': item.name,
-        'price': item.price,
-        'quantity': item.quantity,
-        'kitchenNote': item.kitchenNote,
-      }).toList(),
-      widget.order.total - (widget.order.total * (widget.taxRate / 100)),
-      widget.order.total * (widget.taxRate / 100),
-      0, // No discount info in OrderHistory
-      widget.order.total,
-      paymentMethod: 'cash' // Always set to 'cash' for cash payments
-    );
+    // Check if we're updating an existing order or creating a new one
+    if (widget.order.id != 0) {
+      // Update existing order
+      savedOrder = await apiService.updateOrder(
+        widget.order.id,
+        widget.order.serviceType,
+        widget.order.items.map((item) => {
+          'id': item.id,
+          'name': item.name,
+          'price': item.price,
+          'quantity': item.quantity,
+          'kitchenNote': item.kitchenNote,
+        }).toList(),
+        widget.order.total - (widget.order.total * (widget.taxRate / 100)),
+        widget.order.total * (widget.taxRate / 100),
+        0, // No discount
+        widget.order.total,
+        paymentMethod: 'cash'
+      );
+    } else {
+      // Create a new order
+      savedOrder = await apiService.createOrder(
+        widget.order.serviceType,
+        widget.order.items.map((item) => {
+          'id': item.id,
+          'name': item.name,
+          'price': item.price,
+          'quantity': item.quantity,
+          'kitchenNote': item.kitchenNote,
+        }).toList(),
+        widget.order.total - (widget.order.total * (widget.taxRate / 100)),
+        widget.order.total * (widget.taxRate / 100),
+        0, // No discount
+        widget.order.total,
+        paymentMethod: 'cash',
+        customerId: widget.customer?.id,
+      );
+    }
+    
+    if (savedOrder == null) {
+      throw Exception('Failed to process order in the system');
+    }
+    
+    // Update the widget order ID if it was a new order
+    if (widget.order.id == 0) {
+      widget.order.id = savedOrder.id ?? 0;
+    }
+      
     final statusUpdated = await _updateOrderStatus('completed');
     
     if (!statusUpdated) {

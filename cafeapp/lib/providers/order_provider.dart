@@ -222,7 +222,7 @@ class OrderProvider with ChangeNotifier {
     
     // Get tax rate from SettingsProvider (need to pass context)
     final BuildContext? context = _context;
-    double taxRate = 5.0; // Default value
+    double taxRate = 0.0; // Default value
     
     if (context != null && context.mounted) {
       final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);

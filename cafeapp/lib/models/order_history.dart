@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 
 /// OrderHistory model to represent orders in the history list
 class OrderHistory {
-  final int id;
+  int id;
   final String serviceType;
   final double total;
   final String status;

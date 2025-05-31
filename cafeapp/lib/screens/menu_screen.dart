@@ -22,7 +22,7 @@ import '../models/order_history.dart';
 import '../models/order.dart';
 import '../models/order_item.dart';
 // import '../providers/order_history_provider.dart';
-import '../services/api_service.dart';
+// import '../services/api_service.dart';
 import '../models/person.dart';
 
 class MenuScreen extends StatefulWidget {
@@ -1265,7 +1265,8 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
           );
           return;
         }
-          // For Credit button - just navigate to SearchPersonScreen
+        
+        // For Credit button - just navigate to SearchPersonScreen
         if (text == "Credit".tr()) {
           final selectedPerson = await Navigator.push<Person>(
             context,
@@ -1284,99 +1285,62 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
         }
 
         try {
-          final apiService = ApiService();
-          Order? savedOrder;
-          final paymentMethod = text == "Cash".tr() ? 'cash' : 'bank';
-          
-          // Convert cart items to order items
-          final orderItems = orderProvider.cartItems.map((menuItem) => 
-            OrderItem(
-              id: int.parse(menuItem.id),
-              name: menuItem.name,
-              price: menuItem.price,
-              quantity: menuItem.quantity,
-              kitchenNote: menuItem.kitchenNote,
-            )
-          ).toList();
+          // For Cash or Tender button - navigate to TenderScreen first, then create/update order
+          if (text == "Cash".tr() || text == "Tender".tr()) {
+            // Convert cart items to order items
+            final orderItems = orderProvider.cartItems.map((menuItem) => 
+              OrderItem(
+                id: int.parse(menuItem.id),
+                name: menuItem.name,
+                price: menuItem.price,
+                quantity: menuItem.quantity,
+                kitchenNote: menuItem.kitchenNote,
+              )
+            ).toList();
 
-          // For Cash button
-          if (text == "Cash".tr()) {
-            // ALWAYS CREATE NEW ORDER - Clear existing ID first
-            orderProvider.setCurrentOrderId(null);
+            // Use existing order ID if we're editing an order
+            final orderId = widget.existingOrderId;
             
-            savedOrder = await apiService.createOrder(
-              widget.serviceType,
-              orderItems.map((item) => item.toJson()).toList(),
-              orderProvider.subtotal,
-              orderProvider.tax,
-              0, // discount
-              orderProvider.total,
-              paymentMethod: paymentMethod,
-              customerId: orderProvider.selectedPerson?.id, 
+            // Create a temporary Order object for TenderScreen
+            final tempOrder = Order(
+              id: orderId, // Pass existing ID if editing an order
+              serviceType: widget.serviceType,
+              items: orderItems,
+              subtotal: orderProvider.subtotal,
+              tax: orderProvider.tax,
+              discount: 0.0,
+              total: orderProvider.total,
+              status: 'pending',
+              customerId: orderProvider.selectedPerson?.id
             );
+            
+            // Convert to OrderHistory for TenderScreen
+            final orderHistory = OrderHistory.fromOrder(tempOrder);
 
-            if (savedOrder == null) {
-              throw Exception('Failed to create order');
-            }
-
-            // Update the current order ID in provider
-            orderProvider.setCurrentOrderId(savedOrder.id);
-
-            // Navigate to TenderScreen
-            Navigator.push(
+            // Navigate to TenderScreen with the temporary order
+            final result = await Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => TenderScreen(
-                  order: OrderHistory.fromOrder(savedOrder!),
-                  isEdited: false, // Always false since we're creating new
+                  order: orderHistory,
+                  isEdited: orderId != null, // Set isEdited based on whether we have an existing order ID
                   taxRate: Provider.of<SettingsProvider>(context, listen: false).taxRate,
-                  preselectedPaymentMethod: 'Cash',
-                  customer: orderProvider.selectedPerson, 
-                ),
-              ),
-            );
-          } 
-          // For Tender button - show bank payment dialog
-          else if (text == "Tender".tr()) {
-            // ALWAYS CREATE NEW ORDER - Clear existing ID first
-            orderProvider.setCurrentOrderId(null);
-            
-            savedOrder = await apiService.createOrder(
-              widget.serviceType,
-              orderItems.map((item) => item.toJson()).toList(),
-              orderProvider.subtotal,
-              orderProvider.tax,
-              0, // discount
-              orderProvider.total,
-              paymentMethod: paymentMethod,
-              customerId: orderProvider.selectedPerson?.id, 
-
-            );
-
-            if (savedOrder == null) {
-              throw Exception('Failed to create order');
-            }
-
-            // Update the current order ID in provider
-            orderProvider.setCurrentOrderId(savedOrder.id);
-
-            // Navigate to TenderScreen with Bank preselected and show bank dialog
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => TenderScreen(
-                  order: OrderHistory.fromOrder(savedOrder!),
-                  isEdited: false,
-                  taxRate: Provider.of<SettingsProvider>(context, listen: false).taxRate,
-                  preselectedPaymentMethod: 'Bank',
-                  showBankDialogOnLoad: true, // Add this parameter to trigger bank dialog
+                  preselectedPaymentMethod: text == "Cash".tr() ? 'Cash' : 'Bank',
+                  showBankDialogOnLoad: text == "Tender".tr(),
                   customer: orderProvider.selectedPerson,
                 ),
               ),
             );
+            
+            // If we got a result back, it means the order was successfully processed
+            if (result == true) {
+              // Clear the cart after successful payment
+              orderProvider.clearCart();
+              orderProvider.clearSelectedPerson();
+            }
           }
           else if (text == "Order".tr()) {
-            // Existing order flow
+            // Existing order flow - send to OrderConfirmationScreen
             Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (ctx) => OrderConfirmationScreen(
@@ -1400,4 +1364,5 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
     ),
   );
 }
+ 
 }
