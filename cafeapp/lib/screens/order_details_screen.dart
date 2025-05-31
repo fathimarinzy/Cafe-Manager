@@ -26,7 +26,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   String _errorMessage = '';
   bool _wasEdited = false;
   List<OrderItem>? _originalItems;
-  double _taxRate = 5.0;
+  double _taxRate = 0.0;
 
   @override
   void initState() {

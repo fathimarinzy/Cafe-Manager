@@ -40,7 +40,7 @@ class BillService {
      final businessInfo = await getBusinessInfo();
     
     // If tax rate is not provided, use a default
-    final effectiveTaxRate = taxRate ?? 5.0;
+    final effectiveTaxRate = taxRate ?? 0.0;
     
     // Try to load custom font if available
     pw.Font? ttf;
@@ -428,7 +428,7 @@ class BillService {
   static Future<bool> printThermalBill(OrderHistory order, {bool isEdited = false, double? taxRate}) async {
     try {
       // Get the tax rate from settings if not provided
-      final effectiveTaxRate = taxRate ?? 5.0;
+      final effectiveTaxRate = taxRate ?? 0.0;
       
       // Convert order items to MenuItem objects
       final items = order.items.map((item) => 
@@ -487,7 +487,7 @@ class BillService {
   }) async {
     try {
       // Get the tax rate from settings if not provided
-      final effectiveTaxRate = taxRate ?? 5.0;
+      final effectiveTaxRate = taxRate ?? 0.0;
       
       // Use direct ESC/POS commands for printing
       final printed = await ThermalPrinterService.printOrderReceipt(
@@ -590,7 +590,7 @@ class BillService {
     double? taxRate, // Add tax rate parameter
   }) async {
     // Get the effective tax rate
-    final effectiveTaxRate = taxRate ?? 5.0;
+    final effectiveTaxRate = taxRate ?? 0.0;
     
     // Try to print the bill using direct ESC/POS commands only
     final printed = await printBill(

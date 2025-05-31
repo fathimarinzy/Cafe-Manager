@@ -16,7 +16,7 @@ class SettingsProvider with ChangeNotifier {
   String _appLanguage = 'English';
   
   // Tax settings
-  double _taxRate = 5.0;
+  double _taxRate = 0.0;
   
   // Table layout
   int _tableRows = 4;
@@ -421,7 +421,7 @@ void initializeLanguage() {
       _themeMode = ThemeMode.light;
       
       // Reset tax settings
-      _taxRate = 5.0;
+      _taxRate = 0.0;
       
       // Reset table layout
       _tableRows = 4;

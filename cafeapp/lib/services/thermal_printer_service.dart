@@ -143,7 +143,7 @@ class ThermalPrinterService {
     double? taxRate,
   }) async {
     // If tax rate is not provided, use a default
-    final effectiveTaxRate = taxRate ?? 5.0;
+    final effectiveTaxRate = taxRate ?? 0.0;
     
     final ip = await getPrinterIp();
     final port = await getPrinterPort();

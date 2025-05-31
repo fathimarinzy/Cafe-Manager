@@ -40,7 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _selectedPrinter = 'Default Printer';
   
   // Tax Settings
-  final _taxRateController = TextEditingController(text: '5.0');
+  final _taxRateController = TextEditingController(text: '0.0');
   
   // Table Layout
   int _tableRows = 4;
