@@ -3,9 +3,13 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'dart:convert';
+import 'dart:async';
 import '../providers/menu_provider.dart';
 import '../models/menu_item.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../services/sync_service.dart';
+import '../repositories/local_menu_repository.dart';
+import '../services/connectivity_service.dart';
 
 class ModifierScreen extends StatefulWidget {
   const ModifierScreen({super.key});
@@ -33,6 +37,18 @@ class _ModifierScreenState extends State<ModifierScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   bool _isImageLoading = false;
   String? _base64Image;
+
+// Add these properties for offline functionality
+  bool _isOffline = false;
+  SyncStatus _syncStatus = SyncStatus.idle;
+  StreamSubscription? _syncSubscription;
+  StreamSubscription? _connectivitySubscription;
+
+    // Create instances of the services
+  final ConnectivityService _connectivityService = ConnectivityService();
+  final LocalMenuRepository _localRepo = LocalMenuRepository();
+  
+
   
   @override
   void initState() {
@@ -49,6 +65,31 @@ class _ModifierScreenState extends State<ModifierScreen> {
           });
         }
       });
+       // Check if we're offline
+    setState(() {
+      _isOffline = menuProvider.isOfflineMode;
+    });
+          
+      // Listen for offline status changes
+      _connectivityService.initialize();
+      _connectivitySubscription = _connectivityService.connectivityStream.listen((isConnected) {
+        if (mounted) {
+          setState(() {
+            _isOffline = !isConnected;
+          });
+        }
+      });
+    
+    // Listen for sync status changes
+    _syncStatus = menuProvider.syncStatus;
+    _syncSubscription = menuProvider.syncStatusStream.listen((status) {
+      if (mounted) {
+        setState(() {
+          _syncStatus = status;
+        });
+      }
+    });
+
     });
   }
   
@@ -57,6 +98,8 @@ class _ModifierScreenState extends State<ModifierScreen> {
     _nameController.dispose();
     _priceController.dispose();
     _categoryController.dispose();
+    _syncSubscription?.cancel();
+    _connectivitySubscription?.cancel();
     super.dispose();
   }
   
@@ -229,6 +272,108 @@ class _ModifierScreenState extends State<ModifierScreen> {
       return null;
     }
   }
+  Widget _buildSyncStatusIndicator() {
+  // If we're not offline, don't show anything
+  if (!_isOffline && _syncStatus != SyncStatus.syncing) {
+    return const SizedBox.shrink();
+  }
+  
+  // Choose the right icon and color based on status
+  IconData icon;
+  Color color;
+  String message;
+  
+  if (_isOffline) {
+    icon = Icons.cloud_off;
+    color = Colors.orange;
+    message = "Offline Mode";
+  } else if (_syncStatus == SyncStatus.syncing) {
+    icon = Icons.sync;
+    color = Colors.blue;
+    message = "Syncing...";
+  } else if (_syncStatus == SyncStatus.error) {
+    icon = Icons.error_outline;
+    color = Colors.red;
+    message = "Sync Error";
+  } else if (_syncStatus == SyncStatus.completed) {
+    icon = Icons.check_circle_outline;
+    color = Colors.green;
+    message = "Sync Complete";
+  } else {
+    return const SizedBox.shrink();
+  }
+  
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    decoration: BoxDecoration(
+      color: color.withAlpha(25),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: color.withAlpha(128)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 6),
+         Text(
+          message,
+          style: TextStyle(
+            color: color,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        
+        // Add a sync button if we're offline
+        if (_isOffline)
+          TextButton(
+            onPressed: () {
+              final menuProvider = Provider.of<MenuProvider>(context, listen: false);
+              menuProvider.syncChanges();
+            },
+            child: const Text("Sync when online", style: TextStyle(fontSize: 12)),
+          ),
+      ],
+    ),
+  );
+}
+
+// Add this method to build the pending changes indicator
+Widget _buildPendingChangesIndicator() {
+  // Only show this if we have offline changes
+  if (!_isOffline && _syncStatus != SyncStatus.syncing) {
+    return const SizedBox.shrink();
+  }
+  
+  return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _localRepo.getPendingOperations(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const SizedBox.shrink();
+        }
+      
+      final pendingCount = snapshot.data!.length;
+      
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.amber.shade100,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.amber.shade300),
+        ),
+        child: Text(
+          '$pendingCount pending ${pendingCount == 1 ? 'change' : 'changes'}',
+          style: TextStyle(
+            color: Colors.amber.shade900,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      );
+    }
+  );
+}
+      
 
   // Improved image from base64 function with better error handling
   Widget _buildImageFromBase64(String base64ImageData) {
@@ -712,6 +857,30 @@ class _ModifierScreenState extends State<ModifierScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
         ),
+         actions: [
+        // Add sync status indicator to the app bar
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: _buildSyncStatusIndicator(),
+        ),
+        
+        // Add pending changes indicator
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: _buildPendingChangesIndicator(),
+        ),
+        
+        // Add manual sync button if we're online
+        if (!_isOffline)
+          IconButton(
+            icon: const Icon(Icons.sync),
+            tooltip: 'Sync changes',
+            onPressed: () {
+              menuProvider.syncChanges();
+            },
+          ),
+      ],
+
       ),
       // Make the body a SingleChildScrollView that adjusts for keyboard
       body: SafeArea(
@@ -755,11 +924,15 @@ class _ModifierScreenState extends State<ModifierScreen> {
                     Expanded(
                       child: _selectedCategory.isEmpty || !menuProvider.categories.contains(_selectedCategory) ? 
                         const Center(child: Text('No category selected')) :
+                         displayedItems.isEmpty ?
+                        const Center(child: Text('No items in this category')) :
                         ListView.builder(
                           key: _listKey,
                           itemCount: displayedItems.length,
                           itemBuilder: (ctx, index) {
                             final item = displayedItems[index];
+                             // Add a small indicator for offline items
+                            //  final bool isOfflineItem = item.id.startsWith('local_');
                             
                             return ListTile(
                               key: ValueKey('item_${item.id}'),

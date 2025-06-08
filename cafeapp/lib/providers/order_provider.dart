@@ -539,10 +539,10 @@ Future<void> loadExistingOrderItems(int orderId) async {
           id: item.id.toString(),
           name: item.name,
           price: item.price,
-          quantity: item.quantity,
+          // quantity: item.quantity,
           imageUrl: '', // No image info in order items
           category: '', // No category info in order items
-          kitchenNote: item.kitchenNote,
+          // kitchenNote: item.kitchenNote,
         );
         
         // Add to cart without incrementing quantity (we already have the correct quantity)

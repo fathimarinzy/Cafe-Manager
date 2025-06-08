@@ -144,10 +144,27 @@ import 'providers/settings_provider.dart';
 import 'services/api_service.dart'; 
 import 'providers/order_history_provider.dart';
 // import 'utils/app_localization.dart';
+import 'services/connectivity_service.dart';
+import 'services/sync_service.dart';
+import 'repositories/local_menu_repository.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+   // Initialize local database
+  await initializeLocalDatabase();
+  
+  // Initialize services
+  final connectivityService = ConnectivityService();
+  connectivityService.initialize();
+  
+  final syncService = SyncService();
+  syncService.initialize();
   runApp(const MyApp());
+}
+Future<void> initializeLocalDatabase() async {
+  // Get the database to initialize it
+  final localRepo = LocalMenuRepository();
+  await localRepo.database;
 }
 
 class MyApp extends StatelessWidget {
