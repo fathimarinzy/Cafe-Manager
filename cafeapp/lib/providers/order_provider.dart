@@ -389,6 +389,19 @@ class OrderProvider with ChangeNotifier {
         final tableNumberString = _currentServiceType.split('Table ').last;
         tableNumber = int.tryParse(tableNumberString);
       }
+       // Generate a timestamp for order creation
+    final now = DateTime.now();
+    final timestamp = now.millisecondsSinceEpoch;
+    
+    // Format for consistent timestamp handling across online/offline
+    String formattedTimestamp;
+    if (_isOfflineMode) {
+      // Use special format for offline orders so we can identify them later
+      formattedTimestamp = 'local_$timestamp';
+    } else {
+      // Use ISO format for online orders
+      formattedTimestamp = now.toIso8601String();
+    }
       
       // Create or update the order - handling both online and offline scenarios
       Order? order;
@@ -429,7 +442,7 @@ class OrderProvider with ChangeNotifier {
               discount: discount,
               total: total,
               status: 'pending',
-              createdAt: DateTime.now().toIso8601String(),
+              createdAt:  formattedTimestamp,
               customerId: _selectedPerson?.id,
             )
           );
@@ -468,7 +481,7 @@ class OrderProvider with ChangeNotifier {
               discount: discount,
               total: total,
               status: 'pending',
-              createdAt: DateTime.now().toIso8601String(),
+              createdAt: formattedTimestamp,
               customerId: _selectedPerson?.id,
             )
           );

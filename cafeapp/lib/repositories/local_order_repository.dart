@@ -179,6 +179,10 @@ class LocalOrderRepository {
   Future<Order> saveOrder(Order order) async {
     try {
       final db = await database;
+        // Generate a timestamp for local orders that is clearly a local timestamp
+    final now = DateTime.now();
+    final timestamp = now.millisecondsSinceEpoch;
+    final localTimestamp = 'local_${timestamp}';
       
       final orderMap = {
         'service_type': order.serviceType,
@@ -187,7 +191,7 @@ class LocalOrderRepository {
         'discount': order.discount,
         'total': order.total,
         'status': order.status,
-        'created_at': order.createdAt ?? DateTime.now().toIso8601String(),
+        'created_at':order.createdAt ?? localTimestamp,
         'payment_method': order.paymentMethod ?? 'cash',
         'customer_id': order.customerId,
         'is_synced': 0,
@@ -236,7 +240,7 @@ class LocalOrderRepository {
           discount: order.discount,
           total: order.total,
           status: order.status,
-          createdAt: order.createdAt,
+          createdAt: localTimestamp,
           customerId: order.customerId,
           paymentMethod: order.paymentMethod,
         );
@@ -251,7 +255,7 @@ class LocalOrderRepository {
           'name': item.name,
           'price': item.price,
           'quantity': item.quantity,
-          'kitchen_note': item.kitchenNote ?? '',
+          // 'kitchen_note': item.kitchenNote ?? '',
         });
       }
       

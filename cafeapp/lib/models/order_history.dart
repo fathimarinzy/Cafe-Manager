@@ -20,12 +20,34 @@ class OrderHistory {
     required this.createdAt,
     required this.items,
   });
-
   factory OrderHistory.fromOrder(Order order) {
   // Parse the date string from the order
-    DateTime parsedDate;
-    if (order.createdAt != null) {
-      try {
+  DateTime parsedDate;
+  if (order.createdAt != null) {
+    try {
+      // First check if the date is already a local time string (offline orders)
+      // Look for specific format patterns that indicate a local timestamp
+      if (order.createdAt!.contains('local_') || 
+          order.createdAt!.contains('device_')) {
+        // This is a local timestamp - extract the actual timestamp part
+        final parts = order.createdAt!.split('_');
+        if (parts.length > 1) {
+          // Last part should be the timestamp
+          try {
+            final timestamp = int.parse(parts.last);
+            parsedDate = DateTime.fromMillisecondsSinceEpoch(timestamp);
+            debugPrint('Parsed local timestamp: $parsedDate');
+          } catch (e) {
+            // If timestamp parsing fails, fall back to DateTime.parse
+            parsedDate = DateTime.parse(order.createdAt!);
+            debugPrint('Falling back to DateTime.parse: $parsedDate');
+          }
+        } else {
+          // If no underscore, try regular parsing
+          parsedDate = DateTime.parse(order.createdAt!);
+        }
+      } else {
+        // For regular ISO format strings from the server
         // First parse the date string to a DateTime object
         final utcDate = DateTime.parse(order.createdAt!);
         
@@ -38,24 +60,27 @@ class OrderHistory {
         debugPrint('Original UTC date: $utcDate');
         debugPrint('Local timezone offset: $localTimeZoneOffset minutes');
         debugPrint('Adjusted local date: $parsedDate');
-      } catch (e) {
-        debugPrint('Error parsing date: $e');
-        parsedDate = DateTime.now();
       }
-    } else {
+    } catch (e) {
+      debugPrint('Error parsing date: $e');
       parsedDate = DateTime.now();
     }
-    
-    return OrderHistory(
-      id: order.id ?? 0,
-      serviceType: order.serviceType,
-      total: order.total,
-      status: order.status,
-      createdAt: parsedDate,
-      items: order.items,
-    );
-}
+  } else {
+    parsedDate = DateTime.now();
+    debugPrint('No createdAt timestamp, using current time');
+  }
   
+  return OrderHistory(
+    id: order.id ?? 0,
+    serviceType: order.serviceType,
+    total: order.total,
+    status: order.status,
+    createdAt: parsedDate,
+    items: order.items,
+  );
+}
+
+
   // Method to format the order number
   String get orderNumber => id.toString().padLeft(4, '0');
   
