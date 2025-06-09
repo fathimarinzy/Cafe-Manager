@@ -3,6 +3,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ConnectivityService {
   // Singleton pattern with private constructor
@@ -26,6 +27,16 @@ class ConnectivityService {
   
   // Flag to prevent multiple initializations
   bool _isInitialized = false;
+  
+  // Server connection check timeout
+  final Duration _connectionTimeout = const Duration(seconds: 5);
+  
+  // Server test URL (change to your backend URL)
+  final String _serverTestUrl = 'https://ftrinzy.pythonanywhere.com/api/test';
+  
+  // Connection check timestamp
+  DateTime? _lastConnectionCheck;
+  static const Duration _connectionCheckCooldown = Duration(seconds: 10);
   
   // Initialize the service
   void initialize() {
@@ -59,37 +70,89 @@ class ConnectivityService {
     });
   }
   
-  // Check current connection status
+  // Check current connection status with more detailed verification
   Future<bool> checkConnection() async {
     try {
+      // Check if we've checked recently to avoid excessive checks
+      if (_lastConnectionCheck != null) {
+        final timeSinceLastCheck = DateTime.now().difference(_lastConnectionCheck!);
+        if (timeSinceLastCheck < _connectionCheckCooldown) {
+          debugPrint('Connection check too frequent, returning cached result: $_isConnected');
+          return _isConnected;
+        }
+      }
+      
+      _lastConnectionCheck = DateTime.now();
       final result = await _connectivity.checkConnectivity();
       
       if (result == ConnectivityResult.none) {
         // We're definitely offline
         _updateConnectionStatus(false);
+        _saveConnectionStatus(false);
         return false;
       } else {
         // We might be online, verify we can reach the server
         try {
           // Use a short timeout to avoid blocking the UI
           final response = await http.get(
-            Uri.parse('https://ftrinzy.pythonanywhere.com/api/test'),
+            Uri.parse(_serverTestUrl),
             headers: {'Connection': 'keep-alive'},
-          ).timeout(const Duration(seconds: 5));
+          ).timeout(_connectionTimeout);
           
           final isConnected = response.statusCode == 200;
           _updateConnectionStatus(isConnected);
+          _saveConnectionStatus(isConnected);
           return isConnected;
         } catch (e) {
           debugPrint('Server connection check failed: $e');
           _updateConnectionStatus(false);
+          _saveConnectionStatus(false);
           return false;
         }
       }
     } catch (e) {
       debugPrint('Error checking connectivity: $e');
       _updateConnectionStatus(false);
+      _saveConnectionStatus(false);
       return false;
+    }
+  }
+  
+  // Save connection status to shared preferences
+  Future<void> _saveConnectionStatus(bool isConnected) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is_connected', isConnected);
+      await prefs.setString('last_connection_check', DateTime.now().toIso8601String());
+    } catch (e) {
+      debugPrint('Error saving connection status: $e');
+    }
+  }
+  
+  // Load connection status from shared preferences
+  Future<void> loadSavedConnectionStatus() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedStatus = prefs.getBool('is_connected');
+      final lastCheckStr = prefs.getString('last_connection_check');
+      
+      if (savedStatus != null && lastCheckStr != null) {
+        final lastCheck = DateTime.parse(lastCheckStr);
+        final timeSince = DateTime.now().difference(lastCheck);
+        
+        // Only use cached value if it's recent (within 1 minute)
+        if (timeSince < const Duration(minutes: 1)) {
+          _updateConnectionStatus(savedStatus);
+          debugPrint('Loaded saved connection status: $savedStatus');
+          return;
+        }
+      }
+      
+      // If no recent saved status, check connection
+      checkConnection();
+    } catch (e) {
+      debugPrint('Error loading saved connection status: $e');
+      checkConnection();
     }
   }
   
@@ -103,9 +166,20 @@ class ConnectivityService {
     }
   }
   
-  // Manually set connection status (for testing)
-  void setConnectionStatus(bool isConnected) {
-    _updateConnectionStatus(isConnected);
+  // Check for online status with custom server endpoint
+  Future<bool> checkServerConnection(String url) async {
+    try {
+      // Use a short timeout to avoid blocking the UI
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {'Connection': 'keep-alive'},
+      ).timeout(_connectionTimeout);
+      
+      return response.statusCode >= 200 && response.statusCode < 300;
+    } catch (e) {
+      debugPrint('Custom server connection check failed: $e');
+      return false;
+    }
   }
   
   // Dispose of resources

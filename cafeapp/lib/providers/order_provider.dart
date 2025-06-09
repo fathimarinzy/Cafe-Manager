@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart'; // Added import for Provider
+import 'package:provider/provider.dart'; 
 import '../models/menu_item.dart';
 import '../models/order.dart';
+import '../models/order_item.dart'; 
 import '../models/person.dart';
 import '../models/table_model.dart';
 import '../providers/table_provider.dart';
 import '../services/api_service.dart';
 import '../services/bill_service.dart';
 import '../providers/settings_provider.dart';
+import '../repositories/local_order_repository.dart';
+import '../services/connectivity_service.dart';
 
 class OrderProvider with ChangeNotifier {
   // Map to store cart items for each service type or table
-  // The key is the service type identifier (e.g., "Delivery", "Takeout", "Dining - Table 1")
   final Map<String, List<MenuItem>> _serviceTypeCarts = {};
   
   // Map to store totals for each service type
@@ -19,8 +21,19 @@ class OrderProvider with ChangeNotifier {
   
   String _currentServiceType = '';
   final ApiService _apiService = ApiService();
+  final LocalOrderRepository _localOrderRepo = LocalOrderRepository();
+  final ConnectivityService _connectivityService = ConnectivityService();
+  
   // Add this property to track current order ID
   int? _currentOrderId;
+
+  // Offline mode tracking
+  bool _isOfflineMode = false;
+  bool get isOfflineMode => _isOfflineMode;
+
+  // Sync in progress flag
+  bool _isSyncingOrders = false;
+  bool get isSyncingOrders => _isSyncingOrders;
 
   // Add getter and setter for current order ID
   int? get currentOrderId => _currentOrderId;
@@ -29,10 +42,12 @@ class OrderProvider with ChangeNotifier {
     _currentOrderId = orderId;
     notifyListeners();
   }
+  
   void resetCurrentOrder() {
-  _currentOrderId = null;
-  notifyListeners();
-}
+    _currentOrderId = null;
+    notifyListeners();
+  }
+  
   // Track selected person for order
   Person? _selectedPerson;
   
@@ -46,10 +61,94 @@ class OrderProvider with ChangeNotifier {
     _selectedPerson = person;
     notifyListeners();
   }
+  
   void clearSelectedPerson() {
-  _selectedPerson = null;
-  notifyListeners();
-}
+    _selectedPerson = null;
+    notifyListeners();
+  }
+
+  // Constructor with connectivity check
+  OrderProvider() {
+    _initializeConnectivity();
+  }
+
+  // Initialize connectivity monitoring
+  Future<void> _initializeConnectivity() async {
+    // First load the saved connectivity status
+    await _connectivityService.loadSavedConnectionStatus();
+    
+    // Then check current status
+    _isOfflineMode = !await _connectivityService.checkConnection();
+    
+    // Listen for connectivity changes
+    _connectivityService.connectivityStream.listen((isConnected) {
+      final wasOffline = _isOfflineMode;
+      _isOfflineMode = !isConnected;
+      
+      debugPrint('Connectivity changed: ${isConnected ? 'Online' : 'Offline'}, was offline: $wasOffline');
+      notifyListeners();
+      
+      // If connection is restored, try to sync pending orders
+      if (isConnected && wasOffline) {
+        debugPrint('Connection restored, triggering sync');
+        syncPendingOrders();
+      }
+    });
+  }
+
+  // Sync pending orders when online with better error handling and duplicate prevention
+  Future<void> syncPendingOrders() async {
+    if (_isOfflineMode || _isSyncingOrders) return;
+    
+    try {
+      _isSyncingOrders = true;
+      notifyListeners();
+      
+      // Get unsynced orders
+      final unsyncedOrders = await _localOrderRepo.getUnsyncedOrders();
+      debugPrint('Found ${unsyncedOrders.length} unsynced orders to sync');
+      
+      if (unsyncedOrders.isEmpty) {
+        _isSyncingOrders = false;
+        notifyListeners();
+        return;
+      }
+      
+      for (var order in unsyncedOrders) {
+        try {
+          // Skip if no ID
+          if (order.id == null) continue;
+          
+          // Try to create order on server
+          final serverOrder = await _apiService.createOrder(
+            order.serviceType,
+            order.items.map((item) => item.toJson()).toList(),
+            order.subtotal,
+            order.tax,
+            order.discount,
+            order.total,
+            paymentMethod: order.paymentMethod ?? 'cash',
+            customerId: order.customerId,
+          );
+          
+          if (serverOrder != null) {
+            // Mark local order as synced
+            await _localOrderRepo.markOrderAsSynced(order.id!, serverOrder.id);
+            debugPrint('Order synced successfully: Local ID ${order.id} -> Server ID ${serverOrder.id}');
+          }
+        } catch (e) {
+          debugPrint('Error syncing order ${order.id}: $e');
+          // Record the sync error
+          await _localOrderRepo.recordSyncError(order.id!, e.toString());
+        }
+      }
+    } catch (e) {
+      debugPrint('Error syncing pending orders: $e');
+    } finally {
+      _isSyncingOrders = false;
+      notifyListeners();
+    }
+  }
 
   // Set current service type and notify listeners
   void setCurrentServiceType(String serviceType, [BuildContext? context]) {
@@ -102,34 +201,34 @@ class OrderProvider with ChangeNotifier {
 
   // Add item to cart for current service type
   void addToCart(MenuItem item) {
-  if (_currentServiceType.isEmpty) {
-    debugPrint('Warning: No service type selected');
-    return;
-  }
-  
-  final existingIndex = _serviceTypeCarts[_currentServiceType]!
-      .indexWhere((cartItem) => cartItem.id == item.id);
-
-  if (existingIndex >= 0) {
-    // Keep the existing kitchen note if the item already has one
-    String existingNote = _serviceTypeCarts[_currentServiceType]![existingIndex].kitchenNote;
-    String noteToUse = item.kitchenNote.isNotEmpty ? item.kitchenNote : existingNote;
-    
-    _serviceTypeCarts[_currentServiceType]![existingIndex].quantity += 1;
-    
-    // Update the kitchen note if needed
-    if (item.kitchenNote.isNotEmpty && item.kitchenNote != existingNote) {
-      _serviceTypeCarts[_currentServiceType]![existingIndex] = MenuItem(
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        imageUrl: item.imageUrl,
-        category: item.category,
-        isAvailable: item.isAvailable,
-        quantity: _serviceTypeCarts[_currentServiceType]![existingIndex].quantity,
-        kitchenNote: noteToUse,
-      );
+    if (_currentServiceType.isEmpty) {
+      debugPrint('Warning: No service type selected');
+      return;
     }
+    
+    final existingIndex = _serviceTypeCarts[_currentServiceType]!
+        .indexWhere((cartItem) => cartItem.id == item.id);
+
+    if (existingIndex >= 0) {
+      // Keep the existing kitchen note if the item already has one
+      String existingNote = _serviceTypeCarts[_currentServiceType]![existingIndex].kitchenNote;
+      String noteToUse = item.kitchenNote.isNotEmpty ? item.kitchenNote : existingNote;
+      
+      _serviceTypeCarts[_currentServiceType]![existingIndex].quantity += 1;
+      
+      // Update the kitchen note if needed
+      if (item.kitchenNote.isNotEmpty && item.kitchenNote != existingNote) {
+        _serviceTypeCarts[_currentServiceType]![existingIndex] = MenuItem(
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          imageUrl: item.imageUrl,
+          category: item.category,
+          isAvailable: item.isAvailable,
+          quantity: _serviceTypeCarts[_currentServiceType]![existingIndex].quantity,
+          kitchenNote: noteToUse,
+        );
+      }
     } else {
       final newItem = MenuItem(
         id: item.id,
@@ -147,6 +246,7 @@ class OrderProvider with ChangeNotifier {
     _updateTotals(_currentServiceType);
     notifyListeners();
   }
+  
   // Update item quantity for current service type
   void updateItemQuantity(String id, int quantity) {
     if (_currentServiceType.isEmpty) return;
@@ -213,7 +313,7 @@ class OrderProvider with ChangeNotifier {
     notifyListeners();
   }
 
-   // Update _updateTotals to use the tax rate from settings
+  // Update _updateTotals to use the tax rate from settings
   void _updateTotals(String serviceType) {
     if (!_serviceTypeCarts.containsKey(serviceType)) return;
 
@@ -241,7 +341,8 @@ class OrderProvider with ChangeNotifier {
       'total': calculatedTotal,
     };
   }
-   // For this to work, we need to store the BuildContext
+  
+  // For this to work, we need to store the BuildContext
   BuildContext? _context;
   
   // Method to set context
@@ -267,164 +368,220 @@ class OrderProvider with ChangeNotifier {
     notifyListeners();
   }
 
-
-
+  // Process order and handle online/offline scenarios
   Future<Map<String, dynamic>> processOrderWithBill(BuildContext context) async {
-  // First check if we have items in the cart
-  if (_currentServiceType.isEmpty || cartItems.isEmpty) {
-    return {
-      'success': false,
-      'message': 'No items in cart',
-    };
-  }
-
-  try {
-    // Extract table number from service type if this is a dining order
-    String? tableInfo;
-    int? tableNumber;
-    
-    if (_currentServiceType.startsWith('Dining - Table')) {
-      tableInfo = _currentServiceType;
-      // Extract the table number
-      final tableNumberString = _currentServiceType.split('Table ').last;
-      tableNumber = int.tryParse(tableNumberString);
-    }
-    
-    // Create or update the order first (to get the order ID)
-    Order? order;
-    if (_currentOrderId != null) {
-      // Update existing order
-      final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
-      order = await _apiService.updateOrder(
-        _currentOrderId!,
-        _currentServiceType,
-        items,
-        subtotal,
-        tax,
-        discount,
-        total,
-      );
-    } else {
-      // Create a new order in the database
-      final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
-      order = await _apiService.createOrder(
-        _currentServiceType,
-        items,
-        subtotal,
-        tax,
-        discount,
-        total,
-      );
-    }
-    
-    if (order == null) {
+    // First check if we have items in the cart
+    if (_currentServiceType.isEmpty || cartItems.isEmpty) {
       return {
         'success': false,
-        'message': 'Failed to create or update order in the system',
+        'message': 'No items in cart',
       };
     }
-    
-    // Now print the kitchen receipt with the order ID
-    final String orderNumberPadded = order.id.toString().padLeft(4, '0');
-    Map<String, dynamic> printResult = await BillService.printKitchenOrderReceipt(
-      items: cartItems,
-      serviceType: _currentServiceType,
-      tableInfo: tableInfo,
-      orderNumber: orderNumberPadded,
-      context: context, // Pass context for dialog if needed
-    );
-    
-    // If this is a table order, update the table status to occupied
-    if (tableNumber != null && context.mounted) {
-      final tableProvider = Provider.of<TableProvider>(context, listen: false);
-      final table = tableProvider.tables.firstWhere(
-        (table) => table.number == tableNumber,
-        orElse: () => TableModel(id: '', number: tableNumber!, isOccupied: false)
+
+    try {
+      // Extract table number from service type if this is a dining order
+      String? tableInfo;
+      int? tableNumber;
+      
+      if (_currentServiceType.startsWith('Dining - Table')) {
+        tableInfo = _currentServiceType;
+        // Extract the table number
+        final tableNumberString = _currentServiceType.split('Table ').last;
+        tableNumber = int.tryParse(tableNumberString);
+      }
+      
+      // Create or update the order - handling both online and offline scenarios
+      Order? order;
+       
+      
+      if (_currentOrderId != null) {
+        // Update existing order
+        final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
+        
+        if (!_isOfflineMode) {
+          // Online mode - update on server
+          order = await _apiService.updateOrder(
+            _currentOrderId!,
+            _currentServiceType,
+            items,
+            subtotal,
+            tax,
+            discount,
+            total,
+          );
+        } else {
+          // Offline mode - save locally
+          // For now, we'll create a new local order as update is more complex
+          order = await _localOrderRepo.saveOrder(
+            Order(
+              serviceType: _currentServiceType,
+              items: _serviceTypeCarts[_currentServiceType]!.map((item) => 
+                OrderItem(
+                  id: int.tryParse(item.id) ?? 0,
+                  name: item.name,
+                  price: item.price,
+                  quantity: item.quantity,
+                  kitchenNote: item.kitchenNote,
+                )
+              ).toList(),
+              subtotal: subtotal,
+              tax: tax,
+              discount: discount,
+              total: total,
+              status: 'pending',
+              createdAt: DateTime.now().toIso8601String(),
+              customerId: _selectedPerson?.id,
+            )
+          );
+        }
+      } else {
+        // Create a new order
+        final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
+        
+        if (!_isOfflineMode) {
+          // Online mode - create on server
+          order = await _apiService.createOrder(
+            _currentServiceType,
+            items,
+            subtotal,
+            tax,
+            discount,
+            total,
+            customerId: _selectedPerson?.id,
+          );
+        } else {
+          // Offline mode - save locally
+          order = await _localOrderRepo.saveOrder(
+            Order(
+              serviceType: _currentServiceType,
+              items: _serviceTypeCarts[_currentServiceType]!.map((item) => 
+                OrderItem(
+                  id: int.tryParse(item.id) ?? 0,
+                  name: item.name,
+                  price: item.price,
+                  quantity: item.quantity,
+                  kitchenNote: item.kitchenNote,
+                )
+              ).toList(),
+              subtotal: subtotal,
+              tax: tax,
+              discount: discount,
+              total: total,
+              status: 'pending',
+              createdAt: DateTime.now().toIso8601String(),
+              customerId: _selectedPerson?.id,
+            )
+          );
+        }
+      }
+      
+      if (order == null) {
+        return {
+          'success': false,
+          'message': 'Failed to create or update order in the system',
+        };
+      }
+      
+      // Now print the kitchen receipt with the order ID
+      final String orderNumberPadded = order.id.toString().padLeft(4, '0');
+      Map<String, dynamic> printResult = await BillService.printKitchenOrderReceipt(
+        items: cartItems,
+        serviceType: _currentServiceType,
+        tableInfo: tableInfo,
+        orderNumber: orderNumberPadded,
+        context: context, // Pass context for dialog if needed
       );
       
-      if (table.id.isNotEmpty) {
-        // Set the table as occupied
-        final updatedTable = TableModel(
-          id: table.id,
-          number: table.number,
-          isOccupied: true,
-          capacity: table.capacity,
-          note: table.note,
+      // If this is a table order, update the table status to occupied
+      if (tableNumber != null && context.mounted) {
+        final tableProvider = Provider.of<TableProvider>(context, listen: false);
+        final table = tableProvider.tables.firstWhere(
+          (table) => table.number == tableNumber,
+          orElse: () => TableModel(id: '', number: tableNumber!, isOccupied: false)
         );
         
-        await tableProvider.updateTable(updatedTable);
-        debugPrint('Table ${tableNumber.toString()} status updated to occupied');
-      } else if (tableNumber > 0) {
-        // If the table wasn't found in the provider but we have a valid number,
-        // try to update it by number
-        await tableProvider.setTableStatus(tableNumber, true);
-        debugPrint('Table ${tableNumber.toString()} status set to occupied by number');
+        if (table.id.isNotEmpty) {
+          // Set the table as occupied
+          final updatedTable = TableModel(
+            id: table.id,
+            number: table.number,
+            isOccupied: true,
+            capacity: table.capacity,
+            note: table.note,
+          );
+          
+          await tableProvider.updateTable(updatedTable);
+          debugPrint('Table ${tableNumber.toString()} status updated to occupied');
+        } else if (tableNumber > 0) {
+          // If the table wasn't found in the provider but we have a valid number,
+          // try to update it by number
+          await tableProvider.setTableStatus(tableNumber, true);
+          debugPrint('Table ${tableNumber.toString()} status set to occupied by number');
+        }
       }
-    }
 
-    // Clear the current service type's cart
-    clearCart();
-    // Reset the current order ID
-    _currentOrderId = null;
-    
-    return {
-      'success': true,
-      'message': printResult['message'] ?? 'Order processed successfully',
-      'order': order,
-      'billPrinted': printResult['printed'] ?? false,
-      'billSaved': printResult['saved'] ?? false,
-    };
-  } catch (error) {
-    debugPrint('Error processing order: $error');
-    return {
-      'success': false,
-      'message': 'Error processing order: $error',
-    };
-  }
-}
-  // Place order for current service type (original method kept for compatibility)
-  Future<bool> placeOrder(String serviceType) async {
-    if (_currentServiceType.isEmpty || _serviceTypeCarts[_currentServiceType]!.isEmpty) {
-      return false;
-    }
-
-    try {
-      final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
-      final subtotal = _serviceTotals[_currentServiceType]!['subtotal'] ?? 0;
-      final tax = _serviceTotals[_currentServiceType]!['tax'] ?? 0;
-      final discount = _serviceTotals[_currentServiceType]!['discount'] ?? 0;
-      final total = _serviceTotals[_currentServiceType]!['total'] ?? 0;
+      // Clear the current service type's cart
+      clearCart();
+      // Reset the current order ID
+      _currentOrderId = null;
       
-      final order = await _apiService.createOrder(
-        serviceType,
-        items,
-        subtotal,
-        tax,
-        discount,
-        total,
-      );
-
-      if (order != null) {
-        // Clear only the current service type's cart
-        _serviceTypeCarts[_currentServiceType]!.clear();
-        _updateTotals(_currentServiceType);
-        notifyListeners();
-        return true;
+      // Display offline message if needed
+      String successMessage = printResult['message'] ?? 'Order processed successfully';
+      if (_isOfflineMode) {
+        successMessage += ' (Offline mode - will sync when connection is restored)';
       }
-      return false;
+      
+      return {
+        'success': true,
+        'message': successMessage,
+        'order': order,
+        'billPrinted': printResult['printed'] ?? false,
+        'billSaved': printResult['saved'] ?? false,
+        'offlineMode': _isOfflineMode,
+      };
     } catch (error) {
-      debugPrint('Error placing order: $error');
-      return false;
+      debugPrint('Error processing order: $error');
+      return {
+        'success': false,
+        'message': 'Error processing order: $error',
+      };
     }
   }
 
-  // Fetch orders from the API
+  // Get all orders (both online and offline)
   Future<List<Order>> fetchOrders() async {
+    List<Order> orders = [];
+    
     try {
-      return await _apiService.getOrders();
+      if (!_isOfflineMode) {
+        // Online mode - get from server
+        orders = await _apiService.getOrders();
+      }
+      
+      // Always get local orders and merge (avoid duplicates by ID)
+      final localOrders = await _localOrderRepo.getAllOrders();
+      
+      // Create a map of server orders by ID
+      final Map<int, bool> serverOrderIds = {};
+      for (var order in orders) {
+        if (order.id != null) {
+          serverOrderIds[order.id!] = true;
+        }
+      }
+      
+      // Add local orders that aren't in server orders
+      for (var localOrder in localOrders) {
+        if (localOrder.id != null && !serverOrderIds.containsKey(localOrder.id)) {
+          orders.add(localOrder);
+        }
+      }
+      
+      return orders;
     } catch (error) {
       debugPrint('Error fetching orders: $error');
-      return [];
+      
+      // If server fetch fails, return local orders
+      return await _localOrderRepo.getAllOrders();
     }
   }
   
@@ -446,134 +603,258 @@ class OrderProvider with ChangeNotifier {
 
   // Update an item's kitchen note in the cart
   void updateItemNote(String id, String note) {
-  if (_currentServiceType.isEmpty) return;
-  
-  // Ensure the service type cart exists
-  if (!_serviceTypeCarts.containsKey(_currentServiceType)) {
-    _serviceTypeCarts[_currentServiceType] = [];
-  }
-  
-  final itemIndex = _serviceTypeCarts[_currentServiceType]!
-      .indexWhere((item) => item.id == id);
-      
-  if (itemIndex >= 0) {
-    // Create a copy with the updated note to ensure proper state management
-    final item = _serviceTypeCarts[_currentServiceType]![itemIndex];
-    final updatedItem = MenuItem(
-      id: item.id,
-      name: item.name,
-      price: item.price,
-      imageUrl: item.imageUrl,
-      category: item.category,
-      isAvailable: item.isAvailable,
-      quantity: item.quantity,
-      kitchenNote: note,
-    );
+    if (_currentServiceType.isEmpty) return;
     
-    // Replace the item in the cart
-    _serviceTypeCarts[_currentServiceType]![itemIndex] = updatedItem;
-    
-    notifyListeners();
-    debugPrint('Updated kitchen note for item $id: $note');
-  }
-}
-
-
-// Modify the existing placeOrder method or add a new one to handle updating existing orders
-Future<bool> updateExistingOrder(int orderId) async {
-  if (_currentServiceType.isEmpty || _serviceTypeCarts[_currentServiceType]!.isEmpty) {
-    return false;
-  }
-
-  try {
-    final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
-    final subtotal = _serviceTotals[_currentServiceType]!['subtotal'] ?? 0;
-    final tax = _serviceTotals[_currentServiceType]!['tax'] ?? 0;
-    final discount = _serviceTotals[_currentServiceType]!['discount'] ?? 0;
-    final total = _serviceTotals[_currentServiceType]!['total'] ?? 0;
-    
-    // Call API to update the existing order
-    final order = await _apiService.updateOrder(
-      orderId,
-      _currentServiceType,
-      items,
-      subtotal,
-      tax,
-      discount,
-      total,
-    );
-
-    if (order != null) {
-      // Clear only the current service type's cart
-      _serviceTypeCarts[_currentServiceType]!.clear();
-      _updateTotals(_currentServiceType);
-      notifyListeners();
-      return true; 
-    }
-    return false;
-  } catch (error) {
-    debugPrint('Error updating order: $error');
-    return false;
-  }
-}
-// Add this method to the OrderProvider class to load existing items into the cart
-
-// Load items from an existing order into the cart
-Future<void> loadExistingOrderItems(int orderId) async {
-  try {
-    // First clear the current cart to avoid duplicates
-    if (_serviceTypeCarts.containsKey(_currentServiceType)) {
-      _serviceTypeCarts[_currentServiceType]!.clear();
+    // Ensure the service type cart exists
+    if (!_serviceTypeCarts.containsKey(_currentServiceType)) {
+      _serviceTypeCarts[_currentServiceType] = [];
     }
     
-    // Fetch the order from the API
-    final order = await _apiService.getOrderById(orderId);
-    
-    if (order != null) {
-      // Track the current order ID
-      _currentOrderId = orderId;
-      
-      // Convert order items to menu items and add to cart
-      for (var item in order.items) {
-        final menuItem = MenuItem(
-          id: item.id.toString(),
-          name: item.name,
-          price: item.price,
-          // quantity: item.quantity,
-          imageUrl: '', // No image info in order items
-          category: '', // No category info in order items
-          // kitchenNote: item.kitchenNote,
-        );
+    final itemIndex = _serviceTypeCarts[_currentServiceType]!
+        .indexWhere((item) => item.id == id);
         
-        // Add to cart without incrementing quantity (we already have the correct quantity)
-        _addToCartWithoutIncrementing(menuItem);
+    if (itemIndex >= 0) {
+      // Create a copy with the updated note to ensure proper state management
+      final item = _serviceTypeCarts[_currentServiceType]![itemIndex];
+      final updatedItem = MenuItem(
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        imageUrl: item.imageUrl,
+        category: item.category,
+        isAvailable: item.isAvailable,
+        quantity: item.quantity,
+        kitchenNote: note,
+      );
+      
+      // Replace the item in the cart
+      _serviceTypeCarts[_currentServiceType]![itemIndex] = updatedItem;
+      
+      notifyListeners();
+      debugPrint('Updated kitchen note for item $id: $note');
+    }
+  }
+
+  // Modify the existing placeOrder method or add a new one to handle updating existing orders
+  Future<bool> updateExistingOrder(int orderId) async {
+    if (_currentServiceType.isEmpty || _serviceTypeCarts[_currentServiceType]!.isEmpty) {
+      return false;
+    }
+
+    try {
+      final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
+      final subtotal = _serviceTotals[_currentServiceType]!['subtotal'] ?? 0;
+      final tax = _serviceTotals[_currentServiceType]!['tax'] ?? 0;
+      final discount = _serviceTotals[_currentServiceType]!['discount'] ?? 0;
+      final total = _serviceTotals[_currentServiceType]!['total'] ?? 0;
+      
+      Order? order;
+      
+      if (!_isOfflineMode) {
+        // Online mode - update on server
+        order = await _apiService.updateOrder(
+          orderId,
+          _currentServiceType,
+          items,
+          subtotal,
+          tax,
+          discount,
+          total,
+        );
+      } else {
+        // Offline mode - save locally
+        // For simplicity, we're creating a new local order
+        order = await _localOrderRepo.saveOrder(
+          Order(
+            id: orderId,
+            serviceType: _currentServiceType,
+            items: _serviceTypeCarts[_currentServiceType]!.map((item) => 
+              OrderItem(
+                id: int.tryParse(item.id) ?? 0,
+                name: item.name,
+                price: item.price,
+                quantity: item.quantity,
+                kitchenNote: item.kitchenNote,
+              )
+            ).toList(),
+            subtotal: subtotal,
+            tax: tax,
+            discount: discount,
+            total: total,
+            status: 'pending',
+            createdAt: DateTime.now().toIso8601String(),
+            customerId: _selectedPerson?.id,
+          )
+        );
+      }
+
+      if (order != null) {
+        // Clear only the current service type's cart
+        _serviceTypeCarts[_currentServiceType]!.clear();
+        _updateTotals(_currentServiceType);
+        notifyListeners();
+        return true; 
+      }
+      return false;
+    } catch (error) {
+      debugPrint('Error updating order: $error');
+      return false;
+    }
+  }
+
+  // Load items from an existing order into the cart
+  Future<void> loadExistingOrderItems(int orderId) async {
+    try {
+      // First clear the current cart to avoid duplicates
+      if (_serviceTypeCarts.containsKey(_currentServiceType)) {
+        _serviceTypeCarts[_currentServiceType]!.clear();
       }
       
-      // Update totals
-      _updateTotals(_currentServiceType);
-      notifyListeners();
+      Order? order;
       
-      debugPrint('Loaded ${order.items.length} items from existing order #$orderId');
+      if (!_isOfflineMode) {
+        // Online mode - fetch from server
+        order = await _apiService.getOrderById(orderId);
+      } else {
+        // Offline mode - check local storage
+        final localOrders = await _localOrderRepo.getAllOrders();
+        order = localOrders.firstWhere(
+          (o) => o.id == orderId,
+          orElse: () => Order(
+            serviceType: '',
+            items: [],
+            subtotal: 0,
+            tax: 0,
+            discount: 0,
+            total: 0
+          )
+        );
+      }
+      
+      if (order != null && order.serviceType.isNotEmpty) {
+        // Track the current order ID
+        _currentOrderId = orderId;
+        
+        // Convert order items to menu items and add to cart
+        for (var item in order.items) {
+          final menuItem = MenuItem(
+            id: item.id.toString(),
+            name: item.name,
+            price: item.price,
+            imageUrl: '', // No image info in order items
+            category: '', // No category info in order items
+            quantity: item.quantity,
+            kitchenNote: item.kitchenNote,
+          );
+          
+          // Add to cart without incrementing quantity (we already have the correct quantity)
+          _addToCartWithoutIncrementing(menuItem);
+        }
+        
+        // Update totals
+        _updateTotals(_currentServiceType);
+        notifyListeners();
+        
+        debugPrint('Loaded ${order.items.length} items from existing order #$orderId');
+      }
+    } catch (e) {
+      debugPrint('Error loading existing order items: $e');
     }
-  } catch (e) {
-    debugPrint('Error loading existing order items: $e');
   }
-}
 
-// Add item to cart without incrementing quantity for existing items
-void _addToCartWithoutIncrementing(MenuItem item) {
-  if (_currentServiceType.isEmpty) {
-    debugPrint('Warning: No service type selected');
-    return;
+  // Add item to cart without incrementing quantity for existing items
+  void _addToCartWithoutIncrementing(MenuItem item) {
+    if (_currentServiceType.isEmpty) {
+      debugPrint('Warning: No service type selected');
+      return;
+    }
+    
+    // Initialize the cart for this service type if it doesn't exist
+    if (!_serviceTypeCarts.containsKey(_currentServiceType)) {
+      _serviceTypeCarts[_currentServiceType] = [];
+    }
+    
+    // Don't check for existing items, just add directly
+    _serviceTypeCarts[_currentServiceType]!.add(item);
   }
   
-  // Initialize the cart for this service type if it doesn't exist
-  if (!_serviceTypeCarts.containsKey(_currentServiceType)) {
-    _serviceTypeCarts[_currentServiceType] = [];
+  // Check connection status and attempt to sync
+  Future<void> checkConnectionAndSync() async {
+    final isOnline = await _connectivityService.checkConnection();
+    
+    if (isOnline && _isOfflineMode) {
+      // We just went online, update state and sync
+      _isOfflineMode = false;
+      notifyListeners();
+      await syncPendingOrders();
+    } else if (!isOnline && !_isOfflineMode) {
+      // We just went offline, update state
+      _isOfflineMode = true;
+      notifyListeners();
+    }
   }
   
-  // Don't check for existing items, just add directly
-  _serviceTypeCarts[_currentServiceType]!.add(item);
-}
+  // Place order (legacy method kept for compatibility)
+  Future<bool> placeOrder(String serviceType) async {
+    if (_currentServiceType.isEmpty || _serviceTypeCarts[_currentServiceType]!.isEmpty) {
+      return false;
+    }
 
+    try {
+      final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
+      final subtotal = _serviceTotals[_currentServiceType]!['subtotal'] ?? 0;
+      final tax = _serviceTotals[_currentServiceType]!['tax'] ?? 0;
+      final discount = _serviceTotals[_currentServiceType]!['discount'] ?? 0;
+      final total = _serviceTotals[_currentServiceType]!['total'] ?? 0;
+      
+      Order? order;
+      
+      if (!_isOfflineMode) {
+        // Online mode - create on server
+        order = await _apiService.createOrder(
+          serviceType,
+          items,
+          subtotal,
+          tax,
+          discount,
+          total,
+        );
+      } else {
+        // Offline mode - save locally
+        order = await _localOrderRepo.saveOrder(
+          Order(
+            serviceType: serviceType,
+            items: _serviceTypeCarts[_currentServiceType]!.map((item) => 
+              OrderItem(
+                id: int.tryParse(item.id) ?? 0,
+                name: item.name,
+                price: item.price,
+                quantity: item.quantity,
+                kitchenNote: item.kitchenNote,
+              )
+            ).toList(),
+            subtotal: subtotal,
+            tax: tax,
+            discount: discount,
+            total: total,
+            status: 'pending',
+            createdAt: DateTime.now().toIso8601String(),
+            customerId: _selectedPerson?.id,
+          )
+        );
+      }
+
+      if (order != null) {
+        // Clear only the current service type's cart
+        _serviceTypeCarts[_currentServiceType]!.clear();
+        _updateTotals(_currentServiceType);
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } catch (error) {
+      debugPrint('Error placing order: $error');
+      return false;
+    }
+  }
 }

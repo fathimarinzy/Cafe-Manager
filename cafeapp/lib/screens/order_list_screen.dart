@@ -6,12 +6,14 @@ import '../providers/order_history_provider.dart';
 import 'order_details_screen.dart';
 import '../screens/dashboard_screen.dart';
 import 'dart:async';
+import '../widgets/offline_indicator.dart';
+import '../services/connectivity_service.dart';
 
 class OrderListScreen extends StatefulWidget {
   final String? serviceType;
   final bool fromMenuScreen;
 
-  const OrderListScreen({super.key, this.serviceType, this.fromMenuScreen = false,});
+  const OrderListScreen({super.key, this.serviceType, this.fromMenuScreen = false});
 
   @override
   State<OrderListScreen> createState() => _OrderListScreenState();
@@ -68,10 +70,10 @@ class _OrderListScreenState extends State<OrderListScreen> {
 
   @override
   Widget build(BuildContext context) {
-      return WillPopScope(
-    // Handle back button press
-    onWillPop: () async {
-      // If opened from MenuScreen, just pop normally instead of navigating to dashboard
+    return WillPopScope(
+      // Handle back button press
+      onWillPop: () async {
+        // If opened from MenuScreen, just pop normally instead of navigating to dashboard
         if (widget.fromMenuScreen) {
           return true; // Allow normal pop behavior
         } else {
@@ -81,58 +83,102 @@ class _OrderListScreenState extends State<OrderListScreen> {
             (route) => false,
           );
       
-      return false; // Return false to prevent default pop behavior
-      }
-    },
-    child: Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        title: Text(widget.serviceType != null 
-          ? '${widget.serviceType} Orders' 
-          : 'All Orders'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            // Use the same navigation logic as WillPopScope
-            if (widget.fromMenuScreen) {
-                Navigator.of(context).pop(); // Simply go back
-              } else {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => const DashboardScreen()),
-                  (route) => false,
-           
+          return false; // Return false to prevent default pop behavior
+        }
+      },
+      child: OfflineIndicator(
+        child: Scaffold(
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+            title: Text(widget.serviceType != null 
+              ? '${widget.serviceType} Orders' 
+              : 'All Orders'),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () {
+                // Use the same navigation logic as WillPopScope
+                if (widget.fromMenuScreen) {
+                    Navigator.of(context).pop(); // Simply go back
+                  } else {
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (context) => const DashboardScreen()),
+                      (route) => false,
+                    );
+                  }
+              },
+            ),
+            actions: [
+              // Refresh button
+              IconButton(
+                icon: const Icon(Icons.refresh, color: Colors.black, size: 20),
+                onPressed: () {
+                  // Show loading indicator
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Refreshing orders...'),
+                      duration: Duration(milliseconds: 1000),
+                    ),
+                  );
+                  
+                  // Refresh connectivity and orders
+                  final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
+                  historyProvider.refreshOrdersAndConnectivity();
+                },
+              ),
+              // Time display
+              Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: Row(
+                  children: [
+                    const Icon(Icons.access_time, color: Colors.black, size: 20),
+                    const SizedBox(width: 4),
+                    Text(
+                      _currentTime,
+                      style: const TextStyle(color: Colors.black),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          body: Column(
+            children: [
+              _buildSearchAndFilterBar(),
+              Expanded(
+                child: _buildOrderList(),
+              ),
+            ],
+          ),
+          // Add a FAB to manually trigger sync when offline
+          floatingActionButton: Consumer<OrderHistoryProvider>(
+            builder: (ctx, provider, _) {
+              if (provider.isOfflineMode) {
+                return FloatingActionButton.extended(
+                  onPressed: () async {
+                    // Check connection
+                    final isConnected = await ConnectivityService().checkConnection();
+                    if (isConnected) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Connected! Syncing orders...')),
+                      );
+                      provider.refreshOrdersAndConnectivity();
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Still offline. Please check your connection.')),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.sync),
+                  label: const Text('Check Connection & Sync'),
+                  backgroundColor: Colors.orange,
                 );
               }
-          },
-        ),   
-
-        actions: [
-          // Time display
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: Row(
-              children: [
-                const Icon(Icons.access_time, color: Colors.black, size: 20),
-                const SizedBox(width: 4),
-                Text(
-                  _currentTime,
-                  style: const TextStyle(color: Colors.black),
-                ),
-              ],
-            ),
+              return const SizedBox.shrink(); // Hide when online
+            },
           ),
-        ],
+        ),
       ),
-      body: Column(
-        children: [
-          _buildSearchAndFilterBar(),
-          Expanded(
-            child: _buildOrderList(),
-          ),
-        ],
-      ),
-    ),
     );
   }
 
@@ -196,22 +242,22 @@ class _OrderListScreenState extends State<OrderListScreen> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                  Row(
-                    children: [
-                // Filter chips for time periods
-                _buildFilterChip(OrderTimeFilter.today),
-                _buildFilterChip(OrderTimeFilter.weekly),
-                _buildFilterChip(OrderTimeFilter.monthly),
-                _buildFilterChip(OrderTimeFilter.yearly),
-                _buildFilterChip(OrderTimeFilter.all),
-                 ],
-               ),
-             
-              const SizedBox(width: 150),    
-              // Pending filter button - right after All Orders
-              _buildPendingFilterButton(),
-            ],
-          ),
+                Row(
+                  children: [
+                    // Filter chips for time periods
+                    _buildFilterChip(OrderTimeFilter.today),
+                    _buildFilterChip(OrderTimeFilter.weekly),
+                    _buildFilterChip(OrderTimeFilter.monthly),
+                    _buildFilterChip(OrderTimeFilter.yearly),
+                    _buildFilterChip(OrderTimeFilter.all),
+                  ],
+                ),
+               
+                const SizedBox(width: 150),    
+                // Pending filter button - right after All Orders
+                _buildPendingFilterButton(),
+              ],
+            ),
           ),
         ],
       ),
@@ -379,7 +425,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
             ),
             itemCount: orders.length,
             itemBuilder: (context, index) {
-              return _buildOrderCard(orders[index]);
+              return _buildOrderCard(orders[index], historyProvider.isOfflineMode);
             },
           ),
         );
@@ -387,195 +433,239 @@ class _OrderListScreenState extends State<OrderListScreen> {
     );
   }
 
-  Widget _buildOrderCard(OrderHistory order) {
-  // Format currency
-  final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
-  
-  // Get service type icon and color
-  IconData serviceIcon = _getServiceTypeIcon(order.serviceType);
-  Color serviceColor = _getServiceTypeColor(order.serviceType);
-  
-  // Determine status color
-  Color statusColor = Colors.white;
-  if (order.status.toLowerCase() == 'pending') {
-    statusColor = Colors.white;
-  } else if (order.status.toLowerCase() == 'cancelled') {
-    statusColor = Colors.white;
-  }
-  
-  // Choose text color based on background brightness
-  bool isDarkBackground = _isDarkColor(serviceColor);
-  Color textColor = isDarkBackground ? Colors.white : Colors.black;
-  Color secondaryTextColor = isDarkBackground ? Colors.white.withAlpha(200) : Colors.black87;
-  
-  return Card(
-    elevation: 1,  // Minimal elevation
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(6),  // Smaller radius
-    ),
-    // Use the full service type color as the card background
-    color: serviceColor,
-    child: InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => OrderDetailsScreen(orderId: order.id),
-          ),
-        );
-      },
-      borderRadius: BorderRadius.circular(6),  // Smaller radius
-      child: Padding(
-        padding: const EdgeInsets.all(4.0),  // Minimal padding
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header with centered bill number and status
-            Column(
-              children: [
-                // Centered bill number
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 4.0),
+  Widget _buildOrderCard(OrderHistory order, bool isOfflineMode) {
+    // Format currency
+    final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
+    
+    // Get service type icon and color
+    IconData serviceIcon = _getServiceTypeIcon(order.serviceType);
+    Color serviceColor = _getServiceTypeColor(order.serviceType);
+    
+    // Determine status color
+    Color statusColor = Colors.white;
+    if (order.status.toLowerCase() == 'pending') {
+      statusColor = Colors.white;
+    } else if (order.status.toLowerCase() == 'cancelled') {
+      statusColor = Colors.white;
+    }
+    
+    // Choose text color based on background brightness
+    bool isDarkBackground = _isDarkColor(serviceColor);
+    Color textColor = isDarkBackground ? Colors.white : Colors.black;
+    Color secondaryTextColor = isDarkBackground ? Colors.white.withAlpha(200) : Colors.black87;
+    
+    return Card(
+      elevation: 1,  // Minimal elevation
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(6),  // Smaller radius
+      ),
+      // Use the full service type color as the card background
+      color: serviceColor,
+      child: Stack(
+        children: [
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => OrderDetailsScreen(orderId: order.id),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(6),  // Smaller radius
+            child: Padding(
+              padding: const EdgeInsets.all(4.0),  // Minimal padding
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header with centered bill number and status
+                  Column(
+                    children: [
+                      // Centered bill number
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 4.0),
+                          child: Text(
+                            '#${order.orderNumber}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,  // Smaller font
+                              color: textColor,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      // Status indicator below bill number
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isDarkBackground 
+                                ? Colors.white.withAlpha(40) 
+                                : statusColor.withAlpha(51),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            order.status,
+                            style: TextStyle(
+                              color: isDarkBackground ? Colors.white : statusColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  Divider(
+                    height: 12,
+                    color: isDarkBackground ? Colors.white.withAlpha(50) : Colors.black.withAlpha(20),
+                  ),
+                  
+                  // Service type
+                  Row(
+                    children: [
+                      Icon(
+                        serviceIcon,
+                        size: 14,  // Reduced icon size
+                        color: isDarkBackground ? Colors.white : Colors.black87,
+                      ),
+                      const SizedBox(width: 4),  // Reduced spacing
+                      Expanded(
+                        child: Text(
+                          order.serviceType,
+                          style: TextStyle(
+                            color: secondaryTextColor,
+                            fontSize: 12,  // Smaller font size
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 6),  // Reduced spacing
+                  
+                  // Order date and time
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.calendar_today,
+                                size: 12,
+                                color: secondaryTextColor,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                order.formattedDate,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: secondaryTextColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.access_time,
+                                size: 12,
+                                color: secondaryTextColor,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                order.formattedTime,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: secondaryTextColor,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  
+                  const Spacer(),
+                  
+                  // Amount - removed View button
+                  Container(
+                    width: double.infinity,
+                    alignment: Alignment.centerRight,
                     child: Text(
-                      '#${order.orderNumber}',
+                      currencyFormat.format(order.total),
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 14,  // Smaller font
+                        fontSize: 14,
                         color: textColor,
                       ),
                     ),
                   ),
+                ],
+              ),
+            ),
+          ),
+          
+          // Offline indicator badge (show only in offline mode for local orders)
+          if (isOfflineMode && !_isServerOrder(order.id))
+            Positioned(
+              top: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: const BorderRadius.only(
+                    topRight: Radius.circular(6),
+                    bottomLeft: Radius.circular(6),
+                  ),
                 ),
-                const SizedBox(height: 4),
-                // Status indicator below bill number
-                Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: isDarkBackground 
-                          ? Colors.white.withAlpha(40) 
-                          : statusColor.withAlpha(51),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      order.status,
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.cloud_off, size: 10, color: Colors.white),
+                    SizedBox(width: 2),
+                    Text(
+                      'Offline',
                       style: TextStyle(
-                        color: isDarkBackground ? Colors.white : statusColor,
-                        fontSize: 10,
+                        color: Colors.white,
+                        fontSize: 8,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                ),
-              ],
-            ),
-            
-            Divider(
-              height: 12,
-              color: isDarkBackground ? Colors.white.withAlpha(50) : Colors.black.withAlpha(20),
-            ),
-            
-            // Service type
-            Row(
-              children: [
-                Icon(
-                  serviceIcon,
-                  size: 14,  // Reduced icon size
-                  color: isDarkBackground ? Colors.white : Colors.black87,
-                ),
-                const SizedBox(width: 4),  // Reduced spacing
-                Expanded(
-                  child: Text(
-                    order.serviceType,
-                    style: TextStyle(
-                      color: secondaryTextColor,
-                      fontSize: 12,  // Smaller font size
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 6),  // Reduced spacing
-            
-            // Order date and time
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.calendar_today,
-                          size: 12,
-                          color: secondaryTextColor,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          order.formattedDate,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: secondaryTextColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.access_time,
-                          size: 12,
-                          color: secondaryTextColor,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          order.formattedTime,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: secondaryTextColor,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
                   ],
-                ),
-              ],
-            ),
-            
-            const Spacer(),
-            
-            // Amount - removed View button
-            Container(
-              width: double.infinity,
-              alignment: Alignment.centerRight,
-              child: Text(
-                currencyFormat.format(order.total),
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  color: textColor,
                 ),
               ),
             ),
-          ],
-        ),
+        ],
       ),
-    ),
-  );
-}
+    );
+  }
 
-// Add this helper method to determine if a color is dark
-bool _isDarkColor(Color color) {
-  // Calculate perceived brightness using the formula: (299*R + 587*G + 114*B) / 1000
-  // Where R, G, B values are between 0 and 255
-  double brightness = (299 * color.red + 587 * color.green + 114 * color.blue) / 1000;
-  return brightness < 128; // If brightness is less than 128, consider it dark
-}
+  // Add this helper method to identify local orders by ID format
+  bool _isServerOrder(int id) {
+    // Server IDs are usually small sequential numbers (1, 2, 3, etc.)
+    // Local IDs are often large timestamp-based or have a specific prefix/format
+    // This is a simplified heuristic - adjust based on your actual ID format
+    return id < 10000; // Assuming server IDs are less than 10000
+  }
+
+  // Add this helper method to determine if a color is dark
+  bool _isDarkColor(Color color) {
+    // Calculate perceived brightness using the formula: (299*R + 587*G + 114*B) / 1000
+    // Where R, G, B values are between 0 and 255
+    double brightness = (299 * color.red + 587 * color.green + 114 * color.blue) / 1000;
+    return brightness < 128; // If brightness is less than 128, consider it dark
+  }
 
   IconData _getServiceTypeIcon(String serviceType) {
     if (serviceType.contains('Dining')) {
@@ -592,20 +682,21 @@ bool _isDarkColor(Color color) {
       return Icons.receipt;
     }
   }
+  
   // Add this helper method to get color based on service type
-Color _getServiceTypeColor(String serviceType) {
-  if (serviceType.contains('Dining')) {
-    return const Color.fromARGB(255, 83, 153, 232); // Dark blue for dining
-  } else if (serviceType.contains('Takeout')) {
-    return const Color.fromARGB(255, 121, 221, 124); // Green for takeout
-  } else if (serviceType.contains('Delivery')) {
-    return const Color.fromARGB(255, 255, 152, 0); // Orange for delivery
-  } else if (serviceType.contains('Drive')) {
-    return const Color.fromARGB(255, 219, 128, 128); // Light red for drive through
-  } else if (serviceType.contains('Catering')) {
-    return const Color.fromARGB(255, 232, 216, 65); // Yellow for catering
-  } else {
-    return const Color(0xFF607D8B); // Light charcoal for other order types
+  Color _getServiceTypeColor(String serviceType) {
+    if (serviceType.contains('Dining')) {
+      return const Color.fromARGB(255, 83, 153, 232); // Dark blue for dining
+    } else if (serviceType.contains('Takeout')) {
+      return const Color.fromARGB(255, 121, 221, 124); // Green for takeout
+    } else if (serviceType.contains('Delivery')) {
+      return const Color.fromARGB(255, 255, 152, 0); // Orange for delivery
+    } else if (serviceType.contains('Drive')) {
+      return const Color.fromARGB(255, 219, 128, 128); // Light red for drive through
+    } else if (serviceType.contains('Catering')) {
+      return const Color.fromARGB(255, 232, 216, 65); // Yellow for catering
+    } else {
+      return const Color(0xFF607D8B); // Light charcoal for other order types
+    }
   }
-}
 }

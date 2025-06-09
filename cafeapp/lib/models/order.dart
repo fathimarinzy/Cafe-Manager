@@ -14,6 +14,7 @@ class Order {
   final String status;
   final String? createdAt;
   final String? customerId; // Add customer reference
+  final String? paymentMethod; // Added payment method field
 
 
   Order({
@@ -27,6 +28,7 @@ class Order {
     this.status = 'pending',
     this.createdAt,
     this.customerId,
+    this.paymentMethod = 'cash', // Default to cash
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
@@ -42,7 +44,8 @@ class Order {
       total: (json['total'] as num).toDouble(),
       status: json['status'] as String? ?? 'pending',
       createdAt: json['createdAt'] as String?,
-       customerId: json['customerId'] as String?,
+      customerId: json['customerId'] as String?,
+      paymentMethod: json['paymentMethod'] as String? ?? 'cash',
     );
   }
 
@@ -57,6 +60,7 @@ class Order {
       'status': status,
       'createdAt': createdAt,
       'customerId': customerId,
+      'paymentMethod': paymentMethod,
       if (customerId != null) 'customerId': customerId,
 
     };

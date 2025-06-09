@@ -1,20 +1,23 @@
-// lib/services/sync_service.dart
+// Updated SyncService with better deduplication for orders
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import '../repositories/local_menu_repository.dart';
+import '../repositories/local_order_repository.dart';
 import '../services/api_service.dart';
 import '../services/connectivity_service.dart';
 import '../models/menu_item.dart';
 import '../utils/deduplication_helper.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 enum SyncStatus {
   idle,
   syncing,
   completed,
   error,
+  
 }
 
 /// Service that handles synchronization between local database and server API
@@ -27,7 +30,8 @@ class SyncService {
   }
   
   final _syncStatusController = StreamController<SyncStatus>.broadcast();
-  final LocalMenuRepository _localRepo = LocalMenuRepository();
+  final LocalMenuRepository _localMenuRepo = LocalMenuRepository();
+  final LocalOrderRepository _localOrderRepo = LocalOrderRepository();
   final ApiService _apiService = ApiService();
   final ConnectivityService _connectivityService = ConnectivityService();
   final DeduplicationHelper _deduplicationHelper = DeduplicationHelper();
@@ -38,6 +42,10 @@ class SyncService {
   
   // Lock file path
   String? _lockFilePath;
+  
+  // Track synced orders to prevent duplicates
+  Set<String> _syncedOrdersCache = {};
+  final String _syncedOrdersCacheKey = 'synced_orders';
   
   Stream<SyncStatus> get syncStatusStream => _syncStatusController.stream;
   SyncStatus get currentStatus => _currentStatus;
@@ -57,6 +65,9 @@ class SyncService {
     // Initialize deduplication helper
     _deduplicationHelper.initialize();
     
+    // Load synced orders cache
+    _loadSyncedOrdersCache();
+    
     // Listen for connectivity changes
     _connectivityService.connectivityStream.listen((isConnected) {
       if (isConnected) {
@@ -73,7 +84,62 @@ class SyncService {
     // Periodic cleanup of old deduplication entries
     Timer.periodic(const Duration(days: 7), (_) {
       _deduplicationHelper.cleanupOldOperations();
+      _cleanupOldSyncedOrders();
     });
+  }
+  
+  // Load synced orders cache from shared preferences
+  Future<void> _loadSyncedOrdersCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cachedOrders = prefs.getStringList(_syncedOrdersCacheKey) ?? [];
+      _syncedOrdersCache = cachedOrders.toSet();
+      debugPrint('Loaded ${_syncedOrdersCache.length} synced order IDs from cache');
+    } catch (e) {
+      debugPrint('Error loading synced orders cache: $e');
+    }
+  }
+  
+  // Save synced orders cache to shared preferences
+  Future<void> _saveSyncedOrdersCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_syncedOrdersCacheKey, _syncedOrdersCache.toList());
+      debugPrint('Saved ${_syncedOrdersCache.length} synced order IDs to cache');
+    } catch (e) {
+      debugPrint('Error saving synced orders cache: $e');
+    }
+  }
+  
+  // Remove orders older than 30 days from cache
+  Future<void> _cleanupOldSyncedOrders() async {
+    try {
+      final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+      
+      // Filter out cache entries older than 30 days
+      // Format of cache entry: "orderId_timestamp"
+      final updatedCache = _syncedOrdersCache.where((entry) {
+        final parts = entry.split('_');
+        if (parts.length < 2) return true; // Keep entries with unknown format
+        
+        try {
+          final timestamp = int.parse(parts.last);
+          final entryDate = DateTime.fromMillisecondsSinceEpoch(timestamp);
+          return entryDate.isAfter(thirtyDaysAgo);
+        } catch (e) {
+          return true; // Keep entries with invalid timestamp
+        }
+      }).toSet();
+      
+      final removedCount = _syncedOrdersCache.length - updatedCache.length;
+      if (removedCount > 0) {
+        _syncedOrdersCache = updatedCache;
+        await _saveSyncedOrdersCache();
+        debugPrint('Cleaned up $removedCount old synced order entries');
+      }
+    } catch (e) {
+      debugPrint('Error cleaning up old synced orders: $e');
+    }
   }
   
   // Initialize lock file path
@@ -147,9 +213,14 @@ class SyncService {
   // Debug method to inspect pending operations
   Future<void> _debugPendingOperations() async {
     try {
-      final ops = await _localRepo.getPendingOperations();
-      debugPrint('===== DEBUG: PENDING OPERATIONS =====');
-      debugPrint('Total count: ${ops.length}');
+      final menuOps = await _localMenuRepo.getPendingOperations();
+      debugPrint('===== DEBUG: PENDING MENU OPERATIONS =====');
+      debugPrint('Total count: ${menuOps.length}');
+      
+      // Debug pending orders
+      final pendingOrders = await _localOrderRepo.getUnsyncedOrders();
+      debugPrint('===== DEBUG: PENDING ORDERS =====');
+      debugPrint('Total count: ${pendingOrders.length}');
       
       // Group operations by operation type for better debugging
       final Map<String, List<Map<String, dynamic>>> operationsByType = {
@@ -159,7 +230,7 @@ class SyncService {
         'UNKNOWN': [],
       };
       
-      for (final op in ops) {
+      for (final op in menuOps) {
         final opType = op['operation']?.toString().toUpperCase() ?? 'UNKNOWN';
         if (operationsByType.containsKey(opType)) {
           operationsByType[opType]!.add(op);
@@ -174,29 +245,6 @@ class SyncService {
         if (count > 0) {
           debugPrint('$type operations: $count');
         }
-      }
-      
-      // Print details for each operation
-      for (int i = 0; i < ops.length; i++) {
-        final op = ops[i];
-        debugPrint('Op #${i+1} - ID: ${op['id']}');
-        debugPrint('  Operation: ${op['operation']}');
-        debugPrint('  Item ID: ${op['itemId']}');
-        debugPrint('  Timestamp: ${op['timestamp']}');
-        
-        // Try to pretty-print data if it's JSON
-        if (op['itemData'] != null) {
-          try {
-            final Map<String, dynamic> data = _parseJsonData(op['itemData']);
-            debugPrint('  Data: ${json.encode(data)}');
-          } catch (e) {
-            debugPrint('  Data: ${op['itemData']} (not valid JSON)');
-          }
-        } else {
-          debugPrint('  Data: null');
-        }
-        
-        debugPrint('------------------------------');
       }
     } catch (e) {
       debugPrint('Error debugging pending operations: $e');
@@ -308,10 +356,7 @@ class SyncService {
     }
   }
   
-  /// Main synchronization method with triple protection against duplicates:
-  /// 1. File-based lock to ensure only one sync process runs at a time
-  /// 2. Deduplication database to track which operations have been processed
-  /// 3. In-memory tracking during a single sync run
+  /// Main synchronization method with improved deduplication
   Future<bool> syncChanges() async {
     // Check if we're online
     final isOnline = await _connectivityService.checkConnection();
@@ -341,161 +386,15 @@ class SyncService {
       // Debug pending operations
       await _debugPendingOperations();
       
-      // Get all pending operations
-      final pendingOps = await _localRepo.getPendingOperations();
-      debugPrint('Found ${pendingOps.length} pending operations to sync');
+      // First sync menu operations
+      await _syncMenuOperations();
       
-      if (pendingOps.isEmpty) {
-        _updateStatus(SyncStatus.completed);
-        await _removeLock();
-        return true;
-      }
+      // Then sync order operations
+      await _syncOrderOperations();
       
-      // Track successfully processed operations
-      final List<int> processedOpIds = [];
-      
-      // Process each operation individually, with careful duplicate checking
-      for (final operation in pendingOps) {
-        final operationId = operation['id'] as int;
-        final itemId = operation['itemId']?.toString() ?? '';
-        final opType = operation['operation']?.toString().toUpperCase() ?? '';
-        
-        // Skip if no itemId or invalid operation type
-        if (itemId.isEmpty || opType.isEmpty) {
-          processedOpIds.add(operationId);
-          continue;
-        }
-        
-        // Parse the item data
-        Map<String, dynamic> itemData = {};
-        try {
-          if (operation['itemData'] != null) {
-            itemData = _parseJsonData(operation['itemData']);
-          }
-        } catch (e) {
-          debugPrint('Error parsing item data: $e');
-          continue;
-        }
-        
-        // Skip operations with empty data
-        if (itemData.isEmpty) {
-          debugPrint('Skipping operation: Empty item data');
-          processedOpIds.add(operationId);
-          continue;
-        }
-        
-        // CRITICAL: Check if this operation has already been processed
-        // using the deduplication helper (persistent across app restarts)
-        final alreadyProcessed = await _deduplicationHelper.isOperationProcessed(
-          opType, itemId, itemData);
-        
-        if (alreadyProcessed) {
-          debugPrint('Skipping $opType operation for item $itemId - already processed (from deduplication DB)');
-          processedOpIds.add(operationId);
-          continue;
-        }
-        
-        try {
-          bool success = false;
-          
-          if (opType == 'ADD') {
-            // Create a new MenuItem from the data
-            final MenuItem menuItem = _mapToMenuItem(itemData);
-            
-            // Call the API to add the item
-            debugPrint('Adding item to server: ${menuItem.name}');
-            final addedItem = await _apiService.addMenuItem(menuItem);
-            await _localRepo.markItemAsSynced(itemId);
-            
-            // Mark as processed in deduplication database
-            await _deduplicationHelper.markOperationProcessed(opType, itemId, itemData);
-            
-            success = true;
-            debugPrint('Successfully added item to server: ${addedItem.id}');
-          } else if (opType == 'UPDATE') {
-            // Create a MenuItem from the data
-            final MenuItem menuItem = _mapToMenuItem(itemData);
-            
-            // Skip local IDs - they can't be updated on server
-            if (_isLocalId(itemId)) {
-              debugPrint('Skipping UPDATE for local ID $itemId - cannot update on server');
-              await _deduplicationHelper.markOperationProcessed(opType, itemId, itemData);
-              processedOpIds.add(operationId);
-              continue;
-            }
-            
-            // Call the API to update the item
-            debugPrint('Updating item on server: ${menuItem.name}');
-            await _apiService.updateMenuItem(menuItem);
-            await _localRepo.markItemAsSynced(itemId);
-            
-            // Mark as processed in deduplication database
-            await _deduplicationHelper.markOperationProcessed(opType, itemId, itemData);
-            
-            success = true;
-            debugPrint('Successfully updated item on server: ${menuItem.id}');
-          } else if (opType == 'DELETE') {
-            // Skip local IDs - they don't exist on server
-            if (_isLocalId(itemId)) {
-              debugPrint('Skipping DELETE for local ID $itemId - does not exist on server');
-              await _deduplicationHelper.markOperationProcessed(opType, itemId, itemData);
-              processedOpIds.add(operationId);
-              continue;
-            }
-            
-            // Delete the item on the server
-            debugPrint('Deleting item from server: $itemId');
-            final success = await _safeDeleteItem(itemId);
-            
-            if (success) {
-              // Mark as processed in deduplication database
-              await _deduplicationHelper.markOperationProcessed(opType, itemId, itemData);
-              
-              processedOpIds.add(operationId);
-              debugPrint('Successfully deleted item from server: $itemId');
-            }
-          }
-          
-          // If successful, mark operation as processed
-          if (success) {
-            processedOpIds.add(operationId);
-          }
-        } catch (e) {
-          debugPrint('Error processing operation: $e');
-          
-          // If we get a "not found" error for DELETE or UPDATE, mark as processed anyway
-          if ((opType == 'DELETE' || opType == 'UPDATE') && 
-              e.toString().toLowerCase().contains('not found')) {
-            await _deduplicationHelper.markOperationProcessed(opType, itemId, itemData);
-            processedOpIds.add(operationId);
-          }
-        }
-        
-        // Small delay between operations to prevent overloading the server
-        await Future.delayed(const Duration(milliseconds: 100));
-      }
-      
-      // Debug log before removing operations
-      debugPrint('Removing ${processedOpIds.length} processed operations');
-      
-      // Remove processed operations
-      for (final id in processedOpIds) {
-        await _localRepo.removePendingOperation(id);
-      }
-      
-      // Check if all operations were processed
-      final remainingOps = await _localRepo.getPendingOperations();
-      if (remainingOps.isEmpty) {
-        _updateStatus(SyncStatus.completed);
-        await _removeLock();
-        return true;
-      } else {
-        debugPrint('Sync incomplete, ${remainingOps.length} operations remaining');
-        _updateStatus(SyncStatus.error);
-        await _removeLock();
-        return false;
-      }
-      
+      _updateStatus(SyncStatus.completed);
+      await _removeLock();
+      return true;
     } catch (e) {
       debugPrint('Error during sync: $e');
       _updateStatus(SyncStatus.error);
@@ -509,8 +408,240 @@ class SyncService {
       _syncResetTimer?.cancel();
     }
   }
-  
-  void dispose() {
+
+  // Sync menu operations - unchanged from original
+  Future<void> _syncMenuOperations() async {
+    // [Keep your existing menu sync code here]
+    // Get all pending menu operations
+    final pendingOps = await _localMenuRepo.getPendingOperations();
+    debugPrint('Found ${pendingOps.length} pending menu operations to sync');
+    
+    if (pendingOps.isEmpty) {
+      return;
+    }
+    
+    // Track successfully processed operations
+    final List<int> processedOpIds = [];
+    
+    // Process each operation individually, with careful duplicate checking
+    for (final operation in pendingOps) {
+      final operationId = operation['id'] as int;
+      final itemId = operation['itemId']?.toString() ?? '';
+      final opType = operation['operation']?.toString().toUpperCase() ?? '';
+      
+      // Skip if no itemId or invalid operation type
+      if (itemId.isEmpty || opType.isEmpty) {
+        processedOpIds.add(operationId);
+        continue;
+      }
+      
+      // Parse the item data
+      Map<String, dynamic> itemData = {};
+      try {
+        if (operation['itemData'] != null) {
+          itemData = _parseJsonData(operation['itemData']);
+        }
+      } catch (e) {
+        debugPrint('Error parsing item data: $e');
+        continue;
+      }
+      
+      // Skip operations with empty data
+      if (itemData.isEmpty) {
+        debugPrint('Skipping operation: Empty item data');
+        processedOpIds.add(operationId);
+        continue;
+      }
+      
+      // CRITICAL: Check if this operation has already been processed
+      // using the deduplication helper (persistent across app restarts)
+      final alreadyProcessed = await _deduplicationHelper.isOperationProcessed(
+        opType, itemId, itemData);
+      
+      if (alreadyProcessed) {
+        debugPrint('Skipping $opType operation for item $itemId - already processed (from deduplication DB)');
+        processedOpIds.add(operationId);
+        continue;
+      }
+      
+      try {
+        bool success = false;
+        
+        if (opType == 'ADD') {
+          // Create a new MenuItem from the data
+          final MenuItem menuItem = _mapToMenuItem(itemData);
+          
+          // Call the API to add the item
+          debugPrint('Adding item to server: ${menuItem.name}');
+          final addedItem = await _apiService.addMenuItem(menuItem);
+          await _localMenuRepo.markItemAsSynced(itemId);
+          
+          // Mark as processed in deduplication database
+          await _deduplicationHelper.markOperationProcessed(opType, itemId, itemData);
+          
+          success = true;
+          debugPrint('Successfully added item to server: ${addedItem.id}');
+        } else if (opType == 'UPDATE') {
+          // Create a MenuItem from the data
+          final MenuItem menuItem = _mapToMenuItem(itemData);
+          
+          // Skip local IDs - they can't be updated on server
+          if (_isLocalId(itemId)) {
+            debugPrint('Skipping UPDATE for local ID $itemId - cannot update on server');
+            await _deduplicationHelper.markOperationProcessed(opType, itemId, itemData);
+            processedOpIds.add(operationId);
+            continue;
+          }
+          
+          // Call the API to update the item
+          debugPrint('Updating item on server: ${menuItem.name}');
+          await _apiService.updateMenuItem(menuItem);
+          await _localMenuRepo.markItemAsSynced(itemId);
+          
+          // Mark as processed in deduplication database
+          await _deduplicationHelper.markOperationProcessed(opType, itemId, itemData);
+          
+          success = true;
+          debugPrint('Successfully updated item on server: ${menuItem.id}');
+        } else if (opType == 'DELETE') {
+          // Skip local IDs - they don't exist on server
+          if (_isLocalId(itemId)) {
+            debugPrint('Skipping DELETE for local ID $itemId - does not exist on server');
+            await _deduplicationHelper.markOperationProcessed(opType, itemId, itemData);
+            processedOpIds.add(operationId);
+            continue;
+          }
+          
+          // Delete the item on the server
+          debugPrint('Deleting item from server: $itemId');
+          final success = await _safeDeleteItem(itemId);
+          
+          if (success) {
+            // Mark as processed in deduplication database
+            await _deduplicationHelper.markOperationProcessed(opType, itemId, itemData);
+            
+            processedOpIds.add(operationId);
+            debugPrint('Successfully deleted item from server: $itemId');
+          }
+        }
+        
+        // If successful, mark operation as processed
+        if (success) {
+          processedOpIds.add(operationId);
+        }
+      } catch (e) {
+        debugPrint('Error processing operation: $e');
+        
+        // If we get a "not found" error for DELETE or UPDATE, mark as processed anyway
+        if ((opType == 'DELETE' || opType == 'UPDATE') && 
+            e.toString().toLowerCase().contains('not found')) {
+          await _deduplicationHelper.markOperationProcessed(opType, itemId, itemData);
+          processedOpIds.add(operationId);
+        }
+      }
+      
+      // Small delay between operations to prevent overloading the server
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    
+    // Debug log before removing operations
+    debugPrint('Removing ${processedOpIds.length} processed menu operations');
+    
+    // Remove processed operations
+    for (final id in processedOpIds) {
+      await _localMenuRepo.removePendingOperation(id);
+    }
+  }
+
+  // Updated sync order operations with better deduplication
+  Future<void> _syncOrderOperations() async {
+    // Get all unsynced orders
+    final unsyncedOrders = await _localOrderRepo.getUnsyncedOrders();
+    debugPrint('Found ${unsyncedOrders.length} unsynced orders to sync');
+    
+    if (unsyncedOrders.isEmpty) {
+      return;
+    }
+    
+    // Track successfully processed orders
+    final List<int> processedOrderIds = [];
+    
+    // Process each order with improved deduplication
+    for (final order in unsyncedOrders) {
+      if (order.id == null) continue; // Skip orders without ID
+      
+      // Generate a unique sync key for this order
+      final syncKey = '${order.id}_${DateTime.now().millisecondsSinceEpoch}';
+      
+      // Skip if this order has already been synced
+      final alreadySynced = _syncedOrdersCache.any((key) => key.startsWith('${order.id}_'));
+      if (alreadySynced) {
+        debugPrint('Order ${order.id} already synced based on cache. Skipping.');
+        processedOrderIds.add(order.id!);
+        continue;
+      }
+      
+      try {
+        // Convert order items to server format
+        final items = order.items.map((item) => {
+          'id': item.id.toString(),
+          'name': item.name,
+          'price': item.price,
+          'quantity': item.quantity,
+          'kitchenNote': item.kitchenNote,
+        }).toList();
+        
+        // Create order on server
+        debugPrint('Creating order on server: ${order.serviceType}');
+        final serverOrder = await _apiService.createOrder(
+          order.serviceType,
+          items,
+          order.subtotal,
+          order.tax,
+          order.discount,
+          order.total,
+          paymentMethod: order.paymentMethod ?? 'cash',
+          customerId: order.customerId,
+        );
+        
+        if (serverOrder != null) {
+          // Mark order as synced
+          await _localOrderRepo.markOrderAsSynced(order.id!, serverOrder.id);
+          
+          // Add to processed IDs
+          processedOrderIds.add(order.id!);
+          
+          // Add to synced orders cache to prevent future duplicates
+          _syncedOrdersCache.add(syncKey);
+          
+          debugPrint('Successfully synced order ${order.id} to server ID ${serverOrder.id}');
+        }
+      } catch (e) {
+        debugPrint('Error syncing order ${order.id}: $e');
+        
+        // If we get a "not found" error or similar, mark as processed anyway
+        if (e.toString().toLowerCase().contains('not found')) {
+          await _localOrderRepo.markOrderAsSynced(order.id!, null);
+          processedOrderIds.add(order.id!);
+          
+          // Add to synced orders cache even on error to prevent retries
+          _syncedOrdersCache.add(syncKey);
+        }
+        
+        // Record the sync error
+        await _localOrderRepo.recordSyncError(order.id!, e.toString());
+      }
+      
+      // Small delay between operations to prevent overloading the server
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    
+    // Save the updated synced orders cache
+    await _saveSyncedOrdersCache();
+    
+    debugPrint('Successfully synced ${processedOrderIds.length} orders');
+  }
+   void dispose() {
     _syncResetTimer?.cancel();
     _syncStatusController.close();
     _removeLock(); // Clean up lock file when service is disposed
