@@ -407,6 +407,8 @@ Future<Map<String, dynamic>> processOrderWithBill(BuildContext context) async {
       
     // Create or update the order - handling both online and offline scenarios
     Order? order;
+    Order? localOrder;
+    int? serverOrderId;
     
     // Log the current state for debugging
     debugPrint('Processing order: currentOrderId=$_currentOrderId, isOfflineMode=$_isOfflineMode');
@@ -429,6 +431,44 @@ Future<Map<String, dynamic>> processOrderWithBill(BuildContext context) async {
           discount,
           total,
         );
+        
+        // Also update in local database for redundancy
+        if (order != null) {
+          serverOrderId = order.id;
+          
+          // Convert cart items to OrderItem objects
+          final orderItems = _serviceTypeCarts[_currentServiceType]!.map((item) => 
+            OrderItem(
+              id: int.tryParse(item.id) ?? 0,
+              name: item.name,
+              price: item.price,
+              quantity: item.quantity,
+              kitchenNote: item.kitchenNote,
+            )
+          ).toList();
+          
+          // Create an order object with the existing ID
+          localOrder = Order(
+            id: existingOrderId, // Use existing order ID
+            serviceType: _currentServiceType,
+            items: orderItems,
+            subtotal: subtotal,
+            tax: tax,
+            discount: discount,
+            total: total,
+            status: 'pending',
+            createdAt: formattedTimestamp,
+            customerId: _selectedPerson?.id,
+          );
+          
+          // Save to local storage with is_synced=1 since we just synced it
+          try {
+            localOrder = await _localOrderRepo.saveOrderAsSynced(localOrder, serverOrderId);
+            debugPrint('Updated order in local database with synced status: ID=${localOrder.id}, ServerID=$serverOrderId');
+          } catch (e) {
+            debugPrint('Error saving synced order to local database: $e');
+          }
+        }
       } else {
         // Offline mode - update locally
         debugPrint('Updating order locally in offline mode, order ID: $existingOrderId');
@@ -445,7 +485,7 @@ Future<Map<String, dynamic>> processOrderWithBill(BuildContext context) async {
         ).toList();
         
         // Create an order object with the EXISTING ID
-        order = Order(
+        localOrder = Order(
           id: existingOrderId, // Critical: Use existing order ID
           serviceType: _currentServiceType,
           items: orderItems,
@@ -459,7 +499,8 @@ Future<Map<String, dynamic>> processOrderWithBill(BuildContext context) async {
         );
         
         // Update the existing order in local storage
-        order = await _localOrderRepo.saveOrder(order);
+        localOrder = await _localOrderRepo.saveOrder(localOrder);
+        order = localOrder; // Use local order as the main order
       }
     } else {
       // Create a new order
@@ -477,21 +518,27 @@ Future<Map<String, dynamic>> processOrderWithBill(BuildContext context) async {
           total,
           customerId: _selectedPerson?.id,
         );
-      } else {
-        // Offline mode - save locally
-        debugPrint('Creating new order locally in offline mode');
-        order = await _localOrderRepo.saveOrder(
-          Order(
+        
+        // IMPORTANT: Also save to local database for redundancy
+        if (order != null) {
+          serverOrderId = order.id;
+          
+          // Convert cart items to OrderItem objects
+          final orderItems = _serviceTypeCarts[_currentServiceType]!.map((item) => 
+            OrderItem(
+              id: int.tryParse(item.id) ?? 0,
+              name: item.name,
+              price: item.price,
+              quantity: item.quantity,
+              kitchenNote: item.kitchenNote,
+            )
+          ).toList();
+          
+          // Create a local order with the server-generated ID
+          localOrder = Order(
+            id: serverOrderId, // Use server-generated ID
             serviceType: _currentServiceType,
-            items: _serviceTypeCarts[_currentServiceType]!.map((item) => 
-              OrderItem(
-                id: int.tryParse(item.id) ?? 0,
-                name: item.name,
-                price: item.price,
-                quantity: item.quantity,
-                kitchenNote: item.kitchenNote,
-              )
-            ).toList(),
+            items: orderItems,
             subtotal: subtotal,
             tax: tax,
             discount: discount,
@@ -499,20 +546,64 @@ Future<Map<String, dynamic>> processOrderWithBill(BuildContext context) async {
             status: 'pending',
             createdAt: formattedTimestamp,
             customerId: _selectedPerson?.id,
+          );
+          
+          // Save to local storage with is_synced=1 since we just synced it
+          try {
+            localOrder = await _localOrderRepo.saveOrderAsSynced(localOrder, serverOrderId);
+            debugPrint('Saved order to local database with synced status: ID=${localOrder.id}, ServerID=$serverOrderId');
+          } catch (e) {
+            debugPrint('Error saving synced order to local database: $e');
+          }
+        }
+      } else {
+        // Offline mode - save locally
+        debugPrint('Creating new order locally in offline mode');
+        
+        // Convert cart items to OrderItem objects
+        final orderItems = _serviceTypeCarts[_currentServiceType]!.map((item) => 
+          OrderItem(
+            id: int.tryParse(item.id) ?? 0,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            kitchenNote: item.kitchenNote,
           )
+        ).toList();
+        
+        // Create a new local order
+        localOrder = Order(
+          serviceType: _currentServiceType,
+          items: orderItems,
+          subtotal: subtotal,
+          tax: tax,
+          discount: discount,
+          total: total,
+          status: 'pending',
+          createdAt: formattedTimestamp,
+          customerId: _selectedPerson?.id,
         );
+        
+        // Save to local storage
+        localOrder = await _localOrderRepo.saveOrder(localOrder);
+        order = localOrder; // Use local order as the main order
       }
     }
       
-    if (order == null) {
+    if (order == null && localOrder == null) {
       return {
         'success': false,
         'message': 'Failed to create or update order in the system',
       };
     }
     
+    // Use local order if online order failed
+    if (order == null && localOrder != null) {
+      order = localOrder;
+    }
+    
     // Now print the kitchen receipt with the order ID
-    final String orderNumberPadded = order.id.toString().padLeft(4, '0');
+    final String orderNumberPadded = order!.id.toString().padLeft(4, '0');
     Map<String, dynamic> printResult = await BillService.printKitchenOrderReceipt(
       items: cartItems,
       serviceType: _currentServiceType,
@@ -578,8 +669,7 @@ Future<Map<String, dynamic>> processOrderWithBill(BuildContext context) async {
     };
   }
 }
- 
-
+  
   // Get all orders (both online and offline)
   Future<List<Order>> fetchOrders() async {
     List<Order> orders = [];

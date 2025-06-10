@@ -603,5 +603,116 @@ Future<List<Order>> getAllOrders() async {
       return false;
     }
   }
+Future<Order> saveOrderAsSynced(Order order, int? serverOrderId) async {
+  try {
+    final db = await database;
+    // Generate a timestamp for local orders that is clearly a local timestamp
+    final now = DateTime.now();
+    final timestamp = now.millisecondsSinceEpoch;
+    final localTimestamp = 'local_${timestamp}';
+    final syncId = 'server_sync_${timestamp}';
+    
+    // Determine if this is an update or new order
+    final bool isUpdate = order.id != null;
+    debugPrint(isUpdate 
+      ? 'Updating existing order #${order.id} as synced with server ID $serverOrderId' 
+      : 'Creating new synced order with server ID $serverOrderId');
+    
+    final orderMap = {
+      'service_type': order.serviceType,
+      'subtotal': order.subtotal,
+      'tax': order.tax,
+      'discount': order.discount,
+      'total': order.total,
+      'status': order.status,
+      'created_at': order.createdAt ?? localTimestamp,
+      'payment_method': order.paymentMethod ?? 'cash',
+      'customer_id': order.customerId,
+      // Mark as synced immediately
+      'is_synced': 1,
+      'server_id': serverOrderId,
+      'last_sync_attempt': now.toIso8601String(),
+      'sync_id': syncId,
+    };
+    
+    int orderId;
+    
+    // If it's an existing order with an ID, update rather than insert
+    if (isUpdate) {
+      // Check if the order exists
+      final existingOrder = await db.query(
+        'orders',
+        where: 'id = ?',
+        whereArgs: [order.id],
+      );
+      
+      if (existingOrder.isNotEmpty) {
+        // Update existing order
+        await db.update(
+          'orders',
+          orderMap,
+          where: 'id = ?',
+          whereArgs: [order.id],
+        );
+        
+        // Delete existing items for this order
+        await db.delete(
+          'order_items',
+          where: 'order_id = ?',
+          whereArgs: [order.id],
+        );
+        
+        orderId = order.id!;
+        debugPrint('Updated existing order in local database as synced: ID=$orderId, ServerID=$serverOrderId');
+      } else {
+        // If the order doesn't exist, insert it with the specified ID
+        orderMap['id'] = order.id;
+        orderId = await db.insert('orders', orderMap);
+        debugPrint('Inserted synced order with specified ID: $orderId, ServerID=$serverOrderId');
+      }
+    } else {
+      // Insert as a new order - use the server ID if provided
+      if (serverOrderId != null) {
+        orderMap['id'] = serverOrderId;
+        orderId = await db.insert('orders', orderMap);
+        debugPrint('Inserted new synced order using server ID: $orderId');
+      } else {
+        // No server ID, let SQLite generate one
+        orderId = await db.insert('orders', orderMap);
+        debugPrint('Inserted new synced order with generated ID: $orderId');
+      }
+    }
+    
+    // Now insert the order items
+    for (var item in order.items) {
+      await db.insert('order_items', {
+        'order_id': orderId,
+        'menu_item_id': item.id,
+        'name': item.name,
+        'price': item.price,
+        'quantity': item.quantity,
+        'kitchen_note': item.kitchenNote,
+      });
+    }
+    
+    // Return the order with the updated ID
+    return Order(
+      id: orderId,
+      serviceType: order.serviceType,
+      items: order.items,
+      subtotal: order.subtotal,
+      tax: order.tax,
+      discount: order.discount,
+      total: order.total,
+      status: order.status,
+      createdAt: order.createdAt ?? localTimestamp,
+      customerId: order.customerId,
+      paymentMethod: order.paymentMethod,
+    );
+  } catch (e) {
+    debugPrint('Error saving synced order to local database: $e');
+    rethrow;
+  }
+}
   
 }
