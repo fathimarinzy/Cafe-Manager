@@ -362,7 +362,6 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
   }
 
   // Check if there's an active (pending) order for a table
-  
 Future<void> _checkForActiveOrder(int tableNumber, String serviceType, OrderProvider orderProvider) async {
   // Show loading indicator
   showDialog(
@@ -384,29 +383,32 @@ Future<void> _checkForActiveOrder(int tableNumber, String serviceType, OrderProv
     
     // Look for a pending order
     final orders = historyProvider.orders;
-    for (var order in orders) {
-      if (order.status.toLowerCase() == 'pending') {
-        // Found an active order - close the loading dialog
-        if (context.mounted) {
-          Navigator.of(context).pop();
-          
-          // Instead of showing a dialog, directly add to the existing order
-          orderProvider.setCurrentOrderId(order.id);
-          orderProvider.setCurrentServiceType(serviceType);
-          // Load existing items into the cart
-          await orderProvider.loadExistingOrderItems(order.id);
-          
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => MenuScreen(
-                serviceType: serviceType,
-                existingOrderId: order.id,
-              ),
+    final pendingOrders = orders.where((order) => 
+      order.status.toLowerCase() == 'pending').toList();
+    
+    if (pendingOrders.isNotEmpty) {
+      // Found at least one active order - close the loading dialog
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        
+        // Use the first pending order
+        final activeOrder = pendingOrders.first;
+        
+        orderProvider.setCurrentOrderId(activeOrder.id);
+        orderProvider.setCurrentServiceType(serviceType);
+        // Load existing items into the cart
+        await orderProvider.loadExistingOrderItems(activeOrder.id);
+        
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MenuScreen(
+              serviceType: serviceType,
+              existingOrderId: activeOrder.id,
             ),
-          );
-          return;
-        }
+          ),
+        );
+        return;
       }
     }
     
@@ -419,11 +421,13 @@ Future<void> _checkForActiveOrder(int tableNumber, String serviceType, OrderProv
     // Error occurred - close the loading dialog and proceed with new order
     if (context.mounted) {
       Navigator.of(context).pop();
-       debugPrint('Error checking for active orders: $e');
+      debugPrint('Error checking for active orders: $e');
       _navigateToMenuScreen(serviceType, orderProvider);
     }
   }
 }
+  
+
 
   // Dialog to ask if they want to add to an existing order
   // void _showAddToOrderDialog(dynamic order, int tableNumber, String serviceType, OrderProvider orderProvider) {

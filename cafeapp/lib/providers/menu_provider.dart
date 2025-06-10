@@ -37,71 +37,100 @@ class MenuProvider with ChangeNotifier {
   MenuProvider._internal() {
     _initialize();
   }
-  
   Future<void> _initialize() async {
-    _isLoading = true;
-    notifyListeners();
+  _isLoading = true;
+  notifyListeners();
+  
+  debugPrint('Initializing MenuProvider');
+  
+  // Initialize connectivity service
+  _connectivityService.initialize();
+  
+  // Initialize sync service
+  _syncService.initialize();
+  
+  // Check initial connection status
+  _isOfflineMode = !await _connectivityService.checkConnection();
+  
+  // Track if a sync has been triggered to avoid multiple syncs
+  bool syncInProgress = false;
+  
+  // Listen for connectivity changes
+  _connectivityService.connectivityStream.listen((isConnected) {
+    _isOfflineMode = !isConnected;
     
-    debugPrint('Initializing MenuProvider');
-    
-    // Initialize connectivity service
-    _connectivityService.initialize();
-    
-    // Initialize sync service
-    _syncService.initialize();
-    
-    // Check initial connection status
-    _isOfflineMode = !await _connectivityService.checkConnection();
-    
-    // Listen for connectivity changes
-    _connectivityService.connectivityStream.listen((isConnected) {
-      _isOfflineMode = !isConnected;
-      
-      // If we just went from offline to online, trigger a sync
-      if (isConnected) {
-        debugPrint('Connectivity restored, triggering sync');
+    // If we just went from offline to online, trigger a sync
+    if (isConnected) {
+      // Only trigger a sync if one isn't already in progress
+      if (!syncInProgress) {
+        debugPrint('Connectivity restored, triggering sync (MenuProvider)');
+        
+        // Mark sync as in progress to prevent duplicates
+        syncInProgress = true;
         
         // Delay sync slightly to ensure connectivity is stable
-        Future.delayed(const Duration(seconds: 2), () {
-          _syncService.syncChanges().then((_) {
+        Future.delayed(const Duration(seconds: 2), () async {
+          try {
+            await _syncService.syncChanges();
+            
             // After sync completes, refresh data
-            fetchMenu(forceRefresh: true);
-            fetchCategories(forceRefresh: true);
-          });
+            await fetchMenu(forceRefresh: true);
+            await fetchCategories(forceRefresh: true);
+          } finally {
+            // Mark sync as complete, even if there was an error
+            syncInProgress = false;
+          }
         });
+      } else {
+        debugPrint('Sync already in progress, skipping additional sync trigger');
       }
-      
-      notifyListeners();
-    });
-    
-    // Listen for sync status changes
-    _syncService.syncStatusStream.listen((status) {
-      // Only notify if we're in a sync-related state
-      if (status != SyncStatus.idle) {
-        notifyListeners();
-      }
-      
-      // If sync completed, refresh data
-      if (status == SyncStatus.completed) {
-        debugPrint('Sync completed, refreshing data');
-        fetchMenu(forceRefresh: true);
-        fetchCategories(forceRefresh: true);
-      }
-    });
-    
-    // Initial data load
-    try {
-      await Future.wait([
-        fetchMenu(),
-        fetchCategories()
-      ]);
-    } catch (e) {
-      debugPrint('Error during initial data load: $e');
     }
     
-    _isLoading = false;
     notifyListeners();
+  });
+  
+  // Listen for sync status changes - using a variable to track sync completion
+  bool syncCompletedHandled = false;
+  
+  _syncService.syncStatusStream.listen((status) {
+    // Only notify if we're in a sync-related state
+    if (status != SyncStatus.idle) {
+      notifyListeners();
+    }
+    
+    // If sync completed and we haven't handled it yet
+    if (status == SyncStatus.completed && !syncCompletedHandled) {
+      debugPrint('Sync completed, refreshing data (from status stream)');
+      
+      // Mark as handled to prevent duplicate refreshes
+      syncCompletedHandled = true;
+      
+      // Reset the flag after a delay
+      Future.delayed(const Duration(seconds: 10), () {
+        syncCompletedHandled = false;
+      });
+      
+      // Refresh data
+      fetchMenu(forceRefresh: true);
+      fetchCategories(forceRefresh: true);
+    }
+  });
+  
+  // Initial data load
+  try {
+    await Future.wait([
+      fetchMenu(),
+      fetchCategories()
+    ]);
+  } catch (e) {
+    debugPrint('Error during initial data load: $e');
   }
+  
+  _isLoading = false;
+  notifyListeners();
+}
+  
+ 
 
   Future<void> fetchMenu({bool forceRefresh = false}) async {
     // Don't fetch if items already loaded and no force refresh

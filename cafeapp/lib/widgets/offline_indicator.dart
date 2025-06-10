@@ -108,77 +108,77 @@ class _OfflineIndicatorState extends State<OfflineIndicator> {
               right: 0,
               child: Material(
                 elevation: 4,
-                child: Container(
-                  color: Colors.red,
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.cloud_off,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _pendingOrderCount > 0 
-                                ? 'Offline Mode - $_pendingOrderCount order${_pendingOrderCount == 1 ? '' : 's'} waiting to sync'
-                                : 'Offline Mode - Changes will sync when connected',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      _isRefreshing
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : IconButton(
-                              icon: const Icon(Icons.refresh, color: Colors.white, size: 16),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                minWidth: 24,
-                                minHeight: 24,
-                              ),
-                              onPressed: () async {
-                                // Try to reconnect
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Checking connection...'),
-                                    duration: Duration(seconds: 1),
-                                  ),
-                                );
+                // child: Container(
+                //   color: Colors.red,
+                //   padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                //   child: Row(
+                //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                //     children: [
+                //       Row(
+                //         children: [
+                //           const Icon(
+                //             Icons.cloud_off,
+                //             color: Colors.white,
+                //             size: 16,
+                //           ),
+                //           const SizedBox(width: 8),
+                //           Text(
+                //             _pendingOrderCount > 0 
+                //                 ? 'Offline Mode - $_pendingOrderCount order${_pendingOrderCount == 1 ? '' : 's'} waiting to sync'
+                //                 : 'Offline Mode - Changes will sync when connected',
+                //             style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                //               color: Colors.white,
+                //               fontWeight: FontWeight.bold,
+                //             ),
+                //           ),
+                //         ],
+                //       ),
+                //       _isRefreshing
+                //           ? const SizedBox(
+                //               width: 16,
+                //               height: 16,
+                //               child: CircularProgressIndicator(
+                //                 valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                //                 strokeWidth: 2,
+                //               ),
+                //             )
+                //           : IconButton(
+                //               icon: const Icon(Icons.refresh, color: Colors.white, size: 16),
+                //               padding: EdgeInsets.zero,
+                //               constraints: const BoxConstraints(
+                //                 minWidth: 24,
+                //                 minHeight: 24,
+                //               ),
+                //               onPressed: () async {
+                //                 // Try to reconnect
+                //                 ScaffoldMessenger.of(context).showSnackBar(
+                //                   const SnackBar(
+                //                     content: Text('Checking connection...'),
+                //                     duration: Duration(seconds: 1),
+                //                   ),
+                //                 );
                                 
-                                final isNowConnected = await _connectivityService.checkConnection();
-                                if (isNowConnected) {
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Connection restored! Syncing data...')),
-                                    );
-                                  }
-                                  _performRefresh();
-                                } else {
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Still offline. Please check your connection.')),
-                                    );
-                                  }
-                                  _updatePendingCount();
-                                }
-                              },
-                            ),
-                    ],
-                  ),
-                ),
+                //                 final isNowConnected = await _connectivityService.checkConnection();
+                //                 if (isNowConnected) {
+                //                   if (mounted) {
+                //                     ScaffoldMessenger.of(context).showSnackBar(
+                //                       const SnackBar(content: Text('Connection restored! Syncing data...')),
+                //                     );
+                //                   }
+                //                   _performRefresh();
+                //                 } else {
+                //                   if (mounted) {
+                //                     ScaffoldMessenger.of(context).showSnackBar(
+                //                       const SnackBar(content: Text('Still offline. Please check your connection.')),
+                //                     );
+                //                   }
+                //                   _updatePendingCount();
+                //                 }
+                //               },
+                //             ),
+                //     ],
+                //   ),
+                // ),
               ),
             ),
         ],

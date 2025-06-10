@@ -7,7 +7,7 @@ import 'order_details_screen.dart';
 import '../screens/dashboard_screen.dart';
 import 'dart:async';
 import '../widgets/offline_indicator.dart';
-import '../services/connectivity_service.dart';
+// import '../services/connectivity_service.dart';
 
 class OrderListScreen extends StatefulWidget {
   final String? serviceType;
@@ -154,25 +154,25 @@ class _OrderListScreenState extends State<OrderListScreen> {
           floatingActionButton: Consumer<OrderHistoryProvider>(
             builder: (ctx, provider, _) {
               if (provider.isOfflineMode) {
-                return FloatingActionButton.extended(
-                  onPressed: () async {
-                    // Check connection
-                    final isConnected = await ConnectivityService().checkConnection();
-                    if (isConnected) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Connected! Syncing orders...')),
-                      );
-                      provider.refreshOrdersAndConnectivity();
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Still offline. Please check your connection.')),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.sync),
-                  label: const Text('Check Connection & Sync'),
-                  backgroundColor: Colors.orange,
-                );
+                // return FloatingActionButton.extended(
+                //   onPressed: () async {
+                //     // Check connection
+                //     final isConnected = await ConnectivityService().checkConnection();
+                //     if (isConnected) {
+                //       ScaffoldMessenger.of(context).showSnackBar(
+                //         const SnackBar(content: Text('Connected! Syncing orders...')),
+                //       );
+                //       provider.refreshOrdersAndConnectivity();
+                //     } else {
+                //       ScaffoldMessenger.of(context).showSnackBar(
+                //         const SnackBar(content: Text('Still offline. Please check your connection.')),
+                //       );
+                //     }
+                //   },
+                //   icon: const Icon(Icons.sync),
+                //   label: const Text('Check Connection & Sync'),
+                //   backgroundColor: Colors.orange,
+                // );
               }
               return const SizedBox.shrink(); // Hide when online
             },

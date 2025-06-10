@@ -99,27 +99,62 @@ class LocalOrderRepository {
 
   // Mark an order as synced
   Future<void> markOrderAsSynced(int localOrderId, int? serverOrderId) async {
-    try {
-      final db = await database;
+  try {
+    final db = await database;
+    
+    // Generate a unique sync ID to prevent duplicate syncs
+    final syncId = '${localOrderId}_${DateTime.now().millisecondsSinceEpoch}';
+    
+    // First check if this order has already been synced
+    final existing = await db.query(
+      'orders',
+      columns: ['is_synced', 'server_id', 'sync_id'],
+      where: 'id = ?',
+      whereArgs: [localOrderId]
+    );
+    
+    if (existing.isNotEmpty && existing.first['is_synced'] == 1) {
+      // Check if the sync_id is present, indicating this was synced with the improved system
+      final existingSyncId = existing.first['sync_id'];
+      if (existingSyncId != null && existingSyncId.toString().isNotEmpty) {
+        debugPrint('Order $localOrderId already marked as synced with sync_id: $existingSyncId. Skipping.');
+        return;
+      }
       
-      // Generate a unique sync ID to prevent duplicate syncs
-      final syncId = '${localOrderId}_${DateTime.now().millisecondsSinceEpoch}';
-      
-      // First check if this order has already been synced
-      final existing = await db.query(
+      // If there's no sync_id but is_synced is 1, it was synced with an older version
+      // Let's update it with the new sync_id to prevent future duplicate syncs
+      debugPrint('Order $localOrderId was synced with older system. Updating with new sync_id.');
+      try {
+        await db.update(
+          'orders',
+          {'sync_id': syncId},
+          where: 'id = ?',
+          whereArgs: [localOrderId],
+        );
+      } catch (e) {
+        debugPrint('Error updating sync_id for previously synced order: $e');
+      }
+      return;
+    }
+    
+    // Add a transaction to ensure atomicity
+    await db.transaction((txn) async {
+      // First check again within the transaction to ensure another thread hasn't synced it
+      final checkResult = await txn.query(
         'orders',
-        columns: ['is_synced', 'server_id'],
+        columns: ['is_synced'],
         where: 'id = ?',
         whereArgs: [localOrderId]
       );
       
-      if (existing.isNotEmpty && existing.first['is_synced'] == 1) {
-        debugPrint('Order $localOrderId already marked as synced. Skipping.');
+      if (checkResult.isNotEmpty && checkResult.first['is_synced'] == 1) {
+        debugPrint('Order $localOrderId marked as synced during transaction check. Skipping.');
         return;
       }
       
+      // Not synced yet, proceed with update
       try {
-        await db.update(
+        await txn.update(
           'orders',
           {
             'is_synced': 1,
@@ -130,10 +165,12 @@ class LocalOrderRepository {
           where: 'id = ?',
           whereArgs: [localOrderId],
         );
+        
+        debugPrint('Order $localOrderId marked as synced. Server ID: $serverOrderId, Sync ID: $syncId');
       } catch (e) {
         // If the columns don't exist, try a simpler update
         debugPrint('Falling back to simple update without new columns: $e');
-        await db.update(
+        await txn.update(
           'orders',
           {
             'is_synced': 1,
@@ -142,13 +179,29 @@ class LocalOrderRepository {
           where: 'id = ?',
           whereArgs: [localOrderId],
         );
+        
+        debugPrint('Order $localOrderId marked as synced with simple update. Server ID: $serverOrderId');
       }
-      
-      debugPrint('Order $localOrderId marked as synced. Server ID: $serverOrderId');
-    } catch (e) {
-      debugPrint('Error marking order as synced: $e');
+    });
+  } catch (e) {
+    debugPrint('Error marking order as synced: $e');
+    
+    // Try a simplified version if the transaction fails
+    try {
+      final db = await database;
+      await db.update(
+        'orders',
+        {'is_synced': 1, 'server_id': serverOrderId},
+        where: 'id = ?',
+        whereArgs: [localOrderId],
+      );
+      debugPrint('Order $localOrderId marked as synced with fallback method. Server ID: $serverOrderId');
+    } catch (fallbackError) {
+      debugPrint('Fallback error marking order as synced: $fallbackError');
     }
   }
+}
+
 
   // Record sync error with fallback
   Future<void> recordSyncError(int localOrderId, String error) async {
@@ -176,95 +229,105 @@ class LocalOrderRepository {
   }
 
   // Save order to local database
-  Future<Order> saveOrder(Order order) async {
-    try {
-      final db = await database;
-        // Generate a timestamp for local orders that is clearly a local timestamp
+  // Enhanced saveOrder method in lib/repositories/local_order_repository.dart
+Future<Order> saveOrder(Order order) async {
+  try {
+    final db = await database;
+    // Generate a timestamp for local orders that is clearly a local timestamp
     final now = DateTime.now();
     final timestamp = now.millisecondsSinceEpoch;
     final localTimestamp = 'local_${timestamp}';
+    
+    // Determine if this is an update or new order
+    final bool isUpdate = order.id != null;
+    debugPrint(isUpdate ? 'Updating existing order #${order.id}' : 'Creating new order');
+    
+    final orderMap = {
+      'service_type': order.serviceType,
+      'subtotal': order.subtotal,
+      'tax': order.tax,
+      'discount': order.discount,
+      'total': order.total,
+      'status': order.status,
+      'created_at': order.createdAt ?? localTimestamp,
+      'payment_method': order.paymentMethod ?? 'cash',
+      'customer_id': order.customerId,
+      'is_synced': 0,
+    };
+    
+    int orderId;
+    
+    // If it's an existing order with an ID, update rather than insert
+    if (isUpdate) {
+      // Check if the order exists
+      final existingOrder = await db.query(
+        'orders',
+        where: 'id = ?',
+        whereArgs: [order.id],
+      );
       
-      final orderMap = {
-        'service_type': order.serviceType,
-        'subtotal': order.subtotal,
-        'tax': order.tax,
-        'discount': order.discount,
-        'total': order.total,
-        'status': order.status,
-        'created_at':order.createdAt ?? localTimestamp,
-        'payment_method': order.paymentMethod ?? 'cash',
-        'customer_id': order.customerId,
-        'is_synced': 0,
-      };
-      
-      // If it's an existing order with an ID, update rather than insert
-      if (order.id != null) {
-        final existingOrder = await db.query(
+      if (existingOrder.isNotEmpty) {
+        // Update existing order
+        await db.update(
           'orders',
+          orderMap,
           where: 'id = ?',
           whereArgs: [order.id],
         );
         
-        if (existingOrder.isNotEmpty) {
-          // Update existing order
-          await db.update(
-            'orders',
-            orderMap,
-            where: 'id = ?',
-            whereArgs: [order.id],
-          );
-          
-          // Delete existing items for this order
-          await db.delete(
-            'order_items',
-            where: 'order_id = ?',
-            whereArgs: [order.id],
-          );
-          
-          debugPrint('Updated existing local order with ID: ${order.id}');
-        } else {
-          // Insert as new order with the provided ID
-          orderMap['id'] = order.id;
-          await db.insert('orders', orderMap);
-          debugPrint('Inserted new local order with specified ID: ${order.id}');
-        }
-      } else {
-        // Insert new order
-        final orderId = await db.insert('orders', orderMap);
-        order = Order(
-          id: orderId,
-          serviceType: order.serviceType,
-          items: order.items,
-          subtotal: order.subtotal,
-          tax: order.tax,
-          discount: order.discount,
-          total: order.total,
-          status: order.status,
-          createdAt: localTimestamp,
-          customerId: order.customerId,
-          paymentMethod: order.paymentMethod,
+        // Delete existing items for this order
+        await db.delete(
+          'order_items',
+          where: 'order_id = ?',
+          whereArgs: [order.id],
         );
-        debugPrint('New order saved locally with ID: ${order.id}');
+        
+        orderId = order.id!;
+        debugPrint('Updated existing order in local database: ID=$orderId');
+      } else {
+        // If the order doesn't exist, insert it with the specified ID
+        orderMap['id'] = order.id;
+        orderId = await db.insert('orders', orderMap);
+        debugPrint('Inserted order with specified ID: $orderId');
       }
-      
-      // Save order items
-      for (var item in order.items) {
-        await db.insert('order_items', {
-          'order_id': order.id!,
-          'menu_item_id': item.id,
-          'name': item.name,
-          'price': item.price,
-          'quantity': item.quantity,
-          // 'kitchen_note': item.kitchenNote ?? '',
-        });
-      }
-      
-      return order;
-    } catch (e) {
-      debugPrint('Error saving order locally: $e');
-      rethrow;
+    } else {
+      // Insert as a new order
+      orderId = await db.insert('orders', orderMap);
+      debugPrint('Inserted new order: ID=$orderId');
     }
+    
+    // Now insert the order items
+    for (var item in order.items) {
+      await db.insert('order_items', {
+        'order_id': orderId,
+        'menu_item_id': item.id,
+        'name': item.name,
+        'price': item.price,
+        'quantity': item.quantity,
+        'kitchen_note': item.kitchenNote,
+      });
+    }
+    
+    // Return the order with the updated ID
+    return Order(
+      id: orderId,
+      serviceType: order.serviceType,
+      items: order.items,
+      subtotal: order.subtotal,
+      tax: order.tax,
+      discount: order.discount,
+      total: order.total,
+      status: order.status,
+      createdAt: order.createdAt ?? localTimestamp,
+      customerId: order.customerId,
+      paymentMethod: order.paymentMethod,
+    );
+  } catch (e) {
+    debugPrint('Error saving order to local database: $e');
+    rethrow;
   }
+}
+
 
   // Get all unsynced orders
     Future<List<Order>> getUnsyncedOrders() async {
@@ -342,65 +405,86 @@ class LocalOrderRepository {
   }
  
   // Get all local orders with better deduplication logic
-  Future<List<Order>> getAllOrders() async {
-    try {
-      final db = await database;
-      final orders = await db.query('orders', orderBy: 'created_at DESC');
+Future<List<Order>> getAllOrders() async {
+  try {
+    final db = await database;
+    
+    // Get all orders
+    final orders = await db.query(
+      'orders',
+      orderBy: 'created_at DESC'
+    );
+    
+    debugPrint('Retrieved ${orders.length} orders from local database');
+    
+    // Keep track of server_ids to avoid duplicates
+    final processedServerIds = <int?>{};
+    final result = <Order>[];
+    
+    for (var orderMap in orders) {
+      final orderId = orderMap['id'] as int;
+      final serverId = orderMap['server_id'] as int?;
       
-      // Keep track of server_ids to avoid duplicates
-      final processedServerIds = <int>{};
-      final result = <Order>[];
-      
-      for (var orderMap in orders) {
-        final orderId = orderMap['id'] as int;
-        final serverId = orderMap['server_id'] as int?;
-        
-        // Skip if we already have an order with this server_id
-        if (serverId != null && processedServerIds.contains(serverId)) {
-          debugPrint('Skipping duplicate order with server ID: $serverId');
-          continue;
-        }
-        
-        // Add server_id to processed set if it exists
-        if (serverId != null) {
-          processedServerIds.add(serverId);
-        }
-        
-        final items = await db.query(
-          'order_items',
-          where: 'order_id = ?',
-          whereArgs: [orderId],
-        );
-        
-        final orderItems = items.map((item) => OrderItem(
-          id: item['menu_item_id'] as int,
-          name: item['name'] as String,
-          price: (item['price'] as num).toDouble(),
-          quantity: item['quantity'] as int,
-          kitchenNote: item['kitchen_note'] as String? ?? '',
-        )).toList();
-        
-        result.add(Order(
-          id: orderId,
-          serviceType: orderMap['service_type'] as String,
-          items: orderItems,
-          subtotal: (orderMap['subtotal'] as num).toDouble(),
-          tax: (orderMap['tax'] as num).toDouble(),
-          discount: (orderMap['discount'] as num).toDouble(),
-          total: (orderMap['total'] as num).toDouble(),
-          status: orderMap['status'] as String,
-          createdAt: orderMap['created_at'] as String?,
-          customerId: orderMap['customer_id'] as String?,
-          paymentMethod: orderMap['payment_method'] as String?,
-        ));
+      // Skip if we already have an order with this server_id
+      if (serverId != null && processedServerIds.contains(serverId)) {
+        debugPrint('Skipping duplicate order with server ID: $serverId');
+        continue;
       }
       
-      return result;
-    } catch (e) {
-      debugPrint('Error getting all orders: $e');
-      return [];
+      // Add server_id to processed set if it exists
+      if (serverId != null) {
+        processedServerIds.add(serverId);
+      }
+      
+      // Get order items
+      final items = await db.query(
+        'order_items',
+        where: 'order_id = ?',
+        whereArgs: [orderId],
+      );
+      
+      if (items.isEmpty) {
+        debugPrint('Warning: Order #$orderId has no items');
+      }
+      
+      final orderItems = items.map((item) => OrderItem(
+        id: item['menu_item_id'] as int,
+        name: item['name'] as String,
+        price: (item['price'] as num).toDouble(),
+        quantity: item['quantity'] as int,
+        kitchenNote: item['kitchen_note'] as String? ?? '',
+      )).toList();
+      
+      // Extract and verify important fields for debugging
+      final serviceType = orderMap['service_type'] as String? ?? '';
+      final status = orderMap['status'] as String? ?? 'pending';
+      final createdAt = orderMap['created_at'] as String?;
+      
+      // Add to result list
+      result.add(Order(
+        id: orderId,
+        serviceType: serviceType,
+        items: orderItems,
+        subtotal: (orderMap['subtotal'] as num? ?? 0).toDouble(),
+        tax: (orderMap['tax'] as num? ?? 0).toDouble(),
+        discount: (orderMap['discount'] as num? ?? 0).toDouble(),
+        total: (orderMap['total'] as num? ?? 0).toDouble(),
+        status: status,
+        createdAt: createdAt,
+        customerId: orderMap['customer_id'] as String?,
+        paymentMethod: orderMap['payment_method'] as String? ?? 'cash',
+      ));
+      
+      // Log the order for debugging
+      debugPrint('Local order: ID=$orderId, Type=$serviceType, Status=$status, Items=${orderItems.length}');
     }
+    
+    return result;
+  } catch (e) {
+    debugPrint('Error getting all orders: $e');
+    return [];
   }
+}
   
   // Get a specific order by ID with server ID fallback
   Future<Order?> getOrderById(int orderId) async {

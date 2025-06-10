@@ -51,6 +51,10 @@ class ConnectivityService {
     
     // Check initial connection status
     checkConnection();
+    // Create a debounce timer for connectivity changes
+  Timer? syncDebounce;
+  bool hasSyncBeenTriggered = false;
+  
     
     // Listen for connectivity changes with debounce
     _connectivity.onConnectivityChanged.listen((result) {
@@ -63,8 +67,33 @@ class ConnectivityService {
       _debounceTimer = Timer(const Duration(seconds: 2), () {
         if (result == ConnectivityResult.none) {
           _updateConnectionStatus(false);
+           // Reset the sync trigger flag when disconnected
+        hasSyncBeenTriggered = false;
         } else {
-          checkConnection();
+          checkConnection().then((isConnected) {
+          // If we just came back online and sync hasn't been triggered yet
+          if (isConnected && !_isConnected && !hasSyncBeenTriggered) {
+            // Set the flag to prevent multiple sync triggers
+            hasSyncBeenTriggered = true;
+            
+            // Cancel any existing sync debounce timer
+            syncDebounce?.cancel();
+            
+            // Create a longer debounce for sync to ensure connection is stable
+            syncDebounce = Timer(const Duration(seconds: 5), () {
+              debugPrint('Connection restored, triggering sync (debounced)');
+              
+              // Publish the event only once with a delay
+              _connectivityController.add(true);
+              
+              // Reset the flag after a delay to allow future sync events
+              Timer(const Duration(seconds: 30), () {
+                hasSyncBeenTriggered = false;
+                debugPrint('Sync trigger flag reset, allowing future syncs');
+              });
+            });
+          }
+        });
         }
       });
     });

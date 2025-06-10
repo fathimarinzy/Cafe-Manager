@@ -369,27 +369,29 @@ class OrderProvider with ChangeNotifier {
   }
 
   // Process order and handle online/offline scenarios
-  Future<Map<String, dynamic>> processOrderWithBill(BuildContext context) async {
-    // First check if we have items in the cart
-    if (_currentServiceType.isEmpty || cartItems.isEmpty) {
-      return {
-        'success': false,
-        'message': 'No items in cart',
-      };
-    }
+  // Updated processOrderWithBill method in lib/providers/order_provider.dart
+Future<Map<String, dynamic>> processOrderWithBill(BuildContext context) async {
+  // First check if we have items in the cart
+  if (_currentServiceType.isEmpty || cartItems.isEmpty) {
+    return {
+      'success': false,
+      'message': 'No items in cart',
+    };
+  }
 
-    try {
-      // Extract table number from service type if this is a dining order
-      String? tableInfo;
-      int? tableNumber;
-      
-      if (_currentServiceType.startsWith('Dining - Table')) {
-        tableInfo = _currentServiceType;
-        // Extract the table number
-        final tableNumberString = _currentServiceType.split('Table ').last;
-        tableNumber = int.tryParse(tableNumberString);
-      }
-       // Generate a timestamp for order creation
+  try {
+    // Extract table number from service type if this is a dining order
+    String? tableInfo;
+    int? tableNumber;
+    
+    if (_currentServiceType.startsWith('Dining - Table')) {
+      tableInfo = _currentServiceType;
+      // Extract the table number
+      final tableNumberString = _currentServiceType.split('Table ').last;
+      tableNumber = int.tryParse(tableNumberString);
+    }
+    
+    // Generate a timestamp for order creation
     final now = DateTime.now();
     final timestamp = now.millisecondsSinceEpoch;
     
@@ -403,163 +405,180 @@ class OrderProvider with ChangeNotifier {
       formattedTimestamp = now.toIso8601String();
     }
       
-      // Create or update the order - handling both online and offline scenarios
-      Order? order;
-       
+    // Create or update the order - handling both online and offline scenarios
+    Order? order;
+    
+    // Log the current state for debugging
+    debugPrint('Processing order: currentOrderId=$_currentOrderId, isOfflineMode=$_isOfflineMode');
+    
+    if (_currentOrderId != null) {
+      // Updating existing order - make sure to use the existing order ID
+      final existingOrderId = _currentOrderId!;
+      debugPrint('Updating existing order #$existingOrderId');
       
-      if (_currentOrderId != null) {
-        // Update existing order
-        final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
-        
-        if (!_isOfflineMode) {
-          // Online mode - update on server
-          order = await _apiService.updateOrder(
-            _currentOrderId!,
-            _currentServiceType,
-            items,
-            subtotal,
-            tax,
-            discount,
-            total,
-          );
-        } else {
-          // Offline mode - save locally
-          // For now, we'll create a new local order as update is more complex
-          order = await _localOrderRepo.saveOrder(
-            Order(
-              serviceType: _currentServiceType,
-              items: _serviceTypeCarts[_currentServiceType]!.map((item) => 
-                OrderItem(
-                  id: int.tryParse(item.id) ?? 0,
-                  name: item.name,
-                  price: item.price,
-                  quantity: item.quantity,
-                  kitchenNote: item.kitchenNote,
-                )
-              ).toList(),
-              subtotal: subtotal,
-              tax: tax,
-              discount: discount,
-              total: total,
-              status: 'pending',
-              createdAt:  formattedTimestamp,
-              customerId: _selectedPerson?.id,
-            )
-          );
-        }
+      final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
+      
+      if (!_isOfflineMode) {
+        // Online mode - update on server
+        order = await _apiService.updateOrder(
+          existingOrderId,
+          _currentServiceType,
+          items,
+          subtotal,
+          tax,
+          discount,
+          total,
+        );
       } else {
-        // Create a new order
-        final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
+        // Offline mode - update locally
+        debugPrint('Updating order locally in offline mode, order ID: $existingOrderId');
         
-        if (!_isOfflineMode) {
-          // Online mode - create on server
-          order = await _apiService.createOrder(
-            _currentServiceType,
-            items,
-            subtotal,
-            tax,
-            discount,
-            total,
-            customerId: _selectedPerson?.id,
-          );
-        } else {
-          // Offline mode - save locally
-          order = await _localOrderRepo.saveOrder(
-            Order(
-              serviceType: _currentServiceType,
-              items: _serviceTypeCarts[_currentServiceType]!.map((item) => 
-                OrderItem(
-                  id: int.tryParse(item.id) ?? 0,
-                  name: item.name,
-                  price: item.price,
-                  quantity: item.quantity,
-                  kitchenNote: item.kitchenNote,
-                )
-              ).toList(),
-              subtotal: subtotal,
-              tax: tax,
-              discount: discount,
-              total: total,
-              status: 'pending',
-              createdAt: formattedTimestamp,
-              customerId: _selectedPerson?.id,
-            )
-          );
-        }
-      }
-      
-      if (order == null) {
-        return {
-          'success': false,
-          'message': 'Failed to create or update order in the system',
-        };
-      }
-      
-      // Now print the kitchen receipt with the order ID
-      final String orderNumberPadded = order.id.toString().padLeft(4, '0');
-      Map<String, dynamic> printResult = await BillService.printKitchenOrderReceipt(
-        items: cartItems,
-        serviceType: _currentServiceType,
-        tableInfo: tableInfo,
-        orderNumber: orderNumberPadded,
-        context: context, // Pass context for dialog if needed
-      );
-      
-      // If this is a table order, update the table status to occupied
-      if (tableNumber != null && context.mounted) {
-        final tableProvider = Provider.of<TableProvider>(context, listen: false);
-        final table = tableProvider.tables.firstWhere(
-          (table) => table.number == tableNumber,
-          orElse: () => TableModel(id: '', number: tableNumber!, isOccupied: false)
+        // Convert cart items to OrderItem objects
+        final orderItems = _serviceTypeCarts[_currentServiceType]!.map((item) => 
+          OrderItem(
+            id: int.tryParse(item.id) ?? 0,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            kitchenNote: item.kitchenNote,
+          )
+        ).toList();
+        
+        // Create an order object with the EXISTING ID
+        order = Order(
+          id: existingOrderId, // Critical: Use existing order ID
+          serviceType: _currentServiceType,
+          items: orderItems,
+          subtotal: subtotal,
+          tax: tax,
+          discount: discount,
+          total: total,
+          status: 'pending',
+          createdAt: formattedTimestamp,
+          customerId: _selectedPerson?.id,
         );
         
-        if (table.id.isNotEmpty) {
-          // Set the table as occupied
-          final updatedTable = TableModel(
-            id: table.id,
-            number: table.number,
-            isOccupied: true,
-            capacity: table.capacity,
-            note: table.note,
-          );
-          
-          await tableProvider.updateTable(updatedTable);
-          debugPrint('Table ${tableNumber.toString()} status updated to occupied');
-        } else if (tableNumber > 0) {
-          // If the table wasn't found in the provider but we have a valid number,
-          // try to update it by number
-          await tableProvider.setTableStatus(tableNumber, true);
-          debugPrint('Table ${tableNumber.toString()} status set to occupied by number');
-        }
+        // Update the existing order in local storage
+        order = await _localOrderRepo.saveOrder(order);
       }
-
-      // Clear the current service type's cart
-      clearCart();
-      // Reset the current order ID
-      _currentOrderId = null;
+    } else {
+      // Create a new order
+      debugPrint('Creating new order');
+      final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
       
-      // Display offline message if needed
-      String successMessage = printResult['message'] ?? 'Order processed successfully';
-      if (_isOfflineMode) {
-        successMessage += ' (Offline mode - will sync when connection is restored)';
+      if (!_isOfflineMode) {
+        // Online mode - create on server
+        order = await _apiService.createOrder(
+          _currentServiceType,
+          items,
+          subtotal,
+          tax,
+          discount,
+          total,
+          customerId: _selectedPerson?.id,
+        );
+      } else {
+        // Offline mode - save locally
+        debugPrint('Creating new order locally in offline mode');
+        order = await _localOrderRepo.saveOrder(
+          Order(
+            serviceType: _currentServiceType,
+            items: _serviceTypeCarts[_currentServiceType]!.map((item) => 
+              OrderItem(
+                id: int.tryParse(item.id) ?? 0,
+                name: item.name,
+                price: item.price,
+                quantity: item.quantity,
+                kitchenNote: item.kitchenNote,
+              )
+            ).toList(),
+            subtotal: subtotal,
+            tax: tax,
+            discount: discount,
+            total: total,
+            status: 'pending',
+            createdAt: formattedTimestamp,
+            customerId: _selectedPerson?.id,
+          )
+        );
       }
+    }
       
-      return {
-        'success': true,
-        'message': successMessage,
-        'order': order,
-        'billPrinted': printResult['printed'] ?? false,
-        'billSaved': printResult['saved'] ?? false,
-        'offlineMode': _isOfflineMode,
-      };
-    } catch (error) {
-      debugPrint('Error processing order: $error');
+    if (order == null) {
       return {
         'success': false,
-        'message': 'Error processing order: $error',
+        'message': 'Failed to create or update order in the system',
       };
     }
+    
+    // Now print the kitchen receipt with the order ID
+    final String orderNumberPadded = order.id.toString().padLeft(4, '0');
+    Map<String, dynamic> printResult = await BillService.printKitchenOrderReceipt(
+      items: cartItems,
+      serviceType: _currentServiceType,
+      tableInfo: tableInfo,
+      orderNumber: orderNumberPadded,
+      context: context, // Pass context for dialog if needed
+    );
+    
+    // If this is a table order, update the table status to occupied
+    if (tableNumber != null && context.mounted) {
+      final tableProvider = Provider.of<TableProvider>(context, listen: false);
+      final table = tableProvider.tables.firstWhere(
+        (table) => table.number == tableNumber,
+        orElse: () => TableModel(id: '', number: tableNumber!, isOccupied: false)
+      );
+      
+      if (table.id.isNotEmpty) {
+        // Set the table as occupied
+        final updatedTable = TableModel(
+          id: table.id,
+          number: table.number,
+          isOccupied: true,
+          capacity: table.capacity,
+          note: table.note,
+        );
+        
+        await tableProvider.updateTable(updatedTable);
+        debugPrint('Table ${tableNumber.toString()} status updated to occupied');
+      } else if (tableNumber > 0) {
+        // If the table wasn't found in the provider but we have a valid number,
+        // try to update it by number
+        await tableProvider.setTableStatus(tableNumber, true);
+        debugPrint('Table ${tableNumber.toString()} status set to occupied by number');
+      }
+    }
+
+    // Clear the current service type's cart
+    clearCart();
+    // Reset the current order ID
+    _currentOrderId = null;
+    
+    // Display offline message if needed
+    String successMessage = printResult['message'] ?? 'Order processed successfully';
+    if (_isOfflineMode) {
+      successMessage += ' (Offline mode - will sync when connection is restored)';
+    }
+    
+    debugPrint('Order processed successfully: ID=${order.id}');
+    
+    return {
+      'success': true,
+      'message': successMessage,
+      'order': order,
+      'billPrinted': printResult['printed'] ?? false,
+      'billSaved': printResult['saved'] ?? false,
+      'offlineMode': _isOfflineMode,
+    };
+  } catch (error) {
+    debugPrint('Error processing order: $error');
+    return {
+      'success': false,
+      'message': 'Error processing order: $error',
+    };
   }
+}
+ 
 
   // Get all orders (both online and offline)
   Future<List<Order>> fetchOrders() async {
@@ -716,64 +735,85 @@ class OrderProvider with ChangeNotifier {
   }
 
   // Load items from an existing order into the cart
-  Future<void> loadExistingOrderItems(int orderId) async {
-    try {
-      // First clear the current cart to avoid duplicates
-      if (_serviceTypeCarts.containsKey(_currentServiceType)) {
-        _serviceTypeCarts[_currentServiceType]!.clear();
-      }
-      
-      Order? order;
-      
-      if (!_isOfflineMode) {
-        // Online mode - fetch from server
-        order = await _apiService.getOrderById(orderId);
-      } else {
-        // Offline mode - check local storage
-        final localOrders = await _localOrderRepo.getAllOrders();
-        order = localOrders.firstWhere(
-          (o) => o.id == orderId,
-          orElse: () => Order(
-            serviceType: '',
-            items: [],
-            subtotal: 0,
-            tax: 0,
-            discount: 0,
-            total: 0
-          )
-        );
-      }
-      
-      if (order != null && order.serviceType.isNotEmpty) {
-        // Track the current order ID
-        _currentOrderId = orderId;
-        
-        // Convert order items to menu items and add to cart
-        for (var item in order.items) {
-          final menuItem = MenuItem(
-            id: item.id.toString(),
-            name: item.name,
-            price: item.price,
-            imageUrl: '', // No image info in order items
-            category: '', // No category info in order items
-            quantity: item.quantity,
-            kitchenNote: item.kitchenNote,
-          );
-          
-          // Add to cart without incrementing quantity (we already have the correct quantity)
-          _addToCartWithoutIncrementing(menuItem);
-        }
-        
-        // Update totals
-        _updateTotals(_currentServiceType);
-        notifyListeners();
-        
-        debugPrint('Loaded ${order.items.length} items from existing order #$orderId');
-      }
-    } catch (e) {
-      debugPrint('Error loading existing order items: $e');
+Future<void> loadExistingOrderItems(int orderId) async {
+  try {
+    // First clear the current cart to avoid duplicates
+    if (_serviceTypeCarts.containsKey(_currentServiceType)) {
+      _serviceTypeCarts[_currentServiceType]!.clear();
     }
+    
+    Order? order;
+    
+    // Check if we're in offline mode
+    if (!_isOfflineMode) {
+      // Online mode - fetch from server
+      try {
+        order = await _apiService.getOrderById(orderId);
+        debugPrint('Loaded order #$orderId from API: ${order?.serviceType}');
+      } catch (e) {
+        debugPrint('Error loading order from API, will try local storage: $e');
+      }
+    }
+    
+    // Always check local storage regardless of online/offline status or API result
+    if (order == null || order.serviceType.isEmpty) {
+      final localOrders = await _localOrderRepo.getAllOrders();
+      debugPrint('Checking ${localOrders.length} local orders for ID: $orderId');
+      
+      // Debug log all local orders to help with troubleshooting
+      for (var localOrder in localOrders) {
+        debugPrint('Local order: ID=${localOrder.id}, Type=${localOrder.serviceType}');
+      }
+      
+      // Find the order with matching ID
+      order = localOrders.firstWhere(
+        (o) => o.id == orderId,
+        orElse: () => Order(
+          serviceType: '',
+          items: [],
+          subtotal: 0,
+          tax: 0,
+          discount: 0,
+          total: 0
+        )
+      );
+      
+      debugPrint('Local order lookup result: ${order.serviceType.isNotEmpty ? "Found" : "Not found"}');
+    }
+    
+    if (order != null && order.serviceType.isNotEmpty) {
+      // Track the current order ID
+      _currentOrderId = orderId;
+      
+      // Convert order items to menu items and add to cart
+      for (var item in order.items) {
+        final menuItem = MenuItem(
+          id: item.id.toString(),
+          name: item.name,
+          price: item.price,
+          imageUrl: '', // No image info in order items
+          category: '', // No category info in order items
+          quantity: item.quantity,
+          kitchenNote: item.kitchenNote,
+        );
+        
+        // Add to cart without incrementing quantity (we already have the correct quantity)
+        _addToCartWithoutIncrementing(menuItem);
+      }
+      
+      // Update totals
+      _updateTotals(_currentServiceType);
+      notifyListeners();
+      
+      debugPrint('Loaded ${order.items.length} items from existing order #$orderId');
+    } else {
+      debugPrint('Failed to load order #$orderId: Not found in API or local storage');
+    }
+  } catch (e) {
+    debugPrint('Error loading existing order items: $e');
   }
+}
+
 
   // Add item to cart without incrementing quantity for existing items
   void _addToCartWithoutIncrementing(MenuItem item) {
