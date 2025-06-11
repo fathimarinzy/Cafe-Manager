@@ -1,3 +1,4 @@
+// lib/screens/search_person_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/person_provider.dart';
@@ -27,6 +28,28 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('People'),
+        actions: [
+          Consumer<PersonProvider>(
+            builder: (ctx, provider, _) {
+              if (provider.isOfflineMode) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Row(
+                    children: [
+                      Icon(Icons.cloud_off, color: Colors.red, size: 20),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Offline',
+                        style: TextStyle(color: Colors.red, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return SizedBox.shrink();
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -82,9 +105,25 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
                 
                 if (displayList.isEmpty) {
                   return Center(
-                    child: Text(_isSearching
-                        ? 'No results found'
-                        : 'No people added yet'),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(_isSearching
+                            ? 'No results found'
+                            : 'No people added yet'),
+                        if (personProvider.isOfflineMode)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 16.0),
+                            child: Text(
+                              'You\'re offline. Some data may not be available.',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   );
                 }
                 
@@ -105,6 +144,25 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
                             const SizedBox(height: 4),
                             Text('📞 ${person.phoneNumber}'),
                             Text('📍 ${person.place}'),
+                            // Show offline indicator for local records
+                            if (person.id != null && person.id!.startsWith('local_'))
+                              Row(
+                                children: [
+                                  Icon(Icons.cloud_off, 
+                                    size: 12, 
+                                    color: Colors.orange,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Saved locally - will sync when online',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.orange,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ],
+                              ),
                           ],
                         ),
                         trailing: Column(
@@ -119,10 +177,8 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
                         ),
                         isThreeLine: true,
                         onTap: () {
-                          // You can add details view or edit functionality here
-                           // Return the selected person when tapped
-                            Navigator.of(context).pop(person);
-
+                          // Return the selected person when tapped
+                          Navigator.of(context).pop(person);
                         },
                       ),
                     );

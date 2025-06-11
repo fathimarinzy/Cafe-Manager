@@ -1,4 +1,3 @@
-// Updated SyncService with better deduplication for orders
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -6,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import '../repositories/local_menu_repository.dart';
 import '../repositories/local_order_repository.dart';
+import '../repositories/local_person_repository.dart';
 import '../services/api_service.dart';
 import '../services/connectivity_service.dart';
 import '../models/menu_item.dart';
@@ -32,6 +32,7 @@ class SyncService {
   final _syncStatusController = StreamController<SyncStatus>.broadcast();
   final LocalMenuRepository _localMenuRepo = LocalMenuRepository();
   final LocalOrderRepository _localOrderRepo = LocalOrderRepository();
+  final LocalPersonRepository _localPersonRepo = LocalPersonRepository();
   final ApiService _apiService = ApiService();
   final ConnectivityService _connectivityService = ConnectivityService();
   final DeduplicationHelper _deduplicationHelper = DeduplicationHelper();
@@ -391,6 +392,8 @@ class SyncService {
       
       // Then sync order operations
       await _syncOrderOperations();
+       // Sync persons
+      await _syncPersons();
       
       _updateStatus(SyncStatus.completed);
       await _removeLock();
@@ -696,6 +699,51 @@ Future<bool> _checkIfOrderSynced(int orderId) async {
     return false;
   }
 }
+  // Sync persons
+  Future<void> _syncPersons() async {
+    final unsyncedPersons = await _localPersonRepo.getUnsyncedPersons();
+    debugPrint('Found ${unsyncedPersons.length} unsynced persons to sync');
+    
+    if (unsyncedPersons.isEmpty) {
+      return;
+    }
+    
+    // Track successfully processed persons
+    final List<String> processedIds = [];
+    
+    // Process each person individually
+    for (final person in unsyncedPersons) {
+      // Skip if no ID
+      if (person.id == null || person.id!.isEmpty) continue;
+      
+      // Skip already synced persons or those with server IDs
+      if (!person.id!.startsWith('local_')) {
+        processedIds.add(person.id!);
+        continue;
+      }
+      
+      try {
+        // Create person on server
+        final serverPerson = await _apiService.createPerson(person);
+        
+        // Update local record with server ID
+        await _localPersonRepo.markPersonAsSynced(person.id!, serverPerson.id);
+        
+        // Add to processed IDs
+        processedIds.add(person.id!);
+        
+        debugPrint('Synced person successfully: ${person.id} -> ${serverPerson.id}');
+      } catch (e) {
+        debugPrint('Error syncing person ${person.id}: $e');
+      }
+      
+      // Small delay between operations to prevent overloading the server
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
+    
+    debugPrint('Successfully synced ${processedIds.length} persons');
+  }
+  
   
    void dispose() {
     _syncResetTimer?.cancel();
