@@ -61,6 +61,12 @@ class PersonProvider with ChangeNotifier {
         try {
           _persons = await _apiService.getPersons();
           debugPrint('Loaded ${_persons.length} persons from API');
+          
+          // Also save API results to local database for offline access
+          for (var person in _persons) {
+            await _localPersonRepo.savePerson(person);
+          }
+          debugPrint('Saved all API persons to local database');
         } catch (e) {
           debugPrint('Error loading persons from API: $e');
           // Fallback to local database
@@ -97,13 +103,15 @@ class PersonProvider with ChangeNotifier {
           newPerson = await _apiService.createPerson(person);
           debugPrint('Added person to API: ${newPerson.id}');
           
-          // Also save to local DB for offline access
+          // IMPORTANT: Always save to local DB even when online
           await _localPersonRepo.savePerson(newPerson);
+          debugPrint('Also saved person to local database: ${newPerson.id}');
         } catch (e) {
           debugPrint('API error, falling back to local save: $e');
           
           // If API fails, save locally
           newPerson = await _localPersonRepo.savePerson(person);
+          debugPrint('Saved person locally after API error: ${newPerson.id}');
           
           // Trigger sync in case connection issues are temporary
           syncPersons();
@@ -144,6 +152,11 @@ class PersonProvider with ChangeNotifier {
         // Try online search
         try {
           _searchResults = await _apiService.searchPersons(query);
+          
+          // Save search results to local database for future offline access
+          for (var person in _searchResults) {
+            await _localPersonRepo.savePerson(person);
+          }
         } catch (e) {
           debugPrint('API search error, falling back to local search: $e');
           
