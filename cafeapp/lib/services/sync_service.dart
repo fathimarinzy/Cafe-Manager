@@ -81,12 +81,7 @@ class SyncService {
     
     // Debug the pending operations on init
     _debugPendingOperations();
-    
-    // Periodic cleanup of old deduplication entries
-    Timer.periodic(const Duration(days: 7), (_) {
-      _deduplicationHelper.cleanupOldOperations();
-      _cleanupOldSyncedOrders();
-    });
+
   }
   
   // Load synced orders cache from shared preferences
@@ -100,48 +95,16 @@ class SyncService {
       debugPrint('Error loading synced orders cache: $e');
     }
   }
-  
-  // Save synced orders cache to shared preferences
-  Future<void> _saveSyncedOrdersCache() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList(_syncedOrdersCacheKey, _syncedOrdersCache.toList());
-      debugPrint('Saved ${_syncedOrdersCache.length} synced order IDs to cache');
-    } catch (e) {
-      debugPrint('Error saving synced orders cache: $e');
-    }
+  // Add this method to your SyncService class
+Future<void> _saveSyncedOrdersCache() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_syncedOrdersCacheKey, _syncedOrdersCache.toList());
+    debugPrint('Saved ${_syncedOrdersCache.length} synced order IDs to cache');
+  } catch (e) {
+    debugPrint('Error saving synced orders cache: $e');
   }
-  
-  // Remove orders older than 30 days from cache
-  Future<void> _cleanupOldSyncedOrders() async {
-    try {
-      final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
-      
-      // Filter out cache entries older than 30 days
-      // Format of cache entry: "orderId_timestamp"
-      final updatedCache = _syncedOrdersCache.where((entry) {
-        final parts = entry.split('_');
-        if (parts.length < 2) return true; // Keep entries with unknown format
-        
-        try {
-          final timestamp = int.parse(parts.last);
-          final entryDate = DateTime.fromMillisecondsSinceEpoch(timestamp);
-          return entryDate.isAfter(thirtyDaysAgo);
-        } catch (e) {
-          return true; // Keep entries with invalid timestamp
-        }
-      }).toSet();
-      
-      final removedCount = _syncedOrdersCache.length - updatedCache.length;
-      if (removedCount > 0) {
-        _syncedOrdersCache = updatedCache;
-        await _saveSyncedOrdersCache();
-        debugPrint('Cleaned up $removedCount old synced order entries');
-      }
-    } catch (e) {
-      debugPrint('Error cleaning up old synced orders: $e');
-    }
-  }
+}
   
   // Initialize lock file path
   Future<void> _initLockFile() async {

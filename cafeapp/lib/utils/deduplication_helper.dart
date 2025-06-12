@@ -112,29 +112,6 @@ class DeduplicationHelper {
     }
   }
   
-  // Clean up old processed operations (older than 30 days)
-  Future<void> cleanupOldOperations() async {
-    await initialize();
-    
-    if (_database == null) {
-      debugPrint('Database not initialized, cannot clean up old operations');
-      return;
-    }
-    
-    try {
-      final cutoffDate = DateTime.now().subtract(const Duration(days: 30)).toIso8601String();
-      
-      final deletedCount = await _database!.delete(
-        'processed_operations',
-        where: 'processed_at < ?',
-        whereArgs: [cutoffDate],
-      );
-      
-      debugPrint('Cleaned up $deletedCount old processed operations');
-    } catch (e) {
-      debugPrint('Error cleaning up old operations: $e');
-    }
-  }
   
   // Reset all processed operations - use with caution!
   Future<void> resetAllProcessedOperations() async {
