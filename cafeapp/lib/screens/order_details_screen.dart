@@ -162,6 +162,11 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
        // Print kitchen receipt after successful update
     if (updatedOrder != null) {
       await _printKitchenReceipt();
+       // Force a refresh of the OrderHistoryProvider
+      if (mounted) {
+        final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
+        historyProvider.loadOrders();
+      }
     }
       
       return updatedOrder != null;
@@ -425,6 +430,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                       
                       _saveOrderChangesToBackend().then((success) {
                         if (success && mounted) {
+                          // Refresh the OrderHistoryProvider to update all screens
+                        final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
+                        historyProvider.loadOrders();
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Order updated successfully'),
