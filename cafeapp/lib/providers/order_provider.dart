@@ -393,17 +393,16 @@ Future<Map<String, dynamic>> processOrderWithBill(BuildContext context) async {
     
     // Generate a timestamp for order creation
     final now = DateTime.now();
-    final timestamp = now.millisecondsSinceEpoch;
     
     // Format for consistent timestamp handling across online/offline
     String formattedTimestamp;
     if (_isOfflineMode) {
       // Use special format for offline orders so we can identify them later
+       final timestamp = now.millisecondsSinceEpoch;
       formattedTimestamp = 'local_$timestamp';
     } else {
       // Use ISO format for online orders
-      formattedTimestamp = now.toIso8601String();
-    }
+      formattedTimestamp = now.toUtc().toIso8601String();    }
       
     // Create or update the order - handling both online and offline scenarios
     Order? order;

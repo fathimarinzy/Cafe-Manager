@@ -98,90 +98,64 @@ class LocalOrderRepository {
   }
 
   // Mark an order as synced
-  Future<void> markOrderAsSynced(int localOrderId, int? serverOrderId) async {
+  // Improved markOrderAsSynced method for lib/repositories/local_order_repository.dart
+
+Future<void> markOrderAsSynced(int localOrderId, int? serverOrderId) async {
   try {
     final db = await database;
     
     // Generate a unique sync ID to prevent duplicate syncs
     final syncId = '${localOrderId}_${DateTime.now().millisecondsSinceEpoch}';
     
-    // First check if this order has already been synced
-    final existing = await db.query(
-      'orders',
-      columns: ['is_synced', 'server_id', 'sync_id'],
-      where: 'id = ?',
-      whereArgs: [localOrderId]
-    );
-    
-    if (existing.isNotEmpty && existing.first['is_synced'] == 1) {
-      // Check if the sync_id is present, indicating this was synced with the improved system
-      final existingSyncId = existing.first['sync_id'];
-      if (existingSyncId != null && existingSyncId.toString().isNotEmpty) {
-        debugPrint('Order $localOrderId already marked as synced with sync_id: $existingSyncId. Skipping.');
-        return;
-      }
-      
-      // If there's no sync_id but is_synced is 1, it was synced with an older version
-      // Let's update it with the new sync_id to prevent future duplicate syncs
-      debugPrint('Order $localOrderId was synced with older system. Updating with new sync_id.');
-      try {
-        await db.update(
-          'orders',
-          {'sync_id': syncId},
-          where: 'id = ?',
-          whereArgs: [localOrderId],
-        );
-      } catch (e) {
-        debugPrint('Error updating sync_id for previously synced order: $e');
-      }
-      return;
-    }
-    
-    // Add a transaction to ensure atomicity
+    // IMPORTANT: First check if this order has already been synced
+    // Use a transaction for atomicity
     await db.transaction((txn) async {
-      // First check again within the transaction to ensure another thread hasn't synced it
-      final checkResult = await txn.query(
+      // Check if the order exists and its sync status
+      final existingResult = await txn.query(
         'orders',
-        columns: ['is_synced'],
+        columns: ['id', 'is_synced', 'server_id', 'sync_id'],
         where: 'id = ?',
-        whereArgs: [localOrderId]
+        whereArgs: [localOrderId],
+        limit: 1
       );
       
-      if (checkResult.isNotEmpty && checkResult.first['is_synced'] == 1) {
-        debugPrint('Order $localOrderId marked as synced during transaction check. Skipping.');
+      if (existingResult.isEmpty) {
+        debugPrint('Order $localOrderId not found, cannot mark as synced');
         return;
       }
       
-      // Not synced yet, proceed with update
-      try {
-        await txn.update(
-          'orders',
-          {
-            'is_synced': 1,
-            'server_id': serverOrderId,
-            'last_sync_attempt': DateTime.now().toIso8601String(),
-            'sync_id': syncId,
-          },
-          where: 'id = ?',
-          whereArgs: [localOrderId],
-        );
+      final existing = existingResult.first;
+      final isSynced = existing['is_synced'] == 1;
+      final existingSyncId = existing['sync_id'];
+      final existingServerId = existing['server_id'];
+      
+      if (isSynced) {
+        // Order is already synced
+        if (existingSyncId != null && existingSyncId.toString().isNotEmpty) {
+          debugPrint('Order $localOrderId already marked as synced with sync_id: $existingSyncId. Skipping.');
+          return;
+        }
         
-        debugPrint('Order $localOrderId marked as synced. Server ID: $serverOrderId, Sync ID: $syncId');
-      } catch (e) {
-        // If the columns don't exist, try a simpler update
-        debugPrint('Falling back to simple update without new columns: $e');
-        await txn.update(
-          'orders',
-          {
-            'is_synced': 1,
-            'server_id': serverOrderId,
-          },
-          where: 'id = ?',
-          whereArgs: [localOrderId],
-        );
-        
-        debugPrint('Order $localOrderId marked as synced with simple update. Server ID: $serverOrderId');
+        if (existingServerId != null) {
+          debugPrint('Order $localOrderId already has server ID: $existingServerId. Skipping.');
+          return;
+        }
       }
+      
+      // Not synced yet or missing sync_id/server_id, proceed with update
+      await txn.update(
+        'orders',
+        {
+          'is_synced': 1,
+          'server_id': serverOrderId,
+          'last_sync_attempt': DateTime.now().toIso8601String(),
+          'sync_id': syncId,
+        },
+        where: 'id = ?',
+        whereArgs: [localOrderId],
+      );
+      
+      debugPrint('Order $localOrderId marked as synced. Server ID: $serverOrderId, Sync ID: $syncId');
     });
   } catch (e) {
     debugPrint('Error marking order as synced: $e');
@@ -201,7 +175,7 @@ class LocalOrderRepository {
     }
   }
 }
-
+ 
 
   // Record sync error with fallback
   Future<void> recordSyncError(int localOrderId, String error) async {

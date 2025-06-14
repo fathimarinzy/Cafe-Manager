@@ -47,19 +47,31 @@ class OrderHistory {
           parsedDate = DateTime.parse(order.createdAt!);
         }
       } else {
-        // For regular ISO format strings from the server
+        // For API-sourced orders, carefully check if it's already been adjusted
         // First parse the date string to a DateTime object
-        final utcDate = DateTime.parse(order.createdAt!);
+        final parsedDateString = DateTime.parse(order.createdAt!);
         
-        // Get the local timezone offset in minutes
-        final localTimeZoneOffset = DateTime.now().timeZoneOffset.inMinutes;
+        // NEW: Check if this datetime is likely from the local database vs API
+        // Heuristic: If the hour is between 18:00-23:59 or 00:00-05:59, likely already adjusted
+        final hour = parsedDateString.hour;
+        final isLikelyAlreadyAdjusted = 
+            (hour >= 18 && hour <= 23) || (hour >= 0 && hour <= 5);
         
-        // Apply the timezone offset to get the correct local time
-        parsedDate = utcDate.add(Duration(minutes: localTimeZoneOffset));
-        
-        debugPrint('Original UTC date: $utcDate');
-        debugPrint('Local timezone offset: $localTimeZoneOffset minutes');
-        debugPrint('Adjusted local date: $parsedDate');
+        if (isLikelyAlreadyAdjusted) {
+          // Don't adjust, it's likely already a local time that was stored
+          parsedDate = parsedDateString;
+          debugPrint('Using time as-is (likely already adjusted): $parsedDate');
+        } else {
+          // Get the local timezone offset in minutes
+          final localTimeZoneOffset = DateTime.now().timeZoneOffset.inMinutes;
+          
+          // Apply the timezone offset to get the correct local time
+          parsedDate = parsedDateString.add(Duration(minutes: localTimeZoneOffset));
+          
+          debugPrint('Original UTC date: $parsedDateString');
+          debugPrint('Local timezone offset: $localTimeZoneOffset minutes');
+          debugPrint('Adjusted local date: $parsedDate');
+        }
       }
     } catch (e) {
       debugPrint('Error parsing date: $e');
@@ -79,7 +91,7 @@ class OrderHistory {
     items: order.items,
   );
 }
-
+ 
 
   // Method to format the order number
   String get orderNumber => id.toString().padLeft(4, '0');

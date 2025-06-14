@@ -520,7 +520,9 @@ Future<void> _saveSyncedOrdersCache() async {
   }
 
   // Updated sync order operations with better deduplication
-  Future<void> _syncOrderOperations() async {
+  // Replace the _syncOrderOperations method in lib/services/sync_service.dart
+
+Future<void> _syncOrderOperations() async {
   // Get all unsynced orders
   final unsyncedOrders = await _localOrderRepo.getUnsyncedOrders();
   debugPrint('Found ${unsyncedOrders.length} unsynced orders to sync');
@@ -532,102 +534,109 @@ Future<void> _saveSyncedOrdersCache() async {
   // Track successfully processed orders
   final List<int> processedOrderIds = [];
   
-  // Create a more robust synchronization lock for each order
-  final Map<int, bool> syncInProgress = {};
+  // Enhanced deduplication: Keep track of already synced orders by ID
+  // This is a temporary in-memory cache just for this sync session
+  final Set<int> alreadySyncedInThisSession = {};
   
   // Process each order with improved deduplication
   for (final order in unsyncedOrders) {
     if (order.id == null) continue; // Skip orders without ID
     
-    // Critical: Check if this order is already being synced
-    if (syncInProgress[order.id!] == true) {
-      debugPrint('Sync already in progress for order ${order.id}. Skipping.');
-      continue;
-    }
-    
-    // Mark this order as being synced
-    syncInProgress[order.id!] = true;
-    
-    // Generate a unique sync key for this order
-    final syncKey = '${order.id}_${DateTime.now().millisecondsSinceEpoch}';
-    
-    // Skip if this order has already been synced
-    final alreadySynced = _syncedOrdersCache.any((key) => key.startsWith('${order.id}_'));
-    if (alreadySynced) {
-      debugPrint('Order ${order.id} already synced based on cache. Skipping.');
+    // CRITICAL: Skip if we've already processed this order in the current session
+    if (alreadySyncedInThisSession.contains(order.id)) {
+      debugPrint('Skipping order ${order.id} - already synced in this session');
       processedOrderIds.add(order.id!);
-      syncInProgress.remove(order.id!); // Release the lock
       continue;
     }
     
-    // Also check if the order is already marked as synced in the database
+    // Check if this order is already marked as synced in the database
+    // This should be a definitive check, not a heuristic
+    bool isAlreadySynced = false;
     try {
-      final isSynced = await _checkIfOrderSynced(order.id!);
-      if (isSynced) {
-        debugPrint('Order ${order.id} already marked as synced in database. Skipping.');
-        processedOrderIds.add(order.id!);
-        _syncedOrdersCache.add(syncKey); // Add to cache to prevent future sync attempts
-        syncInProgress.remove(order.id!); // Release the lock
-        continue;
-      }
-    } catch (e) {
-      debugPrint('Error checking if order is synced: $e');
-    }
-    
-    try {
-      // Convert order items to server format
-      final items = order.items.map((item) => {
-        'id': item.id.toString(),
-        'name': item.name,
-        'price': item.price,
-        'quantity': item.quantity,
-        'kitchenNote': item.kitchenNote,
-      }).toList();
-      
-      // Create order on server
-      debugPrint('Creating order on server: ${order.serviceType}');
-      final serverOrder = await _apiService.createOrder(
-        order.serviceType,
-        items,
-        order.subtotal,
-        order.tax,
-        order.discount,
-        order.total,
-        paymentMethod: order.paymentMethod ?? 'cash',
-        customerId: order.customerId,
+      final db = await _localOrderRepo.database;
+      final result = await db.query(
+        'orders',
+        columns: ['is_synced', 'server_id', 'sync_id'],
+        where: 'id = ?',
+        whereArgs: [order.id!],
       );
       
-      if (serverOrder != null) {
-        // Mark order as synced
-        await _localOrderRepo.markOrderAsSynced(order.id!, serverOrder.id);
+      if (result.isNotEmpty) {
+        final isSynced = result.first['is_synced'] == 1;
+        final syncId = result.first['sync_id'];
+        final serverId = result.first['server_id'];
         
-        // Add to processed IDs
-        processedOrderIds.add(order.id!);
-        
-        // Add to synced orders cache to prevent future duplicates
-        _syncedOrdersCache.add(syncKey);
-        
-        debugPrint('Successfully synced order ${order.id} to server ID ${serverOrder.id}');
-      } else {
-        debugPrint('Failed to create order on server: ${order.id}');
+        if (isSynced && syncId != null) {
+          debugPrint('Order ${order.id} already synced with sync_id: $syncId and server_id: $serverId');
+          isAlreadySynced = true;
+          processedOrderIds.add(order.id!);
+          continue;
+        }
       }
     } catch (e) {
-      debugPrint('Error syncing order ${order.id}: $e');
-      
-      // If we get a "not found" error or similar, mark as processed anyway
-      if (e.toString().toLowerCase().contains('not found')) {
-        await _localOrderRepo.markOrderAsSynced(order.id!, null);
-        processedOrderIds.add(order.id!);
+      debugPrint('Error checking order sync status: $e');
+    }
+    
+    // Skip if this order has already been synced (using cache)
+    final syncKey = '${order.id}_';
+    final alreadySyncedInCache = _syncedOrdersCache.any((key) => key.startsWith(syncKey));
+    if (alreadySyncedInCache) {
+      debugPrint('Order ${order.id} already synced based on cache. Skipping.');
+      processedOrderIds.add(order.id!);
+      continue;
+    }
+    
+    // If we've made it this far, we need to sync the order
+    if (!isAlreadySynced) {
+      try {
+        // Add to our temporary session tracking to prevent duplicates even within one sync
+        alreadySyncedInThisSession.add(order.id!);
         
-        // Add to synced orders cache even on error to prevent retries
-        _syncedOrdersCache.add(syncKey);
+        // Convert order items to server format
+        final items = order.items.map((item) => {
+          'id': item.id.toString(),
+          'name': item.name,
+          'price': item.price,
+          'quantity': item.quantity,
+          'kitchenNote': item.kitchenNote,
+        }).toList();
+        
+        // Create order on server
+        debugPrint('Creating order on server: ${order.serviceType}, ID: ${order.id}');
+        final serverOrder = await _apiService.createOrder(
+          order.serviceType,
+          items,
+          order.subtotal,
+          order.tax,
+          order.discount,
+          order.total,
+          paymentMethod: order.paymentMethod ?? 'cash',
+          customerId: order.customerId,
+        );
+        
+        if (serverOrder != null) {
+          // Generate a unique sync ID for this order
+          final syncId = '${order.id}_${DateTime.now().millisecondsSinceEpoch}';
+          
+          // Mark order as synced with the new server ID
+          await _localOrderRepo.markOrderAsSynced(order.id!, serverOrder.id);
+          
+          // Add to processed IDs
+          processedOrderIds.add(order.id!);
+          
+          // Add to synced orders cache to prevent future duplicates
+          _syncedOrdersCache.add(syncId);
+          
+          debugPrint('Successfully synced order ${order.id} to server ID ${serverOrder.id}');
+        } else {
+          debugPrint('Failed to create order on server: ${order.id}');
+        }
+      } catch (e) {
+        debugPrint('Error syncing order ${order.id}: $e');
+        
+        // Record the sync error
+        await _localOrderRepo.recordSyncError(order.id!, e.toString());
       }
-      
-      // Record the sync error
-      await _localOrderRepo.recordSyncError(order.id!, e.toString());
-    } finally {
-      // Always release the lock, even if an error occurred
-      syncInProgress.remove(order.id!);
     }
     
     // Small delay between operations to prevent overloading the server
@@ -639,29 +648,30 @@ Future<void> _saveSyncedOrdersCache() async {
   
   debugPrint('Successfully synced ${processedOrderIds.length} orders');
 }
+ 
 
 // New helper method to check if an order is already marked as synced in the database
-Future<bool> _checkIfOrderSynced(int orderId) async {
-  try {
-    final db = await _localOrderRepo.database;
-    final result = await db.query(
-      'orders',
-      columns: ['is_synced'],
-      where: 'id = ?',
-      whereArgs: [orderId],
-    );
+// Future<bool> _checkIfOrderSynced(int orderId) async {
+//   try {
+//     final db = await _localOrderRepo.database;
+//     final result = await db.query(
+//       'orders',
+//       columns: ['is_synced'],
+//       where: 'id = ?',
+//       whereArgs: [orderId],
+//     );
     
-    if (result.isNotEmpty) {
-      final isSynced = result.first['is_synced'] == 1;
-      debugPrint('Order $orderId sync status in database: ${isSynced ? 'synced' : 'not synced'}');
-      return isSynced;
-    }
-    return false;
-  } catch (e) {
-    debugPrint('Error checking order sync status: $e');
-    return false;
-  }
-}
+//     if (result.isNotEmpty) {
+//       final isSynced = result.first['is_synced'] == 1;
+//       debugPrint('Order $orderId sync status in database: ${isSynced ? 'synced' : 'not synced'}');
+//       return isSynced;
+//     }
+//     return false;
+//   } catch (e) {
+//     debugPrint('Error checking order sync status: $e');
+//     return false;
+//   }
+// }
   // Sync persons
   Future<void> _syncPersons() async {
     final unsyncedPersons = await _localPersonRepo.getUnsyncedPersons();
