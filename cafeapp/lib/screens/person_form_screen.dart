@@ -20,36 +20,19 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
   @override
   Widget build(BuildContext context) {
     final personProvider = Provider.of<PersonProvider>(context);
-    final isOffline = personProvider.isOfflineMode;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Person Details'),
-        actions: [
-          if (isOffline)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Row(
-                children: [
-                  Icon(Icons.cloud_off, color: Colors.red, size: 20),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Offline',
-                    style: TextStyle(color: Colors.red, fontSize: 14),
-                  ),
-                ],
-              ),
-            ),
-        ],
       ),
       body: Padding(
-        padding: EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
           child: ListView(
             children: [
               TextFormField(
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: 'Name',
                   border: OutlineInputBorder(),
                 ),
@@ -65,7 +48,7 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
               ),
               const SizedBox(height: 16),
               TextFormField(
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: 'Phone Number',
                   border: OutlineInputBorder(),
                 ),
@@ -82,7 +65,7 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
               ),
               const SizedBox(height: 16),
               TextFormField(
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: 'Place',
                   border: OutlineInputBorder(),
                 ),
@@ -118,12 +101,8 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
                             
                             if (personProvider.error.isEmpty) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    personProvider.isOfflineMode
-                                        ? 'Person added locally (offline mode)'
-                                        : 'Person added successfully'
-                                  ),
+                                const SnackBar(
+                                  content: Text('Person added successfully'),
                                 ),
                               );
                               Navigator.pop(context);
@@ -142,18 +121,7 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
                       },
                 child: personProvider.isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(personProvider.isOfflineMode
-                              ? 'Save Locally'
-                              : 'Save'),
-                          if (personProvider.isOfflineMode) ...[
-                            const SizedBox(width: 8),
-                            Icon(Icons.cloud_off, size: 16)
-                          ],
-                        ],
-                      ),
+                    : const Text('Save'),
               ),
             ],
           ),

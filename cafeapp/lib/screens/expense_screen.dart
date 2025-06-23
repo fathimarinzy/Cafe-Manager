@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../services/api_service.dart';
+import '../repositories/local_expense_repository.dart';
+import '../screens/expense_history_screen.dart';
 
 class ExpenseScreen extends StatefulWidget {
-  const ExpenseScreen({super.key});
+  final Map<String, dynamic>? expenseToEdit;
+  const ExpenseScreen({this.expenseToEdit,super.key});
 
   @override
   State<ExpenseScreen> createState() => _ExpenseScreenState();
@@ -29,6 +31,9 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   // Keep the existing account type selection
   String _selectedAccountType = 'Cash Account';
   final List<String> _accountTypes = ['Cash Account', 'Bank Account'];
+
+  // Initialize local repository
+  final LocalExpenseRepository _expenseRepository = LocalExpenseRepository();
   
   final List<String> _expenseCategories = [
     'Shop Expense',
@@ -56,7 +61,14 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   @override
   void initState() {
     super.initState();
+    // If we're editing an existing expense, load its data
+  if (widget.expenseToEdit != null) {
+    _loadExpenseData();
+  } else {
+    // If it's a new expense, just add an empty row
     _addNewExpenseRow();
+  }
+
   }
   
   @override
@@ -75,6 +87,67 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     
     super.dispose();
   }
+  void _loadExpenseData() {
+  final expense = widget.expenseToEdit!;
+  
+  // Set date
+  try {
+    final dateStr = expense['date'] as String;
+    final parts = dateStr.split('-');
+    if (parts.length == 3) {
+      final day = int.tryParse(parts[0]) ?? 1;
+      final month = int.tryParse(parts[1]) ?? 1;
+      final year = int.tryParse(parts[2]) ?? 2000;
+      _selectedDate = DateTime(year, month, day);
+      _currentDate = DateFormat('dd-MM-yyyy').format(_selectedDate);
+    }
+  } catch (e) {
+    debugPrint('Error parsing date: $e');
+  }
+  
+  // Set account type
+  final accountType = expense['accountType'] as String;
+  if (_accountTypes.contains(accountType)) {
+    _selectedAccountType = accountType;
+  }
+  
+  // Set cashier
+  final cashierStr = expense['cashier'] as String;
+  final cashierParts = cashierStr.split('-');
+  if (cashierParts.length == 2) {
+    _selectedCashierType = cashierParts[0];
+    _cashierController.text = cashierParts[1];
+  }
+  
+  // Load expense items
+  final items = expense['items'] as List<dynamic>;
+  for (var item in items) {
+    final accountController = TextEditingController(text: item['account']);
+    final narrationController = TextEditingController(text: item['narration']);
+    final amountController = TextEditingController(text: item['amount'].toString());
+    final remarksController = TextEditingController(text: item['remarks'] ?? '');
+    
+    _searchControllers.add(accountController);
+    _filteredOptions.add([..._expenseCategories]);
+    _searchActiveStates.add(false);
+    
+    _expenseItems.add(
+      ExpenseItem(
+        slNo: item['slNo'],
+        account: item['account'],
+        narration: item['narration'],
+        amount: item['amount'],
+        remarks: item['remarks'] ?? '',
+        narrationController: narrationController,
+        amountController: amountController,
+        remarksController: remarksController
+      )
+    );
+  }
+  
+  // Update grand total
+  _updateGrandTotal();
+}
 
   // Method to show date picker
   Future<void> _selectDate(BuildContext context) async {
@@ -246,10 +319,15 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         'grandTotal': _grandTotal,
       };
       
-      // Send to API
-      final apiService = ApiService();
-      final result = await apiService.createExpense(expenseData);
-      
+      bool result;
+    if (widget.expenseToEdit != null) {
+      // We're updating an existing expense
+      expenseData['id'] = widget.expenseToEdit!['id'];
+      result = await _expenseRepository.updateExpense(expenseData);
+    } else {
+      // We're creating a new expense
+      result = await _expenseRepository.saveExpense(expenseData);
+    }
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -261,13 +339,21 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
             context: context,
             builder: (ctx) => AlertDialog(
               title: const Text('Success'),
-              content: const Text('Expense records stored successfully!'),
+              content: Text(widget.expenseToEdit != null 
+              ? 'Expense updated successfully!' 
+              : 'Expense records stored successfully!'),
               actions: [
                 TextButton(
                   onPressed: () {
                     Navigator.of(ctx).pop();
-                    // Reset form for new entry after confirmation
-                    _resetForm();
+
+                    if (widget.expenseToEdit != null) {
+                      // If we're updating, navigate back to the previous screen
+                      Navigator.of(context).pop();
+                    } else {
+                      // If we're adding a new record, reset the form for a new entry
+                      _resetForm();
+                    }
                   },
                   child: const Text('OK'),
                 ),
@@ -506,7 +592,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                               
                               const SizedBox(width: 16),
                               
-                              // ID text field
+                              // ID text field - commented out but kept for reference
                               // Expanded(
                               //   flex: 1,
                               //   child: Column(
@@ -661,16 +747,21 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                         ),
                       ),
                       const SizedBox(width: 16),
-                      // ElevatedButton.icon(
-                      //   onPressed: () {},
-                      //   icon: const Icon(Icons.print),
-                      //   label: const Text('Print'),
-                      //   style: ElevatedButton.styleFrom(
-                      //     backgroundColor: Colors.blue.shade400,
-                      //     foregroundColor: Colors.white,
-                      //     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      //   ),
-                      // ),
+                      ElevatedButton.icon(
+                        onPressed: () { 
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => ExpenseHistoryScreen()),
+                          );
+                          },
+                        icon: const Icon(Icons.receipt_long),
+                        label: const Text('Expenses'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        ),
+                      ),
                       const SizedBox(width: 16),
                       // ElevatedButton.icon(
                       //   onPressed: () {},

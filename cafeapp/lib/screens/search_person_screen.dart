@@ -28,28 +28,6 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('People'),
-        actions: [
-          Consumer<PersonProvider>(
-            builder: (ctx, provider, _) {
-              if (provider.isOfflineMode) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Row(
-                    children: [
-                      Icon(Icons.cloud_off, color: Colors.red, size: 20),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Offline',
-                        style: TextStyle(color: Colors.red, fontSize: 14),
-                      ),
-                    ],
-                  ),
-                );
-              }
-              return SizedBox.shrink();
-            },
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -111,17 +89,6 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
                         Text(_isSearching
                             ? 'No results found'
                             : 'No people added yet'),
-                        if (personProvider.isOfflineMode)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 16.0),
-                            child: Text(
-                              'You\'re offline. Some data may not be available.',
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                          ),
                       ],
                     ),
                   );
@@ -144,25 +111,6 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
                             const SizedBox(height: 4),
                             Text('📞 ${person.phoneNumber}'),
                             Text('📍 ${person.place}'),
-                            // Show offline indicator for local records
-                            if (person.id != null && person.id!.startsWith('local_'))
-                              Row(
-                                children: [
-                                  Icon(Icons.cloud_off, 
-                                    size: 12, 
-                                    color: Colors.orange,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Saved locally - will sync when online',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: Colors.orange,
-                                      fontStyle: FontStyle.italic,
-                                    ),
-                                  ),
-                                ],
-                              ),
                           ],
                         ),
                         trailing: Column(

@@ -137,8 +137,8 @@ class BillService {
                         fontWeight: pw.FontWeight.bold
                       )
                     ),
-                    if (tableInfo != null)
-                      pw.Text(tableInfo, style: pw.TextStyle(font: ttf, fontSize: 10)),
+                    // if (tableInfo != null)
+                    //   pw.Text(tableInfo, style: pw.TextStyle(font: ttf, fontSize: 10)),
                     if (personName != null)
                       pw.Text('Customer: $personName', style: pw.TextStyle(font: ttf, fontSize: 10)),
                   ],

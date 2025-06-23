@@ -7,7 +7,6 @@ import 'package:provider/provider.dart';
 import '../models/order_history.dart';
 import '../services/bill_service.dart';
 import '../utils/extensions.dart';
-import '../services/api_service.dart';
 import '../providers/order_history_provider.dart';
 import '../screens/order_list_screen.dart';
 import 'dashboard_screen.dart';
@@ -18,6 +17,8 @@ import 'package:flutter_pdfview/flutter_pdfview.dart';
 import '../providers/order_provider.dart';
 import '../models/person.dart';
 import '../models/order.dart';
+import '../models/order_item.dart';
+import '../repositories/local_order_repository.dart';
 
 class TenderScreen extends StatefulWidget {
   final OrderHistory order;
@@ -27,7 +28,15 @@ class TenderScreen extends StatefulWidget {
   final bool showBankDialogOnLoad; 
   final Person? customer;
 
-  const TenderScreen({super.key, required this.order,this.isEdited = false, this.taxRate = 5.0,this.preselectedPaymentMethod,this.showBankDialogOnLoad = false,this.customer,});
+  const TenderScreen({
+    super.key, 
+    required this.order,
+    this.isEdited = false, 
+    this.taxRate = 5.0,
+    this.preselectedPaymentMethod,
+    this.showBankDialogOnLoad = false,
+    this.customer,
+  });
 
   @override
   State<TenderScreen> createState() => _TenderScreenState();
@@ -41,7 +50,7 @@ class _TenderScreenState extends State<TenderScreen> {
   bool _isProcessing = false;
   bool _isCashSelected = false;
   String _orderStatus = 'pending'; // Track the current order status
-  final ApiService _apiService = ApiService();
+  final LocalOrderRepository _localOrderRepo = LocalOrderRepository();
   final MethodChannel _channel = const MethodChannel('com.simsrestocafe/file_picker');
 
   // Credit card payment data
@@ -69,33 +78,31 @@ class _TenderScreenState extends State<TenderScreen> {
   @override
   void initState() {
     super.initState();
-     // Initialize balance amount based on order status
+    // Initialize balance amount based on order status
     _orderStatus = widget.order.status; // Initialize with current status
     
-    
-
-       // Set the preselected payment method if provided
-  if (widget.preselectedPaymentMethod != null) {
+    // Set the preselected payment method if provided
+    if (widget.preselectedPaymentMethod != null) {
       _selectedPaymentMethod = widget.preselectedPaymentMethod;
       _isCashSelected = _selectedPaymentMethod == 'Cash';
     }
     
-  // If order is already completed, set balance to 0 and paid to total
-  if (_orderStatus.toLowerCase() == 'completed') {
-    _balanceAmount = 0.0;
-    _paidAmount = widget.order.total;
-  } else {
-    // Normal initialization for pending orders
-    _balanceAmount = widget.order.total;
-    _paidAmount = 0.0;
-  }
+    // If order is already completed, set balance to 0 and paid to total
+    if (_orderStatus.toLowerCase() == 'completed') {
+      _balanceAmount = 0.0;
+      _paidAmount = widget.order.total;
+    } else {
+      // Normal initialization for pending orders
+      _balanceAmount = widget.order.total;
+      _paidAmount = 0.0;
+    }
  
     debugPrint('Initial balance: $_balanceAmount, Initial paid: $_paidAmount, Status: $_orderStatus');
     if (widget.showBankDialogOnLoad) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showBankPaymentDialog(); // This will automatically show the bank payment dialog
-    });
-  }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showBankPaymentDialog(); // This will automatically show the bank payment dialog
+      });
+    }
   }
   
   @override
@@ -108,163 +115,136 @@ class _TenderScreenState extends State<TenderScreen> {
     _receivedFocusNode.dispose();
     super.dispose();
   }
-  // Alternative approach using native PDF viewer through Intent (Android only)
-// Future<void> _showBillPreviewWithIntent() async {
-//   // Show loading indicator
-//   showDialog(
-//     context: context,
-//     barrierDismissible: false,
-//     builder: (context) => const Center(
-//       child: CircularProgressIndicator(),
-//     ),
-//   );
-  
-//   try {
-//     // Generate PDF
-//     final pdf = await _generateReceipt();
-    
-//     // Save to temp file
-//     final tempDir = await getTemporaryDirectory();
-//     final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-//     final pdfPath = '${tempDir.path}/bill_preview_${widget.order.id}_$timestamp.pdf';
-//     final file = File(pdfPath);
-//     await file.writeAsBytes(await pdf.save());
-    
-//     // Close loading dialog
-//     if (!mounted) return;
-//     Navigator.of(context).pop();
-    
-//     // Open PDF with default viewer
-//     try {
-//       // Use platform channel to open PDF with intent
-//       await _channel.invokeMethod('openPdfWithIntent', {'path': pdfPath});
-//     } catch (e) {
-//       debugPrint('Error opening PDF with intent: $e');
-//       if (mounted) {
-//         ScaffoldMessenger.of(context).showSnackBar(
-//           SnackBar(content: Text('Error opening PDF viewer: $e')),
-//         );
-//       }
-//     }
-//   } catch (e) {
-//     // Close loading dialog
-//     if (mounted) Navigator.of(context).pop();
-    
-//     // Show error message
-//     if (mounted) {
-//       ScaffoldMessenger.of(context).showSnackBar(
-//         SnackBar(content: Text('Error generating bill preview: $e')),
-//       );
-//     }
-//   }
-// }
-  // Add this new method to your _TenderScreenState class
-Future<void> _showBillPreviewDialog() async {
-  // Show loading indicator
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) => const Center(
-      child: CircularProgressIndicator(),
-    ),
-  );
-  
-  try {
-    // Generate PDF
-    final pdf = await _generateReceipt();
-    
-    // Save to temp file
-    final tempDir = await getTemporaryDirectory();
-    final pdfPath = '${tempDir.path}/bill_preview_${widget.order.id}.pdf';
-    final file = File(pdfPath);
-    await file.writeAsBytes(await pdf.save());
-    
-    // Close loading dialog
-    if (!mounted) return;
-    Navigator.of(context).pop();
-    
-    // Show the preview in a fullscreen dialog
-    await showDialog(
+
+  Future<void> _showBillPreviewDialog() async {
+    // Show loading indicator
+    showDialog(
       context: context,
-      builder: (context) => Dialog(
-        insetPadding: EdgeInsets.zero, // Full screen dialog
-        child: Column(
-          children: [
-            // App bar with close button
-            Container(
-              color: Colors.blue.shade700,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  const Text(
-                    'Preview',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                 
-                
-                ],
-              ),
-            ),
-            // PDF Viewer
-            Expanded(
-              child: PDFView(
-                filePath: pdfPath,
-                enableSwipe: true,
-                swipeHorizontal: false,
-                autoSpacing: false,
-                pageFling: true,
-                fitPolicy: FitPolicy.BOTH,
-                fitEachPage: false,    
-                defaultPage: 0,
-                onError: (error) {
-                  debugPrint('Error loading PDF: $error');
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Error loading PDF preview')),
-                    );
-                  }
-                },
-              ),
-            ),
-          ],
-        ),
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
       ),
     );
-  } catch (e) {
-    // Close loading dialog
-    if (mounted) Navigator.of(context).pop();
     
-    // Show error message
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error generating bill preview: $e')),
+    try {
+      // Generate PDF
+      final pdf = await _generateReceipt();
+      
+      // Save to temp file
+      final tempDir = await getTemporaryDirectory();
+      final pdfPath = '${tempDir.path}/bill_preview_${widget.order.id}.pdf';
+      final file = File(pdfPath);
+      await file.writeAsBytes(await pdf.save());
+      
+      // Close loading dialog
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      
+      // Show the preview in a fullscreen dialog
+      await showDialog(
+        context: context,
+        builder: (context) => Dialog(
+          insetPadding: EdgeInsets.zero, // Full screen dialog
+          child: Column(
+            children: [
+              // App bar with close button
+              Container(
+                color: Colors.blue.shade700,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                    const Text(
+                      'Preview',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                  ],
+                ),
+              ),
+              // PDF Viewer
+              Expanded(
+                child: PDFView(
+                  filePath: pdfPath,
+                  enableSwipe: true,
+                  swipeHorizontal: false,
+                  autoSpacing: false,
+                  pageFling: true,
+                  fitPolicy: FitPolicy.BOTH,
+                  fitEachPage: false,    
+                  defaultPage: 0,
+                  onError: (error) {
+                    debugPrint('Error loading PDF: $error');
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Error loading PDF preview')),
+                      );
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
       );
+    } catch (e) {
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+      
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error generating bill preview: $e')),
+        );
+      }
     }
   }
-}
 
-  // Update order status in the backend
+  // Update order status in the local database
   Future<bool> _updateOrderStatus(String status) async {
     setState(() {
       _isProcessing = true;
     });
     
     try {
-      final success = await _apiService.updateOrderStatus(widget.order.id, status);
+      // Get all orders from local database
+      final orders = await _localOrderRepo.getAllOrders();
+      final orderIndex = orders.indexWhere((o) => o.id == widget.order.id);
       
-      if (success) {
-        setState(() {
-          _orderStatus = status;
-        });
+      if (orderIndex >= 0) {
+        // Found the order, update its status
+        final order = orders[orderIndex];
+        
+        // Create updated order with new status
+        final updatedOrder = Order(
+          id: order.id,
+          serviceType: order.serviceType,
+          items: order.items,
+          subtotal: order.subtotal,
+          tax: order.tax,
+          discount: order.discount,
+          total: order.total,
+          status: status,
+          createdAt: order.createdAt,
+          customerId: order.customerId,
+          paymentMethod: order.paymentMethod,
+        );
+        
+        // Save the updated order
+        await _localOrderRepo.saveOrder(updatedOrder);
+        
+        if (mounted) {
+          setState(() {
+            _orderStatus = status;
+          });
+        }
         
         // Refresh the order history list to show updated status
         if (mounted) {
@@ -273,6 +253,7 @@ Future<void> _showBillPreviewDialog() async {
         
         return true;
       }
+      
       return false;
     } catch (e) {
       debugPrint('Error updating order status: $e');
@@ -287,163 +268,183 @@ Future<void> _showBillPreviewDialog() async {
   }
 
   // Updated _processPayment method to handle change similar to cash payments
-   Future<void> _processPayment(double amount) async {
-  if (_selectedPaymentMethod == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Please select a payment method')),
-    );
-    return;
-  }
-  
-  if (amount <= 0) return;
-
-  setState(() {
-    _isProcessing = true;
-  });
-
-  double change = 0.0;
-  if (amount > widget.order.total) {
-    change = amount - widget.order.total;
-  }
-
-  try {
-     // Store the correct payment method
-    final paymentMethod = _selectedPaymentMethod!.toLowerCase();
-    final apiService = ApiService();
-    Order? savedOrder;
-    
-    // Check if we're updating an existing order or creating a new one
-    if (widget.order.id != 0) {
-      // Update existing order
-      savedOrder = await apiService.updateOrder(
-        widget.order.id,
-        widget.order.serviceType,
-        widget.order.items.map((item) => {
-          'id': item.id,
-          'name': item.name,
-          'price': item.price,
-          'quantity': item.quantity,
-          'kitchenNote': item.kitchenNote,
-        }).toList(),
-        widget.order.total - (widget.order.total * (widget.taxRate / 100)),
-        widget.order.total * (widget.taxRate / 100),
-        0, // No discount
-        widget.order.total,
-        paymentMethod: paymentMethod
+  Future<void> _processPayment(double amount) async {
+    if (_selectedPaymentMethod == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a payment method')),
       );
-    } else {
-      // Create a new order
-      savedOrder = await apiService.createOrder(
-        widget.order.serviceType,
-        widget.order.items.map((item) => {
-          'id': item.id,
-          'name': item.name,
-          'price': item.price,
-          'quantity': item.quantity,
-          'kitchenNote': item.kitchenNote,
-        }).toList(),
-        widget.order.total - (widget.order.total * (widget.taxRate / 100)),
-        widget.order.total * (widget.taxRate / 100),
-        0, // No discount
-        widget.order.total,
-        paymentMethod: paymentMethod,
-        customerId: widget.customer?.id,
-      );
+      return;
     }
     
-    if (savedOrder == null) {
-      throw Exception('Failed to process order in the system');
-    }
-    
-    // Update the widget order ID if it was a new order
-    if (widget.order.id == 0) {
-      widget.order.id = savedOrder.id ?? 0;
-    }
-   
+    if (amount <= 0) return;
 
-    final statusUpdated = await _updateOrderStatus('completed');
-    
-    if (!statusUpdated) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to update order status, but continuing with payment processing')),
-        );
-      }
-    }
-    
-    final prefs = await SharedPreferences.getInstance();
-    final savedPrinterName = prefs.getString('selected_printer');
-    debugPrint('Selected printer: $savedPrinterName'); // This will use the variable and prevent the warning
-      
-    final pdf = await _generateReceipt();
+    setState(() {
+      _isProcessing = true;
+    });
 
-    bool printed = false;
+    double change = 0.0;
+    if (amount > widget.order.total) {
+      change = amount - widget.order.total;
+    }
+
     try {
-      printed = await BillService.printThermalBill(widget.order,isEdited: widget.isEdited, taxRate: widget.taxRate,);
-    } catch (e) {
-      debugPrint('Printing error: $e');
-      // Log which printer was attempted
-      debugPrint('Attempted to print using: $savedPrinterName');
-    }
+      // Store the correct payment method
+      final paymentMethod = _selectedPaymentMethod!.toLowerCase();
+      Order? savedOrder;
       
-    bool? saveAsPdf = false;
-    if (!printed) {
-      if (mounted) {
-        saveAsPdf = await _showSavePdfDialog();
+      // Check if we're updating an existing order or creating a new one
+      if (widget.order.id != 0) {
+        // Update existing order - Find in local database
+        final orders = await _localOrderRepo.getAllOrders();
+        final orderIndex = orders.indexWhere((o) => o.id == widget.order.id);
+        
+        if (orderIndex >= 0) {
+          final existingOrder = orders[orderIndex];
+          
+          // Create updated order with completed status and payment method
+          savedOrder = Order(
+            id: existingOrder.id,
+            serviceType: existingOrder.serviceType,
+            items: existingOrder.items,
+            subtotal: widget.order.total - (widget.order.total * (widget.taxRate / 100)),
+            tax: widget.order.total * (widget.taxRate / 100),
+            discount: 0, // No discount
+            total: widget.order.total,
+            status: 'completed', // Mark as completed
+            createdAt: existingOrder.createdAt,
+            customerId: widget.customer?.id ?? existingOrder.customerId,
+            paymentMethod: paymentMethod
+          );
+          
+          // Save the updated order
+          savedOrder = await _localOrderRepo.saveOrder(savedOrder);
+        }
+      } else {
+        // Create a new order - should rarely happen from tender screen
+        debugPrint('Creating new order in TenderScreen - unusual case');
+        
+        // Convert OrderHistory items to OrderItem objects
+        final orderItems = widget.order.items.map((item) => 
+          OrderItem(
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            kitchenNote: item.kitchenNote,
+          )
+        ).toList();
+        
+        // Create a new order
+        savedOrder = Order(
+          serviceType: widget.order.serviceType,
+          items: orderItems,
+          subtotal: widget.order.total - (widget.order.total * (widget.taxRate / 100)),
+          tax: widget.order.total * (widget.taxRate / 100),
+          discount: 0, // No discount
+          total: widget.order.total,
+          status: 'completed', // Mark as completed
+          createdAt: DateTime.now().toIso8601String(),
+          customerId: widget.customer?.id,
+          paymentMethod: paymentMethod,
+        );
+        
+        // Save the new order
+        savedOrder = await _localOrderRepo.saveOrder(savedOrder);
       }
       
-      if (saveAsPdf == true) {
-        try {
-          // Use Android's native file picker intent to save the file
-          await _saveWithAndroidIntent(pdf);
-        } catch (e) {
-          debugPrint('Error saving PDF: $e');
+      if (savedOrder == null) {
+        throw Exception('Failed to process order in the system');
+      }
+      
+      // Update the widget order ID if it was a new order
+      if (widget.order.id == 0) {
+        widget.order.id = savedOrder.id ?? 0;
+      }
+      
+      // Update the order status to completed
+      final statusUpdated = await _updateOrderStatus('completed');
+      
+      if (!statusUpdated) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to update order status, but continuing with payment processing')),
+          );
         }
       }
-    }
-    
-    // Check if this order is for a dining table
-    if (widget.order.serviceType.contains('Dining - Table')) {
-      // Extract table number from service type
-      final tableNumberStr = widget.order.serviceType.split('Table ').last;
-      final tableNumber = int.tryParse(tableNumberStr);
       
-      if (tableNumber != null && mounted) {
-        // Get table provider and update table status
-        final tableProvider = Provider.of<TableProvider>(context, listen: false);
+      final prefs = await SharedPreferences.getInstance();
+      final savedPrinterName = prefs.getString('selected_printer');
+      debugPrint('Selected printer: $savedPrinterName');
+      
+      final pdf = await _generateReceipt();
+
+      bool printed = false;
+      try {
+        printed = await BillService.printThermalBill(widget.order, isEdited: widget.isEdited, taxRate: widget.taxRate);
+      } catch (e) {
+        debugPrint('Printing error: $e');
+        debugPrint('Attempted to print using: $savedPrinterName');
+      }
+      
+      bool? saveAsPdf = false;
+      if (!printed) {
+        if (mounted) {
+          saveAsPdf = await _showSavePdfDialog();
+        }
         
-        // Find the table with this number and set it to available
-        await tableProvider.setTableStatus(tableNumber, false);
-        debugPrint('Table $tableNumber status set to available after payment');
+        if (saveAsPdf == true) {
+          try {
+            await _saveWithAndroidIntent(pdf);
+          } catch (e) {
+            debugPrint('Error saving PDF: $e');
+          }
+        }
       }
-    }
-    // Clear the cart items after successful payment
-    if (mounted) {
-      final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-      orderProvider.clearSelectedPerson(); 
-      orderProvider.clearCart(); // This will clear all items from the current cart
-    }
-    if (mounted) {
-      if (change > 0) {
-        await _showBalanceMessageDialog(change);
-      } else {
-        await _showBalanceMessageDialog();
+      
+      // Check if this order is for a dining table
+      if (widget.order.serviceType.contains('Dining - Table')) {
+        // Extract table number from service type
+        final tableNumberStr = widget.order.serviceType.split('Table ').last;
+        final tableNumber = int.tryParse(tableNumberStr);
+        
+        if (tableNumber != null && mounted) {
+          // Get table provider and update table status
+          final tableProvider = Provider.of<TableProvider>(context, listen: false);
+          
+          // Find the table with this number and set it to available
+          await tableProvider.setTableStatus(tableNumber, false);
+          debugPrint('Table $tableNumber status set to available after payment');
+        }
       }
-    }
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error processing payment: $e')),
-      );
-    }
-  } finally {
-    if (mounted) {
-      setState(() {
-        _isProcessing = false;
-      });
+      
+      // Clear the cart items after successful payment
+      if (mounted) {
+        final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+        orderProvider.clearSelectedPerson(); 
+        orderProvider.clearCart(); // This will clear all items from the current cart
+      }
+      
+      if (mounted) {
+        if (change > 0) {
+          await _showBalanceMessageDialog(change);
+        } else {
+          await _showBalanceMessageDialog();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error processing payment: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
     }
   }
-}
 
   // Cancel the order
   Future<void> _cancelOrder() async {
@@ -750,9 +751,9 @@ Future<void> _showBillPreviewDialog() async {
                                   Expanded(
                                     child: Row(
                                       children: [
-                                        Expanded(child: _buildNumberPadDialogButton('7')),
-                                        Expanded(child: _buildNumberPadDialogButton('8')),
-                                        Expanded(child: _buildNumberPadDialogButton('9')),
+                                        Expanded(child: _buildNumberPadDialogButton('7', setState)),
+                                        Expanded(child: _buildNumberPadDialogButton('8', setState)),
+                                        Expanded(child: _buildNumberPadDialogButton('9', setState)),
                                       ],
                                     ),
                                   ),
@@ -762,9 +763,9 @@ Future<void> _showBillPreviewDialog() async {
                                   Expanded(
                                     child: Row(
                                       children: [
-                                        Expanded(child: _buildNumberPadDialogButton('4')),
-                                        Expanded(child: _buildNumberPadDialogButton('5')),
-                                        Expanded(child: _buildNumberPadDialogButton('6')),
+                                        Expanded(child: _buildNumberPadDialogButton('4', setState)),
+                                        Expanded(child: _buildNumberPadDialogButton('5', setState)),
+                                        Expanded(child: _buildNumberPadDialogButton('6', setState)),
                                       ],
                                     ),
                                   ),
@@ -774,9 +775,9 @@ Future<void> _showBillPreviewDialog() async {
                                   Expanded(
                                     child: Row(
                                       children: [
-                                        Expanded(child: _buildNumberPadDialogButton('1')),
-                                        Expanded(child: _buildNumberPadDialogButton('2')),
-                                        Expanded(child: _buildNumberPadDialogButton('3')),
+                                        Expanded(child: _buildNumberPadDialogButton('1', setState)),
+                                        Expanded(child: _buildNumberPadDialogButton('2', setState)),
+                                        Expanded(child: _buildNumberPadDialogButton('3', setState)),
                                       ],
                                     ),
                                   ),
@@ -786,10 +787,10 @@ Future<void> _showBillPreviewDialog() async {
                                   Expanded(
                                     child: Row(
                                       children: [
-                                        Expanded(child: _buildNumberPadDialogButton('000')),
-                                        Expanded(child: _buildNumberPadDialogButton('0')),
+                                        Expanded(child: _buildNumberPadDialogButton('000', setState)),
+                                        Expanded(child: _buildNumberPadDialogButton('0', setState)),
                                         Expanded(
-                                          child: _buildNumberPadDialogButton('⌫', isBackspace: true),
+                                          child: _buildNumberPadDialogButton('⌫', setState, isBackspace: true),
                                         ),
                                         
                                       ],
@@ -801,7 +802,7 @@ Future<void> _showBillPreviewDialog() async {
                                   Expanded(
                                     child: Row(
                                       children: [
-                                        Expanded(child: _buildNumberPadDialogButton('C')),
+                                        Expanded(child: _buildNumberPadDialogButton('C', setState)),
                                         Expanded(
                                           child: ElevatedButton(
                                             onPressed: () {
@@ -854,7 +855,7 @@ Future<void> _showBillPreviewDialog() async {
   }
 
   // Modified _buildNumberPadDialogButton method to support backspace styling
-  Widget _buildNumberPadDialogButton(String text, {bool isBackspace = false}) {
+  Widget _buildNumberPadDialogButton(String text, StateSetter setState, {bool isBackspace = false}) {
     return Container(
       margin: const EdgeInsets.all(4),
       child: ElevatedButton(
@@ -874,16 +875,22 @@ Future<void> _showBillPreviewDialog() async {
           }
           
           if (text == 'C') {
-            controller.clear();
+            setState(() {
+              controller.clear();
+            });
           } else if (text == '⌫') {
             // Backspace logic
             if (controller.text.isNotEmpty) {
-              controller.text = controller.text
-                .substring(0, controller.text.length - 1);
+              setState(() {
+                controller.text = controller.text
+                  .substring(0, controller.text.length - 1);
+              });
             }
           } else {
             // Append text to current controller value
-            controller.text = controller.text + text;
+            setState(() {
+              controller.text = controller.text + text;
+            });
           }
         },
         style: ElevatedButton.styleFrom(
@@ -934,7 +941,6 @@ Future<void> _showBillPreviewDialog() async {
     
     _showPaymentConfirmationDialog(amount);
   }
-
   // Updated _showPaymentConfirmationDialog method to handle both Cash and Bank payments consistently
   Future<void> _showPaymentConfirmationDialog(double amount) async {
     // Check for payment method first
@@ -952,6 +958,7 @@ Future<void> _showBillPreviewDialog() async {
       );
       return;
     }
+    
     // Calculate the correct change amount
     // For bank payments, we compare with the total order amount, not the balance
     double change = 0.0;
@@ -980,19 +987,6 @@ Future<void> _showBillPreviewDialog() async {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Text('Payment method: $_selectedPaymentMethod'),
-              // if (_selectedPaymentMethod == 'Bank') ...[
-              //   const SizedBox(height: 4),
-              //   Text('Card type: $_selectedCardType'),
-              //   if (_lastFourDigitsController.text.isNotEmpty)
-              //     Text('Card ending: ${_lastFourDigitsController.text}'),
-              // ],
-              // const SizedBox(height: 8),
-              // Text('Amount: ${NumberFormat.currency(symbol: '', decimalDigits: 3).format(amount)}'),
-              // if (change > 0) ...[
-              //   const SizedBox(height: 4),
-              //   Text('Change: ${NumberFormat.currency(symbol: '', decimalDigits: 3).format(change)}'),
-              // ],
               const SizedBox(height: 16),
               const Text('Do you want to print?'),
             ],
@@ -1104,137 +1098,175 @@ Future<void> _showBillPreviewDialog() async {
       }
     }
   }
-  
   // New method to process cash payment
   Future<void> _processCashPayment(double amount, double change) async {
-  setState(() {
-    _isProcessing = true;
-  });
+    setState(() {
+      _isProcessing = true;
+    });
 
-  try {
-     final apiService = ApiService();
-    Order? savedOrder;
-    
-    // Check if we're updating an existing order or creating a new one
-    if (widget.order.id != 0) {
-      // Update existing order
-      savedOrder = await apiService.updateOrder(
-        widget.order.id,
-        widget.order.serviceType,
-        widget.order.items.map((item) => {
-          'id': item.id,
-          'name': item.name,
-          'price': item.price,
-          'quantity': item.quantity,
-          'kitchenNote': item.kitchenNote,
-        }).toList(),
-        widget.order.total - (widget.order.total * (widget.taxRate / 100)),
-        widget.order.total * (widget.taxRate / 100),
-        0, // No discount
-        widget.order.total,
-        paymentMethod: 'cash'
-      );
-    } else {
-      // Create a new order
-      savedOrder = await apiService.createOrder(
-        widget.order.serviceType,
-        widget.order.items.map((item) => {
-          'id': item.id,
-          'name': item.name,
-          'price': item.price,
-          'quantity': item.quantity,
-          'kitchenNote': item.kitchenNote,
-        }).toList(),
-        widget.order.total - (widget.order.total * (widget.taxRate / 100)),
-        widget.order.total * (widget.taxRate / 100),
-        0, // No discount
-        widget.order.total,
-        paymentMethod: 'cash',
-        customerId: widget.customer?.id,
-      );
-    }
-    
-    if (savedOrder == null) {
-      throw Exception('Failed to process order in the system');
-    }
-    
-    // Update the widget order ID if it was a new order
-    if (widget.order.id == 0) {
-      widget.order.id = savedOrder.id ?? 0;
-    }
-      
-    final statusUpdated = await _updateOrderStatus('completed');
-    
-    if (!statusUpdated) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to update order status, but continuing with payment processing')),
-        );
-      }
-    }
-    
-    final pdf = await _generateReceipt();
-    
-    bool printed = false;
     try {
-      printed = await BillService.printThermalBill(widget.order,isEdited: widget.isEdited,taxRate: widget.taxRate,);
-    } catch (e) {
-      debugPrint('Printing error: $e');
-    }
-
-    bool? saveAsPdf = false;
-    if (!printed) {
-      if (mounted) {
-        saveAsPdf = await _showSavePdfDialog();
+      // Handle a cash payment completely locally
+      Order? savedOrder;
+      
+      // Check if we're updating an existing order or creating a new one
+      if (widget.order.id != 0) {
+        // Find the order in local storage
+        final orders = await _localOrderRepo.getAllOrders();
+        final orderIndex = orders.indexWhere((o) => o.id == widget.order.id);
+        
+        if (orderIndex >= 0) {
+          final existingOrder = orders[orderIndex];
+          
+          // Create updated order with completed status and cash payment method
+          savedOrder = Order(
+            id: existingOrder.id,
+            serviceType: existingOrder.serviceType,
+            items: existingOrder.items,
+            subtotal: widget.order.total - (widget.order.total * (widget.taxRate / 100)),
+            tax: widget.order.total * (widget.taxRate / 100),
+            discount: 0, // No discount
+            total: widget.order.total,
+            status: 'completed', // Mark as completed
+            createdAt: existingOrder.createdAt,
+            customerId: widget.customer?.id ?? existingOrder.customerId,
+            paymentMethod: 'cash'
+          );
+          
+          // Save the updated order directly to local database
+          savedOrder = await _localOrderRepo.saveOrder(savedOrder);
+          debugPrint('Updated order with cash payment method: ${savedOrder.id}');
+        } else {
+          throw Exception('Order not found in local database');
+        }
+      } else {
+        // Create a new order in the local database
+        debugPrint('Creating new order with cash payment');
+        
+        // Convert OrderHistory items to OrderItem objects
+        final orderItems = widget.order.items.map((item) => 
+          OrderItem(
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            kitchenNote: item.kitchenNote,
+          )
+        ).toList();
+        
+        // Create a new order with completed status
+        savedOrder = Order(
+          serviceType: widget.order.serviceType,
+          items: orderItems,
+          subtotal: widget.order.total - (widget.order.total * (widget.taxRate / 100)),
+          tax: widget.order.total * (widget.taxRate / 100),
+          discount: 0, // No discount
+          total: widget.order.total,
+          status: 'completed', // Mark as completed
+          createdAt: DateTime.now().toIso8601String(),
+          customerId: widget.customer?.id,
+          paymentMethod: 'cash',
+        );
+        
+        // Save the new order to local database
+        savedOrder = await _localOrderRepo.saveOrder(savedOrder);
+        debugPrint('Created new order with cash payment: ${savedOrder.id}');
       }
       
-      if (saveAsPdf == true) {
-        try {
-          // Use Android's native file picker intent to save the file
-          await _saveWithAndroidIntent(pdf);
-        } catch (e) {
-          debugPrint('Error saving PDF: $e');
+      if (savedOrder == null) {
+        throw Exception('Failed to process order in the system');
+      }
+      
+      // Update the widget order ID if it was a new order
+      if (widget.order.id == 0) {
+        widget.order.id = savedOrder.id ?? 0;
+      }
+      
+      // Update the order status to completed in local database
+      final statusUpdated = await _updateOrderStatus('completed');
+      
+      if (!statusUpdated) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to update order status, but continuing with payment processing')),
+          );
         }
       }
-    }
-    // Check if this order is for a dining table
-    if (widget.order.serviceType.contains('Dining - Table')) {
-      // Extract table number from service type
-      final tableNumberStr = widget.order.serviceType.split('Table ').last;
-      final tableNumber = int.tryParse(tableNumberStr);
       
-      if (tableNumber != null && mounted) {
-        // Get table provider and update table status
-        final tableProvider = Provider.of<TableProvider>(context, listen: false);
+      // Generate PDF receipt
+      final pdf = await _generateReceipt();
+      
+      // Try to print the receipt
+      bool printed = false;
+      try {
+        printed = await BillService.printThermalBill(widget.order, isEdited: widget.isEdited, taxRate: widget.taxRate);
+      } catch (e) {
+        debugPrint('Printing error: $e');
+      }
+
+      // If printing failed, offer to save as PDF
+      bool? saveAsPdf = false;
+      if (!printed) {
+        if (mounted) {
+          saveAsPdf = await _showSavePdfDialog();
+        }
         
-        // Find the table with this number and set it to available
-        await tableProvider.setTableStatus(tableNumber, false);
-        debugPrint('Table $tableNumber status set to available after cash payment');
+        if (saveAsPdf == true) {
+          try {
+            // Use Android's native file picker intent to save the file
+            await _saveWithAndroidIntent(pdf);
+          } catch (e) {
+            debugPrint('Error saving PDF: $e');
+          }
+        }
+      }
+      
+      // Update table status if this is a dining order
+      if (widget.order.serviceType.contains('Dining - Table')) {
+        // Extract table number from service type
+        final tableNumberStr = widget.order.serviceType.split('Table ').last;
+        final tableNumber = int.tryParse(tableNumberStr);
+        
+        if (tableNumber != null && mounted) {
+          // Get table provider and update table status to available
+          final tableProvider = Provider.of<TableProvider>(context, listen: false);
+          
+          // Set table status to available (false = not occupied)
+          await tableProvider.setTableStatus(tableNumber, false);
+          debugPrint('Table $tableNumber status set to available after cash payment');
+        }
+      }
+      
+      // Clear the cart after successful payment
+      if (mounted) {
+        final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+        orderProvider.clearSelectedPerson(); 
+        orderProvider.clearCart();
+      }
+      
+      // Refresh order history provider to update the UI
+      if (mounted) {
+        Provider.of<OrderHistoryProvider>(context, listen: false).refreshOrdersAndConnectivity();
+      }
+      
+      // Show balance message dialog with change amount
+      if (mounted) {
+        await _showBalanceMessageDialog(change);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error processing payment: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
       }
     }
-    // Clear the cart items after successful payment
-    if (mounted) {
-      final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-      orderProvider.clearSelectedPerson(); 
-      orderProvider.clearCart(); // This will clear all items from the current cart
-    }
-    if (mounted) {
-      await _showBalanceMessageDialog(change);
-    }
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error processing payment: $e')),
-      );
-    }
-  } finally {
-    if (mounted) {
-      setState(() {
-        _isProcessing = false;
-      });
-    }
   }
-}
+
  
   // Updated method with optional parameter
   Future<void> _showBalanceMessageDialog([double change = 0.0]) async {
@@ -1955,8 +1987,7 @@ Future<void> _showBillPreviewDialog() async {
     
     return pdf;
   }
-
-  @override
+@override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -2057,33 +2088,13 @@ Future<void> _showBillPreviewDialog() async {
             
             const SizedBox(width: 8), // Spacing between buttons
             
-            // Save button
-            // ElevatedButton(
-            //   onPressed: () {
-            //     // Save logic - just go back without finalizing
-            //     Navigator.of(context).pop();
-            //   },
-            //   style: ElevatedButton.styleFrom(
-            //     backgroundColor: Colors.blue.shade100,
-            //     foregroundColor: Colors.blue.shade900,
-            //     elevation: 1,
-            //     padding: const EdgeInsets.symmetric(horizontal: 55, vertical: 10),
-            //     minimumSize: const Size(10, 36),
-            //     textStyle: const TextStyle(fontSize: 12),
-            //   ),
-            //   child: const Text('Save'),
-            // ),
-            
-            const SizedBox(width: 8), // Spacing between buttons
-            
             // View Bill button
             ElevatedButton(
               onPressed: (_balanceAmount == widget.order.total && _orderStatus.toLowerCase() != 'completed') 
-              ? null // Disable if no payment has been made or no payment method selected
-                : ()  {
-                _showBillPreviewDialog(); // or _showBillPreviewWithIntent() for Android
-              },
-                  
+                ? null // Disable if no payment has been made or no payment method selected
+                : () {
+                  _showBillPreviewDialog(); 
+                },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green.shade100,
                 foregroundColor: Colors.green.shade900,
@@ -2103,3 +2114,4 @@ Future<void> _showBillPreviewDialog() async {
     );
   }
 }
+ 

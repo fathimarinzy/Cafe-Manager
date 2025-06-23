@@ -1,3 +1,4 @@
+// lib/screens/order_confirmation_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -45,9 +46,6 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
     final formattedDate = dateFormatter.format(now);
     final formattedTime = timeFormatter.format(now);
     
-    // Generate order number (simple implementation)
-    // final orderNumber = '${now.millisecondsSinceEpoch % 10000}';
-    
     return Scaffold(
       appBar: AppBar(
         title: const Text('Order Confirmation'),
@@ -83,14 +81,6 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            // Text(
-                            //   '#$orderNumber',
-                            //   style: const TextStyle(
-                            //     fontSize: 16,
-                            //     fontWeight: FontWeight.bold,
-                            //     color: Colors.blue,
-                            //   ),
-                            // ),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -444,9 +434,11 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
       final result = await orderProvider.processOrderWithBill(context);
       
       if (!mounted) return;
+      
+      // Reset state in provider
       if (mounted) {
         final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-        orderProvider.clearSelectedPerson(); // Add this line
+        orderProvider.clearSelectedPerson();
         orderProvider.clearCart();
       }
       

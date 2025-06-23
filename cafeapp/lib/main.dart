@@ -133,6 +133,7 @@ import 'screens/splash_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/printer_settings_screen.dart';
 import 'screens/expense_screen.dart';
+import 'screens/expense_history_screen.dart'; 
 import 'screens/report_screen.dart';
 
 import 'providers/table_provider.dart';
@@ -141,30 +142,26 @@ import 'providers/menu_provider.dart';
 import 'providers/order_provider.dart';
 import 'providers/person_provider.dart';
 import 'providers/settings_provider.dart';
-import 'services/api_service.dart'; 
 import 'providers/order_history_provider.dart';
-// import 'utils/app_localization.dart';
-import 'services/connectivity_service.dart';
-import 'services/sync_service.dart';
+
 import 'repositories/local_menu_repository.dart';
+import 'repositories/local_expense_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
    // Initialize local database
   await initializeLocalDatabase();
-  
-  // Initialize services
-  final connectivityService = ConnectivityService();
-  connectivityService.initialize();
-  
-  final syncService = SyncService();
-  syncService.initialize();
+
   runApp(const MyApp());
 }
 Future<void> initializeLocalDatabase() async {
   // Get the database to initialize it
   final localRepo = LocalMenuRepository();
   await localRepo.database;
+  // Initialize expense database
+  final localExpenseRepo = LocalExpenseRepository();
+  await localExpenseRepo.database;
+
 }
 
 class MyApp extends StatelessWidget {
@@ -177,7 +174,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (ctx) => AuthProvider()),
         ChangeNotifierProvider(create: (ctx) => MenuProvider()),
         ChangeNotifierProvider(create: (ctx) => OrderProvider()),
-        ChangeNotifierProvider(create: (ctx) => PersonProvider(ApiService())),
+        ChangeNotifierProvider(create: (ctx) => PersonProvider()),
         ChangeNotifierProvider(create: (ctx) => TableProvider()),
         ChangeNotifierProvider(create: (ctx) => OrderHistoryProvider()),
         ChangeNotifierProvider(create: (ctx) => SettingsProvider()),
@@ -242,6 +239,7 @@ class MyApp extends StatelessWidget {
               AppRoutes.settings: (ctx) => const SettingsScreen(),
               AppRoutes.printerConfig: (ctx) => const PrinterSettingsScreen(),
               AppRoutes.expense: (ctx) => const ExpenseScreen(),
+               AppRoutes.expenseHistory: (ctx) => const ExpenseHistoryScreen(), 
               AppRoutes.reports: (ctx) => const ReportScreen(),
               
             },
@@ -259,6 +257,7 @@ class AppRoutes {
   static const String settings = '/settings';
   static const String printerConfig = '/printer-settings';
   static const String expense = '/expense'; 
-   static const String reports = '/reports';
+  static const String expenseHistory = '/expense-history';
+  static const String reports = '/reports';
 
 }

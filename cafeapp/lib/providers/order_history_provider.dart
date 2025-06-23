@@ -1,15 +1,11 @@
+// lib/providers/order_history_provider.dart
 import 'package:flutter/material.dart';
-import '../models/order.dart';
+// import '../models/order.dart';
 import '../models/order_history.dart';
-import '../services/api_service.dart';
 import '../repositories/local_order_repository.dart';
-import '../services/connectivity_service.dart';
-// import '../models/order_history.dart';
 
 class OrderHistoryProvider with ChangeNotifier {
-  final ApiService _apiService = ApiService();
   final LocalOrderRepository _localOrderRepo = LocalOrderRepository();
-  final ConnectivityService _connectivityService = ConnectivityService();
   
   List<OrderHistory> _orders = [];
   List<OrderHistory> _filteredOrders = [];
@@ -19,7 +15,6 @@ class OrderHistoryProvider with ChangeNotifier {
   String _searchQuery = '';
   String? _serviceTypeFilter;
   String? _statusFilter;
-  bool _isOfflineMode = false;
   
   // Getters
   List<OrderHistory> get orders => _filteredOrders;
@@ -28,37 +23,8 @@ class OrderHistoryProvider with ChangeNotifier {
   OrderTimeFilter get currentFilter => _currentFilter;
   String get searchQuery => _searchQuery;
   String? get serviceTypeFilter => _serviceTypeFilter;
-  bool get isOfflineMode => _isOfflineMode;
   
-  // Constructor with offline mode initialization
-  OrderHistoryProvider() {
-    _initConnectivity();
-  }
-  
-  void _initConnectivity() async {
-    _isOfflineMode = !await _connectivityService.checkConnection();
-    
-    // Listen for connectivity changes
-    _connectivityService.connectivityStream.listen((isConnected) {
-      final wasOffline = _isOfflineMode;
-      _isOfflineMode = !isConnected;
-      
-      if (wasOffline && !_isOfflineMode) {
-        // We just came back online, refresh orders
-        loadOrders();
-      }
-      
-      notifyListeners();
-    });
-  }
-  
-  void setStatusFilter(String? status) {
-    _statusFilter = status;
-    _applyFilters();
-    notifyListeners();
-  }
-
-  // Load all orders - updated to handle offline mode
+  // Load all orders
   Future<void> loadOrders() async {
     _setLoading(true);
     
@@ -66,46 +32,11 @@ class OrderHistoryProvider with ChangeNotifier {
       // Clear any service type filter when loading all orders
       _serviceTypeFilter = null;
       
-      List<Order> apiOrders = [];
-      List<Order> localOrders = [];
-      
-      // Get orders from API if online
-      if (!_isOfflineMode) {
-        try {
-          apiOrders = await _apiService.getOrders();
-          debugPrint('Loaded ${apiOrders.length} orders from API');
-        } catch (e) {
-          debugPrint('Error loading orders from API: $e');
-          // Continue with local orders if API fails
-        }
-      }
-      
-      // Always get local orders
-      try {
-        localOrders = await _localOrderRepo.getAllOrders();
-        debugPrint('Loaded ${localOrders.length} orders from local database');
-      } catch (e) {
-        debugPrint('Error loading orders from local database: $e');
-      }
-      
-      // Merge orders from both sources, avoiding duplicates
-      final Map<int, bool> apiOrderIds = {};
-      for (var order in apiOrders) {
-        if (order.id != null) {
-          apiOrderIds[order.id!] = true;
-        }
-      }
-      
-      // Combine the lists, adding local orders that aren't in API orders
-      List<Order> combinedOrders = [...apiOrders];
-      for (var localOrder in localOrders) {
-        if (localOrder.id != null && !apiOrderIds.containsKey(localOrder.id)) {
-          combinedOrders.add(localOrder);
-        }
-      }
+      // Get orders from local database
+      final localOrders = await _localOrderRepo.getAllOrders();
       
       // Convert to OrderHistory objects
-      _orders = combinedOrders.map((order) => OrderHistory.fromOrder(order)).toList();
+      _orders = localOrders.map((order) => OrderHistory.fromOrder(order)).toList();
       
       // Debug info about dates
       for (var order in _orders) {
@@ -125,53 +56,27 @@ class OrderHistoryProvider with ChangeNotifier {
     }
   }
 
-  // Load orders for a specific service type - updated for offline support
+  // Load orders for a specific service type
   Future<void> loadOrdersByServiceType(String serviceType) async {
     try {
       _isLoading = true;
       notifyListeners();
       
-      List<Order> apiOrders = [];
-      List<Order> localOrders = [];
+      // Get all orders from local database
+      final allLocalOrders = await _localOrderRepo.getAllOrders();
       
-      // Get orders from API if online
-      if (!_isOfflineMode) {
-        try {
-          apiOrders = await _apiService.getOrdersByServiceType(serviceType);
-        } catch (e) {
-          debugPrint('Error loading orders from API by service type: $e');
-        }
-      }
+      // Filter by service type
+      final localOrders = allLocalOrders.where((order) => 
+        order.serviceType == serviceType
+      ).toList();
       
-      // Always get local orders
-      try {
-        final allLocalOrders = await _localOrderRepo.getAllOrders();
-        // Filter by service type
-        localOrders = allLocalOrders.where((order) => 
-          order.serviceType == serviceType
-        ).toList();
-      } catch (e) {
-        debugPrint('Error loading orders from local database: $e');
-      }
+      // Convert to OrderHistory objects
+      _orders = localOrders.map((order) => OrderHistory.fromOrder(order)).toList();
       
-      // Merge orders from both sources, avoiding duplicates
-      final Map<int, bool> apiOrderIds = {};
-      for (var order in apiOrders) {
-        if (order.id != null) {
-          apiOrderIds[order.id!] = true;
-        }
-      }
-      
-      // Combine the lists, adding local orders that aren't in API orders
-      List<Order> combinedOrders = [...apiOrders];
-      for (var localOrder in localOrders) {
-        if (localOrder.id != null && !apiOrderIds.containsKey(localOrder.id)) {
-          combinedOrders.add(localOrder);
-        }
-      }
-      
-      _orders = combinedOrders.map((order) => OrderHistory.fromOrder(order)).toList();
+      // Sort by newest first
       _orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      
+      // Apply filters
       _applyFilters();
       _errorMessage = '';
     } catch (e) {
@@ -183,82 +88,44 @@ class OrderHistoryProvider with ChangeNotifier {
     }
   }
 
-  // Load orders for a specific table - updated for offline support
-Future<void> loadOrdersByTable(String tableInfo) async {
-  _setLoading(true);
-  
-  try {
-    // Extract table number if needed
-    String tableNumber = tableInfo;
-    if (tableInfo.contains('Table ')) {
-      tableNumber = tableInfo.split('Table ').last;
-    }
+  // Load orders for a specific table
+  Future<void> loadOrdersByTable(String tableInfo) async {
+    _setLoading(true);
     
-    List<Order> apiOrders = [];
-    List<Order> localOrders = [];
-    
-    // Get orders from API if online
-    if (!_isOfflineMode) {
-      try {
-        apiOrders = await _apiService.getOrdersByTable(tableInfo);
-        debugPrint('Loaded ${apiOrders.length} orders from API for table $tableNumber');
-      } catch (e) {
-        debugPrint('Error loading table orders from API: $e');
-      }
-    }
-    
-    // Always get local orders
     try {
+      // Extract table number if needed
+      String tableNumber = tableInfo;
+      if (tableInfo.contains('Table ')) {
+        tableNumber = tableInfo.split('Table ').last;
+      }
+      
+      // Get all orders from local database
       final allLocalOrders = await _localOrderRepo.getAllOrders();
+      
       // Filter by table info
-      localOrders = allLocalOrders.where((order) => 
+      final localOrders = allLocalOrders.where((order) => 
         order.serviceType.contains('Table $tableNumber')
       ).toList();
-      debugPrint('Loaded ${localOrders.length} orders from local database for table $tableNumber');
       
-      // Log all local orders to help with debugging
-      for (var order in localOrders) {
-        debugPrint('Local order: ID=${order.id}, Status=${order.status}, ServiceType=${order.serviceType}');
-      }
+      // Convert to OrderHistory objects
+      _orders = localOrders.map((order) => OrderHistory.fromOrder(order)).toList();
+      
+      // Sort by newest first
+      _orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      
+      // Apply filters
+      _applyFilters();
+      
+      debugPrint('Found ${_orders.length} orders for table $tableNumber');
     } catch (e) {
-      debugPrint('Error loading table orders from local database: $e');
+      _errorMessage = 'Failed to load table orders: $e';
+      debugPrint(_errorMessage);
+    } finally {
+      _setLoading(false);
     }
-    
-    // Merge orders from both sources, avoiding duplicates
-    final Map<int, bool> apiOrderIds = {};
-    for (var order in apiOrders) {
-      if (order.id != null) {
-        apiOrderIds[order.id!] = true;
-      }
-    }
-    
-    // Combine the lists, adding local orders that aren't in API orders
-    List<Order> combinedOrders = [...apiOrders];
-    for (var localOrder in localOrders) {
-      if (localOrder.id != null && !apiOrderIds.containsKey(localOrder.id)) {
-        combinedOrders.add(localOrder);
-      }
-    }
-    
-    _orders = combinedOrders.map((order) => OrderHistory.fromOrder(order)).toList();
-    
-    // Sort by newest first
-    _orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    
-    // Apply current filters
-    _applyFilters();
-    
-    debugPrint('Combined ${_orders.length} orders for table $tableNumber');
-  } catch (e) {
-    _errorMessage = 'Failed to load table orders: $e';
-    debugPrint(_errorMessage);
-  } finally {
-    _setLoading(false);
   }
-}
  
-  
-  // Search for an order by bill number - updated for offline support
+  // Search for an order by bill number
   Future<void> searchOrdersByBillNumber(String billNumber) async {
     if (billNumber.isEmpty) {
       _searchQuery = '';
@@ -270,49 +137,16 @@ Future<void> loadOrdersByTable(String tableInfo) async {
     _searchQuery = billNumber;
     
     try {
-      List<Order> apiOrders = [];
-      List<Order> localOrders = [];
+      // Get all orders from local database
+      final allLocalOrders = await _localOrderRepo.getAllOrders();
       
-      // Get orders from API if online
-      if (!_isOfflineMode) {
-        try {
-          apiOrders = await _apiService.searchOrdersByBillNumber(billNumber);
-        } catch (e) {
-          debugPrint('Error searching orders from API: $e');
-        }
-      }
+      // Filter by bill number (order ID)
+      final searchResults = allLocalOrders.where((order) => 
+        order.id.toString().contains(billNumber)
+      ).toList();
       
-      // Search local orders
-      try {
-        final allLocalOrders = await _localOrderRepo.getAllOrders();
-        // Filter by bill number (order ID)
-        localOrders = allLocalOrders.where((order) => 
-          order.id.toString().contains(billNumber)
-        ).toList();
-      } catch (e) {
-        debugPrint('Error searching local orders: $e');
-      }
-      
-      // Merge orders from both sources, avoiding duplicates
-      final Map<int, bool> apiOrderIds = {};
-      for (var order in apiOrders) {
-        if (order.id != null) {
-          apiOrderIds[order.id!] = true;
-        }
-      }
-      
-      // Combine the lists, adding local orders that aren't in API orders
-      List<Order> combinedOrders = [...apiOrders];
-      for (var localOrder in localOrders) {
-        if (localOrder.id != null && !apiOrderIds.containsKey(localOrder.id)) {
-          combinedOrders.add(localOrder);
-        }
-      }
-      
-      final searchResults = combinedOrders.map((order) => OrderHistory.fromOrder(order)).toList();
-      
-      // Update filtered orders directly for search
-      _filteredOrders = searchResults;
+      // Convert to OrderHistory objects
+      _filteredOrders = searchResults.map((order) => OrderHistory.fromOrder(order)).toList();
     } catch (e) {
       _errorMessage = 'Failed to search orders: $e';
       debugPrint(_errorMessage);
@@ -334,6 +168,13 @@ Future<void> loadOrdersByTable(String tableInfo) async {
     _serviceTypeFilter = serviceType;
     loadOrders();
   }
+  
+  // Set the status filter
+  void setStatusFilter(String? status) {
+    _statusFilter = status;
+    _applyFilters();
+    notifyListeners();
+  }
 
   // Clear all filters
   void clearFilters() {
@@ -344,7 +185,7 @@ Future<void> loadOrdersByTable(String tableInfo) async {
     _applyFilters();
   }
 
-  // Update the _applyFilters method to include status filtering
+  // Apply filters to the orders list
   void _applyFilters() {
     if (_searchQuery.isNotEmpty) {
       // Search takes precedence over other filters
@@ -379,38 +220,15 @@ Future<void> loadOrdersByTable(String tableInfo) async {
     notifyListeners();
   }
 
-  // Get an order by ID - updated for offline support
+  // Get an order by ID
   Future<OrderHistory?> getOrderDetails(int orderId) async {
     _setLoading(true);
     
     try {
-      // Try to get from API if online
-      if (!_isOfflineMode) {
-        try {
-          final Order? apiOrder = await _apiService.getOrderById(orderId);
-          if (apiOrder != null) {
-            return OrderHistory.fromOrder(apiOrder);
-          }
-        } catch (e) {
-          debugPrint('Error getting order details from API: $e');
-        }
-      }
-      
       // Try to get from local database
-      final localOrders = await _localOrderRepo.getAllOrders();
-      final localOrder = localOrders.firstWhere(
-        (order) => order.id == orderId,
-        orElse: () => Order(
-          serviceType: '',
-          items: [],
-          subtotal: 0,
-          tax: 0,
-          discount: 0,
-          total: 0
-        )
-      );
+      final localOrder = await _localOrderRepo.getOrderById(orderId);
       
-      if (localOrder.serviceType.isNotEmpty) {
+      if (localOrder != null) {
         return OrderHistory.fromOrder(localOrder);
       }
       
@@ -432,92 +250,35 @@ Future<void> loadOrdersByTable(String tableInfo) async {
     }
     notifyListeners();
   }
-  // Add or update this method in OrderHistoryProvider
-Future<void> refreshOrdersAndConnectivity() async {
-  _isLoading = true;
-  _errorMessage = ''; // Changed from _error to _errorMessage which is the correct variable name
-  notifyListeners();
+  
+  // Method to refresh orders
+  Future<void> refreshOrdersAndConnectivity() async {
+    _isLoading = true;
+    _errorMessage = '';
+    notifyListeners();
 
-  try {
-    final isConnected = await _connectivityService.checkConnection();
-    final wasOffline = _isOfflineMode;
-    _isOfflineMode = !isConnected;
-    
-    if (wasOffline != _isOfflineMode) {
+    try {
+      // Load orders from local database
+      final localOrders = await _localOrderRepo.getAllOrders();
+      
+      // Convert to OrderHistory objects
+      final orderHistoryList = localOrders.map((order) => 
+        OrderHistory.fromOrder(order)
+      ).toList();
+      
+      _orders = orderHistoryList;
+      
+      // Sort by newest first
+      _orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      
+      // Apply current filters
+      _applyFilters();
+    } catch (e) {
+      _errorMessage = e.toString();
+      debugPrint('Error refreshing orders: $e');
+    } finally {
+      _isLoading = false;
       notifyListeners();
     }
-    // loadOrders();
-    
-    // Depending on current connection status, load orders appropriately
-    if (_isOfflineMode) {
-      // In offline mode, load from local database
-      _orders = await _loadLocalOrders();
-    } else {
-      // If we're online, attempt to sync and then load from server
-      try {
-        final apiOrders = await _apiService.getOrders();
-        
-        // Convert API orders to OrderHistory objects
-        final List<OrderHistory> orderHistoryList = apiOrders.map((order) => 
-          OrderHistory.fromOrder(order)
-        ).toList();
-        
-        _orders = orderHistoryList;
-        
-        // Also update local database with the latest data
-        for (var order in apiOrders) {
-          // Save to local database for offline access
-          await _localOrderRepo.saveOrderAsSynced(order, order.id);
-        }
-      } catch (e) {
-        debugPrint('Error loading orders from API: $e');
-        // Fallback to local orders
-        _orders = await _loadLocalOrders();
-      }
-    }
-     // IMPORTANT: Always sort by newest first, regardless of source
-    _orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    
-    // Apply current filters
-    _applyFilters();
-  } catch (e) {
-    _errorMessage = e.toString(); // Changed from _error to _errorMessage
-    debugPrint('Error refreshing orders: $e');
-  } finally {
-    _isLoading = false;
-    notifyListeners();
   }
-}
-
-// Helper method to load orders from local database
-Future<List<OrderHistory>> _loadLocalOrders() async {
-  try {
-    final localOrderRepo = LocalOrderRepository();
-    final localOrders = await localOrderRepo.getAllOrders();
-    
-    // Convert to OrderHistory objects
-      final orderHistoryList = localOrders.map((order) => OrderHistory.fromOrder(order)).toList();
-    
-    // Sort the list by newest first
-    orderHistoryList.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    
-    return orderHistoryList;
-  } catch (e) {
-    debugPrint('Error loading local orders: $e');
-    return [];
-  }
-}
-
-// // Helper method to remove duplicate orders by ID
-// List<OrderHistory> _removeDuplicateOrders(List<OrderHistory> orders) {
-//   final Map<int, OrderHistory> uniqueOrders = {};
-  
-//   // Keep the most recent version of each order
-//   for (var order in orders) {
-//     uniqueOrders[order.id] = order;
-//   }
-  
-//   return uniqueOrders.values.toList();
-// }
-
 }

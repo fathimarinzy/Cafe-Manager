@@ -1,16 +1,15 @@
+// lib/providers/order_provider.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart'; 
+import 'package:provider/provider.dart';
 import '../models/menu_item.dart';
 import '../models/order.dart';
 import '../models/order_item.dart'; 
 import '../models/person.dart';
 import '../models/table_model.dart';
 import '../providers/table_provider.dart';
-import '../services/api_service.dart';
 import '../services/bill_service.dart';
 import '../providers/settings_provider.dart';
 import '../repositories/local_order_repository.dart';
-import '../services/connectivity_service.dart';
 
 class OrderProvider with ChangeNotifier {
   // Map to store cart items for each service type or table
@@ -20,22 +19,12 @@ class OrderProvider with ChangeNotifier {
   final Map<String, Map<String, double>> _serviceTotals = {};
   
   String _currentServiceType = '';
-  final ApiService _apiService = ApiService();
   final LocalOrderRepository _localOrderRepo = LocalOrderRepository();
-  final ConnectivityService _connectivityService = ConnectivityService();
   
   // Add this property to track current order ID
   int? _currentOrderId;
 
-  // Offline mode tracking
-  bool _isOfflineMode = false;
-  bool get isOfflineMode => _isOfflineMode;
-
-  // Sync in progress flag
-  bool _isSyncingOrders = false;
-  bool get isSyncingOrders => _isSyncingOrders;
-
-  // Add getter and setter for current order ID
+  // Getter and setter for current order ID
   int? get currentOrderId => _currentOrderId;
 
   void setCurrentOrderId(int? orderId) {
@@ -67,88 +56,8 @@ class OrderProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Constructor with connectivity check
-  OrderProvider() {
-    _initializeConnectivity();
-  }
-
-  // Initialize connectivity monitoring
-  Future<void> _initializeConnectivity() async {
-    // First load the saved connectivity status
-    await _connectivityService.loadSavedConnectionStatus();
-    
-    // Then check current status
-    _isOfflineMode = !await _connectivityService.checkConnection();
-    
-    // Listen for connectivity changes
-    _connectivityService.connectivityStream.listen((isConnected) {
-      final wasOffline = _isOfflineMode;
-      _isOfflineMode = !isConnected;
-      
-      debugPrint('Connectivity changed: ${isConnected ? 'Online' : 'Offline'}, was offline: $wasOffline');
-      notifyListeners();
-      
-      // If connection is restored, try to sync pending orders
-      if (isConnected && wasOffline) {
-        debugPrint('Connection restored, triggering sync');
-        syncPendingOrders();
-      }
-    });
-  }
-
-  // Sync pending orders when online with better error handling and duplicate prevention
-  Future<void> syncPendingOrders() async {
-    if (_isOfflineMode || _isSyncingOrders) return;
-    
-    try {
-      _isSyncingOrders = true;
-      notifyListeners();
-      
-      // Get unsynced orders
-      final unsyncedOrders = await _localOrderRepo.getUnsyncedOrders();
-      debugPrint('Found ${unsyncedOrders.length} unsynced orders to sync');
-      
-      if (unsyncedOrders.isEmpty) {
-        _isSyncingOrders = false;
-        notifyListeners();
-        return;
-      }
-      
-      for (var order in unsyncedOrders) {
-        try {
-          // Skip if no ID
-          if (order.id == null) continue;
-          
-          // Try to create order on server
-          final serverOrder = await _apiService.createOrder(
-            order.serviceType,
-            order.items.map((item) => item.toJson()).toList(),
-            order.subtotal,
-            order.tax,
-            order.discount,
-            order.total,
-            paymentMethod: order.paymentMethod ?? 'cash',
-            customerId: order.customerId,
-          );
-          
-          if (serverOrder != null) {
-            // Mark local order as synced
-            await _localOrderRepo.markOrderAsSynced(order.id!, serverOrder.id);
-            debugPrint('Order synced successfully: Local ID ${order.id} -> Server ID ${serverOrder.id}');
-          }
-        } catch (e) {
-          debugPrint('Error syncing order ${order.id}: $e');
-          // Record the sync error
-          await _localOrderRepo.recordSyncError(order.id!, e.toString());
-        }
-      }
-    } catch (e) {
-      debugPrint('Error syncing pending orders: $e');
-    } finally {
-      _isSyncingOrders = false;
-      notifyListeners();
-    }
-  }
+  // Constructor
+  OrderProvider() {}
 
   // Set current service type and notify listeners
   void setCurrentServiceType(String serviceType, [BuildContext? context]) {
@@ -368,109 +277,45 @@ class OrderProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // Process order and handle online/offline scenarios
-  // Updated processOrderWithBill method in lib/providers/order_provider.dart
-Future<Map<String, dynamic>> processOrderWithBill(BuildContext context) async {
-  // First check if we have items in the cart
-  if (_currentServiceType.isEmpty || cartItems.isEmpty) {
-    return {
-      'success': false,
-      'message': 'No items in cart',
-    };
-  }
-
-  try {
-    // Extract table number from service type if this is a dining order
-    String? tableInfo;
-    int? tableNumber;
-    
-    if (_currentServiceType.startsWith('Dining - Table')) {
-      tableInfo = _currentServiceType;
-      // Extract the table number
-      final tableNumberString = _currentServiceType.split('Table ').last;
-      tableNumber = int.tryParse(tableNumberString);
+  // Process order and save locally with printing
+  Future<Map<String, dynamic>> processOrderWithBill(BuildContext context) async {
+    // First check if we have items in the cart
+    if (_currentServiceType.isEmpty || cartItems.isEmpty) {
+      return {
+        'success': false,
+        'message': 'No items in cart',
+      };
     }
-    
-    // Generate a timestamp for order creation
-    final now = DateTime.now();
-    
-    // Format for consistent timestamp handling across online/offline
-    String formattedTimestamp;
-    if (_isOfflineMode) {
-      // Use special format for offline orders so we can identify them later
-       final timestamp = now.millisecondsSinceEpoch;
-      formattedTimestamp = 'local_$timestamp';
-    } else {
-      // Use ISO format for online orders
-      formattedTimestamp = now.toUtc().toIso8601String();    }
+
+    try {
+      // Extract table number from service type if this is a dining order
+      String? tableInfo;
+      int? tableNumber;
       
-    // Create or update the order - handling both online and offline scenarios
-    Order? order;
-    Order? localOrder;
-    int? serverOrderId;
-    
-    // Log the current state for debugging
-    debugPrint('Processing order: currentOrderId=$_currentOrderId, isOfflineMode=$_isOfflineMode');
-    
-    if (_currentOrderId != null) {
-      // Updating existing order - make sure to use the existing order ID
-      final existingOrderId = _currentOrderId!;
-      debugPrint('Updating existing order #$existingOrderId');
+      if (_currentServiceType.startsWith('Dining - Table')) {
+        tableInfo = _currentServiceType;
+        // Extract the table number
+        final tableNumberString = _currentServiceType.split('Table ').last;
+        tableNumber = int.tryParse(tableNumberString);
+      }
       
-      final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
+      // Generate a timestamp for order creation
+      final now = DateTime.now();
       
-      if (!_isOfflineMode) {
-        // Online mode - update on server
-        order = await _apiService.updateOrder(
-          existingOrderId,
-          _currentServiceType,
-          items,
-          subtotal,
-          tax,
-          discount,
-          total,
-        );
-        
-        // Also update in local database for redundancy
-        if (order != null) {
-          serverOrderId = order.id;
-          
-          // Convert cart items to OrderItem objects
-          final orderItems = _serviceTypeCarts[_currentServiceType]!.map((item) => 
-            OrderItem(
-              id: int.tryParse(item.id) ?? 0,
-              name: item.name,
-              price: item.price,
-              quantity: item.quantity,
-              kitchenNote: item.kitchenNote,
-            )
-          ).toList();
-          
-          // Create an order object with the existing ID
-          localOrder = Order(
-            id: existingOrderId, // Use existing order ID
-            serviceType: _currentServiceType,
-            items: orderItems,
-            subtotal: subtotal,
-            tax: tax,
-            discount: discount,
-            total: total,
-            status: 'pending',
-            createdAt: formattedTimestamp,
-            customerId: _selectedPerson?.id,
-          );
-          
-          // Save to local storage with is_synced=1 since we just synced it
-          try {
-            localOrder = await _localOrderRepo.saveOrderAsSynced(localOrder, serverOrderId);
-            debugPrint('Updated order in local database with synced status: ID=${localOrder.id}, ServerID=$serverOrderId');
-          } catch (e) {
-            debugPrint('Error saving synced order to local database: $e');
-          }
-        }
-      } else {
-        // Offline mode - update locally
-        debugPrint('Updating order locally in offline mode, order ID: $existingOrderId');
+      // Format for consistent timestamp handling
+      final timestamp = now.millisecondsSinceEpoch;
+      final formattedTimestamp = 'local_$timestamp';
+      
+      // Create or update the order locally
+      Order? localOrder;
+      
+      // Log the current state for debugging
+      debugPrint('Processing order: currentOrderId=$_currentOrderId');
+      
+      if (_currentOrderId != null) {
+        // Updating existing order - make sure to use the existing order ID
+        final existingOrderId = _currentOrderId!;
+        debugPrint('Updating existing order #$existingOrderId');
         
         // Convert cart items to OrderItem objects
         final orderItems = _serviceTypeCarts[_currentServiceType]!.map((item) => 
@@ -483,81 +328,27 @@ Future<Map<String, dynamic>> processOrderWithBill(BuildContext context) async {
           )
         ).toList();
         
-        // Create an order object with the EXISTING ID
+        // Create an order object with the existing ID
         localOrder = Order(
-          id: existingOrderId, // Critical: Use existing order ID
+          id: existingOrderId, // Use existing order ID
           serviceType: _currentServiceType,
           items: orderItems,
           subtotal: subtotal,
           tax: tax,
           discount: discount,
           total: total,
-          status: 'pending',
+          status: 'pending', // Changed from 'pending' to 'completed' for payment
           createdAt: formattedTimestamp,
           customerId: _selectedPerson?.id,
+          paymentMethod: 'cash', // Default to cash
         );
         
-        // Update the existing order in local storage
+        // Save to local storage
         localOrder = await _localOrderRepo.saveOrder(localOrder);
-        order = localOrder; // Use local order as the main order
-      }
-    } else {
-      // Create a new order
-      debugPrint('Creating new order');
-      final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
-      
-      if (!_isOfflineMode) {
-        // Online mode - create on server
-        order = await _apiService.createOrder(
-          _currentServiceType,
-          items,
-          subtotal,
-          tax,
-          discount,
-          total,
-          customerId: _selectedPerson?.id,
-        );
-        
-        // IMPORTANT: Also save to local database for redundancy
-        if (order != null) {
-          serverOrderId = order.id;
-          
-          // Convert cart items to OrderItem objects
-          final orderItems = _serviceTypeCarts[_currentServiceType]!.map((item) => 
-            OrderItem(
-              id: int.tryParse(item.id) ?? 0,
-              name: item.name,
-              price: item.price,
-              quantity: item.quantity,
-              kitchenNote: item.kitchenNote,
-            )
-          ).toList();
-          
-          // Create a local order with the server-generated ID
-          localOrder = Order(
-            id: serverOrderId, // Use server-generated ID
-            serviceType: _currentServiceType,
-            items: orderItems,
-            subtotal: subtotal,
-            tax: tax,
-            discount: discount,
-            total: total,
-            status: 'pending',
-            createdAt: formattedTimestamp,
-            customerId: _selectedPerson?.id,
-          );
-          
-          // Save to local storage with is_synced=1 since we just synced it
-          try {
-            localOrder = await _localOrderRepo.saveOrderAsSynced(localOrder, serverOrderId);
-            debugPrint('Saved order to local database with synced status: ID=${localOrder.id}, ServerID=$serverOrderId');
-          } catch (e) {
-            debugPrint('Error saving synced order to local database: $e');
-          }
-        }
+        debugPrint('Updated order in local database: ID=${localOrder.id}');
       } else {
-        // Offline mode - save locally
-        debugPrint('Creating new order locally in offline mode');
+        // Create a new order
+        debugPrint('Creating new order');
         
         // Convert cart items to OrderItem objects
         final orderItems = _serviceTypeCarts[_currentServiceType]!.map((item) => 
@@ -578,131 +369,90 @@ Future<Map<String, dynamic>> processOrderWithBill(BuildContext context) async {
           tax: tax,
           discount: discount,
           total: total,
-          status: 'pending',
+          status: 'pending', // Changed from 'pending' to 'completed' for payment
           createdAt: formattedTimestamp,
           customerId: _selectedPerson?.id,
+          paymentMethod: 'cash', // Default to cash
         );
         
         // Save to local storage
         localOrder = await _localOrderRepo.saveOrder(localOrder);
-        order = localOrder; // Use local order as the main order
+        debugPrint('Created new order in local database: ID=${localOrder.id}');
       }
-    }
       
-    if (order == null && localOrder == null) {
-      return {
-        'success': false,
-        'message': 'Failed to create or update order in the system',
-      };
-    }
-    
-    // Use local order if online order failed
-    if (order == null && localOrder != null) {
-      order = localOrder;
-    }
-    
-    // Now print the kitchen receipt with the order ID
-    final String orderNumberPadded = order!.id.toString().padLeft(4, '0');
-    Map<String, dynamic> printResult = await BillService.printKitchenOrderReceipt(
-      items: cartItems,
-      serviceType: _currentServiceType,
-      tableInfo: tableInfo,
-      orderNumber: orderNumberPadded,
-      context: context, // Pass context for dialog if needed
-    );
-    
-    // If this is a table order, update the table status to occupied
-    if (tableNumber != null && context.mounted) {
-      final tableProvider = Provider.of<TableProvider>(context, listen: false);
-      final table = tableProvider.tables.firstWhere(
-        (table) => table.number == tableNumber,
-        orElse: () => TableModel(id: '', number: tableNumber!, isOccupied: false)
+      if (localOrder == null) {
+        return {
+          'success': false,
+          'message': 'Failed to create or update order in the system',
+        };
+      }
+      
+      // Now print the kitchen receipt with the order ID
+      final String orderNumberPadded = localOrder.id.toString().padLeft(4, '0');
+      Map<String, dynamic> printResult = await BillService.printKitchenOrderReceipt(
+        items: cartItems,
+        serviceType: _currentServiceType,
+        tableInfo: tableInfo,
+        orderNumber: orderNumberPadded,
+        context: context, // Pass context for dialog if needed
       );
       
-      if (table.id.isNotEmpty) {
-        // Set the table as occupied
-        final updatedTable = TableModel(
-          id: table.id,
-          number: table.number,
-          isOccupied: true,
-          capacity: table.capacity,
-          note: table.note,
+      // If this is a table order, update the table status to available (since payment is complete)
+      if (tableNumber != null && context.mounted) {
+        final tableProvider = Provider.of<TableProvider>(context, listen: false);
+        final table = tableProvider.tables.firstWhere(
+          (table) => table.number == tableNumber,
+          orElse: () => TableModel(id: '', number: tableNumber!, isOccupied: false)
         );
         
-        await tableProvider.updateTable(updatedTable);
-        debugPrint('Table ${tableNumber.toString()} status updated to occupied');
-      } else if (tableNumber > 0) {
-        // If the table wasn't found in the provider but we have a valid number,
-        // try to update it by number
-        await tableProvider.setTableStatus(tableNumber, true);
-        debugPrint('Table ${tableNumber.toString()} status set to occupied by number');
+        if (table.id.isNotEmpty) {
+          // Set the table as available since payment is complete
+          final updatedTable = TableModel(
+            id: table.id,
+            number: table.number,
+            isOccupied: false, // Set to false as payment is complete
+            capacity: table.capacity,
+            note: table.note,
+          );
+          
+          await tableProvider.updateTable(updatedTable);
+          debugPrint('Table ${tableNumber.toString()} status updated to available');
+        } else if (tableNumber > 0) {
+          // If the table wasn't found in the provider but we have a valid number,
+          // try to update it by number
+          await tableProvider.setTableStatus(tableNumber, false);
+          debugPrint('Table ${tableNumber.toString()} status set to available by number');
+        }
       }
-    }
 
-    // Clear the current service type's cart
-    clearCart();
-    // Reset the current order ID
-    _currentOrderId = null;
-    
-    // Display offline message if needed
-    String successMessage = printResult['message'] ?? 'Order processed successfully';
-    if (_isOfflineMode) {
-      successMessage += ' (Offline mode - will sync when connection is restored)';
+      // Clear the current service type's cart
+      clearCart();
+      // Reset the current order ID
+      _currentOrderId = null;
+      
+      return {
+        'success': true,
+        'message': printResult['message'] ?? 'Order processed successfully',
+        'order': localOrder,
+        'billPrinted': printResult['printed'] ?? false,
+        'billSaved': printResult['saved'] ?? false,
+      };
+    } catch (error) {
+      debugPrint('Error processing order: $error');
+      return {
+        'success': false,
+        'message': 'Error processing order: $error',
+      };
     }
-    
-    debugPrint('Order processed successfully: ID=${order.id}');
-    
-    return {
-      'success': true,
-      'message': successMessage,
-      'order': order,
-      'billPrinted': printResult['printed'] ?? false,
-      'billSaved': printResult['saved'] ?? false,
-      'offlineMode': _isOfflineMode,
-    };
-  } catch (error) {
-    debugPrint('Error processing order: $error');
-    return {
-      'success': false,
-      'message': 'Error processing order: $error',
-    };
   }
-}
   
-  // Get all orders (both online and offline)
+  // Get all orders from local repository
   Future<List<Order>> fetchOrders() async {
-    List<Order> orders = [];
-    
     try {
-      if (!_isOfflineMode) {
-        // Online mode - get from server
-        orders = await _apiService.getOrders();
-      }
-      
-      // Always get local orders and merge (avoid duplicates by ID)
-      final localOrders = await _localOrderRepo.getAllOrders();
-      
-      // Create a map of server orders by ID
-      final Map<int, bool> serverOrderIds = {};
-      for (var order in orders) {
-        if (order.id != null) {
-          serverOrderIds[order.id!] = true;
-        }
-      }
-      
-      // Add local orders that aren't in server orders
-      for (var localOrder in localOrders) {
-        if (localOrder.id != null && !serverOrderIds.containsKey(localOrder.id)) {
-          orders.add(localOrder);
-        }
-      }
-      
-      return orders;
+      return await _localOrderRepo.getAllOrders();
     } catch (error) {
       debugPrint('Error fetching orders: $error');
-      
-      // If server fetch fails, return local orders
-      return await _localOrderRepo.getAllOrders();
+      return [];
     }
   }
   
@@ -756,96 +506,15 @@ Future<Map<String, dynamic>> processOrderWithBill(BuildContext context) async {
     }
   }
 
-  // Modify the existing placeOrder method or add a new one to handle updating existing orders
-  Future<bool> updateExistingOrder(int orderId) async {
-    if (_currentServiceType.isEmpty || _serviceTypeCarts[_currentServiceType]!.isEmpty) {
-      return false;
-    }
-
-    try {
-      final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
-      final subtotal = _serviceTotals[_currentServiceType]!['subtotal'] ?? 0;
-      final tax = _serviceTotals[_currentServiceType]!['tax'] ?? 0;
-      final discount = _serviceTotals[_currentServiceType]!['discount'] ?? 0;
-      final total = _serviceTotals[_currentServiceType]!['total'] ?? 0;
-      
-      Order? order;
-      
-      if (!_isOfflineMode) {
-        // Online mode - update on server
-        order = await _apiService.updateOrder(
-          orderId,
-          _currentServiceType,
-          items,
-          subtotal,
-          tax,
-          discount,
-          total,
-        );
-      } else {
-        // Offline mode - save locally
-        // For simplicity, we're creating a new local order
-        order = await _localOrderRepo.saveOrder(
-          Order(
-            id: orderId,
-            serviceType: _currentServiceType,
-            items: _serviceTypeCarts[_currentServiceType]!.map((item) => 
-              OrderItem(
-                id: int.tryParse(item.id) ?? 0,
-                name: item.name,
-                price: item.price,
-                quantity: item.quantity,
-                kitchenNote: item.kitchenNote,
-              )
-            ).toList(),
-            subtotal: subtotal,
-            tax: tax,
-            discount: discount,
-            total: total,
-            status: 'pending',
-            createdAt: DateTime.now().toIso8601String(),
-            customerId: _selectedPerson?.id,
-          )
-        );
-      }
-
-      if (order != null) {
-        // Clear only the current service type's cart
-        _serviceTypeCarts[_currentServiceType]!.clear();
-        _updateTotals(_currentServiceType);
-        notifyListeners();
-        return true; 
-      }
-      return false;
-    } catch (error) {
-      debugPrint('Error updating order: $error');
-      return false;
-    }
-  }
-
   // Load items from an existing order into the cart
-Future<void> loadExistingOrderItems(int orderId) async {
-  try {
-    // First clear the current cart to avoid duplicates
-    if (_serviceTypeCarts.containsKey(_currentServiceType)) {
-      _serviceTypeCarts[_currentServiceType]!.clear();
-    }
-    
-    Order? order;
-    
-    // Check if we're in offline mode
-    if (!_isOfflineMode) {
-      // Online mode - fetch from server
-      try {
-        order = await _apiService.getOrderById(orderId);
-        debugPrint('Loaded order #$orderId from API: ${order?.serviceType}');
-      } catch (e) {
-        debugPrint('Error loading order from API, will try local storage: $e');
+  Future<void> loadExistingOrderItems(int orderId) async {
+    try {
+      // First clear the current cart to avoid duplicates
+      if (_serviceTypeCarts.containsKey(_currentServiceType)) {
+        _serviceTypeCarts[_currentServiceType]!.clear();
       }
-    }
-    
-    // Always check local storage regardless of online/offline status or API result
-    if (order == null || order.serviceType.isEmpty) {
+      
+      // Get the order from local storage
       final localOrders = await _localOrderRepo.getAllOrders();
       debugPrint('Checking ${localOrders.length} local orders for ID: $orderId');
       
@@ -855,7 +524,7 @@ Future<void> loadExistingOrderItems(int orderId) async {
       }
       
       // Find the order with matching ID
-      order = localOrders.firstWhere(
+      final order = localOrders.firstWhere(
         (o) => o.id == orderId,
         orElse: () => Order(
           serviceType: '',
@@ -868,41 +537,39 @@ Future<void> loadExistingOrderItems(int orderId) async {
       );
       
       debugPrint('Local order lookup result: ${order.serviceType.isNotEmpty ? "Found" : "Not found"}');
-    }
-    
-    if (order != null && order.serviceType.isNotEmpty) {
-      // Track the current order ID
-      _currentOrderId = orderId;
       
-      // Convert order items to menu items and add to cart
-      for (var item in order.items) {
-        final menuItem = MenuItem(
-          id: item.id.toString(),
-          name: item.name,
-          price: item.price,
-          imageUrl: '', // No image info in order items
-          category: '', // No category info in order items
-          quantity: item.quantity,
-          kitchenNote: item.kitchenNote,
-        );
+      if (order.serviceType.isNotEmpty) {
+        // Track the current order ID
+        _currentOrderId = orderId;
         
-        // Add to cart without incrementing quantity (we already have the correct quantity)
-        _addToCartWithoutIncrementing(menuItem);
+        // Convert order items to menu items and add to cart
+        for (var item in order.items) {
+          final menuItem = MenuItem(
+            id: item.id.toString(),
+            name: item.name,
+            price: item.price,
+            imageUrl: '', // No image info in order items
+            category: '', // No category info in order items
+            quantity: item.quantity,
+            kitchenNote: item.kitchenNote,
+          );
+          
+          // Add to cart without incrementing quantity (we already have the correct quantity)
+          _addToCartWithoutIncrementing(menuItem);
+        }
+        
+        // Update totals
+        _updateTotals(_currentServiceType);
+        notifyListeners();
+        
+        debugPrint('Loaded ${order.items.length} items from existing order #$orderId');
+      } else {
+        debugPrint('Failed to load order #$orderId: Not found in local storage');
       }
-      
-      // Update totals
-      _updateTotals(_currentServiceType);
-      notifyListeners();
-      
-      debugPrint('Loaded ${order.items.length} items from existing order #$orderId');
-    } else {
-      debugPrint('Failed to load order #$orderId: Not found in API or local storage');
+    } catch (e) {
+      debugPrint('Error loading existing order items: $e');
     }
-  } catch (e) {
-    debugPrint('Error loading existing order items: $e');
   }
-}
-
 
   // Add item to cart without incrementing quantity for existing items
   void _addToCartWithoutIncrementing(MenuItem item) {
@@ -920,82 +587,48 @@ Future<void> loadExistingOrderItems(int orderId) async {
     _serviceTypeCarts[_currentServiceType]!.add(item);
   }
   
-  // Check connection status and attempt to sync
-  Future<void> checkConnectionAndSync() async {
-    final isOnline = await _connectivityService.checkConnection();
-    
-    if (isOnline && _isOfflineMode) {
-      // We just went online, update state and sync
-      _isOfflineMode = false;
-      notifyListeners();
-      await syncPendingOrders();
-    } else if (!isOnline && !_isOfflineMode) {
-      // We just went offline, update state
-      _isOfflineMode = true;
-      notifyListeners();
-    }
-  }
-  
-  // Place order (legacy method kept for compatibility)
-  Future<bool> placeOrder(String serviceType) async {
-    if (_currentServiceType.isEmpty || _serviceTypeCarts[_currentServiceType]!.isEmpty) {
-      return false;
-    }
-
+  // Update payment method for an order
+  Future<bool> updateOrderPaymentMethod(int orderId, String paymentMethod) async {
     try {
-      final items = _serviceTypeCarts[_currentServiceType]!.map((item) => item.toJson()).toList();
-      final subtotal = _serviceTotals[_currentServiceType]!['subtotal'] ?? 0;
-      final tax = _serviceTotals[_currentServiceType]!['tax'] ?? 0;
-      final discount = _serviceTotals[_currentServiceType]!['discount'] ?? 0;
-      final total = _serviceTotals[_currentServiceType]!['total'] ?? 0;
-      
-      Order? order;
-      
-      if (!_isOfflineMode) {
-        // Online mode - create on server
-        order = await _apiService.createOrder(
-          serviceType,
-          items,
-          subtotal,
-          tax,
-          discount,
-          total,
-        );
-      } else {
-        // Offline mode - save locally
-        order = await _localOrderRepo.saveOrder(
-          Order(
-            serviceType: serviceType,
-            items: _serviceTypeCarts[_currentServiceType]!.map((item) => 
-              OrderItem(
-                id: int.tryParse(item.id) ?? 0,
-                name: item.name,
-                price: item.price,
-                quantity: item.quantity,
-                kitchenNote: item.kitchenNote,
-              )
-            ).toList(),
-            subtotal: subtotal,
-            tax: tax,
-            discount: discount,
-            total: total,
-            status: 'pending',
-            createdAt: DateTime.now().toIso8601String(),
-            customerId: _selectedPerson?.id,
-          )
-        );
+      if (orderId <= 0) {
+        debugPrint('Cannot update payment method: Invalid order ID');
+        return false;
       }
-
-      if (order != null) {
-        // Clear only the current service type's cart
-        _serviceTypeCarts[_currentServiceType]!.clear();
-        _updateTotals(_currentServiceType);
-        notifyListeners();
+      
+      // Get the order from local storage
+      final localOrders = await _localOrderRepo.getAllOrders();
+      
+      // Find the order with matching ID
+      final orderIndex = localOrders.indexWhere((o) => o.id == orderId);
+      
+      if (orderIndex >= 0) {
+        final order = localOrders[orderIndex];
+        
+        // Create a new order with updated payment method
+        final updatedOrder = Order(
+          id: order.id,
+          serviceType: order.serviceType,
+          items: order.items,
+          subtotal: order.subtotal,
+          tax: order.tax,
+          discount: order.discount,
+          total: order.total,
+          status: order.status,
+          createdAt: order.createdAt,
+          customerId: order.customerId,
+          paymentMethod: paymentMethod,
+        );
+        
+        // Save the updated order
+        await _localOrderRepo.saveOrder(updatedOrder);
+        debugPrint('Updated payment method for order #$orderId to $paymentMethod');
         return true;
+      } else {
+        debugPrint('Cannot update payment method: Order not found');
+        return false;
       }
-      return false;
-    } catch (error) {
-      debugPrint('Error placing order: $error');
+    } catch (e) {
+      debugPrint('Error updating payment method: $e');
       return false;
     }
   }

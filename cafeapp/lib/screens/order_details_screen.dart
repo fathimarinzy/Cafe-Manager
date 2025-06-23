@@ -7,11 +7,11 @@ import '../models/order_item.dart';
 import '../providers/menu_provider.dart';
 import '../models/menu_item.dart';
 import 'tender_screen.dart';
-import '../services/api_service.dart';
+// import '../services/api_service.dart';
 import '../providers/settings_provider.dart';
 import '../services/bill_service.dart';
 import '../repositories/local_order_repository.dart';
-import '../services/connectivity_service.dart';
+// import '../services/connectivity_service.dart';
 import '../models/order.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
@@ -84,12 +84,12 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   void _navigateToTender() {
     if (_order == null) return;
     
-    if (_wasEdited) {
-      _saveOrderChangesToBackend().catchError((error) {
-        debugPrint('Error saving before tender: $error');
-        throw error;
-      });
-    }
+    // if (_wasEdited) {
+    //   _saveOrderChangesToBackend().catchError((error) {
+    //     debugPrint('Error saving before tender: $error');
+    //     throw error;
+    //   });
+    // }
     
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -105,204 +105,153 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       }
     });
   }
-
   Future<bool> _saveOrderChangesToBackend() async {
-    if (_order == null) return false;
+  if (_order == null) return false;
   
-    setState(() {
-      _isLoading = true;
-    });
+  setState(() {
+    _isLoading = true;
+  });
   
-    try {
-      // Get the connectivity service to check if we're online
-      bool isOnline = true;
-      try {
-        final connectivityService = ConnectivityService();
-        isOnline = await connectivityService.checkConnection();
-      } catch (e) {
-        debugPrint('Error checking connectivity: $e');
-        // Assume offline if connectivity check fails
-        isOnline = false;
-      }
-      
-      // Calculate the new totals
-      double subtotal = _calculateSubtotal(_order!.items);
-      double tax = subtotal * (_taxRate / 100.0);
-      double discount = 0;
-      double total = subtotal + tax - discount;
+  try {
+    // Calculate the new totals
+    double subtotal = _calculateSubtotal(_order!.items);
+    double tax = subtotal * (_taxRate / 100.0);
+    double discount = 0;
+    double total = subtotal + tax - discount;
 
-      // Create JSON for items
-      List<Map<String, dynamic>> itemsJson = _order!.items.map((item) => {
-        'id': item.id,
-        'name': item.name,
-        'price': item.price,
-        'quantity': item.quantity,
-        'kitchenNote': item.kitchenNote,
-      }).toList();
+    // Convert OrderHistory items to OrderItem objects
+    final orderItems = _order!.items.map((item) => 
+      OrderItem(
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        kitchenNote: item.kitchenNote,
+      )
+    ).toList();
+    
+    // Create a local Order object from our OrderHistory
+    final localOrder = Order(
+      id: _order!.id,
+      serviceType: _order!.serviceType,
+      items: orderItems,
+      subtotal: subtotal,
+      tax: tax,
+      discount: discount,
+      total: total,
+      status: _order!.status,
+      createdAt: _order!.createdAt.toIso8601String(),
+    );
+    
+    // Get the local repository
+    final localOrderRepo = LocalOrderRepository();
+    
+    // Save the order locally
+    final updatedOrder = await localOrderRepo.saveOrder(localOrder);
+    
+    debugPrint('Order updated locally: ${updatedOrder.id}');
+    await LocalOrderRepository().printDatabaseContents();
 
-      Order? updatedOrder;
-      
-      if (isOnline) {
-        // Online mode - update via API
-        debugPrint('Attempting to update order with ID: ${_order!.id} via API');
-        
-        ApiService apiService;
-        try {
-          apiService = Provider.of<ApiService>(context, listen: false);
-        } catch (e) {
-          apiService = ApiService();
-          debugPrint('Created new ApiService instance: $e');
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        if (_order != null) {
+          // Update the UI with the new totals, but preserve the creation date
+          _order = OrderHistory(
+            id: _order!.id,
+            serviceType: _order!.serviceType,
+            total: total,
+            status: _order!.status,
+            createdAt: _order!.createdAt,
+            items: _order!.items,
+          );
         }
-        
-        updatedOrder = await apiService.updateOrder(
-          _order!.id,
-          _order!.serviceType,
-          itemsJson,
-          subtotal,
-          tax,
-          discount,
-          total,
-        );
-      }
-      
-      // If we're offline or the API call failed, update locally
-      if (!isOnline || updatedOrder == null) {
-        debugPrint('Updating order with ID: ${_order!.id} locally (offline mode)');
-        
-        // Convert OrderHistory items to OrderItem objects
-        final orderItems = _order!.items.map((item) => 
-          OrderItem(
-            id: item.id,
-            name: item.name,
-            price: item.price,
-            quantity: item.quantity,
-            kitchenNote: item.kitchenNote,
-          )
-        ).toList();
-        
-        // Create a local Order object from our OrderHistory
-        final localOrder = Order(
-          id: _order!.id,
-          serviceType: _order!.serviceType,
-          items: orderItems,
-          subtotal: subtotal,
-          tax: tax,
-          discount: discount,
-          total: total,
-          status: _order!.status,
-          createdAt: _order!.createdAt.toIso8601String(),
-        );
-        
-        // Get the local repository
-        final localOrderRepo = LocalOrderRepository();
-        
-        // Save the order locally
-        updatedOrder = await localOrderRepo.saveOrder(localOrder);
-        
-        debugPrint('Order updated locally: ${updatedOrder?.id}');
-      }
-      
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          if (_order != null) {
-            // Update the UI with the new totals
-            _order = OrderHistory(
-              id: _order!.id,
-              serviceType: _order!.serviceType,
-              total: total, // Updated total
-              status: _order!.status,
-              createdAt: _order!.createdAt,
-              items: _order!.items,
-            );
-          }
-        });
-      }
-      
-      // Print kitchen receipt after successful update
-      if (updatedOrder != null) {
-        await _printKitchenReceipt();
-      }
-      
-      // Force a refresh of the OrderHistoryProvider to update other screens
-      if (mounted) {
-        final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
-        // Use refreshOrdersAndConnectivity to handle both online and offline modes
-        historyProvider.refreshOrdersAndConnectivity();
-      }
-      
-      return updatedOrder != null;
-    } catch (e) {
-      debugPrint('Error saving order changes: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-        
-        // Show error message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error updating order: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return false;
+      });
     }
-  }
-
-  Future<void> _printKitchenReceipt() async {
-    if (_order == null) return;
-  
-    try {
-      // Convert order items to MenuItem objects
-      final items = _order!.items.map((item) => 
-        MenuItem(
-          id: item.id.toString(),
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-          imageUrl: '',
-          category: '',
-          kitchenNote: item.kitchenNote,
-        )
-      ).toList();
+    
+    // Print kitchen receipt after successful update
+    if (updatedOrder != null) {
+      await _printKitchenReceipt();
+    }
+    
+    // Force a refresh of the OrderHistoryProvider to update other screens
+    if (mounted) {
+      final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
+      historyProvider.loadOrders();
+    }
+    
+    return updatedOrder != null;
+  } catch (e) {
+    debugPrint('Error saving order changes: $e');
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
       
-      // Extract tableInfo if this is a dining order
-      String? tableInfo;
-      if (_order!.serviceType.startsWith('Dining - Table')) {
-        tableInfo = _order!.serviceType;
-      }
-      
-      // Print kitchen receipt
-      final printed = await BillService.printKitchenOrderReceipt(
-        items: items,
-        serviceType: _order!.serviceType,
-        tableInfo: tableInfo,
-        orderNumber: _order!.orderNumber,
-        context: context,
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error updating order: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
-      
-      if (!printed['success'] && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to print kitchen receipt: ${printed['message']}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint('Error printing kitchen receipt: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error printing kitchen receipt: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    }
+    return false;
+  }
+}
+
+Future<void> _printKitchenReceipt() async {
+  if (_order == null) return;
+  
+  try {
+    // Convert order items to MenuItem objects
+    final items = _order!.items.map((item) => 
+      MenuItem(
+        id: item.id.toString(),
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        imageUrl: '',
+        category: '',
+        kitchenNote: item.kitchenNote,
+      )
+    ).toList();
+    
+    // Extract tableInfo if this is a dining order
+    String? tableInfo;
+    if (_order!.serviceType.startsWith('Dining - Table')) {
+      tableInfo = _order!.serviceType;
+    }
+    
+    // Print kitchen receipt
+    final printed = await BillService.printKitchenOrderReceipt(
+      items: items,
+      serviceType: _order!.serviceType,
+      tableInfo: tableInfo,
+      orderNumber: _order!.orderNumber,
+      context: mounted ? context : null, // Add mounted check before using context
+    );
+    
+    if (!printed['success'] && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to print kitchen receipt: ${printed['message']}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  } catch (e) {
+    debugPrint('Error printing kitchen receipt: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error printing kitchen receipt: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
+}
 
   double _calculateSubtotal(List<OrderItem> items) {
     return items.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
@@ -548,6 +497,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   }
   
   Future<void> _showAddItemDialog(BuildContext context, List<OrderItem> items, StateSetter setState) async {
+    if (!mounted) return;
     final menuProvider = Provider.of<MenuProvider>(context, listen: false);
     await menuProvider.fetchMenu();
     await menuProvider.fetchCategories();
@@ -560,6 +510,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     String? selectedCategory;
     
     List<MenuItem> filteredItems = menuItems;
+
+     if (!mounted) return;
     
     showDialog(
       context: context,
@@ -760,7 +712,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: true,
-      onPopInvoked: (didPop) async {
+      onPopInvokedWithResult: (bool didPop, dynamic result) async { 
         if (didPop) {
           // If didPop is true, the pop was already handled (no edits)
           return;
