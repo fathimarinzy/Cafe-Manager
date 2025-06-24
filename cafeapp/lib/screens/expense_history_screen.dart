@@ -542,7 +542,16 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     final filteredExpenses = _getFilteredExpenses();
     
     // Calculate totals for the summary card based on filtered expenses
-    final int totalExpenseCount = filteredExpenses.length;
+    // final int totalExpenseCount = filteredExpenses.length;
+    // Calculate total items count across all expenses
+    final int totalItemsCount = filteredExpenses.fold<int>(
+      0,
+      (sum, expense) {
+        final items = expense['items'] as List<dynamic>;
+        return sum + items.length;
+      },
+    );
+
     final double totalAmount = filteredExpenses.fold<double>(
       0,
       (sum, expense) => sum + (expense['grandTotal'] as double),
@@ -614,7 +623,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                         Expanded(
                           child: _buildSummaryCard(
                             'Total Expenses',
-                            totalExpenseCount.toString(),
+                            totalItemsCount.toString(),
                             Icons.receipt_long,
                             Colors.blue,
                           ),
@@ -745,7 +754,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                             const SizedBox(height: 8),
                             Text(
                               _searchQuery.isNotEmpty || _selectedFilter != 'All Expenses'
-                                  ? 'Try changing your search or filter'
+                                  ? ''
                                   : 'Tap the + button to add a new expense',
                               style: TextStyle(color: Colors.grey.shade600),
                             ),
