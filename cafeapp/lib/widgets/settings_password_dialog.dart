@@ -3,7 +3,8 @@ import '../services/settings_password_service.dart';
 import '../screens/settings_screen.dart';
 
 class SettingsPasswordDialog extends StatefulWidget {
-  const SettingsPasswordDialog({Key? key}) : super(key: key);
+  const SettingsPasswordDialog({super.key,});
+
 
   @override
   State<SettingsPasswordDialog> createState() => _SettingsPasswordDialogState();

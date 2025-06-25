@@ -57,7 +57,7 @@ class OrderProvider with ChangeNotifier {
   }
 
   // Constructor
-  OrderProvider() {}
+  // OrderProvider() {}
 
   // Set current service type and notify listeners
   void setCurrentServiceType(String serviceType, [BuildContext? context]) {

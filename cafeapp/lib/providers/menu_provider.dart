@@ -82,13 +82,13 @@ class MenuProvider with ChangeNotifier {
   }
   
   // Helper to check if two lists are equal
-  bool _listsEqual<T>(List<T> list1, List<T> list2) {
-    if (list1.length != list2.length) return false;
-    for (int i = 0; i < list1.length; i++) {
-      if (list1[i] != list2[i]) return false;
-    }
-    return true;
-  }
+  // bool _listsEqual<T>(List<T> list1, List<T> list2) {
+  //   if (list1.length != list2.length) return false;
+  //   for (int i = 0; i < list1.length; i++) {
+  //     if (list1[i] != list2[i]) return false;
+  //   }
+  //   return true;
+  // }
 
   List<MenuItem> getItemsByCategory(String category) {
     return _items.where((item) => item.category == category).toList();

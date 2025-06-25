@@ -49,6 +49,9 @@ class _TenderScreenState extends State<TenderScreen> {
   double _paidAmount = 0.0; // Track the paid amount separately
   bool _isProcessing = false;
   bool _isCashSelected = false;
+  final Map<String, Map<String, double>> _serviceTotals = {};
+  final String _currentServiceType = '';
+
   String _orderStatus = 'pending'; // Track the current order status
   final LocalOrderRepository _localOrderRepo = LocalOrderRepository();
   final MethodChannel _channel = const MethodChannel('com.simsrestocafe/file_picker');
@@ -78,6 +81,9 @@ class _TenderScreenState extends State<TenderScreen> {
   @override
   void initState() {
     super.initState();
+    // Initialize the current service type from the widget
+    // _currentServiceType = widget.serviceType;
+    
     // Initialize balance amount based on order status
     _orderStatus = widget.order.status; // Initialize with current status
     
@@ -85,6 +91,15 @@ class _TenderScreenState extends State<TenderScreen> {
     if (widget.preselectedPaymentMethod != null) {
       _selectedPaymentMethod = widget.preselectedPaymentMethod;
       _isCashSelected = _selectedPaymentMethod == 'Cash';
+    }
+     // Initialize service totals if needed
+    if (!_serviceTotals.containsKey(_currentServiceType)) {
+      _serviceTotals[_currentServiceType] = {
+        'subtotal': 0.0,
+        'tax': 0.0,
+        'discount': 0.0,
+        'total': widget.order.total,
+      };
     }
     
     // If order is already completed, set balance to 0 and paid to total
@@ -115,6 +130,61 @@ class _TenderScreenState extends State<TenderScreen> {
     _receivedFocusNode.dispose();
     super.dispose();
   }
+  //  Create a helper method to get the discounted total amount
+double _getDiscountedTotal() {
+  // Get current discount amount
+  double discount = 0.0;
+  if (_serviceTotals.containsKey(_currentServiceType)) {
+    discount = _serviceTotals[_currentServiceType]!['discount'] ?? 0.0;
+  }
+  
+  // Calculate total with discount applied
+  return widget.order.total - discount;
+}
+
+//  Create a helper method to get the current discount amount
+double _getCurrentDiscount() {
+  if (_serviceTotals.containsKey(_currentServiceType)) {
+    return _serviceTotals[_currentServiceType]!['discount'] ?? 0.0;
+  }
+  return 0.0;
+}
+void _applyDiscount(double discountAmount) {
+  if (discountAmount <= 0) return;
+  
+  // Make sure discount doesn't exceed the total amount
+  final effectiveDiscount = discountAmount > widget.order.total ? widget.order.total : discountAmount;
+  
+  setState(() {
+    // Update balance amount - this affects both cash and bank payments
+    _balanceAmount = widget.order.total - effectiveDiscount;
+    if (_balanceAmount < 0) _balanceAmount = 0.0;
+    
+    // For consistent experience, also update the service totals dictionary
+    if (_serviceTotals.containsKey(_currentServiceType)) {
+      // Get the current totals
+      final totals = _serviceTotals[_currentServiceType]!;
+      
+      // Update the discount value
+      totals['discount'] = effectiveDiscount;
+      
+      // Recalculate the total with the new discount
+      totals['total'] = totals['subtotal']! + totals['tax']! - totals['discount']!;
+      
+      _serviceTotals[_currentServiceType] = totals;
+    }
+    
+    // Show success message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Discount of ${effectiveDiscount.toStringAsFixed(3)} applied successfully'),
+        backgroundColor: Colors.green.shade600,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  });
+}
+
 
   Future<void> _showBillPreviewDialog() async {
     // Show loading indicator
@@ -282,15 +352,25 @@ class _TenderScreenState extends State<TenderScreen> {
       _isProcessing = true;
     });
 
-    double change = 0.0;
-    if (amount > widget.order.total) {
-      change = amount - widget.order.total;
-    }
+   // Get the discounted total amount
+  final discountedTotal = _getDiscountedTotal();
+  
+      double change = 0.0;
+  if (amount > discountedTotal) {
+    change = amount - discountedTotal;
+  }
+
+
 
     try {
       // Store the correct payment method
       final paymentMethod = _selectedPaymentMethod!.toLowerCase();
       Order? savedOrder;
+       // Get the current discount amount from service totals
+    double discountAmount = 0.0;
+    if (_serviceTotals.containsKey(_currentServiceType)) {
+      discountAmount = _serviceTotals[_currentServiceType]!['discount'] ?? 0.0;
+    }
       
       // Check if we're updating an existing order or creating a new one
       if (widget.order.id != 0) {
@@ -308,8 +388,8 @@ class _TenderScreenState extends State<TenderScreen> {
             items: existingOrder.items,
             subtotal: widget.order.total - (widget.order.total * (widget.taxRate / 100)),
             tax: widget.order.total * (widget.taxRate / 100),
-            discount: 0, // No discount
-            total: widget.order.total,
+            discount: discountAmount, // No discount
+            total: widget.order.total- discountAmount,
             status: 'completed', // Mark as completed
             createdAt: existingOrder.createdAt,
             customerId: widget.customer?.id ?? existingOrder.customerId,
@@ -340,8 +420,8 @@ class _TenderScreenState extends State<TenderScreen> {
           items: orderItems,
           subtotal: widget.order.total - (widget.order.total * (widget.taxRate / 100)),
           tax: widget.order.total * (widget.taxRate / 100),
-          discount: 0, // No discount
-          total: widget.order.total,
+          discount: discountAmount, // No discount
+          total: widget.order.total - discountAmount,
           status: 'completed', // Mark as completed
           createdAt: DateTime.now().toIso8601String(),
           customerId: widget.customer?.id,
@@ -445,6 +525,523 @@ class _TenderScreenState extends State<TenderScreen> {
       }
     }
   }
+  // Method to show the discount dialog
+void _showDiscountDialog() {
+  // Current total for reference
+  final currentTotal = widget.order.total;
+  
+  // Create a dialog that fits without scrolling
+  showDialog(
+    context: context,
+    barrierDismissible: true,
+    builder: (BuildContext context) {
+      String discountInput = '0.000';
+      double discountAmount = 0.0;
+      
+      // Get screen size to calculate appropriate dialog size
+      final screenSize = MediaQuery.of(context).size;
+      
+      return StatefulBuilder(
+        builder: (context, setState) {
+          // Parse current input on each rebuild
+          discountAmount = double.tryParse(discountInput) ?? 0.0;
+          
+          // Use Material directly with no size constraints
+          return Material(
+            type: MaterialType.transparency,
+            child: Center(
+              child: Container(
+                width: screenSize.width * 0.7, // 70% of screen width
+                height: screenSize.height * 0.9, // 90% of screen height
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(77),
+                      blurRadius: 15,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Header
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.purple.shade50,
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.discount, color: Colors.purple.shade800, size: 24),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Apply Discount',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.purple.shade800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    // Content
+                    Expanded(
+                      child: SingleChildScrollView( // Make it scrollable as a fallback
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Current total and new total in one row
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.grey.shade300),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    // Left side - current total
+                                    Row(
+                                      children: [
+                                        const Text('Current Total : ', style: TextStyle(fontSize: 16)),
+                                        Text(
+                                          currentTotal.toStringAsFixed(3),
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    
+                                    // Divider
+                                    Container(
+                                      height: 24,
+                                      width: 1,
+                                      color: Colors.grey.shade300,
+                                    ),
+                                    
+                                    // Right side - new total
+                                    Row(
+                                      children: [
+                                        const Text('New Total : ', style: TextStyle(fontSize: 16)),
+                                        Text(
+                                          (currentTotal - discountAmount).toStringAsFixed(3),
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                            color: discountAmount > 0 ? Colors.green.shade800 : Colors.black,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              
+                              const SizedBox(height: 20),
+                              
+                              // Quick select buttons in a row
+                              // Text(
+                              //   'Quick Select:',
+                              //   style: TextStyle(
+                              //     fontWeight: FontWeight.w500,
+                              //     color: Colors.grey.shade700,
+                              //     fontSize: 16,
+                              //   ),
+                              // ),
+                              
+                              const SizedBox(height: 12),
+                              // Quick select buttons centered in the dialog
+                              Container(
+                                width: double.infinity,
+                                alignment: Alignment.center, // Center the content horizontally
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center, // Center the row contents
+                                    children: [
+                                      _buildQuickAmountButton('5', () {
+                                        setState(() {
+                                          discountInput = '5.000';
+                                        });
+                                      }),
+                                      const SizedBox(width: 8),
+                                      _buildQuickAmountButton('10', () {
+                                        setState(() {
+                                          discountInput = '10.000';
+                                        });
+                                      }),
+                                      const SizedBox(width: 8),
+                                      _buildQuickAmountButton('15', () {
+                                        setState(() {
+                                          discountInput = '15.000';
+                                        });
+                                      }),
+                                       const SizedBox(width: 8),
+                                      _buildQuickAmountButton('25', () {
+                                        setState(() {
+                                          discountInput = '25.000';
+                                        });
+                                      }),
+                                      const SizedBox(width: 8),
+                                      _buildQuickAmountButton('50', () {
+                                        setState(() {
+                                          discountInput = '50.000';
+                                        });
+                                      }),
+                                      const SizedBox(width: 8),
+                                      _buildQuickAmountButton('100', () {
+                                        setState(() {
+                                          discountInput = '100.000';
+                                        });
+                                      }),
+                                      const SizedBox(width: 8),
+                  
+                                    ],
+                                  ),
+                                ),
+                              ),
+                                                            
+                              
+                              const SizedBox(height: 20),
+                              
+                              // Discount input display with label
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Discount Amount : ',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.grey.shade300),
+                                      borderRadius: BorderRadius.circular(6),
+                                      color: Colors.grey.shade50,
+                                    ),
+                                    child: Text(
+                                      discountInput,
+                                      style: const TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      textAlign: TextAlign.end,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              
+                              const SizedBox(height: 20),
+                              // Numpad with calculator style layout
+                              SizedBox(
+                                height: 250, // Set a fixed height to make it more compact
+                                child: Column(
+                                  children: [
+                                    // First row: 7, 8, 9
+                                    Expanded(
+                                      child: Row(
+                                        children: [
+                                          _buildDiscountNumpadButton('7', () {
+                                            setState(() {
+                                              if (discountInput == '0.000'|| discountInput == '0') {
+                                                discountInput = '7';
+                                              } else {
+                                                discountInput += '7';
+                                              }
+                                            });
+                                          }),
+                                          _buildDiscountNumpadButton('8', () {
+                                            setState(() {
+                                              if (discountInput == '0.000'|| discountInput == '0') {
+                                                discountInput = '8';
+                                              } else {
+                                                discountInput += '8';
+                                              }
+                                            });
+                                          }),
+                                          _buildDiscountNumpadButton('9', () {
+                                            setState(() {
+                                              if (discountInput == '0.000'|| discountInput == '0') {
+                                                discountInput = '9';
+                                              } else {
+                                                discountInput += '9';
+                                              }
+                                            });
+                                          }),
+                                        ],
+                                      ),
+                                    ),
+                                    // Second row: 4, 5, 6
+                                    Expanded(
+                                      child: Row(
+                                        children: [
+                                          _buildDiscountNumpadButton('4', () {
+                                            setState(() {
+                                              if (discountInput == '0.000'|| discountInput == '0') {
+                                                discountInput = '4';
+                                              } else {
+                                                discountInput += '4';
+                                              }
+                                            });
+                                          }),
+                                          _buildDiscountNumpadButton('5', () {
+                                            setState(() {
+                                              if (discountInput == '0.000'|| discountInput == '0') {
+                                                discountInput = '5';
+                                              } else {
+                                                discountInput += '5';
+                                              }
+                                            });
+                                          }),
+                                          _buildDiscountNumpadButton('6', () {
+                                            setState(() {
+                                              if (discountInput == '0.000'|| discountInput == '0') {
+                                                discountInput = '6';
+                                              } else {
+                                                discountInput += '6';
+                                              }
+                                            });
+                                          }),
+                                        ],
+                                      ),
+                                    ),
+                                    // Third row: 1, 2, 3
+                                    Expanded(
+                                      child: Row(
+                                        children: [
+                                          _buildDiscountNumpadButton('1', () {
+                                            setState(() {
+                                              if (discountInput == '0.000'|| discountInput == '0') {
+                                                discountInput = '1';
+                                              } else {
+                                                discountInput += '1';
+                                              }
+                                            });
+                                          }),
+                                          _buildDiscountNumpadButton('2', () {
+                                            setState(() {
+                                              if (discountInput == '0.000'|| discountInput == '0') {
+                                                discountInput = '2';
+                                              } else {
+                                                discountInput += '2';
+                                              }
+                                            });
+                                          }),
+                                          _buildDiscountNumpadButton('3', () {
+                                            setState(() {
+                                              if (discountInput == '0.000'|| discountInput == '0') {
+                                                discountInput = '3';
+                                              } else {
+                                                discountInput += '3';
+                                              }
+                                            });
+                                          }),
+                                        ],
+                                      ),
+                                    ),
+                                    // Fourth row: C, 0, ⌫
+                                    Expanded(
+                                      child: Row(
+                                        children: [
+                                           _buildDiscountNumpadButton('C', () {
+                                            setState(() {
+                                              discountInput = '0.000';
+                                            });
+                                          }, backgroundColor: Colors.red.shade50, textColor: Colors.red.shade800),
+                                         
+                                          _buildDiscountNumpadButton('0', () {
+                                            setState(() {
+                                              if (discountInput == '0.000') {
+                                                discountInput = '0';
+                                              } else if (discountInput == '0') {
+                                                // If it's already just 0, keep it as 0
+                                                discountInput = '0';
+                                             } else {
+                                                discountInput += '0';
+                                              }
+                                            });
+                                          }),
+                                          _buildDiscountNumpadButton('⌫', () {
+                                            setState(() {
+                                              if (discountInput.length > 1) {
+                                                discountInput = discountInput.substring(0, discountInput.length - 1);
+                                                if (discountInput.isEmpty) {
+                                                  discountInput = '0.000';
+                                                }
+                                              } else {
+                                                discountInput = '0.000';
+                                              }
+                                            });
+                                          }, backgroundColor: Colors.grey.shade200, textColor: Colors.black87, isBackspace: true),
+                                        ],
+                                      ),
+                                    ),
+                                
+                                  ],
+                                ),
+                              )
+                             
+                                                          
+                             
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    
+                    // Footer with action buttons
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+                        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              textStyle: const TextStyle(fontSize: 16),
+                            ),
+                            child: const Text('Cancel'),
+                          ),
+                          const SizedBox(width: 12),
+                          ElevatedButton(
+                            onPressed: () {
+                              _applyDiscount(discountAmount);
+                              Navigator.of(context).pop();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.purple.shade600,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                              textStyle: const TextStyle(fontSize: 16),
+                            ),
+                            child: const Text('Apply'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+// Helper method to build numpad buttons for discount dialog
+Widget _buildDiscountNumpadButton(String text, VoidCallback onTap, {
+  Color? backgroundColor, 
+  Color? textColor,
+  bool isBackspace = false,
+}) {
+  return Expanded(
+    child: Container(
+      margin: const EdgeInsets.all(4),
+      child: ElevatedButton(
+        onPressed: onTap,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: backgroundColor ?? Colors.blue.shade100,
+          foregroundColor: textColor ?? Colors.blue.shade800,
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+        ),
+        child: isBackspace 
+          ? const Icon(Icons.backspace, size: 22)
+          : Text(
+              text,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+      ),
+    ),
+  );
+}
+
+// Helper method to build quick amount buttons
+Widget _buildQuickAmountButton(String amount, VoidCallback onTap) {
+  return ElevatedButton(
+    onPressed: onTap,
+    style: ElevatedButton.styleFrom(
+      backgroundColor: Colors.purple.shade50,
+      foregroundColor: Colors.purple.shade800,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: Colors.purple.shade200),
+      ),
+      elevation: 1,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    ),
+    child: Text(
+      amount,
+      style: const TextStyle(
+        fontWeight: FontWeight.bold,
+        fontSize: 16,
+      ),
+    ),
+  );
+}
+
+// Helper to build quick discount selection buttons
+// Widget _buildQuickDiscountButton(String amount, StateSetter setState, TextEditingController controller) {
+//     final isSelected = controller.text == amount;
+    
+//     return InkWell(
+//       onTap: () {
+//         setState(() {
+//           // When button is tapped, update the controller value
+//           controller.text = amount;
+//         });
+//       },
+//       child: Container(
+//         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+//         decoration: BoxDecoration(
+//           color: isSelected ? Colors.purple.shade100 : Colors.grey.shade200,
+//           borderRadius: BorderRadius.circular(20),
+//           border: Border.all(
+//             color: isSelected ? Colors.purple.shade400 : Colors.grey.shade300,
+//             width: isSelected ? 2 : 1,
+//           ),
+//         ),
+//         child: Text(
+//           amount,
+//           style: TextStyle(
+//             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+//             color: isSelected ? Colors.purple.shade800 : Colors.black87,
+//           ),
+//         ),
+//       ),
+//     );
+//   }
 
   // Cancel the order
   Future<void> _cancelOrder() async {
@@ -514,8 +1111,11 @@ class _TenderScreenState extends State<TenderScreen> {
     // Reset controllers
     _lastFourDigitsController.clear();
     _approvalCodeController.clear();
-    _receivedAmountController.text = widget.order.total.toStringAsFixed(3);
-    
+    // Get the discounted total amount
+    final discountedTotal = _getDiscountedTotal();
+  
+     // Set the received amount to the discounted total
+  _receivedAmountController.text = discountedTotal.toStringAsFixed(3);
     // Reset selected card type
     _selectedCardType = 'VISA';
     
@@ -584,7 +1184,7 @@ class _TenderScreenState extends State<TenderScreen> {
                                     Expanded(
                                       flex: 6,
                                       child: Text(
-                                        NumberFormat.currency(symbol: '', decimalDigits: 3).format(widget.order.total),
+                                        NumberFormat.currency(symbol: '', decimalDigits: 3).format(discountedTotal),
                                         style: const TextStyle(
                                           fontSize: 16,
                                           fontWeight: FontWeight.bold,
@@ -934,7 +1534,7 @@ class _TenderScreenState extends State<TenderScreen> {
     }
 
     // Use the exact balance amount
-    double amount = _balanceAmount;
+    double amount = _getDiscountedTotal();
     
     // Check if widget is still mounted before continuing
     if (!mounted) return;
@@ -1107,6 +1707,13 @@ class _TenderScreenState extends State<TenderScreen> {
     try {
       // Handle a cash payment completely locally
       Order? savedOrder;
+        // Get the current discount amount from service totals
+          // Get the current discount amount from service totals
+    double discountAmount = 0.0;
+    if (_serviceTotals.containsKey(_currentServiceType)) {
+      discountAmount = _serviceTotals[_currentServiceType]!['discount'] ?? 0.0;
+    }
+   
       
       // Check if we're updating an existing order or creating a new one
       if (widget.order.id != 0) {
@@ -1124,8 +1731,8 @@ class _TenderScreenState extends State<TenderScreen> {
             items: existingOrder.items,
             subtotal: widget.order.total - (widget.order.total * (widget.taxRate / 100)),
             tax: widget.order.total * (widget.taxRate / 100),
-            discount: 0, // No discount
-            total: widget.order.total,
+            discount: discountAmount, // No discount
+            total: widget.order.total - discountAmount,
             status: 'completed', // Mark as completed
             createdAt: existingOrder.createdAt,
             customerId: widget.customer?.id ?? existingOrder.customerId,
@@ -1159,8 +1766,8 @@ class _TenderScreenState extends State<TenderScreen> {
           items: orderItems,
           subtotal: widget.order.total - (widget.order.total * (widget.taxRate / 100)),
           tax: widget.order.total * (widget.taxRate / 100),
-          discount: 0, // No discount
-          total: widget.order.total,
+          discount: discountAmount, // No discount
+          total: widget.order.total - discountAmount,
           status: 'completed', // Mark as completed
           createdAt: DateTime.now().toIso8601String(),
           customerId: widget.customer?.id,
@@ -1537,6 +2144,10 @@ class _TenderScreenState extends State<TenderScreen> {
   // Build the order info bar at the top
   Widget _buildOrderInfoBar() {
     final formatCurrency = NumberFormat.currency(symbol: '', decimalDigits: 3);
+     // Get discount and discounted total
+    final discount = _getCurrentDiscount();
+    // final discountedTotal = _getDiscountedTotal();
+  
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -1634,6 +2245,23 @@ class _TenderScreenState extends State<TenderScreen> {
                       style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)
                     ),
                     const SizedBox(width: 4),
+                     // Show discount indicator if there is a discount
+                  if (discount > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.purple.shade100,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        '-${formatCurrency.format(discount)}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.purple.shade800,
+                        ),
+                      ),
+                    ),
                     // Text(
                     //   '(Tax: ${widget.taxRate}%)',
                     //   style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
@@ -1754,7 +2382,10 @@ class _TenderScreenState extends State<TenderScreen> {
   Widget _buildPaymentSummary() {
     // Format for currency display
     final formatCurrency = NumberFormat.currency(symbol: '', decimalDigits: 3);
-    
+    // Get discount and discounted total
+    final discount = _getCurrentDiscount();
+    final discountedTotal = _getDiscountedTotal();
+  
     return AbsorbPointer(
       absorbing: _selectedPaymentMethod == null,
       child: Opacity(
@@ -1866,7 +2497,7 @@ class _TenderScreenState extends State<TenderScreen> {
                   Center(
                     child: SizedBox(
                       width: (MediaQuery.of(context).size.width / 3) * 0.6,
-                      height: 60,
+                      height: discount > 0 ? 80 : 60,
                       child: GestureDetector(
                         onTap: _applyExactAmount,
                         child: Container(
@@ -1883,14 +2514,39 @@ class _TenderScreenState extends State<TenderScreen> {
                             ],
                           ),
                           alignment: Alignment.center,
-                          child: Text(
-                            formatCurrency.format(widget.order.total),
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue.shade700,
+                          child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Show either discounted total or original total
+                            Text(
+                              formatCurrency.format(discount > 0 ? discountedTotal : widget.order.total),
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue.shade700,
+                              ),
                             ),
-                          ),
+                            
+                            // Show discount amount if applied
+                            if (discount > 0)
+                              Text(
+                                'Discount: ${formatCurrency.format(discount)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.purple.shade700,
+                                ),
+                              ),
+                          ],
+                        ),
+                          
+                          // child: Text(
+                          //   formatCurrency.format(widget.order.total),
+                          //   style: TextStyle(
+                          //     fontSize: 20,
+                          //     fontWeight: FontWeight.bold,
+                          //     color: Colors.blue.shade700,
+                          //   ),
+                          // ),
                         ),
                       ),
                     ),
@@ -1969,6 +2625,12 @@ class _TenderScreenState extends State<TenderScreen> {
   Future<pw.Document> _generateReceipt() async {
      double subtotal = widget.order.total / (1 + (widget.taxRate / 100.0)); // Calculate subtotal from total
     double tax = widget.order.total - subtotal; // Calculate tax based on subtotal and tax rate
+      // Get the current discount amount from service totals
+    double discountAmount = 0.0;
+    if (_serviceTotals.containsKey(_currentServiceType)) {
+      discountAmount = _serviceTotals[_currentServiceType]!['discount'] ?? 0.0;
+    }
+    
     
     
     final pdf = await BillService.generateBill(
@@ -1976,8 +2638,8 @@ class _TenderScreenState extends State<TenderScreen> {
       serviceType: widget.order.serviceType,
       subtotal: subtotal,
       tax: tax,
-      discount: 0,
-      total: widget.order.total,
+      discount: discountAmount,
+      total: widget.order.total - discountAmount,
       personName: null,
       tableInfo: widget.order.serviceType.contains('Table') ? widget.order.serviceType : null,
       isEdited: widget.isEdited,
@@ -2066,6 +2728,24 @@ class _TenderScreenState extends State<TenderScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.end, // Align buttons to the right
           children: [
+            // Discount button - ADD THIS NEW BUTTON
+            ElevatedButton(
+              onPressed: _selectedPaymentMethod != null ? _showDiscountDialog : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple.shade100,
+                foregroundColor: Colors.purple.shade900,
+                elevation: 1,
+                padding: const EdgeInsets.symmetric(horizontal: 35, vertical: 10),
+                minimumSize: const Size(10, 36),
+                textStyle: const TextStyle(fontSize: 12),
+                disabledBackgroundColor: Colors.grey.shade200,
+                disabledForegroundColor: Colors.grey.shade500,
+              ),
+              child: const Text('Discount'),
+            ),
+            
+            const SizedBox(width: 8), // Spacing between buttons
+
             // Apply Coupon button
             ElevatedButton(
               onPressed: _selectedPaymentMethod != null ? () {

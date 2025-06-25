@@ -105,22 +105,22 @@ class _OrderListScreenState extends State<OrderListScreen> {
           ),
           actions: [
             // Refresh button
-            IconButton(
-              icon: const Icon(Icons.refresh, color: Colors.black, size: 20),
-              onPressed: () {
-                // Show loading indicator
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Refreshing orders...'),
-                    duration: Duration(milliseconds: 1000),
-                  ),
-                );
+            // IconButton(
+            //   icon: const Icon(Icons.refresh, color: Colors.black, size: 20),
+            //   onPressed: () {
+            //     // Show loading indicator
+            //     ScaffoldMessenger.of(context).showSnackBar(
+            //       const SnackBar(
+            //         content: Text('Refreshing orders...'),
+            //         duration: Duration(milliseconds: 1000),
+            //       ),
+            //     );
                 
-                // Refresh orders
-                final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
-                historyProvider.loadOrders();
-              },
-            ),
+            //     // Refresh orders
+            //     final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
+            //     historyProvider.loadOrders();
+            //   },
+            // ),
             // Time display
             Padding(
               padding: const EdgeInsets.only(right: 16.0),

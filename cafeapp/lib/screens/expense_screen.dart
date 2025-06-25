@@ -20,7 +20,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   final List<String> _cashierTypes = ['Cashier', 'Salesman'];
   
   bool _isLoading = false;
-  List<ExpenseItem> _expenseItems = [];
+  final List<ExpenseItem> _expenseItems = [];
   
   // Date related variables
   DateTime _selectedDate = DateTime.now();
@@ -52,7 +52,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   ];
 
   // Track if the search filter is active for each row
-  List<bool> _searchActiveStates = [];
+  final List<bool> _searchActiveStates = [];
   // Search text controllers for each expense item
   final List<TextEditingController> _searchControllers = [];
   // Filtered account options for each expense item

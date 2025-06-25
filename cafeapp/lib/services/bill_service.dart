@@ -425,7 +425,7 @@ class BillService {
   }
 
   // Direct thermal printing of a bill
-  static Future<bool> printThermalBill(OrderHistory order, {bool isEdited = false, double? taxRate}) async {
+  static Future<bool> printThermalBill(OrderHistory order, {bool isEdited = false, double? taxRate, double discount = 0.0 }) async {
     try {
       // Get the tax rate from settings if not provided
       final effectiveTaxRate = taxRate ?? 0.0;
@@ -448,6 +448,9 @@ class BillService {
       if (order.serviceType.startsWith('Dining - Table')) {
         tableInfo = order.serviceType;
       }
+       // Calculate the new total after discount
+      double adjustedTotal = order.total - discount;
+    
       
       // Use the direct printer service to print the receipt
       final printed = await ThermalPrinterService.printOrderReceipt(
@@ -455,8 +458,8 @@ class BillService {
         serviceType: order.serviceType,
         subtotal: order.total - (order.total * (effectiveTaxRate / 100)), // Use effective tax rate
         tax: order.total * (effectiveTaxRate / 100), // Use effective tax rate
-        discount: 0, // No discount info in OrderHistory
-        total: order.total,
+        discount: discount, // No discount info in OrderHistory
+        total: adjustedTotal,
         personName: null, // No customer info in OrderHistory
         tableInfo: tableInfo,
         isEdited: isEdited, // Pass the edited flag

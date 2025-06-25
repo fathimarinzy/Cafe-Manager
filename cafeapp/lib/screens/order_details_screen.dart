@@ -7,11 +7,9 @@ import '../models/order_item.dart';
 import '../providers/menu_provider.dart';
 import '../models/menu_item.dart';
 import 'tender_screen.dart';
-// import '../services/api_service.dart';
 import '../providers/settings_provider.dart';
 import '../services/bill_service.dart';
 import '../repositories/local_order_repository.dart';
-// import '../services/connectivity_service.dart';
 import '../models/order.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
@@ -30,6 +28,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   bool _wasEdited = false;
   List<OrderItem>? _originalItems;
   double _taxRate = 0.0;
+  double _discountAmount = 0.0; 
 
   @override
   void initState() {
@@ -57,8 +56,24 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       final order = await orderProvider.getOrderDetails(widget.orderId);
       
       if (mounted) {
+        // Check if the order has a discount
+        double discount = 0.0;
+        // If we have a complete order from database, try to get its discount
+        if (order != null && order.id > 0) {
+          final localOrderRepo = LocalOrderRepository();
+          try {
+            final orderFromDb = await localOrderRepo.getOrderById(order.id);
+            if (orderFromDb != null) {
+              discount = orderFromDb.discount;
+              debugPrint('Loaded discount from DB: $discount');
+            }
+          } catch (e) {
+            debugPrint('Error getting order discount from DB: $e');
+          }
+        }
         setState(() {
           _order = order;
+          _discountAmount = discount;
           _originalItems = order?.items.map((item) => 
             OrderItem(
               id: item.id,
@@ -116,8 +131,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     // Calculate the new totals
     double subtotal = _calculateSubtotal(_order!.items);
     double tax = subtotal * (_taxRate / 100.0);
-    double discount = 0;
-    double total = subtotal + tax - discount;
+    double total = subtotal + tax - _discountAmount;
 
     // Convert OrderHistory items to OrderItem objects
     final orderItems = _order!.items.map((item) => 
@@ -137,7 +151,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       items: orderItems,
       subtotal: subtotal,
       tax: tax,
-      discount: discount,
+      discount: _discountAmount,
       total: total,
       status: _order!.status,
       createdAt: _order!.createdAt.toIso8601String(),
@@ -806,8 +820,8 @@ Future<void> _printKitchenReceipt() async {
     final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
     final subtotal = _calculateSubtotal(_order!.items);
     final tax = subtotal * (_taxRate / 100.0);
-    final total = _order!.total;
-    
+    final total = subtotal + tax - _discountAmount;  
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -934,7 +948,7 @@ Future<void> _printKitchenReceipt() async {
                   _buildTotalRow('Tax:', tax, currencyFormat),
                   if (_order!.total > 0) ...[
                     const SizedBox(height: 4),
-                    _buildTotalRow('Discount:', 0, currencyFormat),
+                    _buildTotalRow('Discount:', _discountAmount, currencyFormat, isDiscount: true),
                     const Divider(height: 16),
                     _buildTotalRow(
                       'TOTAL:',
@@ -1054,7 +1068,7 @@ Future<void> _printKitchenReceipt() async {
     );
   }
   
-  Widget _buildTotalRow(String label, double amount, NumberFormat formatter, {bool isTotal = false}) {
+  Widget _buildTotalRow(String label, double amount, NumberFormat formatter, {bool isTotal = false ,bool isDiscount  = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
