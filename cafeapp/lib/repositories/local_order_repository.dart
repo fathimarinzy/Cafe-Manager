@@ -72,7 +72,7 @@ class LocalOrderRepository {
       // Generate a timestamp for local orders
       final now = DateTime.now();
       final timestamp = now.millisecondsSinceEpoch;
-      final localTimestamp = order.createdAt ?? 'local_${timestamp}';
+      final localTimestamp = order.createdAt ?? 'local_$timestamp';
       
       int orderId;
 

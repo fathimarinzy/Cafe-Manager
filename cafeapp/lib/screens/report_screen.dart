@@ -749,7 +749,7 @@ Map<String, dynamic> _createReportFromData(List<Order> orders, List<Map<String, 
             Expanded(
               child: _buildSummaryCard(
                 'Total Revenue',
-                '${(summary['totalRevenue'] as double? ?? 0.0).toStringAsFixed(3)}',
+                (summary['totalRevenue'] as double? ?? 0.0).toStringAsFixed(3),
                 Icons.attach_money,
                 Colors.green,
               ),
@@ -773,8 +773,8 @@ Map<String, dynamic> _createReportFromData(List<Order> orders, List<Map<String, 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        border: Border.all(color: color.withOpacity(0.3)),
+        color: color.withAlpha(26),
+        border: Border.all(color: color.withAlpha(77)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -789,7 +789,7 @@ Map<String, dynamic> _createReportFromData(List<Order> orders, List<Map<String, 
                   title,
                   style: TextStyle(
                     fontSize: 12,
-                    color: color.withOpacity(0.8),
+                    color: color.withAlpha(204),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -857,7 +857,7 @@ Map<String, dynamic> _createReportFromData(List<Order> orders, List<Map<String, 
                             child: Row(
                               children: [
                                 CircleAvatar(
-                                  backgroundColor: _getServiceTypeColor(serviceTypeName).withOpacity(0.2),
+                                  backgroundColor: _getServiceTypeColor(serviceTypeName).withAlpha(51),
                                   child: Icon(
                                     _getServiceTypeIcon(serviceTypeName),
                                     color: _getServiceTypeColor(serviceTypeName),

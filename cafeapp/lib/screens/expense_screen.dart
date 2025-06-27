@@ -307,7 +307,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       // Create expense data including the selected account type and cashier type
       final expenseData = {
         'date': _currentDate, // Use the selected date
-        'cashier': '${_selectedCashierType}-${_cashierController.text}', // Include cashier type
+        'cashier': '$_selectedCashierType-${_cashierController.text}', // Include cashier type
         'accountType': _selectedAccountType, // Include selected account type
         'items': _expenseItems.map((item) => {
           'slNo': item.slNo,
