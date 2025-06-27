@@ -206,10 +206,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // Update table provider with new layout
       final tableProvider = Provider.of<TableProvider>(context, listen: false);
       await tableProvider.refreshTables();
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Settings saved successfully')),
-      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Settings saved successfully')),
+        );
+      }
     } catch (e) {
       debugPrint('Error saving settings: $e');
       

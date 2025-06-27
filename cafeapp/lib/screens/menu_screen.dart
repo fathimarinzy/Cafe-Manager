@@ -1277,9 +1277,11 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
           
           if (selectedPerson != null) {
             orderProvider.setSelectedPerson(selectedPerson);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Customer selected: ${selectedPerson.name}')),
-            );
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Customer selected: ${selectedPerson.name}')),
+              );
+            }
           }
           return;
         }
@@ -1350,9 +1352,11 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
             );
           }
         } catch (e) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: ${e.toString()}')),
-          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error: ${e.toString()}')),
+            );
+          }
           debugPrint('Error processing payment: $e');
         }
       },
