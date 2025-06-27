@@ -4,20 +4,22 @@ import '../providers/auth_provider.dart';
 import '../providers/table_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/backup_service.dart';
-// import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'login_screen.dart';
-// import '../services/settings_password_service.dart';
 import 'modifier_screen.dart'; // Import the ModifierScreen
 import 'table_management_screen.dart'; // Import the TableManagementScreen
 import 'printer_settings_screen.dart'; // Import the PrinterSettingsScreen
 import '../utils/app_localization.dart';
 import '../screens/expense_screen.dart';
 import '../screens/report_screen.dart';
+import '../repositories/local_menu_repository.dart';
+import '../repositories/local_order_repository.dart';
+import '../repositories/local_person_repository.dart';
+import '../repositories/local_expense_repository.dart';
 
 class SettingsScreen extends StatefulWidget {
   final String userType;
-  const SettingsScreen({super.key,this.userType = 'staff'});
+  const SettingsScreen({super.key, this.userType = 'staff'});
    
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -411,138 +413,251 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  void _showPrinterSelectionDialog() {
-    if (!mounted) return;
+  // Show reset confirmation dialog
+  void _showResetConfirmationDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset All Data'),
+        content: const Text(
+          'This will delete all app data.\n\n'
+          'This action cannot be undone. Are you sure you want to continue?'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.grey,
+            ),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _showPasswordDialog();
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Show password verification dialog
+  void _showPasswordDialog() {
+    final passwordController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    bool isPasswordIncorrect = false;
     
     showDialog(
       context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Select Default Printer'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                ListTile(
-                  title: const Text('Default Printer'),
-                  onTap: () {
-                    setState(() {
-                      _selectedPrinter = 'Default Printer';
-                    });
-                    Navigator.pop(dialogContext);
-                  },
-                ),
-                ListTile(
-                  title: const Text('Kitchen Printer'),
-                  onTap: () {
-                    setState(() {
-                      _selectedPrinter = 'Kitchen Printer';
-                    });
-                    Navigator.pop(dialogContext);
-                  },
-                ),
-                ListTile(
-                  title: const Text('Office Printer'),
-                  onTap: () {
-                    setState(() {
-                      _selectedPrinter = 'Office Printer';
-                    });
-                    Navigator.pop(dialogContext);
-                  },
-                ),
-                const Divider(),
-                TextButton.icon(
-                  icon: const Icon(Icons.search),
-                  label: const Text('Search for Printers'),
-                  onPressed: () {
-                    Navigator.pop(dialogContext);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Searching for printers...')),
-                      );
-                    }
-                  },
-                ),
-              ],
+      builder: (ctx) => AlertDialog(
+        title: const Text('Enter Password : '),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: passwordController,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: 'Password',
+              border: OutlineInputBorder(),
             ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter the password';
+              }
+              if (isPasswordIncorrect) {
+                  return 'Incorrect password';
+              }
+              return null;
+            },
+             onChanged: (value) {
+                // Reset the incorrect flag when user types
+                if (isPasswordIncorrect) {
+                  setState(() {
+                    isPasswordIncorrect = false;
+                  });
+                  // This will rebuild the form without the error
+                  formKey.currentState?.validate();
+                }
+              },
           ),
-          actions: [
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () => Navigator.pop(dialogContext),
-            ),
-          ],
-        );
-      },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+                // Verify password - you should replace with your own password verification
+                // For this example, I'm using a hard-coded password 'staff123'
+                if (passwordController.text == '1234') {
+                  Navigator.of(ctx).pop();
+                  _resetAllData();
+                } else {
+                  // Set the flag and trigger validation to show error
+                  setState(() {
+                    isPasswordIncorrect = true;
+                  });
+                  formKey.currentState?.validate();
+                }
+              },
+            child: const Text('Verify'),
+          ),
+        ],
+      ),
     );
   }
-  
-  // void _showClearDataDialog() {
-  //   showDialog(
-  //     context: context,
-  //     builder: (BuildContext dialogContext) {
-  //       return AlertDialog(
-  //         title: const Text('Clear All Data'),
-  //         content: const Text(
-  //           'This will delete all app data including orders, settings, and login information.\n\n'
-  //           'This action cannot be undone. Are you sure you want to continue?'
-  //         ),
-  //         actions: [
-  //           TextButton(
-  //             child: const Text('Cancel'),
-  //             onPressed: () => Navigator.pop(dialogContext),
-  //           ),
-  //           TextButton(
-  //             child: const Text('Clear All Data', style: TextStyle(color: Colors.red)),
-  //             onPressed: () {
-  //               Navigator.pop(dialogContext);
-  //               _clearAllData();
-  //             },
-  //           ),
-  //         ],
-  //       );
-  //     },
-  //   );
-  // }
-  
-  // Future<void> _clearAllData() async {
-  //   try {
-  //     setState(() {
-  //       _isLoading = true;
-  //     });
+
+  // Reset all data
+  Future<void> _resetAllData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Show a progress dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => const AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Resetting data... Please wait.'),
+            ],
+          ),
+        ),
+      );
       
-  //     // Reset settings provider
-  //     final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-  //     await settingsProvider.resetSettings();
+      // Clear database tables
+      await _clearMenuDatabase();
+      await _clearOrderDatabase();
+      await _clearPersonDatabase();
+      await _clearExpenseDatabase();
       
-  //     // Clear secure storage
-  //     const storage = FlutterSecureStorage();
-  //     await storage.deleteAll();
+      // Reset settings to defaults
+      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+      await settingsProvider.resetSettings();
       
-  //     // Check if widget is still mounted before accessing context
-  //     if (!mounted) return;
+      // Reset table layouts
+      final tableProvider = Provider.of<TableProvider>(context, listen: false);
+      await tableProvider.refreshTables();
       
-  //     // Log out the user
-  //     Provider.of<AuthProvider>(context, listen: false).logout();
+      // Pop the progress dialog
+      if (mounted) Navigator.of(context).pop();
       
-  //     // Navigate to login screen
-  //     Navigator.of(context).pushAndRemoveUntil(
-  //       MaterialPageRoute(builder: (context) => const LoginScreen()),
-  //       (route) => false,
-  //     );
-  //   } catch (e) {
-  //     debugPrint('Error clearing data: $e');
-  //     if (mounted) {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(content: Text('Error clearing data: $e')),
-  //       );
-  //       setState(() {
-  //         _isLoading = false;
-  //       });
-  //     }
-  //   }
-  // }
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('All data has been reset successfully')),
+        );
+        
+        // Reload settings
+        await _loadSettings();
+      }
+    } catch (e) {
+      // Pop the progress dialog in case of error
+      if (mounted) Navigator.of(context).pop();
+      
+      debugPrint('Error resetting data: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error resetting data: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // Methods to clear each database
+  Future<void> _clearMenuDatabase() async {
+    try {
+      final db = await LocalMenuRepository().database;
+      await db.delete('menu_items');
+      
+      // Try to reset the sequence counter, but don't fail if the table doesn't exist
+      try {
+        await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "menu_items"');
+      } catch (e) {
+        debugPrint('SQLITE_SEQUENCE table not found, skipping reset: $e');
+        // This is fine, just continue
+      }
+    } catch (e) {
+      debugPrint('Error clearing menu database: $e');
+      // Rethrow to handle in the main reset method
+      rethrow;
+    }
+  }
+
+  Future<void> _clearOrderDatabase() async {
+    try {
+      final db = await LocalOrderRepository().database;
+      await db.delete('orders');
+      await db.delete('order_items');
+      
+      // Try to reset the sequence counters, but don't fail if the table doesn't exist
+      try {
+        await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "orders"');
+        await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "order_items"');
+      } catch (e) {
+        debugPrint('SQLITE_SEQUENCE table not found, skipping reset: $e');
+        // This is fine, just continue
+      }
+    } catch (e) {
+      debugPrint('Error clearing order database: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _clearPersonDatabase() async {
+    try {
+      final db = await LocalPersonRepository().database;
+      await db.delete('persons');
+      
+      // Try to reset the sequence counter, but don't fail if the table doesn't exist
+      try {
+        await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "persons"');
+      } catch (e) {
+        debugPrint('SQLITE_SEQUENCE table not found, skipping reset: $e');
+        // This is fine, just continue
+      }
+    } catch (e) {
+      debugPrint('Error clearing person database: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _clearExpenseDatabase() async {
+    try {
+      final db = await LocalExpenseRepository().database;
+      await db.delete('expenses');
+      await db.delete('expense_items');
+      
+      // Try to reset the sequence counters, but don't fail if the table doesn't exist
+      try {
+        await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "expenses"');
+        await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "expense_items"');
+      } catch (e) {
+        debugPrint('SQLITE_SEQUENCE table not found, skipping reset: $e');
+        // This is fine, just continue
+      }
+    } catch (e) {
+      debugPrint('Error clearing expense database: $e');
+      rethrow;
+    }
+  }
 
   // Add the Tables section widget with dining table layout option
   Widget _buildTablesSection() {
@@ -699,73 +814,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 // BUSINESS INFORMATION - Most important, at the top
                 _buildSectionHeader('Business Information'),
-               _buildBusinessInfoSection(),
+                _buildBusinessInfoSection(),
 
                 const Divider(),
                 _buildSectionHeader('Expense'),
                 _expenseSection(),
-                 const Divider(),
+                const Divider(),
                 _buildSectionHeader('Reports'),
                 _buildReportsSection(),
                 const Divider(),
                 // TAX SETTINGS - Important for sales
                 _buildSectionHeader('Tax Settings'),
-                  _buildTaxSettingsSection(),
+                _buildTaxSettingsSection(),
                  
-                  const Divider(),
-                
-                // RECEIPT SETTINGS
-                // _buildSectionHeader('Receipt Settings'),
-                // Padding(
-                //   padding: const EdgeInsets.only(bottom: 16),
-                //   child: TextFormField(
-                //     controller: _receiptFooterController,
-                //     decoration: const InputDecoration(
-                //       labelText: 'Receipt Footer Message',
-                //       border: OutlineInputBorder(),
-                //       hintText: 'Thank you message for receipt',
-                //     ),
-                //     maxLines: 2,
-                //   ),
-                // ),
+                const Divider(),
                 
                 // PRINTER SETTINGS SECTION
                 _buildSectionHeader('Printer Settings'),
                 _buildPrinterSettingsSection(),
-                const Divider(),
-                
-                // PRINTER SETTINGS SUBSECTION
-                _buildSubsectionHeader('Printer Options'),
-                SwitchListTile(
-                  title: const Text('Auto-print receipts'),
-                  subtitle: const Text('Automatically print receipts when orders are completed'),
-                  value: _autoPrintReceipts,
-                  onChanged: (value) {
-                    setState(() {
-                      _autoPrintReceipts = value;
-                    });
-                  },
-                ),
-                SwitchListTile(
-                  title: const Text('Auto-print kitchen orders'),
-                  subtitle: const Text('Automatically send orders to kitchen printer'),
-                  value: _autoPrintKitchenOrders,
-                  onChanged: (value) {
-                    setState(() {
-                      _autoPrintKitchenOrders = value;
-                    });
-                  },
-                ),
-                Card(
-                  child: ListTile(
-                    title: const Text('Default Printer'),
-                    subtitle: Text(_selectedPrinter),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                    onTap: () {
-                      _showPrinterSelectionDialog();
-                    },
-                  ),
-                ),
                 const Divider(),
               
                 // PRODUCT MANAGEMENT - Add the new section
@@ -780,55 +846,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 
                 // DATA MANAGEMENT
                 _buildSectionHeader('Data & Backup'),
-                Card(
-                  child: Column(
-                    children: [
-                      ListTile(
-                        leading: Icon(Icons.backup, color: Colors.blue[700]),
-                        title: const Text('Backup App Data'),
-                        subtitle: const Text('Save all settings and configuration'),
-                        onTap: _backupData,
-                      ),
-                      const Divider(height: 1, indent: 70),
-                      ListTile(
-                        leading: Icon(Icons.restore, color: Colors.green[700]),
-                        title: const Text('Restore From Backup'),
-                        subtitle: const Text('Load settings from a previous backup'),
-                        onTap: _restoreData,
-                      ),
-                    ],
-                  ),
-                ),
+                _buildDataBackupSection(),
                 const SizedBox(height: 16),
-                 const Divider(),
+                const Divider(),
                 // APP APPEARANCE
                 _buildSectionHeader('Appearance'),
                 Card(
                   child: Column(
                     children: [
-                      // ListTile(
-                      //   title: const Text('Theme'),
-                      //   subtitle: Text(_selectedTheme),
-                      //   trailing: DropdownButton<String>(
-                      //     value: _selectedTheme,
-                      //     onChanged: (String? newValue) {
-                      //       if (newValue != null) {
-                      //         setState(() {
-                      //           _selectedTheme = newValue;
-                      //         });
-                      //       }
-                      //     },
-                      //     items: <String>['Light', 'Dark', 'System Default']
-                      //         .map<DropdownMenuItem<String>>((String value) {
-                      //       return DropdownMenuItem<String>(
-                      //         value: value,
-                      //         child: Text(value),
-                      //       );
-                      //     }).toList(),
-                      //     underline: Container(),
-                      //   ),
-                      // ),
-                      // const Divider(height: 1, indent: 16),
                       ListTile(
                         title: Text('language'.tr()),
                         subtitle: Text(_selectedLanguage),
@@ -863,7 +888,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           underline: Container(),
                         ),
                       ),
-                                          ],
+                    ],
                   ),
                 ),
                 const Divider(),
@@ -880,70 +905,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Icon(
-                        //   _showAdvancedSettings 
-                        //       ? Icons.keyboard_arrow_up 
-                        //       : Icons.keyboard_arrow_down,
-                        //   color: Colors.grey[600],
-                        // ),
-                        // const SizedBox(width: 8),
-                        // Text(
-                        //   _showAdvancedSettings
-                        //       ? 'Hide Advanced Settings'
-                        //       : 'Show Advanced Settings',
-                        //   style: TextStyle(
-                        //     color: Colors.grey[700],
-                        //     fontWeight: FontWeight.w500,
-                        //   ),
-                        // ),
+                        // Show/hide advanced settings controls if needed
                       ],
                     ),
                   ),
                 ),
                 
-              //   // ADVANCED SETTINGS (hidden by default)
-              //   if (_showAdvancedSettings) ...[
-              //     const Divider(),
-              //     _buildSectionHeader('Advanced Settings'),
-              //     Padding(
-              //       padding: const EdgeInsets.only(bottom: 16),
-              //       child: TextFormField(
-              //         controller: _serverUrlController,
-              //         decoration: const InputDecoration(
-              //           labelText: 'Server URL',
-              //           border: OutlineInputBorder(),
-              //           hintText: 'https://example.com/api',
-              //         ),
-              //         validator: (value) {
-              //           if (value == null || value.isEmpty) {
-              //             return 'Please enter server URL';
-              //           }
-              //           return null;
-              //         },
-              //       ),
-              //     ),
-                  
-              //     ListTile(
-              //       leading: const Icon(Icons.delete_forever, color: Colors.red),
-              //       title: const Text('Clear All App Data'),
-              //       subtitle: const Text('Delete all saved data (Caution: Cannot be undone)'),
-              //       onTap: _showClearDataDialog,
-              //     ),
-              //     // PASSWORD MANAGEMENT SECTION - only for owner
-              //       const Divider(),
-              //       _buildSectionHeader('Password Management'),
-              //       _buildPasswordManagementSection(),
-                
-              // ],
-                 // logout section
+                // logout section
                 _buildSectionHeader('Logout'),
                 _logoutsection(),
              
-                
                 // ABOUT
                 const Divider(),
                 ListTile(
-                  title: const Text('SIMS RESTO CAFE'),
+                    title: Text(_businessNameController.text.isNotEmpty ? _businessNameController.text : 'SIMS RESTO CAFE'),
                   subtitle: const Text('Version 1.0.1'),
                   leading: const Icon(Icons.info_outline),
                 ),
@@ -953,90 +928,257 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
     );
   }
-  // Add this method to build the Tax Settings section as a ListTile
-Widget _buildTaxSettingsSection() {
-  return Card(
-    child: ListTile(
-      leading: Icon(Icons.attach_money, color: Colors.blue[700]),
-      title: const Text('Tax Settings'),
-      subtitle: Text('Current Tax Rate: ${_taxRateController.text}%'),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-      onTap: _showTaxSettingsDialog,
-    ),
-  );
-}
 
-// Add this method to show the tax settings dialog
-void _showTaxSettingsDialog() {
-  // Create temporary controller with current value
-  final taxRateController = TextEditingController(text: _taxRateController.text);
+  // Build the Data & Backup section with the new Reset option
+  Widget _buildDataBackupSection() {
+    return Card(
+      child: Column(
+        children: [
+          ListTile(
+            leading: Icon(Icons.backup, color: Colors.blue[700]),
+            title: const Text('Backup App Data'),
+            subtitle: const Text('Save all settings and configuration'),
+            onTap: _backupData,
+          ),
+          const Divider(height: 1, indent: 70),
+          ListTile(
+            leading: Icon(Icons.restore, color: Colors.green[700]),
+            title: const Text('Restore From Backup'),
+            subtitle: const Text('Load settings from a previous backup'),
+            onTap: _restoreData,
+          ),
+          const Divider(height: 1, indent: 70),
+          ListTile(
+            leading: Icon(Icons.delete_forever, color: Colors.red[700]),
+            title: const Text('Reset Data'),
+            subtitle: const Text('Clear all app data '),
+            onTap: _showResetConfirmationDialog,
+          ),
+        ],
+      ),
+    );
+  }
   
-  // Form key for validation
-  final formKey = GlobalKey<FormState>();
-  
-  showDialog(
-    context: context,
-    builder: (BuildContext context) {
-      return AlertDialog(
+  // Add this method to build the Tax Settings section as a ListTile
+  Widget _buildTaxSettingsSection() {
+    return Card(
+      child: ListTile(
+        leading: Icon(Icons.attach_money, color: Colors.blue[700]),
         title: const Text('Tax Settings'),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Current Tax Rate: ${_taxRateController.text}%',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+        subtitle: Text('Current Tax Rate: ${_taxRateController.text}%'),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: _showTaxSettingsDialog,
+      ),
+    );
+  }
+
+  // Add this method to show the tax settings dialog
+  void _showTaxSettingsDialog() {
+    // Create temporary controller with current value
+    final taxRateController = TextEditingController(text: _taxRateController.text);
+    
+    // Form key for validation
+    final formKey = GlobalKey<FormState>();
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Tax Settings'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Current Tax Rate: ${_taxRateController.text}%',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              // const Text(
-              //   'This tax rate will be applied to all orders throughout the app',
-              //   style: TextStyle(fontSize: 12, color: Colors.grey),
-              // ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: taxRateController,
-                decoration: const InputDecoration(
-                  labelText: 'Sales Tax Rate (%)',
-                  border: OutlineInputBorder(),
-                  suffixText: '%',
-                  hintText: 'Enter your tax rate (e.g., 5.0)',
-                ),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter tax rate';
-                  }
-                  try {
-                    final rate = double.parse(value);
-                    if (rate < 0 || rate > 100) {
-                      return 'Tax rate must be between 0 and 100';
+                const SizedBox(height: 16),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: taxRateController,
+                  decoration: const InputDecoration(
+                    labelText: 'Sales Tax Rate (%)',
+                    border: OutlineInputBorder(),
+                    suffixText: '%',
+                    hintText: 'Enter your tax rate (e.g., 5.0)',
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter tax rate';
                     }
-                  } catch (e) {
-                    return 'Please enter a valid number';
-                  }
-                  return null;
-                },
+                    try {
+                      final rate = double.parse(value);
+                      if (rate < 0 || rate > 100) {
+                        return 'Tax rate must be between 0 and 100';
+                      }
+                    } catch (e) {
+                      return 'Please enter a valid number';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                // Validate the form
+                if (formKey.currentState!.validate()) {
+                  // Update the main controller with the dialog value
+                  setState(() {
+                    _taxRateController.text = taxRateController.text;
+                  });
+                  
+                  // Close the dialog
+                  Navigator.pop(context);
+                  
+                  // Show a snackbar to confirm changes
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Tax rate updated (not saved yet)')),
+                  );
+                }
+              },
+              child: const Text('Update'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+  
+  Widget _buildReportsSection() {
+    return Card(
+      child: ListTile(
+        leading: Icon(Icons.analytics, color: Colors.blue[700]),
+        title: const Text('Reports'),
+        subtitle: const Text('View daily and monthly sales reports'),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const ReportScreen(),
+            ),
+          );
+        },
+      ),
+    );
+  }
+  
+  // This will create the Business Information section as a ListTile
+  Widget _buildBusinessInfoSection() {
+    return Card(
+      child: ListTile(
+        leading: Icon(Icons.business, color: _isOwner ? Colors.blue[700] : Colors.grey),
+        title: const Text('Business Information'),
+        subtitle: Text(_isOwner 
+            ? (_businessNameController.text.isNotEmpty 
+                ? _businessNameController.text 
+                : 'Configure restaurant details')
+            : 'Configure restaurant details'),
+        trailing: _isOwner ? const Icon(Icons.arrow_forward_ios, size: 16) : null,
+        onTap: _isOwner ? _showBusinessInfoDialog : null,
+        enabled: _isOwner,
+        tileColor: _isOwner ? null : Colors.grey.shade100,
+      ),
+    );
+  }
+  
+  Widget _expenseSection() {
+    return Card(
+      child: ListTile(
+        leading: Icon(Icons.money_off, color: Colors.blue[700]),
+        title: const Text('Expense Management'),
+        subtitle: const Text('Track and manage your expenses'),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const ExpenseScreen(),
+            ),
+          );
+        },
+      ),
+    );
+  }
+  
+  // Add this method to show the dialog with the text form fields
+  void _showBusinessInfoDialog() {
+    // Create temporary controllers with current values
+    final businessNameController = TextEditingController(text: _businessNameController.text);
+    final addressController = TextEditingController(text: _addressController.text);
+    final phoneController = TextEditingController(text: _phoneController.text);
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Business Information'),
+          content: SingleChildScrollView(
+            child: Form(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: businessNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Restaurant Name',
+                      border: OutlineInputBorder(),
+                      hintText: 'Enter your restaurant name',
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter restaurant name';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: addressController,
+                    decoration: const InputDecoration(
+                      labelText: 'Address',
+                      border: OutlineInputBorder(),
+                      hintText: 'Enter your restaurant address',
+                    ),
+                    maxLines: 2,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: phoneController,
+                    decoration: const InputDecoration(
+                      labelText: 'Phone Number',
+                      border: OutlineInputBorder(),
+                      hintText: 'Enter your restaurant phone number',
+                    ),
+                    keyboardType: TextInputType.phone,
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              // Validate the form
-              if (formKey.currentState!.validate()) {
-                // Update the main controller with the dialog value
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                // Update the main controllers with the dialog values
                 setState(() {
-                  _taxRateController.text = taxRateController.text;
+                  _businessNameController.text = businessNameController.text;
+                  _addressController.text = addressController.text;
+                  _phoneController.text = phoneController.text;
                 });
                 
                 // Close the dialog
@@ -1044,156 +1186,18 @@ void _showTaxSettingsDialog() {
                 
                 // Show a snackbar to confirm changes
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Tax rate updated (not saved yet)')),
+                  const SnackBar(content: Text('Business information updated (not saved yet)')),
                 );
-              }
-            },
-            child: const Text('Update'),
-          ),
-        ],
-      );
-    },
-  );
-}
-Widget _buildReportsSection() {
-  return Card(
-    child: ListTile(
-      leading: Icon(Icons.analytics, color: Colors.blue[700]),
-      title: const Text('Reports'),
-      subtitle: const Text('View daily and monthly sales reports'),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => const ReportScreen(),
-          ),
+              },
+              child: const Text('Update'),
+            ),
+          ],
         );
       },
-    ),
-  );
-}
-   // This will create the Business Information section as a ListTile
-Widget _buildBusinessInfoSection() {
-  return Card(
-    child: ListTile(
-      leading: Icon(Icons.business, color: _isOwner ? Colors.blue[700] : Colors.grey),
-      title: const Text('Business Information'),
-      subtitle: Text(_isOwner 
-          ? (_businessNameController.text.isNotEmpty 
-              ? _businessNameController.text 
-              : 'Configure restaurant details')
-          : 'Configure restaurant details'),
-      trailing: _isOwner ? const Icon(Icons.arrow_forward_ios, size: 16) : null,
-      onTap: _isOwner ? _showBusinessInfoDialog : null,
-      enabled: _isOwner,
-      tileColor: _isOwner ? null : Colors.grey.shade100,
-    ),
-  );
-}
-Widget _expenseSection() {
-  return Card(
-    child: ListTile(
-      leading: Icon(Icons.money_off, color: Colors.blue[700]),
-          title: const Text('Expense Management'),
-          subtitle: const Text('Track and manage your expenses'),
-          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => const ExpenseScreen(),
-              ),
-            );
-          },
-      // trailing: _isOwner ? const Icon(Icons.arrow_forward_ios, size: 16) : null,
-      // enabled: _isOwner,
-      // tileColor: _isOwner ? null : Colors.grey.shade100,
-    ),
-  );
-}
-// Add this method to show the dialog with the text form fields
-void _showBusinessInfoDialog() {
-  // Create temporary controllers with current values
-  final businessNameController = TextEditingController(text: _businessNameController.text);
-  final addressController = TextEditingController(text: _addressController.text);
-  final phoneController = TextEditingController(text: _phoneController.text);
-  showDialog(
-    context: context,
-    builder: (BuildContext context) {
-      return AlertDialog(
-        title: const Text('Business Information'),
-        content: SingleChildScrollView(
-          child: Form(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: businessNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Restaurant Name',
-                    border: OutlineInputBorder(),
-                    hintText: 'Enter your restaurant name',
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter restaurant name';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: addressController,
-                  decoration: const InputDecoration(
-                    labelText: 'Address',
-                    border: OutlineInputBorder(),
-                    hintText: 'Enter your restaurant address',
-                  ),
-                  maxLines: 2,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: phoneController,
-                  decoration: const InputDecoration(
-                    labelText: 'Phone Number',
-                    border: OutlineInputBorder(),
-                    hintText: 'Enter your restaurant phone number',
-                  ),
-                  keyboardType: TextInputType.phone,
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              // Update the main controllers with the dialog values
-              setState(() {
-                _businessNameController.text = businessNameController.text;
-                _addressController.text = addressController.text;
-                _phoneController.text = phoneController.text;
-              });
-              
-              // Close the dialog
-              Navigator.pop(context);
-              
-              // Show a snackbar to confirm changes
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Business information updated (not saved yet)')),
-              );
-            },
-            child: const Text('Update'),
-          ),
-        ],
-      );
-    },
-  );
-}
-   // Show logout confirmation dialog
+    );
+  }
+  
+  // Show logout confirmation dialog
   void _showLogoutDialog() {
     showDialog(
       context: context,
@@ -1288,7 +1292,7 @@ void _showBusinessInfoDialog() {
     );
   }
 
-    // Add the Product section widget
+  // Add the Product section widget
   Widget _buildProductSection() {
     return Card(
       child: ListTile(
@@ -1306,12 +1310,12 @@ void _showBusinessInfoDialog() {
       ),
     );
   }
-  Widget _logoutsection(){  
+  
+  Widget _logoutsection() {  
     return Card(
       child: ListTile(
         leading: Icon(Icons.inventory, color: Colors.blue[700]),
         title: const Text('Logout'),
-        // subtitle: const Text('Add, edit, or remove menu items'),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () {
           _showLogoutDialog();
@@ -1319,7 +1323,6 @@ void _showBusinessInfoDialog() {
       ),
     );
   }
-  
   
   // Add the Printer Settings section widget
   Widget _buildPrinterSettingsSection() {
@@ -1339,100 +1342,6 @@ void _showBusinessInfoDialog() {
       ),
     );
   }
-  // Add this new method to build the password management section
-  // Widget _buildPasswordManagementSection() {
-  //   return Card(
-  //     child: Padding(
-  //       padding: const EdgeInsets.all(16),
-  //       child: Column(
-  //         crossAxisAlignment: CrossAxisAlignment.start,
-  //         children: [
-  //           const Text(
-  //             'Change Settings Passwords',
-  //             style: TextStyle(
-  //               fontSize: 16,
-  //               fontWeight: FontWeight.bold,
-  //             ),
-  //           ),
-  //           const SizedBox(height: 16),
-            
-  //           // Staff password field
-  //           TextFormField(
-  //             decoration: const InputDecoration(
-  //               labelText: 'Staff Password',
-  //               border: OutlineInputBorder(),
-  //               helperText: 'Change password for staff members',
-  //             ),
-  //             obscureText: true,
-  //             onChanged: (value) {
-  //               // Store password temporarily
-  //               _tempStaffPassword = value;
-  //             },
-  //           ),
-  //           const SizedBox(height: 16),
-            
-  //           // Owner password field
-  //           TextFormField(
-  //             decoration: const InputDecoration(
-  //               labelText: 'Owner Password',
-  //               border: OutlineInputBorder(),
-  //               helperText: 'Change password for owners',
-  //             ),
-  //             obscureText: true,
-  //             onChanged: (value) {
-  //               // Store password temporarily
-  //               _tempOwnerPassword = value;
-  //             },
-  //           ),
-  //           const SizedBox(height: 16),
-            
-  //           // Save passwords button
-  //           ElevatedButton(
-  //             onPressed: _savePasswords,
-  //             style: ElevatedButton.styleFrom(
-  //               backgroundColor: Colors.blue.shade700,
-  //               foregroundColor: Colors.white,
-  //             ),
-  //             child: const Text('Update Passwords'),
-  //           ),
-  //         ],
-  //       ),
-  //     ),
-  //   );
-  // }
-  // Store temporary passwords
-  // String _tempStaffPassword = '';
-  // String _tempOwnerPassword = '';
-  
-  // Method to save updated passwords
-//   Future<void> _savePasswords() async {
-//     final passwordService = SettingsPasswordService();
-//     bool staffUpdated = false;
-//     bool ownerUpdated = false;
-    
-//     if (_tempStaffPassword.isNotEmpty) {
-//       staffUpdated = await passwordService.updatePassword(1, _tempStaffPassword);
-//     }
-    
-//     if (_tempOwnerPassword.isNotEmpty) {
-//       ownerUpdated = await passwordService.updatePassword(2, _tempOwnerPassword);
-//     }
-    
-//     if (staffUpdated || ownerUpdated) {
-//       if (mounted) {
-//         ScaffoldMessenger.of(context).showSnackBar(
-//           const SnackBar(content: Text('Passwords updated successfully')),
-//         );
-//       }
-//     } else if (_tempStaffPassword.isNotEmpty || _tempOwnerPassword.isNotEmpty) {
-//       if (mounted) {
-//         ScaffoldMessenger.of(context).showSnackBar(
-//           const SnackBar(content: Text('No passwords were updated')),
-//         );
-//       }
-//     }
-//   }
-  }
   
   Widget _buildSectionHeader(String title) {
     return Padding(
@@ -1447,16 +1356,4 @@ void _showBusinessInfoDialog() {
       ),
     );
   }
-  
-  Widget _buildSubsectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 8, left: 4),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
 }

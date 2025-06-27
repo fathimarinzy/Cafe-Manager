@@ -1,9 +1,11 @@
-// lib/repositories/local_order_repository.dart
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/order.dart';
 import '../models/order_item.dart';
 import 'package:flutter/foundation.dart';
+import '../repositories/local_expense_repository.dart';
+import '../repositories/local_menu_repository.dart';
+import '../repositories/local_person_repository.dart';
 
 class LocalOrderRepository {
   static Database? _database;
@@ -341,19 +343,112 @@ class LocalOrderRepository {
       return 0;
     }
   }
-  Future<void> printDatabaseContents() async {
-  final db = await database;
+ /// Print the contents of all database tables for debugging
+Future<void> printDatabaseContents() async {
+  debugPrint('\n======== DATABASE CONTENTS DUMP ========');
   
-  debugPrint('====== ORDERS TABLE ======');
-  final orders = await db.query('orders');
-  for (var order in orders) {
-    debugPrint(order.toString());
+  // Print Orders database tables
+  try {
+    final orderDb = await LocalOrderRepository().database;
+    
+    debugPrint('\n====== ORDERS TABLE ======');
+    final orders = await orderDb.query('orders');
+    debugPrint('Found ${orders.length} orders');
+    for (var order in orders) {
+      debugPrint(order.toString());
+    }
+    
+    debugPrint('\n====== ORDER ITEMS TABLE ======');
+    final orderItems = await orderDb.query('order_items');
+    debugPrint('Found ${orderItems.length} order items');
+    for (var item in orderItems) {
+      debugPrint(item.toString());
+    }
+  } catch (e) {
+    debugPrint('Error printing order database: $e');
   }
-
-  debugPrint('====== ORDER ITEMS TABLE ======');
-  final items = await db.query('order_items');
-  for (var item in items) {
-    debugPrint(item.toString());
+  
+  // Print Menu database tables
+  try {
+    final menuDb = await LocalMenuRepository().database;
+    
+    debugPrint('\n====== MENU ITEMS TABLE ======');
+    final menuItems = await menuDb.query('menu_items');
+    debugPrint('Found ${menuItems.length} menu items');
+    for (var item in menuItems) {
+      debugPrint(item.toString());
+    }
+  } catch (e) {
+    debugPrint('Error printing menu database: $e');
   }
+  
+  // Print Person database tables
+  try {
+    final personDb = await LocalPersonRepository().database;
+    
+    debugPrint('\n====== PERSONS TABLE ======');
+    final persons = await personDb.query('persons');
+    debugPrint('Found ${persons.length} persons');
+    for (var person in persons) {
+      debugPrint(person.toString());
+    }
+  } catch (e) {
+    debugPrint('Error printing person database: $e');
+  }
+  
+  // Print Expense database tables
+  try {
+    final expenseDb = await LocalExpenseRepository().database;
+    
+    debugPrint('\n====== EXPENSES TABLE ======');
+    final expenses = await expenseDb.query('expenses');
+    debugPrint('Found ${expenses.length} expenses');
+    for (var expense in expenses) {
+      debugPrint(expense.toString());
+    }
+    
+    debugPrint('\n====== EXPENSE ITEMS TABLE ======');
+    final expenseItems = await expenseDb.query('expense_items');
+    debugPrint('Found ${expenseItems.length} expense items');
+    for (var item in expenseItems) {
+      debugPrint(item.toString());
+    }
+  } catch (e) {
+    debugPrint('Error printing expense database: $e');
+  }
+  
+  // // Print table structure information
+  // try {
+  //   final orderDb = await LocalOrderRepository().database;
+  //   debugPrint('\n====== DATABASE STRUCTURE ======');
+    
+  //   // Get list of all tables
+  //   final tablesList = await orderDb.rawQuery(
+  //     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+  //   );
+    
+  //   debugPrint('Tables in database: ${tablesList.map((t) => t['name']).join(', ')}');
+    
+  //   // Try to check if SQLITE_SEQUENCE exists
+  //   try {
+  //     final seqTable = await orderDb.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='sqlite_sequence'");
+  //     if (seqTable.isNotEmpty) {
+  //       final seqRows = await orderDb.query('sqlite_sequence');
+  //       debugPrint('\n====== SQLITE_SEQUENCE TABLE ======');
+  //       debugPrint('Found ${seqRows.length} rows in sequence table');
+  //       for (var row in seqRows) {
+  //         debugPrint(row.toString());
+  //       }
+  //     } else {
+  //       debugPrint('SQLITE_SEQUENCE table does not exist in this database');
+  //     }
+  //   } catch (e) {
+  //     debugPrint('Error checking SQLITE_SEQUENCE: $e');
+  //   }
+  // } catch (e) {
+  //   debugPrint('Error checking database structure: $e');
+  // }
+  
+  debugPrint('\n======== END DATABASE CONTENTS ========\n');
 }
 }
