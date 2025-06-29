@@ -4,13 +4,6 @@ plugins {
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
-val webClientId: String? = rootProject
-    .file("local.properties")
-    .inputStream()
-    .use { input ->
-        java.util.Properties().apply { load(input) }
-    }
-    .getProperty("WEB_CLIENT_ID")
 
 android {
     namespace = "com.example.cafeapp"
@@ -35,10 +28,6 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        if (webClientId != null) {
-            resValue("string", "web_client_id", webClientId)
-        }
-
     }
 
     buildTypes {

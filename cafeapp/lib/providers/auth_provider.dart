@@ -1,19 +1,25 @@
+// lib/providers/auth_provider.dart
 import 'package:flutter/material.dart';
-import '../models/user.dart';
-import '../services/api_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthProvider with ChangeNotifier {
-  User? _user;
-  final ApiService _apiService = ApiService();
+  bool _isAuthenticated = false;
   bool _isInitialized = false;
   bool _isLoading = false;
+  String _username = '';
 
-  User? get user => _user;
-  bool get isAuth => _user != null;
+  // Getters
+  bool get isAuth => _isAuthenticated;
   bool get isInitialized => _isInitialized;
   bool get isLoading => _isLoading;
+  String get username => _username;
 
-  // Check for existing token and auto-login on app start
+  // Default credentials - in a real app, you might want to encrypt these
+  // or store them in a more secure way
+  static const String defaultUsername = 'admin';
+  static const String defaultPassword = 'admin123';
+
+  // Check for existing login and auto-login on app start
   Future<bool> tryAutoLogin() async {
     if (_isInitialized) return isAuth;
     
@@ -21,26 +27,22 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
     
     try {
-      final token = await _apiService.getToken();
+      final prefs = await SharedPreferences.getInstance();
       
-      if (token != null && token.isNotEmpty) {
-        // Validate token by getting user information
-        final user = await _apiService.getUserInfo();
-        if (user != null) {
-          _user = user;
-          _isInitialized = true;
-          _isLoading = false;
-          notifyListeners();
-          return true;
-        } else {
-          // Token exists but is invalid - clean up
-          await _apiService.deleteToken();
-        }
+      // Check if user is logged in
+      final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+      
+      if (isLoggedIn) {
+        // Get stored username
+        _username = prefs.getString('username') ?? '';
+        _isAuthenticated = true;
+        _isInitialized = true;
+        _isLoading = false;
+        notifyListeners();
+        return true;
       }
     } catch (error) {
       debugPrint('Auto-login error: $error');
-      // In case of error, delete potentially corrupted token
-      await _apiService.deleteToken();
     }
     
     _isInitialized = true;
@@ -49,39 +51,60 @@ class AuthProvider with ChangeNotifier {
     return false;
   }
 
+  // Login with local credentials
   Future<bool> login(String username, String password) async {
     try {
       _isLoading = true;
       notifyListeners();
       
-      final user = await _apiService.login(username, password);
-      if (user != null) {
-        _user = user;
-        _isInitialized = true;
+      // Simple validation against default credentials
+      // You can modify this to check against multiple valid credentials if needed
+      bool isValid = (username == defaultUsername && password == defaultPassword);
+      
+      // For demo purposes, you can also allow any username with password "password"
+      // Remove this in production!
+      isValid = isValid || (password == "password");
+      
+      if (isValid) {
+        _isAuthenticated = true;
+        _username = username;
+        
+        // Save login state to SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('isLoggedIn', true);
+        await prefs.setString('username', username);
+        
         _isLoading = false;
+        _isInitialized = true;
         notifyListeners();
         return true;
       }
+      
       _isLoading = false;
       notifyListeners();
       return false;
     } catch (error) {
+      debugPrint('Login error: $error');
       _isLoading = false;
       notifyListeners();
       return false;
     }
   }
 
-  void logout() {
-    _user = null;
-    _apiService.deleteToken();
-    notifyListeners();
-  }
-
-  String? get token {
-    if (_user == null) {
-      return null;
+  // Logout
+  Future<void> logout() async {
+    try {
+      _isAuthenticated = false;
+      _username = '';
+      
+      // Clear login state from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isLoggedIn', false);
+      await prefs.remove('username');
+      
+      notifyListeners();
+    } catch (error) {
+      debugPrint('Logout error: $error');
     }
-    return _user!.token;
   }
 }

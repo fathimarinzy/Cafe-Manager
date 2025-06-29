@@ -1,3 +1,4 @@
+// lib/screens/login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
@@ -16,14 +17,14 @@ class LoginScreenState extends State<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
-  bool _obscurePassword = true; // Track password visibility
+  bool _obscurePassword = true;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    
+  
     // Check if we're already authenticated, if yes, navigate to dashboard
-    // This is a safety check in case the navigation in main.dart doesn't work
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       if (authProvider.isAuth) {
@@ -48,6 +49,7 @@ class LoginScreenState extends State<LoginScreen> {
 
     setState(() {
       _isLoading = true;
+      _errorMessage = null;
     });
 
     try {
@@ -55,41 +57,38 @@ class LoginScreenState extends State<LoginScreen> {
         _usernameController.text,
         _passwordController.text,
       );
-      if (!mounted) return; // Prevents using context if widget was unmounted
+      
+      if (!mounted) return;
 
       if (success) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (ctx) => const DashboardScreen()),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('Login Failed. Please check your credentials.'.tr())),
-        );
-      }
-    } catch (error) {
-      if (!mounted) return; // Another check before using context
-    
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${error.toString()}')),
-      );
-    } finally {
-      if (mounted) {
         setState(() {
+          _errorMessage = 'Invalid username or password'.tr();
           _isLoading = false;
         });
       }
+    } catch (error) {
+      if (!mounted) return;
+    
+      setState(() {
+        _errorMessage = 'Login failed: ${error.toString()}';
+        _isLoading = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-     // Get settings provider to access business name
+    // Get settings provider to access business name
     final settingsProvider = Provider.of<SettingsProvider>(context);
     
     // Get business name from settings (or use default)
     final String businessName = settingsProvider.businessName.isNotEmpty 
         ? settingsProvider.businessName
-        : 'SIMS RESTO CAFE';
+        : 'SIMS CAFE';
 
     return Scaffold(
       body: Center(
@@ -111,7 +110,10 @@ class LoginScreenState extends State<LoginScreen> {
                     color: Colors.blue[900],
                   ),
                 ),
+                
                 const SizedBox(height: 32),
+                
+                // Username field
                 TextFormField(
                   controller: _usernameController,
                   decoration: InputDecoration(
@@ -125,10 +127,10 @@ class LoginScreenState extends State<LoginScreen> {
                       )
                     ),
                     labelStyle: const TextStyle(
-                      color: Colors.black, // Default label color
+                      color: Colors.black,
                     ),
                     floatingLabelStyle: TextStyle(
-                      color: Colors.blue[900], // Label color when focused
+                      color: Colors.blue[900],
                     ),
                   ),
                   validator: (value) {
@@ -138,14 +140,16 @@ class LoginScreenState extends State<LoginScreen> {
                     return null;
                   },
                 ),
+                
                 const SizedBox(height: 16),
+                
+                // Password field
                 TextFormField(
                   controller: _passwordController,
                   decoration: InputDecoration(
                     labelText: 'Password'.tr(),
                     border: const OutlineInputBorder(),
                     prefixIcon: const Icon(Icons.lock),
-                    // Add suffix icon for toggling password visibility
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword ? Icons.visibility_off : Icons.visibility,
@@ -164,13 +168,13 @@ class LoginScreenState extends State<LoginScreen> {
                       )
                     ),
                     labelStyle: const TextStyle(
-                      color: Colors.black, // Default label color
+                      color: Colors.black,
                     ),
                     floatingLabelStyle: TextStyle(
-                      color: Colors.blue[900], // Label color when focused
+                      color: Colors.blue[900],
                     ),
                   ),
-                  obscureText: _obscurePassword, // Use the state variable here
+                  obscureText: _obscurePassword,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter your password'.tr();
@@ -178,10 +182,27 @@ class LoginScreenState extends State<LoginScreen> {
                     return null;
                   },
                 ),
+                
+                // Error message
+                if (_errorMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: Text(
+                      _errorMessage!,
+                      style: const TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                
                 const SizedBox(height: 24),
+                
+                // Login button
                 ElevatedButton(
                   onPressed: _isLoading ? null : _login,
-                  style: ElevatedButton.styleFrom( // `style` moved before `child`
+                  style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     backgroundColor: Colors.white,
                     elevation: 2,
@@ -192,7 +213,7 @@ class LoginScreenState extends State<LoginScreen> {
                           width: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2, 
-                            color: Colors.blue[900]
+                            color: Colors.blue[900],
                           ),
                         )
                       : Text(

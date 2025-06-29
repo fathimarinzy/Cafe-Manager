@@ -23,9 +23,9 @@ class SettingsProvider with ChangeNotifier {
   int _tableColumns = 4;
   
   // Business information
-  String _businessName = 'SIMS RESTO CAFE';
-  String _businessAddress = '123 Cafe Street, City';
-  String _businessPhone = '+1234567890';
+  String _businessName = 'SIMS CAFE';
+  String _businessAddress = '';
+  String _businessPhone = '';
   
   // Receipt settings
   String _receiptFooter = 'Thank you for your visit! Please come again.';

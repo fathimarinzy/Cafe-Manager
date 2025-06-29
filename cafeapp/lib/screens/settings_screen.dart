@@ -968,7 +968,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // ABOUT
                 const Divider(),
                 ListTile(
-                    title: Text(_businessNameController.text.isNotEmpty ? _businessNameController.text : 'SIMS RESTO CAFE'),
+                    title: Text(_businessNameController.text.isNotEmpty ? _businessNameController.text : 'SIMS CAFE'),
                   subtitle: const Text('Version 1.0.1'),
                   leading: const Icon(Icons.info_outline),
                 ),
