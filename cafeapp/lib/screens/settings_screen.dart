@@ -3,19 +3,21 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/table_provider.dart';
 import '../providers/settings_provider.dart';
-import '../services/backup_service.dart';
+// import '../services/backup_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'login_screen.dart';
-import 'modifier_screen.dart'; // Import the ModifierScreen
-import 'table_management_screen.dart'; // Import the TableManagementScreen
-import 'printer_settings_screen.dart'; // Import the PrinterSettingsScreen
+import 'modifier_screen.dart'; 
+import 'table_management_screen.dart'; 
+import 'printer_settings_screen.dart'; 
 import '../utils/app_localization.dart';
 import '../screens/expense_screen.dart';
 import '../screens/report_screen.dart';
-import '../repositories/local_menu_repository.dart';
-import '../repositories/local_order_repository.dart';
-import '../repositories/local_person_repository.dart';
-import '../repositories/local_expense_repository.dart';
+// import '../repositories/local_menu_repository.dart';
+// import '../repositories/local_order_repository.dart';
+// import '../repositories/local_person_repository.dart';
+// import '../repositories/local_expense_repository.dart';
+import '../widgets/backup_manager_widget.dart';
+import '../utils/database_reset_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   final String userType;
@@ -231,187 +233,187 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
   
-  Future<void> _backupData() async {
-    try {
-      setState(() {
-        _isLoading = true;
-      });
+  // Future<void> _backupData() async {
+  //   try {
+  //     setState(() {
+  //       _isLoading = true;
+  //     });
       
-      // Save current settings first to ensure they're included in the backup
-      await _saveSettings();
+  //     // Save current settings first to ensure they're included in the backup
+  //     await _saveSettings();
       
-      // Create the backup
-      final backupPath = await BackupService.backupData();
+  //     // Create the backup
+  //     final backupPath = await BackupService.backupData();
       
-      // Check if widget is still mounted before updating UI
-      if (!mounted) return;
+  //     // Check if widget is still mounted before updating UI
+  //     if (!mounted) return;
       
-      setState(() {
-        _isLoading = false;
-      });
+  //     setState(() {
+  //       _isLoading = false;
+  //     });
       
-      if (backupPath != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Backup created successfully'),
-            action: SnackBarAction(
-              label: 'Share',
-              onPressed: () {
-                BackupService.shareBackup(backupPath);
-              },
-            ),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to create backup')),
-        );
-      }
-    } catch (e) {
-      debugPrint('Error creating backup: $e');
+  //     if (backupPath != null) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(
+  //           content: const Text('Backup created successfully'),
+  //           action: SnackBarAction(
+  //             label: 'Share',
+  //             onPressed: () {
+  //               BackupService.shareBackup(backupPath);
+  //             },
+  //           ),
+  //         ),
+  //       );
+  //     } else {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         const SnackBar(content: Text('Failed to create backup')),
+  //       );
+  //     }
+  //   } catch (e) {
+  //     debugPrint('Error creating backup: $e');
       
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+  //     if (mounted) {
+  //       setState(() {
+  //         _isLoading = false;
+  //       });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error creating backup: $e')),
-        );
-      }
-    }
-  }
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(content: Text('Error creating backup: $e')),
+  //       );
+  //     }
+  //   }
+  // }
   
-  Future<void> _restoreData() async {
-    try {
-      // Get list of available backups
-      final backups = await BackupService.getAvailableBackups();
+  // Future<void> _restoreData() async {
+  //   try {
+  //     // Get list of available backups
+  //     final backups = await BackupService.getAvailableBackups();
       
-      // Check if widget is still mounted before continuing
-      if (!mounted) return;
+  //     // Check if widget is still mounted before continuing
+  //     if (!mounted) return;
       
-      if (backups.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No backups found')),
-        );
-        return;
-      }
+  //     if (backups.isEmpty) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         const SnackBar(content: Text('No backups found')),
+  //       );
+  //       return;
+  //     }
       
-      // Show dialog to select backup
-      final selectedBackup = await showDialog<Map<String, dynamic>>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Select Backup to Restore'),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: 300,
-            child: ListView.builder(
-              itemCount: backups.length,
-              itemBuilder: (context, index) {
-                final backup = backups[index];
-                final DateTime timestamp = DateTime.parse(backup['timestamp']);
-                final String date = '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')}';
-                final String time = '${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
+  //     // Show dialog to select backup
+  //     final selectedBackup = await showDialog<Map<String, dynamic>>(
+  //       context: context,
+  //       builder: (ctx) => AlertDialog(
+  //         title: const Text('Select Backup to Restore'),
+  //         content: SizedBox(
+  //           width: double.maxFinite,
+  //           height: 300,
+  //           child: ListView.builder(
+  //             itemCount: backups.length,
+  //             itemBuilder: (context, index) {
+  //               final backup = backups[index];
+  //               final DateTime timestamp = DateTime.parse(backup['timestamp']);
+  //               final String date = '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')}';
+  //               final String time = '${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
                 
-                return ListTile(
-                  title: Text('Backup from $date'),
-                  subtitle: Text('Created at $time'),
-                  onTap: () => Navigator.of(ctx).pop(backup),
-                );
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel'),
-            ),
-          ],
-        ),
-      );
+  //               return ListTile(
+  //                 title: Text('Backup from $date'),
+  //                 subtitle: Text('Created at $time'),
+  //                 onTap: () => Navigator.of(ctx).pop(backup),
+  //               );
+  //             },
+  //           ),
+  //         ),
+  //         actions: [
+  //           TextButton(
+  //             onPressed: () => Navigator.of(ctx).pop(),
+  //             child: const Text('Cancel'),
+  //           ),
+  //         ],
+  //       ),
+  //     );
       
-      // Check if widget is still mounted before continuing
-      if (!mounted) return;
+  //     // Check if widget is still mounted before continuing
+  //     if (!mounted) return;
       
-      if (selectedBackup == null) return;
+  //     if (selectedBackup == null) return;
       
-      // For the second dialog, also check if mounted
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Confirm Restore'),
-          content: const Text(
-            'Restoring from backup will overwrite all current settings. '
-            'This action cannot be undone. Are you sure you want to continue?'
-          ),
-          actions: [
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () => Navigator.of(ctx).pop(false),
-            ),
-            TextButton(
-              child: const Text('Restore', style: TextStyle(color: Colors.blue)),
-              onPressed: () => Navigator.of(ctx).pop(true),
-            ),
-          ],
-        ),
-      ) ?? false;
+  //     // For the second dialog, also check if mounted
+  //     final confirmed = await showDialog<bool>(
+  //       context: context,
+  //       builder: (ctx) => AlertDialog(
+  //         title: const Text('Confirm Restore'),
+  //         content: const Text(
+  //           'Restoring from backup will overwrite all current settings.\n'
+  //           'This action cannot be undone. Are you sure you want to continue?'
+  //         ),
+  //         actions: [
+  //           TextButton(
+  //             child: const Text('Cancel'),
+  //             onPressed: () => Navigator.of(ctx).pop(false),
+  //           ),
+  //           TextButton(
+  //             child: const Text('Restore', style: TextStyle(color: Colors.blue)),
+  //             onPressed: () => Navigator.of(ctx).pop(true),
+  //           ),
+  //         ],
+  //       ),
+  //     ) ?? false;
       
-      // Check if widget is still mounted before continuing
-      if (!mounted) return;
+  //     // Check if widget is still mounted before continuing
+  //     if (!mounted) return;
       
-      if (!confirmed) return;
+  //     if (!confirmed) return;
       
-      // Restore the backup
-      setState(() {
-        _isLoading = true;
-      });
+  //     // Restore the backup
+  //     setState(() {
+  //       _isLoading = true;
+  //     });
       
-      final success = await BackupService.restoreData(selectedBackup['path']);
+  //     final success = await BackupService.restoreData(selectedBackup['path']);
       
-      // Final mounted check before updating UI
-      if (!mounted) return;
+  //     // Final mounted check before updating UI
+  //     if (!mounted) return;
       
-      setState(() {
-        _isLoading = false;
-      });
+  //     setState(() {
+  //       _isLoading = false;
+  //     });
       
-      if (success) {
-        // Reload settings - breaking this up into separate operations with mounted checks
-        await _loadSettings();
+  //     if (success) {
+  //       // Reload settings - breaking this up into separate operations with mounted checks
+  //       await _loadSettings();
         
-        // Check mounted state again before showing message
-        if (!mounted) return;
+  //       // Check mounted state again before showing message
+  //       if (!mounted) return;
         
-        // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Backup restored successfully')),
-        );
+  //       // Show success message
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         const SnackBar(content: Text('Backup restored successfully')),
+  //       );
         
-        // Refresh table provider - check mounted again
-        if (!mounted) return;
-        final tableProvider = Provider.of<TableProvider>(context, listen: false);
-        tableProvider.refreshTables();
-      } else {
-        // Only access context if still mounted
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to restore backup')),
-        );
-      }
-    } catch (e) {
-      debugPrint('Error restoring backup: $e');
+  //       // Refresh table provider - check mounted again
+  //       if (!mounted) return;
+  //       final tableProvider = Provider.of<TableProvider>(context, listen: false);
+  //       tableProvider.refreshTables();
+  //     } else {
+  //       // Only access context if still mounted
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         const SnackBar(content: Text('Failed to restore backup')),
+  //       );
+  //     }
+  //   } catch (e) {
+  //     debugPrint('Error restoring backup: $e');
       
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+  //     if (mounted) {
+  //       setState(() {
+  //         _isLoading = false;
+  //       });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error restoring backup: $e')),
-        );
-      }
-    }
-  }
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(content: Text('Error restoring backup: $e')),
+  //       );
+  //     }
+  //   }
+  // }
 
   // Show reset confirmation dialog
   void _showResetConfirmationDialog() {
@@ -420,7 +422,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Reset All Data'),
         content: const Text(
-          'This will delete all app data.\n\n'
+          'This will delete all app data.\n'
           'This action cannot be undone. Are you sure you want to continue?'
         ),
         actions: [
@@ -515,149 +517,197 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // Reset all data
   Future<void> _resetAllData() async {
-    setState(() {
-      _isLoading = true;
-    });
+  if (!mounted) return;
+  
+  setState(() {
+    _isLoading = true;
+  });
 
-    try {
-      // Show a progress dialog
+  try {
+    // Show a progress dialog
+    if (mounted) {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (ctx) => const AlertDialog(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Resetting data... Please wait.'),
-            ],
+        builder: (ctx) => WillPopScope(
+          // Prevent dialog from being dismissed with back button
+          onWillPop: () async => false,
+          child: const AlertDialog(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Resetting data... Please wait.'),
+                SizedBox(height: 8),
+                Text(
+                  'This may take a moment. Do not close the app.',
+                  style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                ),
+              ],
+            ),
           ),
         ),
       );
-      
-      // Clear database tables
-      await _clearMenuDatabase();
-      await _clearOrderDatabase();
-      await _clearPersonDatabase();
-      await _clearExpenseDatabase();
-      
-      // Reset settings to defaults
-      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-      await settingsProvider.resetSettings();
-      
-      // Reset table layouts
-      final tableProvider = Provider.of<TableProvider>(context, listen: false);
-      await tableProvider.refreshTables();
-      
-      // Pop the progress dialog
-      if (mounted) Navigator.of(context).pop();
-      
-      // Show success message
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('All data has been reset successfully')),
-        );
-        
-        // Reload settings
-        await _loadSettings();
-      }
-    } catch (e) {
-      // Pop the progress dialog in case of error
-      if (mounted) Navigator.of(context).pop();
-      
-      debugPrint('Error resetting data: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error resetting data: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+    }
+    
+    // Get instance of our new database reset service
+    final dbResetService = DatabaseResetService();
+    
+    // Use the force reset method that handles readonly database issues
+    await dbResetService.forceResetAllDatabases();
+    
+    // Reset settings to defaults
+    if (!mounted) return;
+    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+    await settingsProvider.resetSettings();
+    
+    // Reset table layouts
+    if (!mounted) return;
+    final tableProvider = Provider.of<TableProvider>(context, listen: false);
+    await tableProvider.refreshTables();
+    
+    // Pop the progress dialog
+    if (mounted) Navigator.of(context).pop();
+    
+    // Show success message with restart instruction
+    if (mounted) {
+      // Show a dialog instructing the user to restart the app
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Reset Complete'),
+          content: const Text(
+            'All data has been reset successfully.\n'
+            'You must restart the app for changes to take effect completely.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                // Reload settings
+                _loadSettings();
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  } catch (e) {
+    // Pop the progress dialog in case of error
+    if (mounted) Navigator.of(context).pop();
+    
+    debugPrint('Error resetting data: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error resetting data: $e')),
+      );
+    }
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
+}
 
-  // Methods to clear each database
-  Future<void> _clearMenuDatabase() async {
-    try {
-      final db = await LocalMenuRepository().database;
-      await db.delete('menu_items');
-      
-      // Try to reset the sequence counter, but don't fail if the table doesn't exist
-      try {
-        await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "menu_items"');
-      } catch (e) {
-        debugPrint('SQLITE_SEQUENCE table not found, skipping reset: $e');
-        // This is fine, just continue
-      }
-    } catch (e) {
-      debugPrint('Error clearing menu database: $e');
-      // Rethrow to handle in the main reset method
-      rethrow;
-    }
-  }
+//   // Methods to clear each database
+// Future<void> _clearMenuDatabase() async {
+//   try {
+//     // Use repository pattern to get a fresh database connection
+//     final menuRepo = LocalMenuRepository();
+//     final db = await menuRepo.database;
+    
+//     // Delete all records
+//     await db.delete('menu_items');
+    
+//     // Try to reset the sequence counter
+//     try {
+//       await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "menu_items"');
+//     } catch (e) {
+//       // Ignore if not supported
+//       debugPrint('Could not reset sequence for menu_items: $e');
+//     }
+    
+//     debugPrint('Menu database cleared successfully');
+//   } catch (e) {
+//     debugPrint('Error clearing menu database: $e');
+//     // Don't rethrow - continue with other operations
+//   }
+// }
 
-  Future<void> _clearOrderDatabase() async {
-    try {
-      final db = await LocalOrderRepository().database;
-      await db.delete('orders');
-      await db.delete('order_items');
-      
-      // Try to reset the sequence counters, but don't fail if the table doesn't exist
-      try {
-        await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "orders"');
-        await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "order_items"');
-      } catch (e) {
-        debugPrint('SQLITE_SEQUENCE table not found, skipping reset: $e');
-        // This is fine, just continue
-      }
-    } catch (e) {
-      debugPrint('Error clearing order database: $e');
-      rethrow;
-    }
-  }
+// Future<void> _clearOrderDatabase() async {
+//   try {
+//     // Use repository pattern to get a fresh database connection
+//     final orderRepo = LocalOrderRepository();
+//     final db = await orderRepo.database;
+    
+//     // Delete in the correct order to maintain foreign key integrity
+//     await db.delete('order_items');
+//     await db.delete('orders');
+    
+//     // Try to reset the sequence counters
+//     try {
+//       await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "orders"');
+//       await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "order_items"');
+//     } catch (e) {
+//       debugPrint('Could not reset sequences for orders: $e');
+//     }
+    
+//     debugPrint('Order database cleared successfully');
+//   } catch (e) {
+//     debugPrint('Error clearing order database: $e');
+//   }
+// }
 
-  Future<void> _clearPersonDatabase() async {
-    try {
-      final db = await LocalPersonRepository().database;
-      await db.delete('persons');
-      
-      // Try to reset the sequence counter, but don't fail if the table doesn't exist
-      try {
-        await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "persons"');
-      } catch (e) {
-        debugPrint('SQLITE_SEQUENCE table not found, skipping reset: $e');
-        // This is fine, just continue
-      }
-    } catch (e) {
-      debugPrint('Error clearing person database: $e');
-      rethrow;
-    }
-  }
+// Future<void> _clearPersonDatabase() async {
+//   try {
+//     // Use repository pattern to get a fresh database connection
+//     final personRepo = LocalPersonRepository();
+//     final db = await personRepo.database;
+    
+//     // Delete all records
+//     await db.delete('persons');
+    
+//     // Try to reset the sequence counter
+//     try {
+//       await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "persons"');
+//     } catch (e) {
+//       debugPrint('Could not reset sequence for persons: $e');
+//     }
+    
+//     debugPrint('Person database cleared successfully');
+//   } catch (e) {
+//     debugPrint('Error clearing person database: $e');
+//   }
+// }
 
-  Future<void> _clearExpenseDatabase() async {
-    try {
-      final db = await LocalExpenseRepository().database;
-      await db.delete('expenses');
-      await db.delete('expense_items');
-      
-      // Try to reset the sequence counters, but don't fail if the table doesn't exist
-      try {
-        await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "expenses"');
-        await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "expense_items"');
-      } catch (e) {
-        debugPrint('SQLITE_SEQUENCE table not found, skipping reset: $e');
-        // This is fine, just continue
-      }
-    } catch (e) {
-      debugPrint('Error clearing expense database: $e');
-      rethrow;
-    }
-  }
+// Future<void> _clearExpenseDatabase() async {
+//   try {
+//     // Use repository pattern to get a fresh database connection
+//     final expenseRepo = LocalExpenseRepository();
+//     final db = await expenseRepo.database;
+    
+//     // Delete in the correct order to maintain foreign key integrity
+//     await db.delete('expense_items');
+//     await db.delete('expenses');
+    
+//     // Try to reset the sequence counters
+//     try {
+//       await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "expenses"');
+//       await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "expense_items"');
+//     } catch (e) {
+//       debugPrint('Could not reset sequences for expenses: $e');
+//     }
+    
+//     debugPrint('Expense database cleared successfully');
+//   } catch (e) {
+//     debugPrint('Error clearing expense database: $e');
+//   }
+// }
 
   // Add the Tables section widget with dining table layout option
   Widget _buildTablesSection() {
@@ -934,19 +984,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Card(
       child: Column(
         children: [
+          // ListTile(
+          //   leading: Icon(Icons.backup, color: Colors.blue[700]),
+          //   title: const Text('Backup App Data'),
+          //   subtitle: const Text('Save all settings and configuration'),
+          //   onTap: _backupData,
+          // ),
           ListTile(
             leading: Icon(Icons.backup, color: Colors.blue[700]),
-            title: const Text('Backup App Data'),
-            subtitle: const Text('Save all settings and configuration'),
-            onTap: _backupData,
+            title: const Text('Backup & Restore'),
+            subtitle: const Text('Create, restore, and manage backups'),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const BackupManagerWidget(),
+                ),
+              );
+            },
           ),
           const Divider(height: 1, indent: 70),
-          ListTile(
-            leading: Icon(Icons.restore, color: Colors.green[700]),
-            title: const Text('Restore From Backup'),
-            subtitle: const Text('Load settings from a previous backup'),
-            onTap: _restoreData,
-          ),
+          // ListTile(
+          //   leading: Icon(Icons.restore, color: Colors.green[700]),
+          //   title: const Text('Restore From Backup'),
+          //   subtitle: const Text('Load settings from a previous backup'),
+          //   onTap: _restoreData,
+          // ),
           const Divider(height: 1, indent: 70),
           ListTile(
             leading: Icon(Icons.delete_forever, color: Colors.red[700]),
