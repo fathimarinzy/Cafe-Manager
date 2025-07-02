@@ -291,13 +291,15 @@ class OrderProvider with ChangeNotifier {
       // Extract table number from service type if this is a dining order
       String? tableInfo;
       int? tableNumber;
-      
-      if (_currentServiceType.startsWith('Dining - Table')) {
-        tableInfo = _currentServiceType;
-        // Extract the table number
-        final tableNumberString = _currentServiceType.split('Table ').last;
-        tableNumber = int.tryParse(tableNumberString);
+       
+    if (_currentServiceType.startsWith('Dining - Table')) {
+      tableInfo = _currentServiceType;
+      // Extract the table number more reliably
+      final tableNumberMatch = RegExp(r'Table (\d+)').firstMatch(_currentServiceType);
+      if (tableNumberMatch != null && tableNumberMatch.groupCount >= 1) {
+        tableNumber = int.tryParse(tableNumberMatch.group(1)!);
       }
+    }
       
       // Generate a timestamp for order creation
       final now = DateTime.now();
@@ -397,33 +399,35 @@ class OrderProvider with ChangeNotifier {
         context: context, // Pass context for dialog if needed
       );
       
-      // If this is a table order, update the table status to available (since payment is complete)
-      if (tableNumber != null && context.mounted) {
-        final tableProvider = Provider.of<TableProvider>(context, listen: false);
-        final table = tableProvider.tables.firstWhere(
-          (table) => table.number == tableNumber,
-          orElse: () => TableModel(id: '', number: tableNumber!, isOccupied: false)
+      // If this is a table order, update the table status to occupied
+    if (tableNumber != null && context.mounted) {
+      final tableProvider = Provider.of<TableProvider>(context, listen: false);
+      
+      // First try to find the exact table
+      final table = tableProvider.tables.firstWhere(
+        (t) => t.number == tableNumber,
+        orElse: () => TableModel(id: '', number: tableNumber!, isOccupied: false)
+      );
+      
+      if (table.id.isNotEmpty) {
+        // Set the table as occupied since we're creating an order
+        final updatedTable = TableModel(
+          id: table.id,
+          number: table.number,
+          isOccupied: true, // Set to true when creating an order
+          capacity: table.capacity,
+          note: table.note,
         );
         
-        if (table.id.isNotEmpty) {
-          // Set the table as available since payment is complete
-          final updatedTable = TableModel(
-            id: table.id,
-            number: table.number,
-            isOccupied: false, // Set to false as payment is complete
-            capacity: table.capacity,
-            note: table.note,
-          );
-          
-          await tableProvider.updateTable(updatedTable);
-          debugPrint('Table ${tableNumber.toString()} status updated to available');
-        } else if (tableNumber > 0) {
-          // If the table wasn't found in the provider but we have a valid number,
-          // try to update it by number
-          await tableProvider.setTableStatus(tableNumber, false);
-          debugPrint('Table ${tableNumber.toString()} status set to available by number');
-        }
+        await tableProvider.updateTable(updatedTable);
+        debugPrint('Table ${tableNumber.toString()} status updated to occupied');
+      } else if (tableNumber > 0) {
+        // If the table wasn't found in the provider but we have a valid number,
+        // try to update it by number
+        await tableProvider.setTableStatus(tableNumber, true);
+        debugPrint('Table ${tableNumber.toString()} status set to occupied by number');
       }
+    }
 
       // Clear the current service type's cart
       clearCart();

@@ -480,7 +480,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                           ),
                           const SizedBox(height: 12),
                           const Text(
-                            '1. Make sure your Everycom EC901C printer is connected to the same WiFi network as this tablet',
+                            '1. Make sure your printer is connected to the same WiFi network as this tablet',
                             style: TextStyle(fontSize: 14),
                           ),
                           const SizedBox(height: 8),
