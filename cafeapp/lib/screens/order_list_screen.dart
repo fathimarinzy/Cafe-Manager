@@ -311,7 +311,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
     );
   }
 
-  Widget _buildOrderList() {
+Widget _buildOrderList() {
     return Consumer<OrderHistoryProvider>(
       builder: (context, historyProvider, child) {
         if (historyProvider.isLoading) {
@@ -379,13 +379,15 @@ class _OrderListScreenState extends State<OrderListScreen> {
           );
         }
 
-        // Card Grid View implementation
+        // Determine orientation and adjust grid accordingly
+        final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
+        
         return Padding(
           padding: const EdgeInsets.all(8.0),
           child: GridView.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 6,  // 6 columns
-              childAspectRatio: 1.1,  // More square aspect ratio for shorter cards
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: isPortrait ? 3 : 6, // 3 columns in portrait, 6 in landscape
+              childAspectRatio: isPortrait ? 1.2 : 1.1, // Adjust aspect ratio for portrait
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
             ),
@@ -398,8 +400,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
       },
     );
   }
-
-  Widget _buildOrderCard(OrderHistory order) {
+Widget _buildOrderCard(OrderHistory order) {
     // Format currency
     final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
     
@@ -414,17 +415,19 @@ class _OrderListScreenState extends State<OrderListScreen> {
     } else if (order.status.toLowerCase() == 'cancelled') {
       statusColor = Colors.white;
     }
-     // Override text colors to always be visible
-  Color textColor = Colors.black; // Always use black for primary text
-  Color secondaryTextColor = Colors.black87; // Always use black87 for secondary text
     
-  
+    // Override text colors to always be visible
+    Color textColor = Colors.black;
+    Color secondaryTextColor = Colors.black87;
+    
+    // Check orientation for compact layout
+    final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
+    
     return Card(
-      elevation: 1,  // Minimal elevation
+      elevation: 1,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(6),  // Smaller radius
+        borderRadius: BorderRadius.circular(6),
       ),
-      // Use the full service type color as the card background
       color: serviceColor,
       child: InkWell(
         onTap: () {
@@ -435,16 +438,15 @@ class _OrderListScreenState extends State<OrderListScreen> {
             ),
           );
         },
-        borderRadius: BorderRadius.circular(6),  // Smaller radius
+        borderRadius: BorderRadius.circular(6),
         child: Padding(
-          padding: const EdgeInsets.all(4.0),  // Minimal padding
+          padding: const EdgeInsets.all(4.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header with centered bill number and status
               Column(
                 children: [
-                  // Centered bill number
                   Center(
                     child: Padding(
                       padding: const EdgeInsets.only(top: 4.0),
@@ -452,14 +454,13 @@ class _OrderListScreenState extends State<OrderListScreen> {
                         '#${order.orderNumber}',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 14,  // Smaller font
+                          fontSize: isPortrait ? 12 : 14, // Smaller font in portrait
                           color: textColor,
                         ),
                       ),
                     ),
                   ),
                   const SizedBox(height: 4),
-                  // Status indicator below bill number
                   Center(
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -481,8 +482,8 @@ class _OrderListScreenState extends State<OrderListScreen> {
               ),
               
               Divider(
-                height: 12,
-                color:  Colors.black.withAlpha(20),
+                height: isPortrait ? 8 : 12, // Shorter divider in portrait
+                color: Colors.black.withAlpha(20),
               ),
               
               // Service type
@@ -490,16 +491,16 @@ class _OrderListScreenState extends State<OrderListScreen> {
                 children: [
                   Icon(
                     serviceIcon,
-                    size: 14,  // Reduced icon size
-                    color:  Colors.black87,
+                    size: isPortrait ? 12 : 14, // Smaller icon in portrait
+                    color: Colors.black87,
                   ),
-                  const SizedBox(width: 4),  // Reduced spacing
+                  const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       order.serviceType,
                       style: TextStyle(
                         color: secondaryTextColor,
-                        fontSize: 12,  // Smaller font size
+                        fontSize: isPortrait ? 10 : 12, // Smaller font in portrait
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -507,49 +508,44 @@ class _OrderListScreenState extends State<OrderListScreen> {
                 ],
               ),
               
-              const SizedBox(height: 6),  // Reduced spacing
+              SizedBox(height: isPortrait ? 4 : 6), // Less spacing in portrait
               
-              // Order date and time
-              Row(
+              // Order date and time - more compact in portrait
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.calendar_today,
-                            size: 12,
-                            color: secondaryTextColor,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            order.formattedDate,
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: secondaryTextColor,
-                            ),
-                          ),
-                        ],
+                      Icon(
+                        Icons.calendar_today,
+                        size: isPortrait ? 10 : 12,
+                        color: secondaryTextColor,
                       ),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.access_time,
-                            size: 12,
-                            color: secondaryTextColor,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            order.formattedTime,
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: secondaryTextColor,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                      const SizedBox(width: 4),
+                      Text(
+                        order.formattedDate,
+                        style: TextStyle(
+                          fontSize: isPortrait ? 9 : 10,
+                          color: secondaryTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.access_time,
+                        size: isPortrait ? 10 : 12,
+                        color: secondaryTextColor,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        order.formattedTime,
+                        style: TextStyle(
+                          fontSize: isPortrait ? 9 : 10,
+                          color: secondaryTextColor,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -558,7 +554,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
               
               const Spacer(),
               
-              // Amount - removed View button
+              // Amount
               Container(
                 width: double.infinity,
                 alignment: Alignment.centerRight,
@@ -566,7 +562,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
                   currencyFormat.format(order.total),
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                    fontSize: isPortrait ? 12 : 14,
                     color: textColor,
                   ),
                 ),

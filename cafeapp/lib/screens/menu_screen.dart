@@ -383,7 +383,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
           child: Row(
             children: [
               _buildNavButton(Icons.arrow_back_ios, null, ''),
-              _buildNavButton(null, null, 'Discount'.tr()),
+              // _buildNavButton(null, null, 'Discount'.tr()),
               // _buildNavButton(null, null, 'Sales hold list'),
               // _buildNavButton(null, null, 'Hold'),
               // _buildNavButton(null, null, 'Memo'),
@@ -1030,10 +1030,10 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
                       
                       // Additional charges rows
                       _buildSummaryRow('Tax amount'.tr(), '0.000'),
-                      _buildSummaryRow('Item discount'.tr(), '0.000'),
-                      _buildSummaryRow('Bill discount'.tr(), '0.000'),
-                      _buildSummaryRow('Delivery charge'.tr(), '0.000'),
-                      _buildSummaryRow('Surcharge'.tr(), '0.000'),
+                      // _buildSummaryRow('Item discount'.tr(), '0.000'),
+                      // _buildSummaryRow('Bill discount'.tr(), '0.000'),
+                      // _buildSummaryRow('Delivery charge'.tr(), '0.000'),
+                      // _buildSummaryRow('Surcharge'.tr(), '0.000'),
                       
                       const SizedBox(height: 8),
                       // Grand total

@@ -2063,7 +2063,7 @@ Widget _buildQuickAmountButton(String amount, VoidCallback onTap) {
         children: [
           _buildPaymentMethodOption('Bank', Icons.account_balance),
           _buildPaymentMethodOption('Cash', Icons.money),
-          _buildPaymentMethodOption('Coupon', Icons.card_giftcard),
+          // _buildPaymentMethodOption('Coupon', Icons.card_giftcard),
           _buildPaymentMethodOption('Customer Credit', Icons.person),
           _buildPaymentMethodOption('Credit Sale', Icons.credit_card),
         ],
@@ -2747,26 +2747,26 @@ Widget _buildQuickAmountButton(String amount, VoidCallback onTap) {
             const SizedBox(width: 8), // Spacing between buttons
 
             // Apply Coupon button
-            ElevatedButton(
-              onPressed: _selectedPaymentMethod != null ? () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Coupon feature will be available soon')),
-                );
-              } : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.amber.shade100,
-                foregroundColor: Colors.amber.shade900,
-                elevation: 1,
-                padding: const EdgeInsets.symmetric(horizontal: 35, vertical: 10),
-                minimumSize: const Size(10, 36),
-                textStyle: const TextStyle(fontSize: 12),
-                disabledBackgroundColor: Colors.grey.shade200,
-                disabledForegroundColor: Colors.grey.shade500,
-              ),
-              child: const Text('Apply Coupon'),
-            ),
+            // ElevatedButton(
+            //   onPressed: _selectedPaymentMethod != null ? () {
+            //     ScaffoldMessenger.of(context).showSnackBar(
+            //       const SnackBar(content: Text('Coupon feature will be available soon')),
+            //     );
+            //   } : null,
+            //   style: ElevatedButton.styleFrom(
+            //     backgroundColor: Colors.amber.shade100,
+            //     foregroundColor: Colors.amber.shade900,
+            //     elevation: 1,
+            //     padding: const EdgeInsets.symmetric(horizontal: 35, vertical: 10),
+            //     minimumSize: const Size(10, 36),
+            //     textStyle: const TextStyle(fontSize: 12),
+            //     disabledBackgroundColor: Colors.grey.shade200,
+            //     disabledForegroundColor: Colors.grey.shade500,
+            //   ),
+            //   child: const Text('Apply Coupon'),
+            // ),
             
-            const SizedBox(width: 8), // Spacing between buttons
+            // const SizedBox(width: 8), // Spacing between buttons
             
             // View Bill button
             ElevatedButton(

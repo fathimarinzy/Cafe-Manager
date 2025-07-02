@@ -270,231 +270,231 @@ Future<void> _printKitchenReceipt() async {
   double _calculateSubtotal(List<OrderItem> items) {
     return items.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
   }
-
-  void _showEditOrderItemsDialog() {
-    if (_order == null) return;
-    
-    List<OrderItem> editedItems = List.from(_order!.items);
-    
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Edit Order Items'),
-              content: SizedBox(
-                width: MediaQuery.of(context).size.width * 0.7,
-                height: MediaQuery.of(context).size.height * 0.6,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Row(
-                        children: [
-                          Expanded(
-                            flex: 5,
-                            child: Text(
-                              'Item', 
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: Text(
-                              'Qty', 
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          Expanded(
-                            flex: 3,
-                            child: Text(
-                              'Price', 
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                              textAlign: TextAlign.right,
-                            ),
-                          ),
-                          SizedBox(width: 70),
-                        ],
-                      ),
+void _showEditOrderItemsDialog() {
+  if (_order == null) return;
+  
+  List<OrderItem> editedItems = List.from(_order!.items);
+  
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
+          
+          return AlertDialog(
+            title: const Text('Edit Order Items'),
+            content: SizedBox(
+              width: MediaQuery.of(context).size.width * (isPortrait ? 0.9 : 0.7),
+              height: MediaQuery.of(context).size.height * 0.6,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                    
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: editedItems.length,
-                        itemBuilder: (context, index) {
-                          final item = editedItems[index];
-                          return Container(
-                            decoration: BoxDecoration(
-                              border: Border(
-                                bottom: BorderSide(color: Colors.grey.shade300, width: 1),
-                              ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: isPortrait ? 4 : 5,
+                          child: const Text(
+                            'Item', 
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: const Text(
+                            'Qty', 
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        Expanded(
+                          flex: isPortrait ? 2 : 3,
+                          child: const Text(
+                            'Price', 
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.right,
+                          ),
+                        ),
+                        SizedBox(width: isPortrait ? 40 : 70),
+                      ],
+                    ),
+                  ),
+                  
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: editedItems.length,
+                      itemBuilder: (context, index) {
+                        final item = editedItems[index];
+                        return Container(
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(color: Colors.grey.shade300, width: 1),
                             ),
-                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  flex: 5,
-                                  child: Text(
-                                    item.name,
-                                    style: const TextStyle(fontWeight: FontWeight.w500),
-                                  ),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: isPortrait ? 4 : 5,
+                                child: Text(
+                                  item.name,
+                                  style: const TextStyle(fontWeight: FontWeight.w500),
                                 ),
-                                Expanded(
-                                  flex: 2,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      IconButton(
-                                        icon: const Icon(Icons.remove, size: 16),
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(),
-                                        onPressed: () {
-                                          if (item.quantity > 1) {
-                                            setState(() {
-                                              editedItems[index] = OrderItem(
-                                                id: item.id,
-                                                name: item.name,
-                                                price: item.price,
-                                                quantity: item.quantity - 1,
-                                                kitchenNote: item.kitchenNote,
-                                              );
-                                            });
-                                          }
-                                        },
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        '${item.quantity}',
-                                        style: const TextStyle(fontWeight: FontWeight.bold),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      IconButton(
-                                        icon: const Icon(Icons.add, size: 16),
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(),
-                                        onPressed: () {
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.remove, size: 16),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      onPressed: () {
+                                        if (item.quantity > 1) {
                                           setState(() {
                                             editedItems[index] = OrderItem(
                                               id: item.id,
                                               name: item.name,
                                               price: item.price,
-                                              quantity: item.quantity + 1,
+                                              quantity: item.quantity - 1,
                                               kitchenNote: item.kitchenNote,
                                             );
                                           });
-                                        },
-                                      ),
-                                    ],
-                                  ),
+                                        }
+                                      },
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '${item.quantity}',
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    IconButton(
+                                      icon: const Icon(Icons.add, size: 16),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      onPressed: () {
+                                        setState(() {
+                                          editedItems[index] = OrderItem(
+                                            id: item.id,
+                                            name: item.name,
+                                            price: item.price,
+                                            quantity: item.quantity + 1,
+                                            kitchenNote: item.kitchenNote,
+                                          );
+                                        });
+                                      },
+                                    ),
+                                  ],
                                 ),
-                                Expanded(
-                                  flex: 3,
-                                  child: Text(
-                                    NumberFormat.currency(symbol: '', decimalDigits: 3).format(item.price),
-                                    textAlign: TextAlign.right,
-                                  ),
+                              ),
+                              Expanded(
+                                flex: isPortrait ? 2 : 3,
+                                child: Text(
+                                  NumberFormat.currency(symbol: '', decimalDigits: 3).format(item.price),
+                                  textAlign: TextAlign.right,
                                 ),
-                                SizedBox(
-                                  width: 70,
-                                  child: IconButton(
-                                    icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                                    onPressed: () {
-                                      setState(() {
-                                        editedItems.removeAt(index);
-                                      });
-                                    },
-                                  ),
+                              ),
+                              SizedBox(
+                                width: isPortrait ? 40 : 70,
+                                child: IconButton(
+                                  icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                                  onPressed: () {
+                                    setState(() {
+                                      editedItems.removeAt(index);
+                                    });
+                                  },
                                 ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          _showAddItemDialog(context, editedItems, setState);
-                        },
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add Item'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    bool isChanged = _orderItemsChanged(_originalItems ?? [], editedItems);
-                    
-                    if (mounted && _order != null && isChanged) {
-                      double newSubtotal = _calculateSubtotal(editedItems);
-                      double newTax = newSubtotal * (_taxRate / 100.0);
-                      double newTotal = newSubtotal + newTax;
-                      
-                      setState(() {
-                        _order = OrderHistory(
-                          id: _order!.id,
-                          serviceType: _order!.serviceType,
-                          total: newTotal,
-                          status: _order!.status,
-                          createdAt: _order!.createdAt,
-                          items: editedItems,
+                              ),
+                            ],
+                          ),
                         );
-                        _wasEdited = true;
-                      });
-                      
-                      _saveOrderChangesToBackend().then((success) {
-                        if (success && mounted) {
-                          // Refresh the OrderHistoryProvider to update all screens
+                      },
+                    ),
+                  ),
+                  
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        _showAddItemDialog(context, editedItems, setState);
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add Item'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  bool isChanged = _orderItemsChanged(_originalItems ?? [], editedItems);
+                  
+                  if (mounted && _order != null && isChanged) {
+                    double newSubtotal = _calculateSubtotal(editedItems);
+                    double newTax = newSubtotal * (_taxRate / 100.0);
+                    double newTotal = newSubtotal + newTax - _discountAmount;
+                    
+                    setState(() {
+                      _order = OrderHistory(
+                        id: _order!.id,
+                        serviceType: _order!.serviceType,
+                        total: newTotal,
+                        status: _order!.status,
+                        createdAt: _order!.createdAt,
+                        items: editedItems,
+                      );
+                      _wasEdited = true;
+                    });
+                    
+                    _saveOrderChangesToBackend().then((success) {
+                      if (success && mounted) {
                         final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
                         historyProvider.loadOrders();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Order updated successfully'),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-                        }
-                      }).catchError((error) {
-                        debugPrint('Error when saving order: $error');
-                      });
-                    }
-                    
-                    Navigator.of(context).pop();
-                  },
-                  child: const Text('Save'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    ).then((_) {
-      if (mounted) {
-        setState(() {});
-      }
-    });
-  }
-  
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Order updated successfully'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    }).catchError((error) {
+                      debugPrint('Error when saving order: $error');
+                    });
+                  }
+                  
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  ).then((_) {
+    if (mounted) {
+      setState(() {});
+    }
+  });
+}
+ 
   bool _orderItemsChanged(List<OrderItem> original, List<OrderItem> edited) {
     if (original.length != edited.length) return true;
     
