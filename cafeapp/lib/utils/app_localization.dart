@@ -61,7 +61,8 @@ class AppLocalization {
       'Please enter your username': 'الرجاء إدخال اسم المستخدم الخاص بك',
       'Please enter your password': 'الرجاء إدخال كلمة المرور',
       'Login Failed. Please check your credentials.': 'فشل تسجيل الدخول. يرجى التحقق من بيانات الاعتماد الخاصة بك.',
-       
+      'Invalid username or password':'اسم المستخدم أو كلمة المرور غير صالحة',
+
        // Menu screen
       'Failed to load menu. Please try again.':'فشل تحميل القائمة. يُرجى المحاولة مرة أخرى.',
       'Please select an item first':'الرجاء تحديد العنصر أولاً',
