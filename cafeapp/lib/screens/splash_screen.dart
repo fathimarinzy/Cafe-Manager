@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/app_localization.dart';
 
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
@@ -41,8 +42,8 @@ class SplashScreen extends StatelessWidget {
               color: Colors.blue[900],
             ),
             const SizedBox(height: 20),
-            const Text(
-              'Please wait...',
+             Text(
+              'Please wait...'.tr(),
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.grey,

@@ -3,11 +3,11 @@ import 'dart:async';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'menu_screen.dart';
-// import 'table_management_screen.dart';
-import 'table_orders_screen.dart'; // Import the new screen
+import 'table_orders_screen.dart'; 
 import '../providers/order_provider.dart';
 import '../providers/table_provider.dart';
-import '../providers/order_history_provider.dart'; // Add this import
+import '../providers/order_history_provider.dart'; 
+import '../utils/app_localization.dart';
 
 class DiningTableScreen extends StatefulWidget {
   const DiningTableScreen({super.key});
@@ -24,15 +24,6 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
   int _columns = 4; // Default columns
   int _rows = 4;    // Default rows
   
-  // // Predefined layout options
-  // final List<Map<String, dynamic>> _layoutOptions = [
-  //   {'label': '3x4 Layout', 'rows': 3, 'columns': 4},
-  //   {'label': '4x4 Layout', 'rows': 4, 'columns': 4},
-  //   {'label': '4x5 Layout', 'rows': 4, 'columns': 5},
-  //   {'label': '4x6 Layout', 'rows': 4, 'columns': 6},
-  //   {'label': '4x8 Layout', 'rows': 4, 'columns': 8},
-  //   {'label': '5x6 Layout', 'rows': 5, 'columns': 6},
-  // ];
   
   @override
   void initState() {
@@ -77,17 +68,6 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
     }
   }
   
-  // Save layout configuration to SharedPreferences
-  // Future<void> _saveLayout(int rows, int columns) async {
-  //   try {
-  //     final prefs = await SharedPreferences.getInstance();
-      
-  //     await prefs.setInt('dining_table_rows', rows);
-  //     await prefs.setInt('dining_table_columns', columns);
-  //   } catch (e) {
-  //     debugPrint('Error saving layout settings: $e');
-  //   }
-  // }
   
   @override
   void dispose() {
@@ -105,85 +85,6 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
     });
   }
 
-  // Show layout selection dialog
-  // void _showLayoutDialog() {
-  //   showDialog(
-  //     context: context,
-  //     builder: (BuildContext context) {
-  //       // Get screen width to calculate dialog width
-  //       final screenWidth = MediaQuery.of(context).size.width;
-        
-  //       return AlertDialog(
-  //         title: const Text(
-  //           'Select Table Layout',
-  //           style: TextStyle(
-  //             fontSize: 18, // Smaller title font
-  //             fontWeight: FontWeight.bold,
-  //           ),
-  //         ),
-  //         contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-  //         // Make dialog narrower - only 65% of screen width
-  //         content: SizedBox(
-  //           width: screenWidth * 0.65,
-  //           child: ListView(
-  //             shrinkWrap: true,
-  //             children: _layoutOptions.map((option) {
-  //               return ListTile(
-  //                 dense: true, // Makes the list tile more compact
-  //                 title: Text(
-  //                   option['label'],
-  //                   style: const TextStyle(
-  //                     fontSize: 14, // Smaller font for options
-  //                   ),
-  //                 ),
-  //                 onTap: () {
-  //                   setState(() {
-  //                     _rows = option['rows'];
-  //                     _columns = option['columns'];
-  //                   });
-  //                   // Save the selected layout to persist it
-  //                   _saveLayout(option['rows'], option['columns']);
-  //                   Navigator.pop(context);
-  //                 },
-  //                 trailing: (_rows == option['rows'] && _columns == option['columns']) 
-  //                   ? const Icon(Icons.check, color: Colors.green, size: 18) // Smaller checkmark
-  //                   : null,
-  //               );
-  //             }).toList(),
-  //           ),
-  //         ),
-  //         actions: [
-  //           TextButton(
-  //             onPressed: () => Navigator.pop(context),
-  //             child: const Text(
-  //               'Cancel',
-  //               style: TextStyle(fontSize: 14), // Smaller font for button
-  //             ),
-  //           ),
-  //         ],
-  //       );
-  //     },
-  //   );
-  // }
-
-  // Method to handle table management navigation
-  // Future<void> _navigateToTableManagement() async {
-  //   await Navigator.of(context).push(
-  //     MaterialPageRoute(
-  //       builder: (context) => const TableManagementScreen(),
-  //     ),
-  //   );
-
-  //   // Check if the widget is still mounted before using setState
-  //   if (mounted) {
-  //     // Refresh the table state when coming back from table management
-  //     final tableProvider = Provider.of<TableProvider>(context, listen: false);
-  //     tableProvider.refreshTables();
-  //     // Force a rebuild of the current screen
-  //     setState(() {});
-  //   }
-  // }
-
   @override
   Widget build(BuildContext context) {
     final tableProvider = Provider.of<TableProvider>(context);
@@ -196,8 +97,8 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
-          'Dining Tables',
+        title: Text(
+          'Dining Tables'.tr(),
           style: TextStyle(color: Colors.black),
         ),
         actions: [
@@ -260,7 +161,7 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
               const SizedBox(height: 8), // Reduced spacing
               Expanded(
                 child: tables.isEmpty 
-                  ? const Center(child: Text('No tables available. Add tables from the Tables menu.'))
+                  ?  Center(child: Text('No tables available. Add tables from the Tables menu.'.tr()))
                   : LayoutBuilder(
                       builder: (context, constraints) {
                         // Calculate the size for each table card based on available space
@@ -292,7 +193,7 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
                             // Get the OrderProvider
                             final orderProvider = Provider.of<OrderProvider>(context, listen: false);
                             final String serviceType = 'Dining - Table ${table.number}';
-                            
+
                             return _buildTableCard(
                               table.number,
                               table.isOccupied,
@@ -427,62 +328,17 @@ Future<void> _checkForActiveOrder(int tableNumber, String serviceType, OrderProv
   }
 }
   
-
-
-  // Dialog to ask if they want to add to an existing order
-  // void _showAddToOrderDialog(dynamic order, int tableNumber, String serviceType, OrderProvider orderProvider) {
-  //   showDialog(
-  //     context: context,
-  //     builder: (ctx) => AlertDialog(
-  //       title: Text('Table $tableNumber'),
-  //       content: const Text('There is an active order for this table. Would you like to add to the existing order or create a new one?'),
-  //       actions: [
-  //         TextButton(
-  //           onPressed: () {
-  //             Navigator.of(ctx).pop();
-  //             _navigateToMenuScreen(serviceType, orderProvider);
-  //           },
-  //           child: const Text('New Order'),
-  //         ),
-  //         TextButton(
-  //           onPressed: () {
-  //             Navigator.of(ctx).pop();
-  //             // Set current order ID and navigate to menu
-  //             orderProvider.setCurrentOrderId(order.id);
-  //             orderProvider.setCurrentServiceType(serviceType);
-              
-  //             Navigator.push(
-  //               context,
-  //               MaterialPageRoute(
-  //                 builder: (context) => MenuScreen(
-  //                   serviceType: serviceType,
-  //                   existingOrderId: order.id,
-  //                 ),
-  //               ),
-  //             );
-  //           },
-  //           child: const Text('Add to Existing'),
-  //         ),
-  //         TextButton(
-  //           onPressed: () => Navigator.of(ctx).pop(),
-  //           child: const Text('Cancel'),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
-
   // Show dialog for occupied tables
   void _showOccupiedTableDialog(int tableNumber, String serviceType, OrderProvider orderProvider) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Table $tableNumber'),
-        content: const Text('Table is currently occupied. You can start a new order or view current orders.'),
+       title: Text('${'Table'.tr()} $tableNumber'),
+        content: Text('Table is currently occupied. You can start a new order or view current orders.'.tr()),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
+            child: Text('Cancel'.tr()),
           ),
           TextButton(
             onPressed: () {
@@ -490,7 +346,7 @@ Future<void> _checkForActiveOrder(int tableNumber, String serviceType, OrderProv
               // Navigate to view orders for this table
               _navigateToTableOrders(tableNumber);
             },
-            child: const Text('View Orders'),
+            child:  Text('View Orders'.tr()),
           ),
           TextButton(
             onPressed: () {
@@ -498,7 +354,7 @@ Future<void> _checkForActiveOrder(int tableNumber, String serviceType, OrderProv
               // Check for active orders before creating a new one
               _checkForActiveOrder(tableNumber, serviceType, orderProvider);
             },
-            child: const Text('New Order'),
+            child:  Text('New Order'.tr()),
           ),
         ],
       ),
@@ -539,7 +395,7 @@ Future<void> _checkForActiveOrder(int tableNumber, String serviceType, OrderProv
             ),
             const SizedBox(height: 4), // Reduced spacing
             Text(
-              'Table $tableNumber',
+              '${'Table'.tr()} $tableNumber',
               style: TextStyle(
                 fontSize: fontSize,
                 fontWeight: FontWeight.bold,
@@ -549,7 +405,7 @@ Future<void> _checkForActiveOrder(int tableNumber, String serviceType, OrderProv
             ),
             const SizedBox(height: 2), // Reduced spacing
             Text(
-              isOccupied ? 'Occupied' : 'Available',
+              isOccupied ? 'Occupied'.tr() : 'Available'.tr(),
               style: TextStyle(
                 fontSize: fontSize - 4, // Smaller text for status
                 color: isOccupied ? Colors.red : Colors.green,

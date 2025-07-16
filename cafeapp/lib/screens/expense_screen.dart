@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../repositories/local_expense_repository.dart';
 import '../screens/expense_history_screen.dart';
+import '../utils/app_localization.dart';
 
 class ExpenseScreen extends StatefulWidget {
   final Map<String, dynamic>? expenseToEdit;
@@ -15,8 +16,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   // Add a controller with a default value for cashier type
   final _cashierController = TextEditingController(text: '1');
   // Add a variable to store the selected cashier type
-  String _selectedCashierType = 'Cashier'; // Default value
-  // List of available cashier types
+  String _selectedCashierType = 'Cashier'; // Keep internal logic in English
+  // List of available cashier types - keep internal values in English
   final List<String> _cashierTypes = ['Cashier', 'Salesman'];
   
   bool _isLoading = false;
@@ -28,27 +29,28 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   
   double _grandTotal = 0.0;
   
-  // Keep the existing account type selection
+  // Keep the existing account type selection - internal values in English
   String _selectedAccountType = 'Cash Account';
   final List<String> _accountTypes = ['Cash Account', 'Bank Account'];
 
   // Initialize local repository
   final LocalExpenseRepository _expenseRepository = LocalExpenseRepository();
   
+  // Keep expense categories in English for internal logic
   final List<String> _expenseCategories = [
-    'Shop Expense',
-    'Office Expense',
-    'Food Expense',
+    'Shop Expenses',
+    'Office Expenses',
+    'Food Expenses',
     'Transport',
     'Utilities',
     'Rent',
     'Salaries',
-    'Kitchen Expense',
+    'Kitchen Expenses',
     'Raw Materials',
     'Maintenance',
-    'Equipment',
+    'Equipments',
     'Cleaning Supplies',
-    'Other'
+    'Others'
   ];
 
   // Track if the search filter is active for each row
@@ -62,13 +64,12 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   void initState() {
     super.initState();
     // If we're editing an existing expense, load its data
-  if (widget.expenseToEdit != null) {
-    _loadExpenseData();
-  } else {
-    // If it's a new expense, just add an empty row
-    _addNewExpenseRow();
-  }
-
+    if (widget.expenseToEdit != null) {
+      _loadExpenseData();
+    } else {
+      // If it's a new expense, just add an empty row
+      _addNewExpenseRow();
+    }
   }
   
   @override
@@ -87,67 +88,68 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     
     super.dispose();
   }
+
   void _loadExpenseData() {
-  final expense = widget.expenseToEdit!;
-  
-  // Set date
-  try {
-    final dateStr = expense['date'] as String;
-    final parts = dateStr.split('-');
-    if (parts.length == 3) {
-      final day = int.tryParse(parts[0]) ?? 1;
-      final month = int.tryParse(parts[1]) ?? 1;
-      final year = int.tryParse(parts[2]) ?? 2000;
-      _selectedDate = DateTime(year, month, day);
-      _currentDate = DateFormat('dd-MM-yyyy').format(_selectedDate);
+    final expense = widget.expenseToEdit!;
+    
+    // Set date
+    try {
+      final dateStr = expense['date'] as String;
+      final parts = dateStr.split('-');
+      if (parts.length == 3) {
+        final day = int.tryParse(parts[0]) ?? 1;
+        final month = int.tryParse(parts[1]) ?? 1;
+        final year = int.tryParse(parts[2]) ?? 2000;
+        _selectedDate = DateTime(year, month, day);
+        _currentDate = DateFormat('dd-MM-yyyy').format(_selectedDate);
+      }
+    } catch (e) {
+      debugPrint('Error parsing date: $e');
     }
-  } catch (e) {
-    debugPrint('Error parsing date: $e');
-  }
-  
-  // Set account type
-  final accountType = expense['accountType'] as String;
-  if (_accountTypes.contains(accountType)) {
-    _selectedAccountType = accountType;
-  }
-  
-  // Set cashier
-  final cashierStr = expense['cashier'] as String;
-  final cashierParts = cashierStr.split('-');
-  if (cashierParts.length == 2) {
-    _selectedCashierType = cashierParts[0];
-    _cashierController.text = cashierParts[1];
-  }
-  
-  // Load expense items
-  final items = expense['items'] as List<dynamic>;
-  for (var item in items) {
-    final accountController = TextEditingController(text: item['account']);
-    final narrationController = TextEditingController(text: item['narration']);
-    final amountController = TextEditingController(text: item['amount'].toString());
-    final remarksController = TextEditingController(text: item['remarks'] ?? '');
     
-    _searchControllers.add(accountController);
-    _filteredOptions.add([..._expenseCategories]);
-    _searchActiveStates.add(false);
+    // Set account type
+    final accountType = expense['accountType'] as String;
+    if (_accountTypes.contains(accountType)) {
+      _selectedAccountType = accountType;
+    }
     
-    _expenseItems.add(
-      ExpenseItem(
-        slNo: item['slNo'],
-        account: item['account'],
-        narration: item['narration'],
-        amount: item['amount'],
-        remarks: item['remarks'] ?? '',
-        narrationController: narrationController,
-        amountController: amountController,
-        remarksController: remarksController
-      )
-    );
+    // Set cashier
+    final cashierStr = expense['cashier'] as String;
+    final cashierParts = cashierStr.split('-');
+    if (cashierParts.length == 2) {
+      _selectedCashierType = cashierParts[0];
+      _cashierController.text = cashierParts[1];
+    }
+    
+    // Load expense items
+    final items = expense['items'] as List<dynamic>;
+    for (var item in items) {
+      final accountController = TextEditingController(text: item['account']);
+      final narrationController = TextEditingController(text: item['narration']);
+      final amountController = TextEditingController(text: item['amount'].toString());
+      final remarksController = TextEditingController(text: item['remarks'] ?? '');
+      
+      _searchControllers.add(accountController);
+      _filteredOptions.add([..._expenseCategories]);
+      _searchActiveStates.add(false);
+      
+      _expenseItems.add(
+        ExpenseItem(
+          slNo: item['slNo'],
+          account: item['account'],
+          narration: item['narration'],
+          amount: item['amount'],
+          remarks: item['remarks'] ?? '',
+          narrationController: narrationController,
+          amountController: amountController,
+          remarksController: remarksController
+        )
+      );
+    }
+    
+    // Update grand total
+    _updateGrandTotal();
   }
-  
-  // Update grand total
-  _updateGrandTotal();
-}
 
   // Method to show date picker
   Future<void> _selectDate(BuildContext context) async {
@@ -270,6 +272,64 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       _searchActiveStates[index] = !_searchActiveStates[index];
     });
   }
+
+  // Helper method to get translated category name for display
+  String _getTranslatedCategory(String category) {
+    switch (category) {
+      case 'Shop Expenses':
+        return 'Shop Expenses'.tr();
+      case 'Office Expenses':
+        return 'Office Expenses'.tr();
+      case 'Food Expenses':
+        return 'Food Expenses'.tr();
+      case 'Transport':
+        return 'Transport'.tr();
+      case 'Utilities':
+        return 'Utilities'.tr();
+      case 'Rent':
+        return 'Rent'.tr();
+      case 'Salaries':
+        return 'Salaries'.tr();
+      case 'Kitchen Expenses':
+        return 'Kitchen Expenses'.tr();
+      case 'Raw Materials':
+        return 'Raw Materials'.tr();
+      case 'Maintenance':
+        return 'Maintenance'.tr();
+      case 'Equipments':
+        return 'Equipments'.tr();
+      case 'Cleaning Supplies':
+        return 'Cleaning Supplies'.tr();
+      case 'Others':
+        return 'Others'.tr();
+      default:
+        return category;
+    }
+  }
+
+  // Helper method to get translated cashier type for display
+  String _getTranslatedCashierType(String cashierType) {
+    switch (cashierType) {
+      case 'Cashier':
+        return 'Cashier'.tr();
+      case 'Salesman':
+        return 'Salesman'.tr();
+      default:
+        return cashierType;
+    }
+  }
+
+  // Helper method to get translated account type for display
+  String _getTranslatedAccountType(String accountType) {
+    switch (accountType) {
+      case 'Cash Account':
+        return 'Cash Account'.tr();
+      case 'Bank Account':
+        return 'Bank Account'.tr();
+      default:
+        return accountType;
+    }
+  }
   
   Future<void> _saveExpense() async {
     // Validate form
@@ -287,14 +347,14 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     
     if (hasEmptyFields) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill all required fields')),
+        SnackBar(content: Text('Please fill all required fields'.tr())),
       );
       return;
     }
     
     if (!hasValidAmount || _grandTotal <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add at least one expense with a valid amount')),
+        SnackBar(content: Text('Please add at least one expense with a valid amount'.tr())),
       );
       return;
     }
@@ -307,8 +367,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       // Create expense data including the selected account type and cashier type
       final expenseData = {
         'date': _currentDate, // Use the selected date
-        'cashier': '$_selectedCashierType-${_cashierController.text}', // Include cashier type
-        'accountType': _selectedAccountType, // Include selected account type
+        'cashier': _selectedCashierType, // Include cashier type (keep English for internal)
+        'accountType': _selectedAccountType, // Include selected account type (keep English for internal)
         'items': _expenseItems.map((item) => {
           'slNo': item.slNo,
           'account': item.account,
@@ -320,14 +380,15 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       };
       
       bool result;
-    if (widget.expenseToEdit != null) {
-      // We're updating an existing expense
-      expenseData['id'] = widget.expenseToEdit!['id'];
-      result = await _expenseRepository.updateExpense(expenseData);
-    } else {
-      // We're creating a new expense
-      result = await _expenseRepository.saveExpense(expenseData);
-    }
+      if (widget.expenseToEdit != null) {
+        // We're updating an existing expense
+        expenseData['id'] = widget.expenseToEdit!['id'];
+        result = await _expenseRepository.updateExpense(expenseData);
+      } else {
+        // We're creating a new expense
+        result = await _expenseRepository.saveExpense(expenseData);
+      }
+      
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -338,10 +399,10 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
           showDialog(
             context: context,
             builder: (ctx) => AlertDialog(
-              title: const Text('Success'),
+              title: Text('Success'.tr()),
               content: Text(widget.expenseToEdit != null 
-              ? 'Expense updated successfully!' 
-              : 'Expense records stored successfully!'),
+                ? 'Expense updated successfully!'.tr() 
+                : 'Expense records stored successfully!'.tr()),
               actions: [
                 TextButton(
                   onPressed: () {
@@ -355,7 +416,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                       _resetForm();
                     }
                   },
-                  child: const Text('OK'),
+                  child: Text('OK'.tr()),
                 ),
               ],
             ),
@@ -363,7 +424,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         } else {
           // Show error message
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to save expense. Please try again.')),
+            SnackBar(content: Text('Failed to save expense. Please try again.'.tr())),
           );
         }
       }
@@ -374,7 +435,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         });
         
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text('Error'.tr())),
         );
       }
     }
@@ -417,7 +478,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Cash Payment'),
+        title: Text('Cash Payment'.tr()),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         leading: IconButton(
@@ -448,9 +509,9 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                                   children: [
                                     const Icon(Icons.payment, color: Colors.green),
                                     const SizedBox(width: 8),
-                                    const Text(
-                                      'Cash Payment',
-                                      style: TextStyle(
+                                    Text(
+                                      'Cash Payment'.tr(),
+                                      style: const TextStyle(
                                         fontSize: 20,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -472,7 +533,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text('Cash Account:'),
+                                    Text('Cash Account:'.tr()),
                                     const SizedBox(height: 4),
                                     Container(
                                       decoration: BoxDecoration(
@@ -487,7 +548,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                                           items: _accountTypes.map((String value) {
                                             return DropdownMenuItem<String>(
                                               value: value,
-                                              child: Text(value),
+                                              child: Text(_getTranslatedAccountType(value)),
                                             );
                                           }).toList(),
                                           onChanged: (String? newValue) {
@@ -512,7 +573,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text('Date:'),
+                                    Text('Date:'.tr()),
                                     const SizedBox(height: 4),
                                     InkWell(
                                       onTap: () => _selectDate(context),
@@ -558,7 +619,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text('Cashier:'),
+                                    Text('Cashier:'.tr()),
                                     const SizedBox(height: 4),
                                     Container(
                                       decoration: BoxDecoration(
@@ -573,7 +634,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                                           items: _cashierTypes.map((String value) {
                                             return DropdownMenuItem<String>(
                                               value: value,
-                                              child: Text(value),
+                                              child: Text(_getTranslatedCashierType(value)),
                                             );
                                           }).toList(),
                                           onChanged: (String? newValue) {
@@ -592,25 +653,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                               
                               const SizedBox(width: 16),
                               
-                              // ID text field - commented out but kept for reference
-                              // Expanded(
-                              //   flex: 1,
-                              //   child: Column(
-                              //     crossAxisAlignment: CrossAxisAlignment.start,
-                              //     children: [
-                              //       Text('${_selectedCashierType} ID:'),
-                              //       const SizedBox(height: 4),
-                              //       TextField(
-                              //         controller: _cashierController,
-                              //         decoration: const InputDecoration(
-                              //           isDense: true,
-                              //           contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                              //           border: OutlineInputBorder(),
-                              //         ),
-                              //       ),
-                              //     ],
-                              //   ),
-                              // ),
+                              // Empty space to maintain layout
+                              const Expanded(flex: 1, child: SizedBox()),
                             ],
                           ),
                         ],
@@ -632,13 +676,12 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                             padding: const EdgeInsets.symmetric(vertical: 8.0),
                             child: Row(
                               children: [
-                                _buildHeaderCell('Sl.No', 1),
-                                _buildHeaderCell('Account', 3),
-                                _buildHeaderCell('Narration', 3),
-                                _buildHeaderCell('Remarks', 2),
-                                // _buildHeaderCell('OldBalance', 2),
-                                _buildHeaderCell('Amount', 2),
-                                _buildHeaderCell('NetAmount', 2),
+                                _buildHeaderCell('Sl.No'.tr(), 1),
+                                _buildHeaderCell('Account'.tr(), 3),
+                                _buildHeaderCell('Narration'.tr(), 3),
+                                _buildHeaderCell('Remarks'.tr(), 2),
+                                _buildHeaderCell('Amount'.tr(), 2),
+                                _buildHeaderCell('Net Amount'.tr(), 2),
                                 _buildHeaderCell('', 1), // Delete button column
                               ],
                             ),
@@ -657,10 +700,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                             onPressed: _addNewExpenseRow,
                             icon: const Icon(Icons.add),
                             label: const Text(''),
-                            style: ElevatedButton.styleFrom(
-                              // backgroundColor: Colors.blue,
-                              // foregroundColor: Colors.white,
-                            ),
+                            style: ElevatedButton.styleFrom(),
                           ),
                         ),
                         
@@ -673,7 +713,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
-                                  const Text('Gross:', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  Text('Gross:'.tr(), style: const TextStyle(fontWeight: FontWeight.bold)),
                                   const SizedBox(width: 8),
                                   Container(
                                     width: 100,
@@ -690,7 +730,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
-                                  const Text('Total Tax:', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  Text('Total Tax:'.tr(), style: const TextStyle(fontWeight: FontWeight.bold)),
                                   const SizedBox(width: 8),
                                   Container(
                                     width: 100,
@@ -707,7 +747,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
-                                  const Text('Grand Total:', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  Text('Grand Total:'.tr(), style: const TextStyle(fontWeight: FontWeight.bold)),
                                   const SizedBox(width: 8),
                                   Container(
                                     width: 100,
@@ -739,7 +779,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                       ElevatedButton.icon(
                         onPressed: _saveExpense,
                         icon: const Icon(Icons.save),
-                        label: const Text('Save'),
+                        label: Text('Save'.tr()),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue,
                           foregroundColor: Colors.white,
@@ -751,39 +791,17 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                         onPressed: () { 
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => ExpenseHistoryScreen()),
+                            MaterialPageRoute(builder: (context) => const ExpenseHistoryScreen()),
                           );
-                          },
+                        },
                         icon: const Icon(Icons.receipt_long),
-                        label: const Text('Expenses'),
+                        label: Text('Expenses'.tr()),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      // ElevatedButton.icon(
-                      //   onPressed: () {},
-                      //   icon: const Icon(Icons.share),
-                      //   label: const Text('Share'),
-                      //   style: ElevatedButton.styleFrom(
-                      //     backgroundColor: Colors.blue.shade400,
-                      //     foregroundColor: Colors.white,
-                      //     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      //   ),
-                      // ),
-                      const SizedBox(width: 16),
-                      // ElevatedButton.icon(
-                      //   onPressed: () {},
-                      //   icon: const Icon(Icons.search),
-                      //   label: const Text('Search'),
-                      //   style: ElevatedButton.styleFrom(
-                      //     backgroundColor: Colors.blue.shade400,
-                      //     foregroundColor: Colors.white,
-                      //     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      //   ),
-                      // ),
                     ],
                   ),
                 ],
@@ -849,7 +867,6 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                           isDense: true,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                           border: const OutlineInputBorder(),
-                          // hintText: 'Select Account',
                           suffixIcon: IconButton(
                             icon: Icon(_searchActiveStates[index] 
                               ? Icons.keyboard_arrow_up 
@@ -879,7 +896,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                             final option = _filteredOptions[index][optionIndex];
                             return ListTile(
                               dense: true,
-                              title: Text(option),
+                              title: Text(_getTranslatedCategory(option)),
                               onTap: () {
                                 _searchControllers[index].text = option;
                                 _updateExpenseItem(index, account: option);
@@ -910,7 +927,6 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                     isDense: true,
                     contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                     border: OutlineInputBorder(),
-                    // hintText: 'Enter Narration',
                   ),
                   onChanged: (value) {
                     _updateExpenseItem(index, narration: value);
@@ -930,7 +946,6 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                     isDense: true,
                     contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                     border: OutlineInputBorder(),
-                    // hintText: 'Remarks',
                   ),
                   onChanged: (value) {
                     _updateExpenseItem(index, remarks: value);
@@ -938,23 +953,6 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                 ),
               ),
             ),
-            
-            // OldBalance
-            // Expanded(
-            //   flex: 2,
-            //   child: Padding(
-            //     padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            //     child: TextField(
-            //       readOnly: true,
-            //       controller: TextEditingController(text: '0.000'),
-            //       decoration: const InputDecoration(
-            //         isDense: true,
-            //         contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            //         border: OutlineInputBorder(),
-            //       ),
-            //     ),
-            //   ),
-            // ),
             
             // Amount - Using dedicated controller
             Expanded(
@@ -967,8 +965,6 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                     isDense: true,
                     contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                     border: OutlineInputBorder(),
-                    // hintText: 'Amount',
-                    
                   ),
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (value) {
@@ -980,7 +976,6 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                   },
                 ),
               ),
-              
             ),
             
             // NetAmount
@@ -1006,7 +1001,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
               child: IconButton(
                 icon: const Icon(Icons.delete, color: Colors.red),
                 onPressed: () => _removeExpenseItem(index),
-                tooltip: 'Delete row',
+                tooltip: 'Delete row'.tr(),
               ),
             ),
           ],

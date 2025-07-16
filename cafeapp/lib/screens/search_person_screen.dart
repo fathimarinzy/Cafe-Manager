@@ -1,7 +1,7 @@
-// lib/screens/search_person_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/person_provider.dart';
+import '../utils/app_localization.dart';
 
 class SearchPersonScreen extends StatefulWidget {
   const SearchPersonScreen({super.key});
@@ -27,7 +27,7 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('People'),
+        title:  Text('People'.tr()),
       ),
       body: Column(
         children: [
@@ -38,7 +38,7 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
                 return TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
-                    labelText: 'Search by name',
+                    labelText: 'Search by name'.tr(),
                     prefixIcon: const Icon(Icons.search),
                     border: const OutlineInputBorder(),
                     suffixIcon: _searchController.text.isNotEmpty
@@ -87,8 +87,8 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(_isSearching
-                            ? 'No results found'
-                            : 'No people added yet'),
+                            ? 'No results found'.tr()
+                            : 'No people added yet'.tr()),
                       ],
                     ),
                   );
@@ -116,7 +116,7 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
                         trailing: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Text('Visited on', style: TextStyle(fontSize: 12)),
+                            Text('Visited on'.tr(), style: TextStyle(fontSize: 12)),
                             Text(
                               DateTime.parse(person.dateVisited).toString().substring(0, 10),
                               style: const TextStyle(color: Colors.grey),

@@ -1,4 +1,3 @@
-// lib/screens/login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
@@ -74,7 +73,7 @@ class LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
     
       setState(() {
-        _errorMessage = 'Login failed: ${error.toString()}';
+        _errorMessage = 'Login Failed. Please check your credentials.'.tr();
         _isLoading = false;
       });
     }

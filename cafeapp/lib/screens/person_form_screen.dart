@@ -1,8 +1,8 @@
-// lib/screens/person_form_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/person.dart';
 import '../providers/person_provider.dart';
+import '../utils/app_localization.dart';
 
 class PersonFormScreen extends StatefulWidget {
   const PersonFormScreen({super.key});
@@ -23,7 +23,7 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Person Details'),
+        title: Text('Person Details'.tr()),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -32,13 +32,13 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
           child: ListView(
             children: [
               TextFormField(
-                decoration: const InputDecoration(
-                  labelText: 'Name',
+                decoration:  InputDecoration(
+                  labelText: 'Name'.tr(),
                   border: OutlineInputBorder(),
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Please enter a name';
+                    return 'Please enter a name'.tr();
                   }
                   return null;
                 },
@@ -48,14 +48,14 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
               ),
               const SizedBox(height: 16),
               TextFormField(
-                decoration: const InputDecoration(
-                  labelText: 'Phone Number',
+                decoration: InputDecoration(
+                  labelText: 'Phone Number'.tr(),
                   border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.phone,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Please enter a phone number';
+                    return 'Please enter a phone number'.tr();
                   }
                   return null;
                 },
@@ -65,13 +65,13 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
               ),
               const SizedBox(height: 16),
               TextFormField(
-                decoration: const InputDecoration(
-                  labelText: 'Place',
+                decoration: InputDecoration(
+                  labelText: 'Place'.tr(),
                   border: OutlineInputBorder(),
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Please enter a place';
+                    return 'Please enter a place'.tr();
                   }
                   return null;
                 },
@@ -101,8 +101,8 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
                             
                             if (personProvider.error.isEmpty) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Person added successfully'),
+                                SnackBar(
+                                  content: Text('Person added successfully'.tr()),
                                 ),
                               );
                               Navigator.pop(context);
@@ -114,14 +114,14 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
                           } catch (e) {
                             if (!mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Failed to add person: $e')),
+                              SnackBar(content: Text('Failed to add person'.tr())),
                             );
                           }
                         }
                       },
                 child: personProvider.isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('Save'),
+                    :  Text('Save'.tr()),
               ),
             ],
           ),

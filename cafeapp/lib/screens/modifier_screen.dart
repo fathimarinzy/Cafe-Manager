@@ -6,6 +6,7 @@ import 'dart:convert';
 import '../providers/menu_provider.dart';
 import '../models/menu_item.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../utils/app_localization.dart';
 
 class ModifierScreen extends StatefulWidget {
   const ModifierScreen({super.key});
@@ -129,14 +130,14 @@ class _ModifierScreenState extends State<ModifierScreen> {
         } else {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not access the selected image')),
+             SnackBar(content: Text('Could not access the selected image'.tr())),
           );
         }
       }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error selecting image: $e')),
+        SnackBar(content: Text('Error selecting image'.tr())),
       );
     } finally {
       if (mounted) {
@@ -177,14 +178,14 @@ class _ModifierScreenState extends State<ModifierScreen> {
         } else {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not access the captured photo')),
+            SnackBar(content: Text('Could not access the captured photo'.tr())),
           );
         }
       }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error taking photo: $e')),
+        SnackBar(content: Text('Error taking photo'.tr())),
       );
     } finally {
       if (mounted) {
@@ -331,15 +332,14 @@ class _ModifierScreenState extends State<ModifierScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Item'),
-        content: Text('Are you sure you want to delete ${item.name}?'),
-        actions: [
+        title:  Text('Delete Item'.tr()),
+        content: Text('${'Are you sure you want to delete'.tr()} "${item.name}"?'),        actions: [
           TextButton(
-            child: const Text('Cancel'),
+            child: Text('Cancel'.tr()),
             onPressed: () => Navigator.of(ctx).pop(false),
           ),
           TextButton(
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child:  Text('Delete'.tr(), style: TextStyle(color: Colors.red)),
             onPressed: () => Navigator.of(ctx).pop(true),
           ),
         ],
@@ -355,19 +355,19 @@ class _ModifierScreenState extends State<ModifierScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => const AlertDialog(
+      builder: (ctx) => AlertDialog(
         content: Row(
           children: [
             CircularProgressIndicator(),
             SizedBox(width: 20),
-            Text("Deleting item...")
+            Text("Deleting item...".tr())
           ],
         ),
       ),
     );
     
     bool success = false;
-    String errorMessage = 'Failed to delete item. Please try again.';
+    String errorMessage = 'Failed to delete item. Please try again.'.tr();
     
     try {
       final menuProvider = Provider.of<MenuProvider>(context, listen: false);
@@ -383,9 +383,9 @@ class _ModifierScreenState extends State<ModifierScreen> {
       // If the error contains "foreign key constraint", provide a clearer message
       if (e.toString().toLowerCase().contains('foreign key') || 
           e.toString().toLowerCase().contains('constraint')) {
-        errorMessage = 'This item cannot be deleted because it is used in existing orders.';
+        errorMessage = 'This item cannot be deleted because it is used in existing orders.'.tr();
       } else {
-        errorMessage = 'Error: ${e.toString()}';
+        errorMessage = 'Error'.tr();
       }
       debugPrint('Exception during delete: $e');
     }
@@ -398,11 +398,11 @@ class _ModifierScreenState extends State<ModifierScreen> {
     // Show result message
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(success ? 'Item deleted successfully' : errorMessage),
+        content: Text(success ? 'Item deleted successfully'.tr() : errorMessage),
         backgroundColor: success ? Colors.green : Colors.red,
         duration: const Duration(seconds: 3),
         action: success ? null : SnackBarAction(
-          label: 'Dismiss',
+          label: 'Dismiss'.tr(),
           onPressed: () {
             ScaffoldMessenger.of(context).hideCurrentSnackBar();
           },
@@ -439,8 +439,8 @@ class _ModifierScreenState extends State<ModifierScreen> {
     // Validate category
     if (_selectedCategory.isEmpty && !_isAddingNewCategory) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a category'),
+        SnackBar(
+          content: Text('Please select a category'.tr()),
           backgroundColor: Colors.red,
         ),
       );
@@ -453,12 +453,12 @@ class _ModifierScreenState extends State<ModifierScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => const AlertDialog(
+      builder: (ctx) =>  AlertDialog(
         content: Row(
           children: [
             CircularProgressIndicator(),
             SizedBox(width: 20),
-            Text("Saving item...")
+            Text("Saving item...".tr())
           ],
         ),
       ),
@@ -471,7 +471,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
       try {
         final categoryAdded = await menuProvider.addCategory(categoryToUse);
         if (!categoryAdded) {
-          throw Exception("Failed to add category");
+          throw Exception("Failed to add category".tr());
         }
         await menuProvider.fetchCategories();
         _selectedCategory = categoryToUse;
@@ -480,7 +480,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
         Navigator.of(context).pop(); // Close dialog
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to add category: $e'),
+            content: Text('Failed to add category'.tr()),
             backgroundColor: Colors.red,
           ),
         );
@@ -503,8 +503,8 @@ class _ModifierScreenState extends State<ModifierScreen> {
         if (!mounted) return;
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to process image. Please try a different one.'),
+           SnackBar(
+            content: Text('Failed to process image. Please try a different one.'.tr()),
             backgroundColor: Colors.red,
           ),
         );
@@ -547,10 +547,10 @@ class _ModifierScreenState extends State<ModifierScreen> {
     Navigator.of(context).pop(); // Close dialog
 
     // Show result message
-    final message = _editingItem == null ? 'Item added successfully' : 'Item updated successfully';
+    final message = _editingItem == null ? 'Item added successfully'.tr() : 'Item updated successfully'.tr();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(success ? message : 'Failed to save item. Please try again.'),
+        content: Text(success ? message : 'Failed to save item. Please try again.'.tr()),
         backgroundColor: success ? Colors.green : Colors.red,
       ),
     );
@@ -590,7 +590,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
     if (_selectedImage != null) {
       try {
         if (!_selectedImage!.existsSync()) {
-          return _buildErrorImagePreview('Image file not found');
+          return _buildErrorImagePreview('Image file not found'.tr());
         }
         
         return ClipRRect(
@@ -605,7 +605,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
           ),
         );
       } catch (e) {
-        return _buildErrorImagePreview('Error showing image');
+        return _buildErrorImagePreview('Error showing image'.tr());
       }
     }
     
@@ -626,7 +626,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
         try {
           final file = File(_editingItem!.imageUrl.replaceFirst('file://', ''));
           if (!file.existsSync()) {
-            return _buildErrorImagePreview('Image file not found');
+            return _buildErrorImagePreview('Image file not found'.tr());
           }
           return ClipRRect(
             borderRadius: BorderRadius.circular(8),
@@ -638,7 +638,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
             ),
           );
         } catch (e) {
-          return _buildErrorImagePreview('Invalid file path');
+          return _buildErrorImagePreview('Invalid file path'.tr());
         }
       }
       
@@ -655,7 +655,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
             child: SizedBox(width: 30, height: 30, child: CircularProgressIndicator(strokeWidth: 2)),
           ),
           errorWidget: (context, url, error) {
-            return _buildErrorImagePreview('Failed to load image');
+            return _buildErrorImagePreview('Failed to load image'.tr());
           },
         ),
       );
@@ -669,7 +669,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
           Icon(Icons.image, size: 40, color: Colors.grey[400]),
           const SizedBox(height: 4),
           Text(
-            'No image selected',
+            'No image selected'.tr(),
             style: TextStyle(color: Colors.grey[600], fontSize: 12),
           ),
         ],
@@ -692,7 +692,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Modifiers'),
+        title:  Text('Products'.tr()),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         leading: IconButton(
@@ -716,8 +716,8 @@ class _ModifierScreenState extends State<ModifierScreen> {
                     Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(
-                          labelText: 'Category',
+                        decoration:  InputDecoration(
+                          labelText: 'Category'.tr(),
                           border: OutlineInputBorder(),
                         ),
                         value: menuProvider.categories.contains(_selectedCategory) ? _selectedCategory : null,
@@ -734,16 +734,16 @@ class _ModifierScreenState extends State<ModifierScreen> {
                             });     
                           }
                         },
-                        hint: const Text('Select a category'),
+                        hint:  Text('Select a category'.tr()),
                       ),
                     ),
 
                     // Items list - Improved version
                     Expanded(
                       child: _selectedCategory.isEmpty || !menuProvider.categories.contains(_selectedCategory) ? 
-                        const Center(child: Text('No category selected')) :
+                         Center(child: Text('No category selected'.tr())) :
                          displayedItems.isEmpty ?
-                        const Center(child: Text('No items in this category')) :
+                        Center(child: Text('No items in this category'.tr())) :
                         ListView.builder(
                           key: _listKey,
                           itemCount: displayedItems.length,
@@ -773,7 +773,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
                                 children: [
                                   Text(item.price.toStringAsFixed(2)),
                                   Text(
-                                    item.isAvailable ? 'Available' : 'Out of stock',
+                                    item.isAvailable ? 'Available'.tr() : 'Out of stock'.tr(),
                                     style: TextStyle(
                                       color: item.isAvailable ? Colors.green : Colors.red,
                                       fontSize: 12,
@@ -819,7 +819,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _editingItem == null ? 'Add New Item' : 'Edit Item',
+                            _editingItem == null ? 'Add New Item'.tr() : 'Edit Item'.tr(),
                             style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
@@ -830,13 +830,13 @@ class _ModifierScreenState extends State<ModifierScreen> {
                           // Name field
                           TextFormField(
                             controller: _nameController,
-                            decoration: const InputDecoration(
-                              labelText: 'Name',
+                            decoration: InputDecoration(
+                              labelText: 'Name'.tr(),
                               border: OutlineInputBorder(),
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Please enter a name';
+                                return 'Please enter a name'.tr();
                               }
                               return null;
                             },
@@ -846,19 +846,19 @@ class _ModifierScreenState extends State<ModifierScreen> {
                           // Price field
                           TextFormField(
                             controller: _priceController,
-                            decoration: const InputDecoration(
-                              labelText: 'Price',
+                            decoration:  InputDecoration(
+                              labelText: 'Price'.tr(),
                               border: OutlineInputBorder(),
                             ),
                             keyboardType: TextInputType.number,
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Please enter a price';
+                                return 'Please enter a price'.tr();
                               }
                               try {
                                 double.parse(value);
                               } catch (e) {
-                                return 'Please enter a valid number';
+                                return 'Please enter a valid number'.tr();
                               }
                               return null;
                             },
@@ -872,13 +872,13 @@ class _ModifierScreenState extends State<ModifierScreen> {
                                   Expanded(
                                     child: TextFormField(
                                       controller: _categoryController,
-                                      decoration: const InputDecoration(
-                                        labelText: 'New Category',
+                                      decoration:  InputDecoration(
+                                        labelText: 'New Category'.tr(),
                                         border: OutlineInputBorder(),
                                       ),
                                       validator: (value) {
                                         if (value == null || value.isEmpty) {
-                                          return 'Please enter a category name';
+                                          return 'Please enter a category name'.tr();
                                         }
                                         return null;
                                       },
@@ -894,8 +894,8 @@ class _ModifierScreenState extends State<ModifierScreen> {
                                 children: [
                                   Expanded(
                                     child: DropdownButtonFormField<String>(
-                                      decoration: const InputDecoration(
-                                        labelText: 'Category',
+                                      decoration:  InputDecoration(
+                                        labelText: 'Category'.tr(),
                                         border: OutlineInputBorder(),
                                       ),
                                       value: menuProvider.categories.contains(_selectedCategory) ? _selectedCategory : null,
@@ -914,17 +914,17 @@ class _ModifierScreenState extends State<ModifierScreen> {
                                       },
                                       validator: (value) {
                                         if (value == null || value.isEmpty) {
-                                          return 'Please select a category';
+                                          return 'Please select a category'.tr();
                                         }
                                         return null;
                                       },
-                                      hint: const Text('Select a category'),
+                                      hint: Text('Select a category'.tr()),
                                     ),
                                   ),
                                   IconButton(
                                     icon: const Icon(Icons.add),
                                     onPressed: () => _toggleCategoryInput(true),
-                                    tooltip: 'Add new category',
+                                    tooltip: 'Add new category'.tr(),
                                   ),
                                 ],
                               ),
@@ -937,8 +937,8 @@ class _ModifierScreenState extends State<ModifierScreen> {
                             children: [
                               Row(
                                children: [
-                              const Text(
-                                'Item Image (Optional)',
+                               Text(
+                                'Item Image (Optional)'.tr(),
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -948,7 +948,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
                                if (_selectedImage != null || _base64Image != null)
                                   TextButton.icon(
                                     icon: const Icon(Icons.delete, size: 16, color: Colors.red),
-                                    label: const Text('Remove Image', style: TextStyle(color: Colors.red)),
+                                    label: Text('Remove Image'.tr(), style: TextStyle(color: Colors.red)),
                                     onPressed: () {
                                       setState(() {
                                         _selectedImage = null;
@@ -966,7 +966,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
                                   ElevatedButton.icon(
                                     onPressed: _pickImage,
                                     icon: const Icon(Icons.photo_library),
-                                    label: const Text('Gallery'),
+                                    label:  Text('Gallery'.tr()),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.blue[700],
                                     ),
@@ -975,7 +975,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
                                   ElevatedButton.icon(
                                     onPressed: _takePhoto,
                                     icon: const Icon(Icons.camera_alt),
-                                    label: const Text('Camera'),
+                                    label:  Text('Camera'.tr()),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.green[700],
                                     ),
@@ -1002,12 +1002,12 @@ class _ModifierScreenState extends State<ModifierScreen> {
                                         Icon(Icons.image_outlined, size: 40, color: Colors.grey[400]),
                                         const SizedBox(height: 4),
                                         Text(
-                                          'No image selected',
+                                          'No image selected'.tr(),
                                           style: TextStyle(color: Colors.grey[600], fontSize: 12),
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          '(Images are optional)',
+                                          '(Images are optional)'.tr(),
                                           style: TextStyle(color: Colors.grey[500], fontSize: 11, fontStyle: FontStyle.italic),
                                         ),
                                       ],
@@ -1023,7 +1023,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
                           // Availability switch
                           Row(
                             children: [
-                              const Text('Available'),
+                              Text('Available'.tr()),
                               Switch(
                                 value: _isAvailable,
                                 onChanged: (value) {
@@ -1043,12 +1043,12 @@ class _ModifierScreenState extends State<ModifierScreen> {
                             children: [
                               TextButton(
                                 onPressed: _resetForm,
-                                child: const Text('Cancel'),
+                                child:  Text('Cancel'.tr()),
                               ),
                               const SizedBox(width: 8),
                               ElevatedButton(
                                 onPressed: _saveItemToDatabase,
-                                child: Text(_editingItem == null ? 'Add Item' : 'Update Item'),
+                                child: Text(_editingItem == null ? 'Add Item'.tr() : 'Update Item'.tr()),
                               ),
                             ],
                           ),

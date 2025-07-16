@@ -9,6 +9,7 @@ import '../services/bill_service.dart';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
+import '../utils/app_localization.dart';
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
@@ -67,7 +68,7 @@ class _ReportScreenState extends State<ReportScreen> {
   Future<void> _generateAndSavePdf() async {
   if (_reportData == null) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('No report data available to save')),
+       SnackBar(content: Text('No report data available to save'.tr())),
     );
     return;
   }
@@ -100,11 +101,11 @@ class _ReportScreenState extends State<ReportScreen> {
   if (mounted) {
     if (saved) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Report saved as PDF')),
+         SnackBar(content: Text('Report saved as PDF'.tr())),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to save report as PDF')),
+         SnackBar(content: Text('Failed to save report as PDF'.tr())),
       );
     }
   }
@@ -112,7 +113,7 @@ class _ReportScreenState extends State<ReportScreen> {
     debugPrint('Error generating or saving PDF: $e');
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
+        SnackBar(content: Text('Error'.tr())),
       );
     }
   } finally {
@@ -177,13 +178,13 @@ class _ReportScreenState extends State<ReportScreen> {
     String dateRangeText;
     
     if (_selectedReportType == 'daily') {
-      reportTitle = 'Daily Report';
+      reportTitle = 'Daily Report'.tr();
       dateRangeText = DateFormat('dd MMM yyyy').format(_selectedDate);
     } else if (_selectedReportType == 'monthly') {
-      reportTitle = 'Monthly Report';
+      reportTitle = 'Monthly Report'.tr();
       dateRangeText = DateFormat('MMMM yyyy').format(_startDate);
     } else {
-      reportTitle = 'Monthly Report';
+      reportTitle = 'Monthly Report'.tr();
       dateRangeText = '${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}';
     }
     
@@ -319,7 +320,7 @@ class _ReportScreenState extends State<ReportScreen> {
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text(
-                    'Cash and Bank Sales',
+                    'Cash and Bank Sales'.tr(),
                     style: pw.TextStyle(font: ttf, fontSize: 14, fontWeight: pw.FontWeight.bold),
                   ),
                   pw.SizedBox(height: 10),
@@ -333,14 +334,14 @@ class _ReportScreenState extends State<ReportScreen> {
                           pw.Padding(
                             padding: const pw.EdgeInsets.all(5),
                             child: pw.Text(
-                              'Payment Method',
+                              'Payment Method'.tr(),
                               style: pw.TextStyle(font: ttf, fontWeight: pw.FontWeight.bold),
                             ),
                           ),
                           pw.Padding(
                             padding: const pw.EdgeInsets.all(5),
                             child: pw.Text(
-                              'Revenue',
+                              'Revenue'.tr(),
                               style: pw.TextStyle(font: ttf, fontWeight: pw.FontWeight.bold),
                               textAlign: pw.TextAlign.right,
                             ),
@@ -348,7 +349,7 @@ class _ReportScreenState extends State<ReportScreen> {
                           pw.Padding(
                             padding: const pw.EdgeInsets.all(5),
                             child: pw.Text(
-                              'Expenses',
+                              'Expenses'.tr(),
                               style: pw.TextStyle(font: ttf, fontWeight: pw.FontWeight.bold),
                               textAlign: pw.TextAlign.right,
                             ),
@@ -366,7 +367,7 @@ class _ReportScreenState extends State<ReportScreen> {
                           pw.Padding(
                             padding: const pw.EdgeInsets.all(5),
                             child: pw.Text(
-                              'Total',
+                              'Total'.tr(),
                               style: pw.TextStyle(font: ttf, fontWeight: pw.FontWeight.bold),
                             ),
                           ),
@@ -407,12 +408,12 @@ class _ReportScreenState extends State<ReportScreen> {
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text(
-                    'Total Sales',
+                    'Total Sales'.tr(),
                     style: pw.TextStyle(font: ttf, fontSize: 14, fontWeight: pw.FontWeight.bold),
                   ),
                   pw.SizedBox(height: 10),
                   serviceTypeSales.isEmpty
-                    ? pw.Center(child: pw.Text('No sales data available', style: pw.TextStyle(font: ttf)))
+                    ? pw.Center(child: pw.Text('No sales data available'.tr(), style: pw.TextStyle(font: ttf)))
                     : pw.Table(
                         border: pw.TableBorder.all(color: PdfColors.grey300),
                         children: [
@@ -423,14 +424,14 @@ class _ReportScreenState extends State<ReportScreen> {
                               pw.Padding(
                                 padding: const pw.EdgeInsets.all(5),
                                 child: pw.Text(
-                                  'Service Type',
+                                  'Service Type'.tr(),
                                   style: pw.TextStyle(font: ttf, fontWeight: pw.FontWeight.bold),
                                 ),
                               ),
                               pw.Padding(
                                 padding: const pw.EdgeInsets.all(5),
                                 child: pw.Text(
-                                  'Orders',
+                                  'Orders'.tr(),
                                   style: pw.TextStyle(font: ttf, fontWeight: pw.FontWeight.bold),
                                   textAlign: pw.TextAlign.center,
                                 ),
@@ -438,7 +439,7 @@ class _ReportScreenState extends State<ReportScreen> {
                               pw.Padding(
                                 padding: const pw.EdgeInsets.all(5),
                                 child: pw.Text(
-                                  'Revenue',
+                                  'Revenue'.tr(),
                                   style: pw.TextStyle(font: ttf, fontWeight: pw.FontWeight.bold),
                                   textAlign: pw.TextAlign.right,
                                 ),
@@ -466,7 +467,7 @@ class _ReportScreenState extends State<ReportScreen> {
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text(
-                    'Revenue Breakdown',
+                    'Revenue Breakdown'.tr(),
                     style: pw.TextStyle(font: ttf, fontSize: 14, fontWeight: pw.FontWeight.bold),
                   ),
                   pw.SizedBox(height: 10),
@@ -820,7 +821,7 @@ class _ReportScreenState extends State<ReportScreen> {
         });
         
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading report: $e')),
+          SnackBar(content: Text('Error loading report'.tr())),
         );
       }
     }
@@ -1108,7 +1109,7 @@ class _ReportScreenState extends State<ReportScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Reports'),
+        title:  Text('Reports'.tr()),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         leading: IconButton(
@@ -1133,7 +1134,7 @@ class _ReportScreenState extends State<ReportScreen> {
                 )
               : IconButton(
                   icon: const Icon(Icons.save_alt),
-                  tooltip: 'Save as PDF',
+                  tooltip: 'Save as PDF'.tr(),
                   onPressed: _reportData == null ? null : _generateAndSavePdf,
                 ),
         ],
@@ -1158,7 +1159,7 @@ class _ReportScreenState extends State<ReportScreen> {
                     Expanded(
                       child: _buildReportTypeCard(
                         'daily',
-                        'Daily Report',
+                        'Daily Report'.tr(),
                         Icons.today,
                         _selectedReportType == 'daily',
                       ),
@@ -1176,7 +1177,7 @@ class _ReportScreenState extends State<ReportScreen> {
                     Expanded(
                       child: _buildReportTypeCard(
                         'custom',
-                        'Monthly Report',
+                        'Monthly Report'.tr(),
                         Icons.calendar_month,
                         _selectedReportType == 'custom',
                       ),
@@ -1201,7 +1202,7 @@ class _ReportScreenState extends State<ReportScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _reportData == null
-                    ? const Center(child: Text('No data available'))
+                    ?  Center(child: Text('No data available'.tr()))
                     : _buildReportContent(),
           ),
         ],
@@ -1278,7 +1279,7 @@ class _ReportScreenState extends State<ReportScreen> {
                 Icon(Icons.calendar_today, color: Colors.grey.shade600),
                 const SizedBox(width: 8),
                 Text(
-                  'Selected Date: ${DateFormat('dd-MM-yyyy').format(_selectedDate)}',
+                  'Selected Date: ${DateFormat('dd-MM-yyyy').format(_selectedDate)}'.tr(),
                   style: const TextStyle(fontSize: 16),
                 ),
               ],
@@ -1307,7 +1308,7 @@ class _ReportScreenState extends State<ReportScreen> {
                 Icon(Icons.calendar_month, color: Colors.grey.shade600),
                 const SizedBox(width: 8),
                 Text(
-                  'Month: ${DateFormat('MMMM yyyy').format(_startDate)}',
+                  'Month: ${DateFormat('MMMM yyyy').format(_startDate)}'.tr(),
                   style: const TextStyle(fontSize: 16),
                 ),
               ],
@@ -1369,7 +1370,7 @@ class _ReportScreenState extends State<ReportScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'From: ${DateFormat('dd MMM yyyy').format(_startDate)}',
+                          'From: ${DateFormat('dd MMM yyyy').format(_startDate)}'.tr(),
                           style: const TextStyle(fontSize: 14),
                         ),
                         const Icon(Icons.calendar_today, size: 16),
@@ -1390,7 +1391,7 @@ class _ReportScreenState extends State<ReportScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'To: ${DateFormat('dd MMM yyyy').format(_endDate)}',
+                          'To: ${DateFormat('dd MMM yyyy').format(_endDate)}'.tr(),
                           style: const TextStyle(fontSize: 14),
                         ),
                         const Icon(Icons.calendar_today, size: 16),
@@ -1449,7 +1450,7 @@ class _ReportScreenState extends State<ReportScreen> {
           children: [
             Expanded(
               child: _buildSummaryCard(
-                'Total Orders',
+                'Total Orders'.tr(),
                 '${summary['totalOrders'] ?? 0}',
                 Icons.receipt_long,
                 Colors.blue,
@@ -1458,7 +1459,7 @@ class _ReportScreenState extends State<ReportScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: _buildSummaryCard(
-                'Total Revenue',
+                'Total Revenue'.tr(),
                 (summary['totalRevenue'] as double? ?? 0.0).toStringAsFixed(3),
                 Icons.attach_money,
                 Colors.green,
@@ -1467,7 +1468,7 @@ class _ReportScreenState extends State<ReportScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: _buildSummaryCard(
-                'Items Sold',
+                'Items Sold'.tr(),
                 '${summary['totalItemsSold'] ?? 0}',
                 Icons.inventory,
                 Colors.purple,
@@ -1529,8 +1530,8 @@ class _ReportScreenState extends State<ReportScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'Total Sales ',
+             Text(
+              'Total Sales'.tr(),
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ],
@@ -1542,9 +1543,9 @@ class _ReportScreenState extends State<ReportScreen> {
             borderRadius: BorderRadius.circular(8),
           ),
           child: serviceTypeSales.isEmpty
-              ? const Padding(
+              ?  Padding(
                   padding: EdgeInsets.all(32),
-                  child: Center(child: Text('No sales data found')),
+                  child: Center(child: Text('No sales data found'.tr())),
                 )
               : ListView.separated(
                   shrinkWrap: true,
@@ -1587,7 +1588,7 @@ class _ReportScreenState extends State<ReportScreen> {
                                         ),
                                       ),
                                       Text(
-                                        '$totalOrders orders',
+                                        '$totalOrders orders'.tr(),
                                         style: TextStyle(
                                           color: Colors.grey.shade600,
                                           fontSize: 12,
@@ -1632,8 +1633,8 @@ class _ReportScreenState extends State<ReportScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Revenue Breakdown',
+         Text(
+          'Revenue Breakdown'.tr(),
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
@@ -1645,13 +1646,13 @@ class _ReportScreenState extends State<ReportScreen> {
           ),
           child: Column(
             children: [
-              _buildRevenueRow('Subtotal', revenue['subtotal'] as double? ?? 0.0),
+              _buildRevenueRow('Subtotal'.tr(), revenue['subtotal'] as double? ?? 0.0),
               const SizedBox(height: 8),
-              _buildRevenueRow('Tax', revenue['tax'] as double? ?? 0.0),
+              _buildRevenueRow('Tax'.tr(), revenue['tax'] as double? ?? 0.0),
               const SizedBox(height: 8),
-              _buildRevenueRow('Discounts', revenue['discounts'] as double? ?? 0.0),
+              _buildRevenueRow('Discounts'.tr(), revenue['discounts'] as double? ?? 0.0),
               const Divider(),
-              _buildRevenueRow('Total Revenue', revenue['total'] as double? ?? 0.0, isTotal: true),
+              _buildRevenueRow('Total Revenue'.tr(), revenue['total'] as double? ?? 0.0, isTotal: true),
             ],
           ),
         ),
@@ -1686,8 +1687,8 @@ class _ReportScreenState extends State<ReportScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Top Selling Items',
+         Text(
+          'Top Selling Items'.tr(),
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
@@ -1697,9 +1698,9 @@ class _ReportScreenState extends State<ReportScreen> {
             borderRadius: BorderRadius.circular(8),
           ),
           child: topItems.isEmpty
-              ? const Padding(
+              ?  Padding(
                   padding: EdgeInsets.all(32),
-                  child: Center(child: Text('No items data available')),
+                  child: Center(child: Text('No items data available'.tr())),
                 )
               : ListView.separated(
                   shrinkWrap: true,
@@ -1725,13 +1726,13 @@ class _ReportScreenState extends State<ReportScreen> {
                         ),
                       ),
                       title: Text(name),
-                      subtitle: Text('Price: ${price.toStringAsFixed(3)}'),
+                      subtitle: Text('Price: ${price.toStringAsFixed(3)}'.tr()),
                       trailing: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            '$quantity sold',
+                            '$quantity sold'.tr(),
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           Text(
@@ -1758,7 +1759,7 @@ class _ReportScreenState extends State<ReportScreen> {
     final paymentTotals = _reportData!['paymentTotals'] as Map<String, dynamic>?;
     
     if (paymentTotals == null) {
-      return const Center(child: Text('Payment data not available'));
+      return  Center(child: Text('Payment data not available'.tr()));
     }
     
     // Format currency
@@ -1767,8 +1768,8 @@ class _ReportScreenState extends State<ReportScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Cash and Bank Sales',
+         Text(
+          'Cash and Bank Sales'.tr(),
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
@@ -1796,7 +1797,7 @@ class _ReportScreenState extends State<ReportScreen> {
                     Expanded(
                       flex: 3,
                       child: Text(
-                        'Payment Method',
+                        'Payment Method'.tr(),
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -1806,7 +1807,7 @@ class _ReportScreenState extends State<ReportScreen> {
                     Expanded(
                       flex: 2,
                       child: Text(
-                        'Revenue',
+                        'Revenue'.tr(),
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -1817,7 +1818,7 @@ class _ReportScreenState extends State<ReportScreen> {
                     Expanded(
                       flex: 2,
                       child: Text(
-                        'Expenses',
+                        'Expenses'.tr(),
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -1831,7 +1832,7 @@ class _ReportScreenState extends State<ReportScreen> {
               
               // Cash row
               _buildPaymentRow(
-                ' Total Cash Sales', 
+                'Total Cash Sales'.tr(), 
                 _getPaymentValue(paymentTotals, 'cash', 'sales'),
                 _getPaymentValue(paymentTotals, 'cash', 'expenses'),
                 currencyFormat,
@@ -1840,7 +1841,7 @@ class _ReportScreenState extends State<ReportScreen> {
               
               // Bank row
               _buildPaymentRow(
-                'Total Bank Sales', 
+                'Total Bank Sales'.tr(), 
                 _getPaymentValue(paymentTotals, 'bank', 'sales'),
                 _getPaymentValue(paymentTotals, 'bank', 'expenses'),
                 currencyFormat,
@@ -1852,7 +1853,7 @@ class _ReportScreenState extends State<ReportScreen> {
               
               // Total row
               _buildPaymentRow(
-                'Total Sales', 
+                'Total Sales'.tr(), 
                 _getPaymentValue(paymentTotals, 'total', 'sales'),
                 _getPaymentValue(paymentTotals, 'total', 'expenses'),
                 currencyFormat,
@@ -1943,7 +1944,7 @@ class _ReportScreenState extends State<ReportScreen> {
       return Colors.green;
     } else if (serviceType.contains('Catering')) {
       return Colors.purple;
-    } else if (serviceType.contains('Drive')) {
+    } else if (serviceType.contains('Drive' )) {
       return Colors.red;
     } else {
       return Colors.grey;

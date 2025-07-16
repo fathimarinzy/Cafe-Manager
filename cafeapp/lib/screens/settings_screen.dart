@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/table_provider.dart';
 import '../providers/settings_provider.dart';
-// import '../services/backup_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'login_screen.dart';
 import 'modifier_screen.dart'; 
@@ -12,10 +11,6 @@ import 'printer_settings_screen.dart';
 import '../utils/app_localization.dart';
 import '../screens/expense_screen.dart';
 import '../screens/report_screen.dart';
-// import '../repositories/local_menu_repository.dart';
-// import '../repositories/local_order_repository.dart';
-// import '../repositories/local_person_repository.dart';
-// import '../repositories/local_expense_repository.dart';
 import '../widgets/backup_manager_widget.dart';
 import '../utils/database_reset_service.dart';
 

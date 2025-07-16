@@ -6,6 +6,7 @@ import '../providers/order_history_provider.dart';
 import 'order_details_screen.dart';
 import '../screens/dashboard_screen.dart';
 import 'dart:async';
+import '../utils/app_localization.dart';
 
 class OrderListScreen extends StatefulWidget {
   final String? serviceType;
@@ -87,8 +88,8 @@ class _OrderListScreenState extends State<OrderListScreen> {
           backgroundColor: Colors.white,
           foregroundColor: Colors.black,
           title: Text(widget.serviceType != null 
-            ? '${widget.serviceType} Orders' 
-            : 'All Orders'),
+            ? '${'Orders'.tr()} - ${widget.serviceType}' 
+            : 'All Orders'.tr()),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
@@ -104,23 +105,6 @@ class _OrderListScreenState extends State<OrderListScreen> {
             },
           ),
           actions: [
-            // Refresh button
-            // IconButton(
-            //   icon: const Icon(Icons.refresh, color: Colors.black, size: 20),
-            //   onPressed: () {
-            //     // Show loading indicator
-            //     ScaffoldMessenger.of(context).showSnackBar(
-            //       const SnackBar(
-            //         content: Text('Refreshing orders...'),
-            //         duration: Duration(milliseconds: 1000),
-            //       ),
-            //     );
-                
-            //     // Refresh orders
-            //     final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
-            //     historyProvider.loadOrders();
-            //   },
-            // ),
             // Time display
             Padding(
               padding: const EdgeInsets.only(right: 16.0),
@@ -164,7 +148,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
           TextField(
             controller: _searchController,
             decoration: InputDecoration(
-              hintText: "Search order number...",
+              hintText: 'Search order number...'.tr(),
               prefixIcon: const Icon(Icons.search),
               suffixIcon: _isSearching ? 
                 IconButton(
@@ -237,7 +221,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
     return Padding(
       padding: const EdgeInsets.only(right: 8.0),
       child: FilterChip(
-        label: Text(filter.displayName),
+        label: Text(_getFilterDisplayName(filter)),
         selected: isSelected,
         onSelected: (selected) {
           setState(() {
@@ -260,6 +244,24 @@ class _OrderListScreenState extends State<OrderListScreen> {
     );
   }
 
+  // Helper method to get translated filter names
+  String _getFilterDisplayName(OrderTimeFilter filter) {
+    switch (filter) {
+      case OrderTimeFilter.today:
+        return 'Today'.tr();
+      case OrderTimeFilter.weekly:
+        return 'This Week'.tr();
+      case OrderTimeFilter.monthly:
+        return 'This Month'.tr();
+      case OrderTimeFilter.yearly:
+        return 'This Year'.tr();
+      case OrderTimeFilter.all:
+        return 'All Time'.tr();
+      default:
+        return filter.displayName;
+    }
+  }
+
   Widget _buildPendingFilterButton() {
     return ElevatedButton.icon(
       icon: Icon(
@@ -268,7 +270,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
         size: 18,
       ),
       label: Text(
-        'Pending',
+        'Pending'.tr(),
         style: TextStyle(
           color: _isPendingFilterActive ? Colors.white : Colors.orange,
           fontWeight: FontWeight.bold,
@@ -326,7 +328,7 @@ Widget _buildOrderList() {
                 const Icon(Icons.error_outline, size: 48, color: Colors.red),
                 const SizedBox(height: 16),
                 Text(
-                  'Error: ${historyProvider.errorMessage}',
+                  '${'Error:'.tr()} ${historyProvider.errorMessage}',
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
@@ -338,7 +340,7 @@ Widget _buildOrderList() {
                       historyProvider.loadOrders();
                     }
                   },
-                  child: const Text('Retry'),
+                  child: Text('Retry'.tr()),
                 ),
               ],
             ),
@@ -356,10 +358,10 @@ Widget _buildOrderList() {
                 const SizedBox(height: 16),
                 Text(
                   _isSearching 
-                      ? 'No orders found with that number' 
+                      ? 'No orders found with that number'.tr() 
                       : (_isPendingFilterActive
-                          ? 'No pending orders found'
-                          : 'No orders found'),
+                          ? 'No pending orders found'.tr()
+                          : 'No orders found'.tr()),
                   style: TextStyle(
                     fontSize: 18,
                     color: Colors.grey.shade600,
@@ -368,7 +370,7 @@ Widget _buildOrderList() {
                 if (!_isSearching) const SizedBox(height: 8),
                 if (!_isSearching)
                   Text(
-                    'Orders will appear here once they are placed',
+                    'Orders will appear here once they are placed'.tr(),
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.grey.shade500,
@@ -400,6 +402,7 @@ Widget _buildOrderList() {
       },
     );
   }
+
 Widget _buildOrderCard(OrderHistory order) {
     // Format currency
     final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
@@ -410,6 +413,8 @@ Widget _buildOrderCard(OrderHistory order) {
     
     // Determine status color
     Color statusColor = Colors.white;
+    String translatedStatus = _getTranslatedStatus(order.status);
+    
     if (order.status.toLowerCase() == 'pending') {
       statusColor = Colors.white;
     } else if (order.status.toLowerCase() == 'cancelled') {
@@ -469,7 +474,7 @@ Widget _buildOrderCard(OrderHistory order) {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        order.status,
+                        translatedStatus,
                         style: TextStyle(
                           color: statusColor,
                           fontSize: 10,
@@ -486,7 +491,7 @@ Widget _buildOrderCard(OrderHistory order) {
                 color: Colors.black.withAlpha(20),
               ),
               
-              // Service type
+              // Service type - translate display
               Row(
                 children: [
                   Icon(
@@ -497,7 +502,7 @@ Widget _buildOrderCard(OrderHistory order) {
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
-                      order.serviceType,
+                      _getTranslatedServiceType(order.serviceType),
                       style: TextStyle(
                         color: secondaryTextColor,
                         fontSize: isPortrait ? 10 : 12, // Smaller font in portrait
@@ -574,12 +579,42 @@ Widget _buildOrderCard(OrderHistory order) {
     );
   }
 
-  // bool _isDarkColor(Color color) {
-  //   // Calculate perceived brightness using the formula: (299*R + 587*G + 114*B) / 1000
-  //   // Where R, G, B values are between 0 and 255
-  //   double brightness = (299 * color.r + 587 * color.g + 114 * color.b) / 1000;
-  //   return brightness < 128; // If brightness is less than 128, consider it dark
-  // }
+  // Helper method to translate service type for display
+  String _getTranslatedServiceType(String serviceType) {
+    if (serviceType.contains('Dining')) {
+      // Extract table number if it exists
+      final tableMatch = RegExp(r'Table (\d+)').firstMatch(serviceType);
+      if (tableMatch != null) {
+        final tableNumber = tableMatch.group(1);
+        return '${'Dining'.tr()} - ${'Table'.tr()} $tableNumber';
+      }
+      return 'Dining'.tr();
+    } else if (serviceType.contains('Takeout')) {
+      return 'Takeout'.tr();
+    } else if (serviceType.contains('Delivery')) {
+      return 'Delivery'.tr();
+    } else if (serviceType.contains('Drive')) {
+      return 'Drive Through'.tr();
+    } else if (serviceType.contains('Catering')) {
+      return 'Catering'.tr();
+    } else {
+      return serviceType; // Fallback to original
+    }
+  }
+
+  // Helper method to translate status
+  String _getTranslatedStatus(String status) {
+    switch (status.toLowerCase()) {
+      case 'pending':
+        return 'pending'.tr();
+      case 'completed':
+        return 'completed'.tr();
+      case 'cancelled':
+        return 'cancelled'.tr();
+      default:
+        return status;
+    }
+  }
 
   IconData _getServiceTypeIcon(String serviceType) {
     if (serviceType.contains('Dining')) {

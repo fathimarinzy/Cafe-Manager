@@ -1,3 +1,4 @@
+import 'package:cafeapp/utils/app_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../repositories/local_expense_repository.dart';
@@ -16,8 +17,8 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
   bool _isLoading = true;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
-  String _selectedFilter = 'Today';
-  final List<String> _filterOptions = ['Today', 'This Week', 'This Month', 'All Expenses'];
+  String _selectedFilter = 'Today'; // Keep internal filter in English
+  final List<String> _filterOptions = ['Today', 'This Week', 'This Month', 'All Expenses']; // Keep internal values in English
   final ScrollController _scrollController = ScrollController();
   
   // For date formatting
@@ -65,7 +66,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading expenses: ${e.toString()}'),
+            content: Text('Error loading expenses'.tr()),
             behavior: SnackBarBehavior.floating,
             margin: const EdgeInsets.all(16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -86,11 +87,11 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Row(
+              content: Row(
                 children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 16),
-                  Text('Expense deleted successfully'),
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 16),
+                  Text('Expense deleted successfully'.tr()),
                 ],
               ),
               backgroundColor: Colors.green.shade700,
@@ -104,11 +105,11 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Row(
+              content: Row(
                 children: [
-                  Icon(Icons.error, color: Colors.white),
-                  SizedBox(width: 16),
-                  Text('Failed to delete expense'),
+                  const Icon(Icons.error, color: Colors.white),
+                  const SizedBox(width: 16),
+                  Text('Failed to delete expense'.tr()),
                 ],
               ),
               backgroundColor: Colors.red.shade700,
@@ -127,7 +128,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
               children: [
                 const Icon(Icons.error, color: Colors.white),
                 const SizedBox(width: 16),
-                Expanded(child: Text('Error deleting expense: $e')),
+                Expanded(child: Text('Error deleting expense'.tr())),
               ],
             ),
             backgroundColor: Colors.red.shade700,
@@ -139,32 +140,33 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
       }
     }
   }
+
   void _editExpense(Map<String, dynamic> expense) {
-  // Navigate to ExpenseScreen with expense data for editing
-  Navigator.of(context).push(
-    MaterialPageRoute(
-      builder: (context) => ExpenseScreen(expenseToEdit: expense),
-    ),
-  ).then((_) => _loadExpenses()); // Refresh list after returning
-}
+    // Navigate to ExpenseScreen with expense data for editing
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => ExpenseScreen(expenseToEdit: expense),
+      ),
+    ).then((_) => _loadExpenses()); // Refresh list after returning
+  }
 
   void _showDeleteConfirmation(int id) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.delete, color: Colors.red),
-            SizedBox(width: 8),
-            Text('Delete Expense'),
+            const Icon(Icons.delete, color: Colors.red),
+            const SizedBox(width: 8),
+            Text('Delete Expense'.tr()),
           ],
         ),
-        content: const Text('Are you sure you want to delete this expense record? This action cannot be undone.'),
+        content: Text('Are you sure you want to delete this expense record? This action cannot be undone.'.tr()),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text('Cancel'.tr()),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -175,11 +177,85 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
               Navigator.of(context).pop();
               _deleteExpense(id);
             },
-            child: const Text('Delete'),
+            child: Text('Delete'.tr()),
           ),
         ],
       ),
     );
+  }
+
+  // Helper method to get translated account type for display
+  String _getTranslatedAccountType(String accountType) {
+    switch (accountType) {
+      case 'Cash Account':
+        return 'Cash Account'.tr();
+      case 'Bank Account':
+        return 'Bank Account'.tr();
+      default:
+        return accountType;
+    }
+  }
+
+  // Helper method to get translated cashier type for display
+  String _getTranslatedCashierType(String cashierType) {
+    switch (cashierType) {
+      case 'Cashier':
+        return 'Cashier'.tr();
+      case 'Salesman':
+        return 'Salesman'.tr();
+      default:
+        return cashierType;
+    }
+  }
+
+  // Helper method to get translated category name for display
+  String _getTranslatedCategory(String category) {
+    switch (category) {
+      case 'Shop Expenses':
+        return 'Shop Expenses'.tr();
+      case 'Office Expenses':
+        return 'Office Expenses'.tr();
+      case 'Food Expenses':
+        return 'Food Expenses'.tr();
+      case 'Transport':
+        return 'Transport'.tr();
+      case 'Utilities':
+        return 'Utilities'.tr();
+      case 'Rent':
+        return 'Rent'.tr();
+      case 'Salaries':
+        return 'Salaries'.tr();
+      case 'Kitchen Expenses':
+        return 'Kitchen Expenses'.tr();
+      case 'Raw Materials':
+        return 'Raw Materials'.tr();
+      case 'Maintenance':
+        return 'Maintenance'.tr();
+      case 'Equipments':
+        return 'Equipments'.tr();
+      case 'Cleaning Supplies':
+        return 'Cleaning Supplies'.tr();
+      case 'Others':
+        return 'Others'.tr();
+      default:
+        return category;
+    }
+  }
+
+  // Helper method to get translated filter name for display
+  String _getTranslatedFilterName(String filter) {
+    switch (filter) {
+      case 'Today':
+        return 'Today'.tr();
+      case 'This Week':
+        return 'This Week'.tr();
+      case 'This Month':
+        return 'This Month'.tr();
+      case 'All Expenses':
+        return 'All Expenses'.tr();
+      default:
+        return filter;
+    }
   }
 
   void _viewExpenseDetails(Map<String, dynamic> expense) {
@@ -230,9 +306,9 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                         children: [
                           const Icon(Icons.receipt_long, size: 24, color: Colors.blue),
                           const SizedBox(width: 8),
-                          const Text(
-                            'Expense Details',
-                            style: TextStyle(
+                          Text(
+                            'Expense Details'.tr(),
+                            style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
                             ),
@@ -249,7 +325,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                         children: [
                           Expanded(
                             child: _buildInfoCard(
-                              'Date',
+                              'Date'.tr(),
                               date,
                               Icons.calendar_today,
                             ),
@@ -257,8 +333,8 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: _buildInfoCard(
-                              'Account',
-                              accountType,
+                              'Account'.tr(),
+                              _getTranslatedAccountType(accountType),
                               Icons.account_balance,
                             ),
                           ),
@@ -269,15 +345,15 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                         children: [
                           Expanded(
                             child: _buildInfoCard(
-                              'Cashier',
-                              cashier,
+                              'Cashier'.tr(),
+                              _getTranslatedCashierType(cashier),
                               Icons.person,
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: _buildInfoCard(
-                              'Total',
+                              'Total'.tr(),
                               _currencyFormat.format(total),
                               Icons.attach_money,
                               isHighlighted: true,
@@ -294,9 +370,9 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                     controller: scrollController,
                     padding: const EdgeInsets.all(16),
                     children: [
-                      const Text(
-                        'Expenses',
-                        style: TextStyle(
+                      Text(
+                        'Expenses'.tr(),
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -399,7 +475,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        account,
+                        _getTranslatedCategory(account),
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
@@ -468,10 +544,8 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
       
       filtered = filtered.where((expense) {
         final dateStr = expense['date'] as String;
-        // Parsing the date from "dd-MM-yyyy" format (based on your ExpenseScreen)
         DateTime? date;
         try {
-          // First try with dd-MM-yyyy format (your app's format)
           final parts = dateStr.split('-');
           if (parts.length == 3) {
             final day = int.tryParse(parts[0]) ?? 1;
@@ -481,16 +555,14 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           }
         } catch (e) {
           debugPrint('Error parsing date $dateStr: $e');
-          // Fallback - try standard parsing
           try {
             date = DateTime.parse(dateStr);
           } catch (e) {
             debugPrint('Failed to parse date in any format: $dateStr');
-            return false; // Exclude this expense from results if date can't be parsed
+            return false;
           }
         }
         
-        // If we couldn't parse the date, exclude this expense
         if (date == null) return false;
         
         switch (_selectedFilter) {
@@ -514,14 +586,12 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
       filtered = filtered.where((expense) {
-        // Search in date, cashier, account type
         if (expense['date'].toString().toLowerCase().contains(query) ||
             expense['cashier'].toString().toLowerCase().contains(query) ||
             expense['accountType'].toString().toLowerCase().contains(query)) {
           return true;
         }
         
-        // Search in items
         final items = expense['items'] as List<dynamic>;
         for (var item in items) {
           if (item['account'].toString().toLowerCase().contains(query) ||
@@ -537,13 +607,19 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     return filtered;
   }
 
+  // Helper method for items count text
+  String getItemsCountText(int count) {
+    if (count == 1) {
+      return '1 ${'item'.tr()}';
+    } else {
+      return '$count ${'items'.tr()}';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final filteredExpenses = _getFilteredExpenses();
     
-    // Calculate totals for the summary card based on filtered expenses
-    // final int totalExpenseCount = filteredExpenses.length;
-    // Calculate total items count across all expenses
     final int totalItemsCount = filteredExpenses.fold<int>(
       0,
       (sum, expense) {
@@ -560,21 +636,13 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
-        title: const Text(
-          'Expenses',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Text(
+          'Expenses'.tr(),
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        // centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
-        actions: [
-          // IconButton(
-          //   icon: const Icon(Icons.refresh),
-          //   onPressed: _loadExpenses,
-          //   tooltip: 'Refresh',
-          // ),
-        ],
       ),
       body: Column(
         children: [
@@ -585,44 +653,14 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Filter indicator
-                  // Container(
-                  //   margin: const EdgeInsets.only(bottom: 10),
-                  //   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  //   decoration: BoxDecoration(
-                  //     color: Colors.blue.shade50,
-                  //     borderRadius: BorderRadius.circular(20),
-                  //     border: Border.all(color: Colors.blue.shade200),
-                  //   ),
-                  //   child: Row(
-                  //     mainAxisSize: MainAxisSize.min,
-                  //     children: [
-                  //       Icon(
-                  //         _getFilterIcon(_selectedFilter),
-                  //         size: 16,
-                  //         color: Colors.blue.shade700,
-                  //       ),
-                  //       const SizedBox(width: 6),
-                  //       Text(
-                  //         _selectedFilter,
-                  //         style: TextStyle(
-                  //           color: Colors.blue.shade700,
-                  //           fontSize: 13,
-                  //           fontWeight: FontWeight.bold,
-                  //         ),
-                  //       ),
-                  //     ],
-                  //   ),
-                  // ),
-                  
                   // Summary cards
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 55), // Left/Right spacing
+                    padding: const EdgeInsets.symmetric(horizontal: 55),
                     child: Row(
                       children: [
                         Expanded(
                           child: _buildSummaryCard(
-                            'Total Expenses',
+                            'Total Expenses'.tr(),
                             totalItemsCount.toString(),
                             Icons.receipt_long,
                             Colors.blue,
@@ -631,7 +669,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                         const SizedBox(width: 18),
                         Expanded(
                           child: _buildSummaryCard(
-                            'Total Amount',
+                            'Total Amount'.tr(),
                             _currencyFormat.format(totalAmount),
                             Icons.attach_money,
                             Colors.blue,
@@ -640,7 +678,6 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                       ],
                     ),
                   )
-                                    
                 ],
               ),
             ),
@@ -655,7 +692,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                 TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
-                    hintText: 'Search expenses...',
+                    hintText: 'Search expenses...'.tr(),
                     prefixIcon: const Icon(Icons.search),
                     filled: true,
                     fillColor: Colors.grey.shade100,
@@ -693,7 +730,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                     children: _filterOptions.map((filter) {
                       final isSelected = _selectedFilter == filter;
                       return ChoiceChip(
-                        label: Text(filter),
+                        label: Text(_getTranslatedFilterName(filter)),
                         selected: isSelected,
                         onSelected: (selected) {
                           if (selected) {
@@ -726,7 +763,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                         const CircularProgressIndicator(),
                         const SizedBox(height: 16),
                         Text(
-                          'Loading expenses...',
+                          'Loading expenses...'.tr(),
                           style: TextStyle(color: Colors.grey.shade600),
                         ),
                       ],
@@ -744,7 +781,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              'No expenses found',
+                              'No expenses found'.tr(),
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -755,7 +792,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                             Text(
                               _searchQuery.isNotEmpty || _selectedFilter != 'All Expenses'
                                   ? ''
-                                  : 'Tap the + button to add a new expense',
+                                  : 'Tap the + button to add a new expense'.tr(),
                               style: TextStyle(color: Colors.grey.shade600),
                             ),
                           ],
@@ -771,13 +808,11 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                           final expenseId = expense['id'] as int;
                           final date = expense['date'] as String;
                           final accountType = expense['accountType'] as String;
-                          // final total = expense['grandTotal'] as double;
                           final items = expense['items'] as List<dynamic>;
                           
                           // Format date better if needed
                           String formattedDate = date;
                           try {
-                            // First try with dd-MM-yyyy format (your app's format)
                             final parts = date.split('-');
                             if (parts.length == 3) {
                               final day = int.tryParse(parts[0]);
@@ -789,12 +824,10 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                                 formattedDate = _dateFormat.format(dateObj);
                               }
                             } else {
-                              // Fallback - try standard parsing
                               final dateObj = DateTime.parse(date);
                               formattedDate = _dateFormat.format(dateObj);
                             }
                           } catch (e) {
-                            // Keep original format if parsing fails
                             debugPrint('Error formatting date: $e');
                           }
                           
@@ -807,14 +840,14 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                               ),
                               alignment: Alignment.centerRight,
                               padding: const EdgeInsets.only(right: 20),
-                              child: const Column(
+                              child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.delete, color: Colors.white),
-                                  SizedBox(height: 4),
+                                  const Icon(Icons.delete, color: Colors.white),
+                                  const SizedBox(height: 4),
                                   Text(
-                                    'Delete',
-                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                    'Delete'.tr(),
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                                   ),
                                 ],
                               ),
@@ -873,7 +906,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                                                     ),
                                                     const SizedBox(width: 8),
                                                     Text(
-                                                      accountType,
+                                                      _getTranslatedAccountType(accountType),
                                                       style: TextStyle(
                                                         color: Colors.grey.shade700,
                                                       ),
@@ -890,7 +923,7 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                                                     ),
                                                     const SizedBox(width: 8),
                                                     Text(
-                                                      '${items.length} item${items.length != 1 ? 's' : ''}',
+                                                      getItemsCountText(items.length),
                                                       style: TextStyle(
                                                         color: Colors.grey.shade700,
                                                       ),
@@ -901,79 +934,31 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
                                             ),
                                           ),
                                           // Right Column - Action Buttons
-                                      Column(
-                                        children: [
-                                          // Edit Button
-                                          ElevatedButton.icon(
-                                            onPressed: () => _editExpense(expense),
-                                            icon: const Icon(Icons.edit, size: 16),
-                                            label: const Text('Edit'),
-                                            style: ElevatedButton.styleFrom(
-                                              // backgroundColor: Colors.blue,
-                                              // foregroundColor: Colors.white,
-                                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          // Delete Button
-                                          ElevatedButton.icon(
-                                            onPressed: () => _showDeleteConfirmation(expenseId),
-                                            icon: const Icon(Icons.delete, size: 16),
-                                            label: const Text('Delete'),
-                                            style: ElevatedButton.styleFrom(
-                                              // backgroundColor: Colors.red,
-                                              // foregroundColor: Colors.white,
-                                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                            ),
+                                          Column(
+                                            children: [
+                                              // Edit Button
+                                              ElevatedButton.icon(
+                                                onPressed: () => _editExpense(expense),
+                                                icon: const Icon(Icons.edit, size: 16),
+                                                label: Text('Edit'.tr()),
+                                                style: ElevatedButton.styleFrom(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              // Delete Button
+                                              ElevatedButton.icon(
+                                                onPressed: () => _showDeleteConfirmation(expenseId),
+                                                icon: const Icon(Icons.delete, size: 16),
+                                                label: Text('Delete'.tr()),
+                                                style: ElevatedButton.styleFrom(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ],
                                       ),
-                                          
-                                         
-                                        ],
-                                      ),
-                                      
-                                      // Item preview if space allows
-                                      // if (items.isNotEmpty) ...[
-                                      //   const Divider(height: 24),
-                                      //   Row(
-                                      //     children: [
-                                      //       const Icon(
-                                      //         Icons.format_list_bulleted,
-                                      //         size: 16,
-                                      //         color: Colors.grey,
-                                      //       ),
-                                      //       const SizedBox(width: 8),
-                                      //       const Text(
-                                      //         'Recent Items:',
-                                      //         style: TextStyle(
-                                      //           color: Colors.grey,
-                                      //           fontSize: 12,
-                                      //         ),
-                                      //       ),
-                                      //       const Spacer(),
-                                      //       TextButton(
-                                      //         onPressed: () => _viewExpenseDetails(expense),
-                                      //         style: TextButton.styleFrom(
-                                      //           visualDensity: VisualDensity.compact,
-                                      //           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      //         ),
-                                      //         child: const Row(
-                                      //           mainAxisSize: MainAxisSize.min,
-                                      //           children: [
-                                      //             Text(
-                                      //               'View All',
-                                      //               style: TextStyle(fontSize: 12),
-                                      //             ),
-                                      //             Icon(Icons.arrow_forward, size: 14),
-                                      //           ],
-                                      //         ),
-                                      //       ),
-                                      //     ],
-                                      //   ),
-                                      //   const SizedBox(height: 8),
-                                      //   _buildItemPreview(items),
-                                      // ],
                                     ],
                                   ),
                                 ),
@@ -990,71 +975,54 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
           Navigator.of(context).pushNamed('/expense').then((_) => _loadExpenses());
         },
         icon: const Icon(Icons.add),
-        label: const Text('Add Expense'),
+        label: Text('Add Expense'.tr()),
         elevation: 4,
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
-    // Helper method to get icon for filter
-  // IconData _getFilterIcon(String filter) {
-  //   switch (filter) {
-  //     case 'Today':
-  //       return Icons.today;
-  //     case 'This Week':
-  //       return Icons.date_range;
-  //     case 'This Month':
-  //       return Icons.calendar_month;
-  //     case 'All Expenses':
-  //       return Icons.all_inclusive;
-  //     default:
-  //       return Icons.filter_list;
-  //   }
-  // }
-  
  
   Widget _buildSummaryCard(String title, String value, IconData icon, Color color) {
-  return ConstrainedBox(
-    constraints: const BoxConstraints(maxWidth: 180), // Adjust as needed
-    child: Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withAlpha(26),
-        border: Border.all(color: color.withAlpha(77)),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: color, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: color.withAlpha(204),
-                    fontWeight: FontWeight.w500,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 180),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withAlpha(26),
+          border: Border.all(color: color.withAlpha(77)),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: color, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: color.withAlpha(204),
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: color,
+              ],
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
-             
-}  

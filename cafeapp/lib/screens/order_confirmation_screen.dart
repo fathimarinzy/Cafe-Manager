@@ -1,9 +1,9 @@
-// lib/screens/order_confirmation_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/order_provider.dart';
 import 'dashboard_screen.dart';
+import '../utils/app_localization.dart';
 
 class OrderConfirmationScreen extends StatefulWidget {
   final String serviceType;
@@ -48,7 +48,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Order Confirmation'),
+        title:  Text('Order Confirmation'.tr()),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         leading: IconButton(
@@ -74,8 +74,8 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
-                              'Order Summary',
+                           Text(
+                              'Order Summary'.tr(),
                               style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
@@ -84,23 +84,23 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        Text(
-                          'Date: $formattedDate at $formattedTime',
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
+                       Text(
+                        '${'Date'.tr()}: $formattedDate ${'at'.tr()} $formattedTime',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
                         const SizedBox(height: 4),
-                        Text(
-                          'Service Type: ${widget.serviceType}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w500, 
-                            color: Colors.grey[800]
-                          ),
+                       Text(
+                        '${'Service Type'.tr()}: ${widget.serviceType.tr()}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500, 
+                          color: Colors.grey[800]   
                         ),
+                      ),
                         if (orderProvider.selectedPerson != null)
                           Padding(
                             padding: const EdgeInsets.only(top: 4.0),
                             child: Text(
-                              'Customer: ${orderProvider.selectedPerson!.name}',
+                              'Customer: ${orderProvider.selectedPerson!.name}'.tr(),
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
                                 color: Colors.grey[800],
@@ -122,8 +122,8 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Items',
+                         Text(
+                          'Items'.tr(),
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -131,21 +131,21 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                         ),
                         const SizedBox(height: 12),
                         // Item header
-                        const Padding(
+                         Padding(
                           padding: EdgeInsets.only(bottom: 8.0),
                           child: Row(
                             children: [
                               Expanded(
                                 flex: 5,
                                 child: Text(
-                                  'Item',
+                                  'Item'.tr(),
                                   style: TextStyle(fontWeight: FontWeight.bold),
                                 ),
                               ),
                               Expanded(
                                 flex: 2,
                                 child: Text(
-                                  'Qty',
+                                  'Qty'.tr(),
                                   style: TextStyle(fontWeight: FontWeight.bold),
                                   textAlign: TextAlign.center,
                                 ),
@@ -153,7 +153,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                               Expanded(
                                 flex: 3,
                                 child: Text(
-                                  'Price',
+                                  'Price'.tr(),
                                   style: TextStyle(fontWeight: FontWeight.bold),
                                   textAlign: TextAlign.right,
                                 ),
@@ -161,7 +161,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                               Expanded(
                                 flex: 3,
                                 child: Text(
-                                  'Total',
+                                  'Total'.tr(),
                                   style: TextStyle(fontWeight: FontWeight.bold),
                                   textAlign: TextAlign.right,
                                 ),
@@ -246,10 +246,10 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                           padding: const EdgeInsets.only(top: 8.0),
                           child: Row(
                             children: [
-                              const Expanded(
+                               Expanded(
                                 flex: 7,
                                 child: Text(
-                                  'Subtotal',
+                                  'Subtotal'.tr(),
                                   textAlign: TextAlign.right,
                                   style: TextStyle(fontWeight: FontWeight.w500),
                                 ),
@@ -268,10 +268,10 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            const Expanded(
+                             Expanded(
                               flex: 7,
                               child: Text(
-                                'Tax',
+                                'Tax'.tr(),
                                 textAlign: TextAlign.right,
                               ),
                             ),
@@ -288,10 +288,10 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              const Expanded(
+                              Expanded(
                                 flex: 7,
                                 child: Text(
-                                  'Discount',
+                                  'Discount'.tr(),
                                   textAlign: TextAlign.right,
                                 ),
                               ),
@@ -310,10 +310,10 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            const Expanded(
+                             Expanded(
                               flex: 7,
                               child: Text(
-                                'TOTAL',
+                                'TOTAL'.tr(),
                                 textAlign: TextAlign.right,
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
@@ -371,7 +371,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: const Text('Cancel'),
+                      child:  Text('Cancel'.tr()),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -387,7 +387,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       child: _isProcessing
-                          ? const Row(
+                          ?  Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 SizedBox(
@@ -399,10 +399,10 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                                   ),
                                 ),
                                 SizedBox(width: 10),
-                                Text('Processing...'),
+                                Text('Processing...'.tr()),
                               ],
                             )
-                          : const Text('Process Order'),
+                          : Text('Process Order'.tr()),
                     ),
                   ),
                 ],
@@ -420,7 +420,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
     // Check if cart is empty
     if (orderProvider.cartItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cart is empty')),
+         SnackBar(content: Text('Cart is empty'.tr())),
       );
       return;
     }
@@ -471,7 +471,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
       // Show error message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error processing order: $e'),
+          content: Text('Error processing order'.tr()),
           backgroundColor: Colors.red,
         ),
       );

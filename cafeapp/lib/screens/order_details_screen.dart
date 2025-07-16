@@ -11,6 +11,7 @@ import '../providers/settings_provider.dart';
 import '../services/bill_service.dart';
 import '../repositories/local_order_repository.dart';
 import '../models/order.dart';
+import '../utils/app_localization.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
   final int orderId;
@@ -89,7 +90,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Failed to load order details: $e';
+          _errorMessage = 'Failed to load order details'.tr();
           _isLoading = false;
         });
       }
@@ -205,7 +206,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       // Show error message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error updating order: $e'),
+          content: Text('Error updating order'.tr()),
           backgroundColor: Colors.red,
         ),
       );
@@ -249,7 +250,7 @@ Future<void> _printKitchenReceipt() async {
     if (!printed['success'] && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to print kitchen receipt: ${printed['message']}'),
+          content: Text('Failed to print kitchen receipt: ${printed['message']}'.tr()),
           backgroundColor: Colors.red,
         ),
       );
@@ -259,7 +260,7 @@ Future<void> _printKitchenReceipt() async {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error printing kitchen receipt: $e'),
+          content: Text('Error printing kitchen receipt'.tr()),
           backgroundColor: Colors.red,
         ),
       );
@@ -283,7 +284,7 @@ void _showEditOrderItemsDialog() {
           final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
           
           return AlertDialog(
-            title: const Text('Edit Order Items'),
+            title: Text('Edit Order Items'.tr()),
             content: SizedBox(
               width: MediaQuery.of(context).size.width * (isPortrait ? 0.9 : 0.7),
               height: MediaQuery.of(context).size.height * 0.6,
@@ -300,23 +301,23 @@ void _showEditOrderItemsDialog() {
                       children: [
                         Expanded(
                           flex: isPortrait ? 4 : 5,
-                          child: const Text(
-                            'Item', 
+                          child:  Text(
+                            'Item'.tr(), 
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ),
                         Expanded(
                           flex: 2,
-                          child: const Text(
-                            'Qty', 
+                          child:  Text(
+                            'Qty'.tr(), 
                             style: TextStyle(fontWeight: FontWeight.bold),
                             textAlign: TextAlign.center,
                           ),
                         ),
                         Expanded(
                           flex: isPortrait ? 2 : 3,
-                          child: const Text(
-                            'Price', 
+                          child:  Text(
+                            'Price'.tr(), 
                             style: TextStyle(fontWeight: FontWeight.bold),
                             textAlign: TextAlign.right,
                           ),
@@ -427,7 +428,7 @@ void _showEditOrderItemsDialog() {
                         _showAddItemDialog(context, editedItems, setState);
                       },
                       icon: const Icon(Icons.add),
-                      label: const Text('Add Item'),
+                      label: Text('Add Item'.tr()),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
                         foregroundColor: Colors.white,
@@ -440,7 +441,7 @@ void _showEditOrderItemsDialog() {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
+                child:  Text('Cancel'.tr()),
               ),
               ElevatedButton(
                 onPressed: () {
@@ -468,8 +469,8 @@ void _showEditOrderItemsDialog() {
                         final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
                         historyProvider.loadOrders();
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Order updated successfully'),
+                          SnackBar(
+                            content: Text('Order updated successfully'.tr()),
                             backgroundColor: Colors.green,
                           ),
                         );
@@ -481,7 +482,7 @@ void _showEditOrderItemsDialog() {
                   
                   Navigator.of(context).pop();
                 },
-                child: const Text('Save'),
+                child:  Text('Save'.tr()),
               ),
             ],
           );
@@ -543,7 +544,7 @@ void _showEditOrderItemsDialog() {
             }).toList();
             
             return AlertDialog(
-              title: const Text('Add Menu Item'),
+              title: Text('Add Menu Item'.tr()),
               content: SizedBox(
                 width: MediaQuery.of(context).size.width * 0.8,
                 height: MediaQuery.of(context).size.height * 0.7,
@@ -554,8 +555,8 @@ void _showEditOrderItemsDialog() {
                       children: [
                         Expanded(
                           child: TextField(
-                            decoration: const InputDecoration(
-                              labelText: 'Search Items',
+                            decoration:  InputDecoration(
+                              labelText: 'Search Items'.tr(),
                               prefixIcon: Icon(Icons.search),
                               border: OutlineInputBorder(),
                             ),
@@ -576,9 +577,9 @@ void _showEditOrderItemsDialog() {
                             ),
                             value: selectedCategory,
                             items: [
-                              const DropdownMenuItem<String?>(
+                              DropdownMenuItem<String?>(
                                 value: null,
-                                child: Text('Categories'),
+                                child: Text('Categories'.tr()),
                               ),
                               ...categories.map((category) {
                                 return DropdownMenuItem<String?>(
@@ -612,8 +613,8 @@ void _showEditOrderItemsDialog() {
                                 selectedItem!.name,
                                 style: const TextStyle(fontWeight: FontWeight.bold),
                               ),
-                              Text('Price: ${NumberFormat.currency(symbol: '', decimalDigits: 3).format(selectedItem!.price)}'),
-                              Text('Category: ${selectedItem!.category}'),
+                              Text('${'Price'.tr()}: ${NumberFormat.currency(symbol: '', decimalDigits: 3).format(selectedItem!.price)}'),
+                              Text('${'Category'.tr()}: ${selectedItem!.category.tr()}'),
                             ],
                           ),
                         ),
@@ -623,7 +624,7 @@ void _showEditOrderItemsDialog() {
                     
                     Expanded(
                       child: filteredItems.isEmpty
-                          ? const Center(child: Text('No matching items found'))
+                          ? Center(child: Text('No matching items found'.tr()))
                           : ListView.builder(
                               itemCount: filteredItems.length,
                               itemBuilder: (context, index) {
@@ -663,7 +664,7 @@ void _showEditOrderItemsDialog() {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Text('Quantity: ', style: TextStyle(fontSize: 16)),
+                          Text('Quantity:'.tr(), style: TextStyle(fontSize: 16)),
                           IconButton(
                             icon: const Icon(Icons.remove_circle_outline),
                             onPressed: () {
@@ -694,7 +695,7 @@ void _showEditOrderItemsDialog() {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Cancel'),
+                  child:  Text('Cancel'.tr()),
                 ),
                 ElevatedButton(
                   onPressed: selectedItem == null ? null : () {
@@ -712,7 +713,7 @@ void _showEditOrderItemsDialog() {
                     
                     Navigator.of(ctx).pop();
                   },
-                  child: const Text('Add Item'),
+                  child:  Text('Add Item'.tr()),
                 ),
               ],
             );
@@ -741,7 +742,7 @@ void _showEditOrderItemsDialog() {
         appBar: AppBar(
           backgroundColor: Colors.white,
           foregroundColor: Colors.black,
-          title: Text('Order #${_order?.orderNumber ?? widget.orderId}'),
+          title: Text('${'Order #'.tr()}${_order?.orderNumber ?? widget.orderId}'),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.of(context).pop(),
@@ -750,7 +751,7 @@ void _showEditOrderItemsDialog() {
             if (_order != null)
               TextButton.icon(
                 icon: const Icon(Icons.payment),
-                label: const Text('Tender'),
+                label:  Text('Tender'.tr()),
                 onPressed: _navigateToTender,
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.blue[800],
@@ -785,7 +786,7 @@ void _showEditOrderItemsDialog() {
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: _loadOrderDetails,
-            child: const Text('Try Again'),
+            child: Text('Try Again'.tr()),
           ),
         ],
       ),
@@ -800,7 +801,7 @@ void _showEditOrderItemsDialog() {
           Icon(Icons.receipt_long, size: 64, color: Colors.grey.shade400),
           const SizedBox(height: 16),
           Text(
-            'Order not found',
+            'Order not found'.tr(),
             style: TextStyle(
               fontSize: 18,
               color: Colors.grey.shade600,
@@ -809,7 +810,7 @@ void _showEditOrderItemsDialog() {
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Go Back'),
+            child: Text('Go Back'.tr()),
           ),
         ],
       ),
@@ -840,8 +841,8 @@ void _showEditOrderItemsDialog() {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Order Summary',
+                     Text(
+                        'Order Summary'.tr(),
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -852,21 +853,21 @@ void _showEditOrderItemsDialog() {
                   const SizedBox(height: 16),
                   _buildInfoRow(
                     Icons.receipt, 
-                    'Bill Number', 
+                    'Bill Number'.tr(), 
                     _order!.orderNumber
                   ),
                   const SizedBox(height: 8),
                   _buildInfoRow(
                     _getServiceTypeIcon(_order!.serviceType),
-                    'Service Type',
-                    _order!.serviceType
+                    'Service Type'.tr(),
+                    _order!.serviceType.tr()
                   ),
                   const SizedBox(height: 8),
-                  _buildInfoRow(
-                    Icons.access_time,
-                    'Date & Time',
-                    '${_order!.formattedDate} at ${_order!.formattedTime}'
-                  ),
+                _buildInfoRow(
+                  Icons.access_time,
+                  'Date & Time'.tr(),
+                  '${_order!.formattedDate} ${'at'.tr()} ${_order!.formattedTime}'
+                ),
                 ],
               ),
             ),
@@ -874,8 +875,8 @@ void _showEditOrderItemsDialog() {
           
           const SizedBox(height: 24),
           
-          const Text(
-            'Order Items',
+          Text(
+            'Order Items'.tr(),
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -899,35 +900,35 @@ void _showEditOrderItemsDialog() {
                       color: Colors.grey.shade100,
                       child: Row(
                         children: [
-                          const Expanded(
+                          Expanded(
                             flex: 5,
                             child: Text(
-                              'Items (Double-click to Edit)', 
+                              'Items (Double-click to Edit)'.tr(), 
                               style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ),
-                          const Expanded(
+                          Expanded(
                             flex: 2,
                             child: Text(
-                              'Qty', 
+                              'Qty'.tr(), 
                               style: TextStyle(fontWeight: FontWeight.bold),
                               textAlign: TextAlign.center,
                             ),
                           ),
-                          const Expanded(
+                           Expanded(
                             flex: 3,
                             child: Text(
-                              'Price', 
+                              'Price'.tr(), 
                               style: TextStyle(fontWeight: FontWeight.bold),
                               textAlign: TextAlign.right,
                             ),
                           ),
                     
                       
-                          const Expanded(
+                           Expanded(
                             flex: 3,
                             child: Text(
-                              'Total', 
+                              'Total'.tr(), 
                               style: TextStyle(fontWeight: FontWeight.bold),
                               textAlign: TextAlign.right,
                             ),
@@ -943,15 +944,15 @@ void _showEditOrderItemsDialog() {
                   
                   const Divider(height: 24),
                   
-                  _buildTotalRow('Subtotal:', subtotal, currencyFormat),
+                  _buildTotalRow('Subtotal:'.tr(), subtotal, currencyFormat),
                   const SizedBox(height: 4),
-                  _buildTotalRow('Tax:', tax, currencyFormat),
+                  _buildTotalRow('Tax:'.tr(), tax, currencyFormat),
                   if (_order!.total > 0) ...[
                     const SizedBox(height: 4),
-                    _buildTotalRow('Discount:', _discountAmount, currencyFormat, isDiscount: true),
+                    _buildTotalRow('Discount:'.tr(), _discountAmount, currencyFormat, isDiscount: true),
                     const Divider(height: 16),
                     _buildTotalRow(
-                      'TOTAL:',
+                      'TOTAL:'.tr(),
                       total,
                       currencyFormat,
                       isTotal: true
@@ -974,8 +975,8 @@ void _showEditOrderItemsDialog() {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Payment',
+                   Text(
+                    'Payment'.tr(),
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -988,7 +989,7 @@ void _showEditOrderItemsDialog() {
                       Expanded(
                         child: ElevatedButton.icon(
                           icon: const Icon(Icons.payment),
-                          label: const Text('Tender Payment'),
+                          label: Text('Tender Payment'.tr()),
                           onPressed: _navigateToTender,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blue[900],

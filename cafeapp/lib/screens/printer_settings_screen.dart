@@ -4,6 +4,7 @@ import 'package:network_info_plus/network_info_plus.dart';
 import 'dart:io';
 import 'dart:async';
 import '../services/thermal_printer_service.dart';
+import '../utils/app_localization.dart';
 
 class PrinterSettingsScreen extends StatefulWidget {
   const PrinterSettingsScreen({super.key});
@@ -51,7 +52,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
       setState(() {
         _isLoading = false;
       });
-      _showErrorMessage("Error loading printer settings");
+      _showErrorMessage("Error loading printer settings".tr());
     }
   }
 
@@ -67,7 +68,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
       final wifiIP = await networkInfo.getWifiIP();
       
       if (wifiIP == null) {
-        _showErrorMessage("Not connected to Wi-Fi");
+        _showErrorMessage("Not connected to Wi-Fi".tr());
         return;
       }
 
@@ -97,7 +98,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
 
       // Show results
       if (_discoveredPrinters.isEmpty) {
-        _showErrorMessage("No printers discovered");
+        _showErrorMessage("No printers discovered".tr());
       } else {
         _showDiscoveredPrintersDialog();
       }
@@ -105,7 +106,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
       setState(() {
         _isDiscovering = false;
       });
-      _showErrorMessage("Error discovering printers: $e");
+      _showErrorMessage("Error discovering printers".tr());
     }
   }
 
@@ -133,7 +134,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Discovered Printers'),
+        title:  Text('Discovered Printers'.tr()),
         content: SizedBox(
           width: double.infinity,
           child: ListView.builder(
@@ -145,7 +146,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                 title: Text('IP: ${printer['ip']}'),
                 subtitle: Text('Port: ${printer['port']}'),
                 trailing: ElevatedButton(
-                  child: const Text('Select'),
+                  child:  Text('Select'.tr()),
                   onPressed: () {
                     // Set the selected printer's IP and port
                     setState(() {
@@ -161,7 +162,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
         ),
         actions: [
           TextButton(
-            child: const Text('Cancel'),
+            child: Text('Cancel'.tr()),
             onPressed: () => Navigator.of(ctx).pop(),
           ),
         ],
@@ -170,14 +171,14 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
   }
   Future<void> _saveSettings() async {
     if (!_validateIpAddress(_ipController.text)) {
-      _showErrorMessage("Please enter a valid IP address");
+      _showErrorMessage("Please enter a valid IP address".tr());
       return;
     }
 
     final portText = _portController.text.trim();
     final port = int.tryParse(portText);
     if (port == null || port <= 0 || port > 65535) {
-      _showErrorMessage("Please enter a valid port number (1-65535)");
+      _showErrorMessage("Please enter a valid port number (1-65535)".tr());
       return;
     }
 
@@ -195,12 +196,12 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
         _isLoading = false;
       });
       
-      _showSuccessMessage("Printer settings saved");
+      _showSuccessMessage("Printer settings saved".tr());
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
-      _showErrorMessage("Error saving printer settings");
+      _showErrorMessage("Error saving printer settings".tr());
     }
   }
 
@@ -219,15 +220,15 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
       });
       
       if (connected) {
-        _showSuccessMessage("Successfully connected to printer");
+        _showSuccessMessage("Successfully connected to printer".tr());
       } else {
-        _showErrorMessage("Failed to connect to printer. Please check IP address and port.");
+        _showErrorMessage("Failed to connect to printer. Please check IP address and port.".tr());
       }
     } catch (e) {
       setState(() {
         _isTesting = false;
       });
-      _showErrorMessage("Error testing printer connection: $e");
+      _showErrorMessage("Error testing printer connection".tr());
     }
   }
 
@@ -262,7 +263,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Printer Settings'),
+        title:Text('Printer Settings'.tr()),
         backgroundColor: Colors.blue.shade700,
         foregroundColor: Colors.white,
       ),
@@ -283,8 +284,8 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                           color: Colors.blue.shade700,
                         ),
                         const SizedBox(height: 8),
-                        const Text(
-                          'Thermal Printer Configuration',
+                         Text(
+                          'Thermal Printer Configuration'.tr(),
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -305,8 +306,8 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                   const SizedBox(height: 32),
                   
                   // IP Address Field
-                  const Text(
-                    'Printer IP Address',
+                   Text(
+                    'Printer IP Address'.tr(),
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -315,10 +316,10 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _ipController,
-                    decoration: const InputDecoration(
+                    decoration:  InputDecoration(
                       border: OutlineInputBorder(),
-                      hintText: 'e.g., 192.168.1.100',
-                      helperText: 'Enter the IP address of your network printer',
+                      hintText: 'e.g., 192.168.1.100'.tr(),
+                      helperText: 'Enter the IP address of your network printer'.tr(),
                     ),
                     keyboardType: TextInputType.number,
                   ),
@@ -326,8 +327,8 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                   const SizedBox(height: 24),
                   
                   // Port Field
-                  const Text(
-                    'Printer Port',
+                   Text(
+                    'Printer Port'.tr(),
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -336,10 +337,10 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _portController,
-                    decoration: const InputDecoration(
+                    decoration:  InputDecoration(
                       border: OutlineInputBorder(),
-                      hintText: 'e.g., 9100',
-                      helperText: 'Default port for most thermal printers is 9100',
+                      hintText: 'e.g., 9100'.tr(),
+                      helperText: 'Default port for most thermal printers is 9100'.tr(),
                     ),
                     keyboardType: TextInputType.number,
                   ),
@@ -356,8 +357,8 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                         backgroundColor: Colors.blue.shade700,
                         foregroundColor: Colors.white,
                       ),
-                      child: const Text(
-                        'Save Settings',
+                      child:  Text(
+                        'Save Settings'.tr(),
                         style: TextStyle(fontSize: 16),
                       ),
                     ),
@@ -376,7 +377,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                         foregroundColor: Colors.white,
                       ),
                       child: _isTesting
-                          ? const Row(
+                          ? Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 SizedBox(
@@ -388,11 +389,11 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                                   ),
                                 ),
                                 SizedBox(width: 8),
-                                Text('Testing Connection...'),
+                                Text('Testing Connection...'.tr()),
                               ],
                             )
-                          : const Text(
-                              'Test Connection',
+                          :  Text(
+                              'Test Connection'.tr(),
                               style: TextStyle(fontSize: 16),
                             ),
                     ),
@@ -410,8 +411,8 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                             children: [
                               Icon(Icons.wifi, color: Colors.blue.shade700),
                               const SizedBox(width: 8),
-                              const Text(
-                                'Printer Discovery',
+                               Text(
+                                'Printer Discovery'.tr(),
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -420,8 +421,8 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                             ],
                           ),
                           const SizedBox(height: 12),
-                          const Text(
-                            'Automatically find network printers on your local network.',
+                          Text(
+                            'Automatically find network printers on your local network.'.tr(),
                             style: TextStyle(fontSize: 14),
                           ),
                           const SizedBox(height: 16),
@@ -441,8 +442,8 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                                   : const Icon(Icons.search),
                               label: Text(
                                 _isDiscovering
-                                    ? 'Discovering...'
-                                    : 'Discover Printers',
+                                    ? 'Discovering...'.tr()
+                                    : 'Discover Printers'.tr(),
                               ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.blue.shade700,
@@ -469,8 +470,8 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                             children: [
                               Icon(Icons.info_outline, color: Colors.blue.shade700),
                               const SizedBox(width: 8),
-                              const Text(
-                                'Printer Setup Help',
+                               Text(
+                                'Printer Setup Help'.tr(),
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -479,23 +480,23 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                             ],
                           ),
                           const SizedBox(height: 12),
-                          const Text(
-                            '1. Make sure your printer is connected to the same WiFi network as this tablet',
+                          Text(
+                            '1. Make sure your printer is connected to the same WiFi network as this tablet'.tr(),
                             style: TextStyle(fontSize: 14),
                           ),
                           const SizedBox(height: 8),
-                          const Text(
-                            '2. Enter the printer\'s IP address (check your printer settings or router)',
+                           Text(
+                            '2. Enter the printer\'s IP address (check your printer settings or router)'.tr(),
                             style: TextStyle(fontSize: 14),
                           ),
                           const SizedBox(height: 8),
-                          const Text(
-                            '3. Port 9100 is the standard port for most network printers',
+                          Text(
+                            '3. Port 9100 is the standard port for most network printers'.tr(),
                             style: TextStyle(fontSize: 14),
                           ),
                           const SizedBox(height: 8),
-                          const Text(
-                            '4. Click "Test Connection" to verify the printer is working',
+                          Text(
+                            '4. Click "Test Connection" to verify the printer is working'.tr(),
                             style: TextStyle(fontSize: 14),
                           ),
                         ],
