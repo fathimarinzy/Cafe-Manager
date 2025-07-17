@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import '../services/settings_password_service.dart';
 import '../screens/settings_screen.dart';
+import '../utils/app_localization.dart';
 
 class SettingsPasswordDialog extends StatefulWidget {
-  const SettingsPasswordDialog({super.key,});
-
+  const SettingsPasswordDialog({super.key});
 
   @override
   State<SettingsPasswordDialog> createState() => _SettingsPasswordDialogState();
@@ -21,7 +21,6 @@ class _SettingsPasswordDialogState extends State<SettingsPasswordDialog> {
   @override
   void initState() {
     super.initState();
-    // Initialize default passwords if needed
     _passwordService.initializeDefaultPasswords();
   }
 
@@ -37,7 +36,7 @@ class _SettingsPasswordDialogState extends State<SettingsPasswordDialog> {
     if (password.isEmpty) {
       setState(() {
         _isError = true;
-        _errorMessage = 'Please enter a password';
+        _errorMessage = 'Please enter a password'.tr();
       });
       return;
     }
@@ -57,20 +56,18 @@ class _SettingsPasswordDialogState extends State<SettingsPasswordDialog> {
         });
         
         if (userType != null) {
-          // Password is valid, navigate to settings
-          Navigator.of(context).pop(); // Close dialog
+          Navigator.of(context).pop();
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => SettingsScreen(
-                userType: userType, // Pass the user type to settings screen
+                userType: userType,
               ),
             ),
           );
         } else {
-          // Invalid password
           setState(() {
             _isError = true;
-            _errorMessage = 'Invalid password';
+            _errorMessage = 'Invalid password'.tr();
           });
         }
       }
@@ -79,7 +76,7 @@ class _SettingsPasswordDialogState extends State<SettingsPasswordDialog> {
         setState(() {
           _isLoading = false;
           _isError = true;
-          _errorMessage = 'Error verifying password';
+          _errorMessage = 'Error verifying password'.tr();
         });
       }
     }
@@ -120,17 +117,17 @@ class _SettingsPasswordDialogState extends State<SettingsPasswordDialog> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          const Text(
-            'Enter Password',
-            style: TextStyle(
+          Text(
+            'Enter Password'.tr(),
+            style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w500,
             ),
           ),
           const SizedBox(height: 15),
-          // const Text(
-          //   'Please enter the password to access settings',
-          //   style: TextStyle(
+          // Text(
+          //   'Please enter the password to access settings'.tr(),
+          //   style: const TextStyle(
           //     fontSize: 14,
           //   ),
           //   textAlign: TextAlign.center,
@@ -143,7 +140,7 @@ class _SettingsPasswordDialogState extends State<SettingsPasswordDialog> {
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
-              labelText: 'Password',
+              labelText: 'Password'.tr(),
               errorText: _isError ? _errorMessage : null,
               suffixIcon: IconButton(
                 icon: Icon(
@@ -166,7 +163,7 @@ class _SettingsPasswordDialogState extends State<SettingsPasswordDialog> {
                 onPressed: () {
                   Navigator.of(context).pop();
                 },
-                child: const Text('Cancel'),
+                child: Text('Cancel'.tr()),
               ),
               ElevatedButton(
                 onPressed: _isLoading ? null : _verifyPassword,
@@ -183,7 +180,7 @@ class _SettingsPasswordDialogState extends State<SettingsPasswordDialog> {
                           strokeWidth: 2,
                         ),
                       )
-                    : const Text('Verify'),
+                    : Text('Verify'.tr()),
               ),
             ],
           ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/backup_service.dart';
 import 'package:intl/intl.dart';
+import '../utils/app_localization.dart';
 
 class BackupManagerWidget extends StatefulWidget {
   const BackupManagerWidget({super.key});
@@ -13,8 +14,8 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
   List<Map<String, dynamic>> _backups = [];
   bool _isLoading = false;
   bool _isLoadingDriveBackups = false;
-List<Map<String, dynamic>> _driveBackups = [];
-bool _showDriveBackups = false;
+  List<Map<String, dynamic>> _driveBackups = [];
+  bool _showDriveBackups = false;
   
   @override
   void initState() {
@@ -45,7 +46,7 @@ bool _showDriveBackups = false;
         _isLoading = false;
       });
       
-      _showErrorSnackBar('Error loading backups: $e');
+      _showErrorSnackBar('Error loading backups'.tr());
     }
   }
   
@@ -66,10 +67,10 @@ bool _showDriveBackups = false;
       });
       
       if (backupPath != null) {
-        _showSuccessSnackBar('Backup created successfully');
+        _showSuccessSnackBar('Backup created successfully'.tr());
         _loadBackups(); // Refresh the list
       } else {
-        _showErrorSnackBar('Failed to create backup');
+        _showErrorSnackBar('Failed to create backup'.tr());
       }
     } catch (e) {
       if (!mounted) return;
@@ -78,7 +79,7 @@ bool _showDriveBackups = false;
         _isLoading = false;
       });
       
-      _showErrorSnackBar('Error creating backup: $e');
+      _showErrorSnackBar('Error creating backup'.tr());
     }
   }
   
@@ -89,22 +90,21 @@ bool _showDriveBackups = false;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Confirm Restore'),
-        content: const Text(
-          'Restoring will overwrite all current data with the selected backup.\n '
-          'This action cannot be undone. Are you sure you want to continue?'
+        title: Text('Confirm Restore'.tr()),
+        content: Text(
+          'Restoring will overwrite all current data with the selected backup. This action cannot be undone. Are you sure you want to continue?'.tr()
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text('Cancel'.tr()),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: TextButton.styleFrom(
               foregroundColor: Colors.red,
             ),
-            child: const Text('Restore'),
+            child: Text('Restore'.tr()),
           ),
         ],
       ),
@@ -126,7 +126,7 @@ bool _showDriveBackups = false;
       });
       
       if (success) {
-        _showSuccessSnackBar('Restore completed successfully');
+        _showSuccessSnackBar('Restore completed successfully'.tr());
         
         // Show restart app dialog
         if (mounted) {
@@ -134,22 +134,21 @@ bool _showDriveBackups = false;
             context: context,
             barrierDismissible: false,
             builder: (context) => AlertDialog(
-              title: const Text('Restart Required'),
-              content: const Text(
-                'The app needs to be restarted to apply the restored settings.\n'
-                'Please close and reopen the app.'
+              title: Text('Restart Required'.tr()),
+              content: Text(
+                'The app needs to be restarted to apply the restored settings. Please close and reopen the app.'.tr()
               ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('OK'),
+                  child: Text('OK'.tr()),
                 ),
               ],
             ),
           );
         }
       } else {
-        _showErrorSnackBar('Failed to restore backup');
+        _showErrorSnackBar('Failed to restore backup'.tr());
       }
     } catch (e) {
       if (!mounted) return;
@@ -158,7 +157,7 @@ bool _showDriveBackups = false;
         _isLoading = false;
       });
       
-      _showErrorSnackBar('Error restoring backup: $e');
+      _showErrorSnackBar('Error restoring backup'.tr());
     }
   }
   
@@ -169,22 +168,21 @@ bool _showDriveBackups = false;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Confirm Delete'),
-        content: const Text(
-          'Are you sure you want to delete this backup? \n'
-          'This action cannot be undone.'
+        title: Text('Confirm Delete'.tr()),
+        content: Text(
+          'Are you sure you want to delete this backup? This action cannot be undone.'.tr()
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text('Cancel'.tr()),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: TextButton.styleFrom(
               foregroundColor: Colors.red,
             ),
-            child: const Text('Delete'),
+            child: Text('Delete'.tr()),
           ),
         ],
       ),
@@ -206,10 +204,10 @@ bool _showDriveBackups = false;
       });
       
       if (success) {
-        _showSuccessSnackBar('Backup deleted successfully');
+        _showSuccessSnackBar('Backup deleted successfully'.tr());
         _loadBackups(); // Refresh the list
       } else {
-        _showErrorSnackBar('Failed to delete backup');
+        _showErrorSnackBar('Failed to delete backup'.tr());
       }
     } catch (e) {
       if (!mounted) return;
@@ -218,7 +216,7 @@ bool _showDriveBackups = false;
         _isLoading = false;
       });
       
-      _showErrorSnackBar('Error deleting backup: $e');
+      _showErrorSnackBar('Error deleting backup'.tr());
     }
   }
   
@@ -227,23 +225,23 @@ bool _showDriveBackups = false;
     final days = await showDialog<int>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Old Backups'),
+        title: Text('Delete Old Backups'.tr()),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Delete backups older than:'),
+            Text('Delete backups older than:'.tr()),
             const SizedBox(height: 16),
             ListTile(
-              title: const Text('7 days'),
+              title: Text('7 days'.tr()),
               onTap: () => Navigator.of(context).pop(7),
             ),
             ListTile(
-              title: const Text('30 days'),
+              title: Text('30 days'.tr()),
               onTap: () => Navigator.of(context).pop(30),
             ),
             ListTile(
-              title: const Text('90 days'),
+              title: Text('90 days'.tr()),
               onTap: () => Navigator.of(context).pop(90),
             ),
           ],
@@ -251,7 +249,7 @@ bool _showDriveBackups = false;
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text('Cancel'.tr()),
           ),
         ],
       ),
@@ -270,14 +268,14 @@ bool _showDriveBackups = false;
         _isLoading = false;
       });
       
-      _showSuccessSnackBar('Deleted $deletedCount old backup(s)');
+      _showSuccessSnackBar('Deleted'.tr() + ' $deletedCount ' + 'old backup(s)'.tr());
       _loadBackups(); // Refresh the list
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
       
-      _showErrorSnackBar('Error deleting old backups: $e');
+      _showErrorSnackBar('Error deleting old backups'.tr());
     }
   }
   
@@ -286,23 +284,23 @@ bool _showDriveBackups = false;
     final keepCount = await showDialog<int>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Keep Recent Backups'),
+        title: Text('Keep Recent Backups'.tr()),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Keep only the most recent:'),
+            Text('Keep only the most recent:'.tr()),
             const SizedBox(height: 16),
             ListTile(
-              title: const Text('3 backups'),
+              title: Text('3 backups'.tr()),
               onTap: () => Navigator.of(context).pop(3),
             ),
             ListTile(
-              title: const Text('5 backups'),
+              title: Text('5 backups'.tr()),
               onTap: () => Navigator.of(context).pop(5),
             ),
             ListTile(
-              title: const Text('10 backups'),
+              title: Text('10 backups'.tr()),
               onTap: () => Navigator.of(context).pop(10),
             ),
           ],
@@ -310,7 +308,7 @@ bool _showDriveBackups = false;
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text('Cancel'.tr()),
           ),
         ],
       ),
@@ -329,14 +327,14 @@ bool _showDriveBackups = false;
         _isLoading = false;
       });
       
-      _showSuccessSnackBar('Kept $keepCount recent backup(s), deleted $deletedCount');
+      _showSuccessSnackBar('Kept'.tr() + ' $keepCount ' + 'recent backup(s), deleted'.tr() + ' $deletedCount');
       _loadBackups(); // Refresh the list
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
       
-      _showErrorSnackBar('Error managing backups: $e');
+      _showErrorSnackBar('Error managing backups'.tr());
     }
   }
   
@@ -345,10 +343,10 @@ bool _showDriveBackups = false;
       final success = await BackupService.shareBackup(backupPath);
       
       if (!success) {
-        _showErrorSnackBar('Failed to share backup');
+        _showErrorSnackBar('Failed to share backup'.tr());
       }
     } catch (e) {
-      _showErrorSnackBar('Error sharing backup: $e');
+      _showErrorSnackBar('Error sharing backup'.tr());
     }
   }
   
@@ -365,16 +363,16 @@ bool _showDriveBackups = false;
       });
       
       if (exportPath != null) {
-        _showSuccessSnackBar('Backup exported to Downloads folder');
+        _showSuccessSnackBar('Backup exported to Downloads folder'.tr());
       } else {
-        _showErrorSnackBar('Failed to export backup');
+        _showErrorSnackBar('Failed to export backup'.tr());
       }
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
       
-      _showErrorSnackBar('Error exporting backup: $e');
+      _showErrorSnackBar('Error exporting backup'.tr());
     }
   }
   
@@ -391,11 +389,11 @@ bool _showDriveBackups = false;
       });
       
       if (success) {
-        _showSuccessSnackBar('Backup exported to Google Drive');
+        _showSuccessSnackBar('Backup exported to Google Drive'.tr());
       } else {
         _showErrorSnackBar(
-          'Failed to export to Google Drive.\n'
-          'Note: Google Drive export requires additional setup.'
+          'Failed to export to Google Drive'.tr() + '.\n' +
+          'Note: Google Drive export requires additional setup'.tr() + '.'
         );
       }
     } catch (e) {
@@ -403,7 +401,7 @@ bool _showDriveBackups = false;
         _isLoading = false;
       });
       
-      _showErrorSnackBar('Error exporting to Google Drive: $e');
+      _showErrorSnackBar('Error exporting to Google Drive'.tr());
     }
   }
   
@@ -416,7 +414,7 @@ bool _showDriveBackups = false;
           children: [
             ListTile(
               leading: const Icon(Icons.restore),
-              title: const Text('Restore from this backup'),
+              title: Text('Restore from this backup'.tr()),
               onTap: () {
                 Navigator.of(context).pop();
                 _restoreBackup(backupPath);
@@ -424,7 +422,7 @@ bool _showDriveBackups = false;
             ),
             ListTile(
               leading: const Icon(Icons.share),
-              title: const Text('Share backup'),
+              title: Text('Share backup'.tr()),
               onTap: () {
                 Navigator.of(context).pop();
                 _shareBackup(backupPath);
@@ -432,7 +430,7 @@ bool _showDriveBackups = false;
             ),
             ListTile(
               leading: const Icon(Icons.download),
-              title: const Text('Export to Downloads folder'),
+              title: Text('Export to Downloads folder'.tr()),
               onTap: () {
                 Navigator.of(context).pop();
                 _exportBackupToDownloads(backupPath);
@@ -440,7 +438,7 @@ bool _showDriveBackups = false;
             ),
             ListTile(
               leading: const Icon(Icons.cloud_upload),
-              title: const Text('Export to Google Drive'),
+              title: Text('Export to Google Drive'.tr()),
               onTap: () {
                 Navigator.of(context).pop();
                 _exportBackupToGoogleDrive(backupPath);
@@ -448,7 +446,7 @@ bool _showDriveBackups = false;
             ),
             ListTile(
               leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text('Delete backup', style: TextStyle(color: Colors.red)),
+              title: Text('Delete backup'.tr(), style: const TextStyle(color: Colors.red)),
               onTap: () {
                 Navigator.of(context).pop();
                 _deleteBackup(backupPath);
@@ -469,7 +467,7 @@ bool _showDriveBackups = false;
           children: [
             ListTile(
               leading: const Icon(Icons.delete_sweep),
-              title: const Text('Delete old backups'),
+              title: Text('Delete old backups'.tr()),
               onTap: () {
                 Navigator.of(context).pop();
                 _deleteOldBackups();
@@ -477,7 +475,7 @@ bool _showDriveBackups = false;
             ),
             ListTile(
               leading: const Icon(Icons.filter_list),
-              title: const Text('Keep only recent backups'),
+              title: Text('Keep only recent backups'.tr()),
               onTap: () {
                 Navigator.of(context).pop();
                 _keepRecentBackups();
@@ -512,7 +510,7 @@ bool _showDriveBackups = false;
       final date = DateTime.parse(timestamp);
       return DateFormat('MMM dd, yyyy - HH:mm').format(date);
     } catch (e) {
-      return 'Unknown date';
+      return 'Unknown date'.tr();
     }
   }
   
@@ -525,485 +523,484 @@ bool _showDriveBackups = false;
       return '${(size / (1024 * 1024)).toStringAsFixed(1)} MB';
     }
   }
+  
   // Add this method to load Google Drive backups
-Future<void> _loadGoogleDriveBackups() async {
-  if (!mounted) return;
-  
-  setState(() {
-    _isLoadingDriveBackups = true;
-  });
-  
-  try {
-    final backups = await BackupService.getGoogleDriveBackups();
-    
+  Future<void> _loadGoogleDriveBackups() async {
     if (!mounted) return;
     
     setState(() {
-      _driveBackups = backups;
-      _isLoadingDriveBackups = false;
-    });
-  } catch (e) {
-    if (!mounted) return;
-    
-    setState(() {
-      _isLoadingDriveBackups = false;
+      _isLoadingDriveBackups = true;
     });
     
-    _showErrorSnackBar('Error loading Google Drive backups: $e');
-  }
-}
-// Add this method to restore from Google Drive
-Future<void> _restoreFromGoogleDrive(String fileId) async {
-  if (!mounted) return;
-  
-  // Show confirmation dialog
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Confirm Restore from Google Drive'),
-      content: const Text(
-        'Restoring will download the backup from Google Drive and '
-        'overwrite all current data. This action cannot be undone.\n'
-        'Are you sure you want to continue?'
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          style: TextButton.styleFrom(
-            foregroundColor: Colors.red,
-          ),
-          child: const Text('Restore'),
-        ),
-      ],
-    ),
-  ) ?? false;
-  
-  if (!confirmed || !mounted) return;
-  
-  setState(() {
-    _isLoading = true;
-  });
-  
-  try {
-    final success = await BackupService.restoreFromGoogleDrive(fileId);
-    
-    if (!mounted) return;
-    
-    setState(() {
-      _isLoading = false;
-    });
-    
-    if (success) {
-      _showSuccessSnackBar('Restore from Google Drive completed successfully');
+    try {
+      final backups = await BackupService.getGoogleDriveBackups();
       
-      // Show restart app dialog
-      if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            title: const Text('Restart Required'),
-            content: const Text(
-              'The app needs to be restarted to apply the restored settings.\n '
-              'Please close and reopen the app.'
+      if (!mounted) return;
+      
+      setState(() {
+        _driveBackups = backups;
+        _isLoadingDriveBackups = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      
+      setState(() {
+        _isLoadingDriveBackups = false;
+      });
+      
+      _showErrorSnackBar('Error loading Google Drive backups'.tr());
+    }
+  }
+  
+  // Add this method to restore from Google Drive
+  Future<void> _restoreFromGoogleDrive(String fileId) async {
+    if (!mounted) return;
+    
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Confirm Restore from Google Drive'.tr()),
+        content: Text(
+          'Restoring will download the backup from Google Drive and overwrite all current data. This action cannot be undone. Are you sure you want to continue?'.tr()
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('Cancel'.tr()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
-      }
-    } else {
-      _showErrorSnackBar('Failed to restore from Google Drive');
-    }
-  } catch (e) {
-    if (!mounted) return;
-    
-    setState(() {
-      _isLoading = false;
-    });
-    
-    _showErrorSnackBar('Error restoring from Google Drive: $e');
-  }
-}
-
-
-// Add this method to show Drive backup options
-void _showDriveBackupOptions(Map<String, dynamic> backup) {
-  showModalBottomSheet(
-    context: context,
-    builder: (context) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.restore),
-            title: const Text('Restore from this Google Drive backup'),
-            onTap: () {
-              Navigator.of(context).pop();
-              _restoreFromGoogleDrive(backup['id']);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.download),
-            title: const Text('Download to device'),
-            onTap: () {
-              Navigator.of(context).pop();
-              _downloadDriveBackup(backup['id']);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.delete, color: Colors.red),
-            title: const Text('Delete from Google Drive', style: TextStyle(color: Colors.red)),
-            onTap: () {
-              Navigator.of(context).pop();
-              _deleteGoogleDriveBackup(backup['id']);
-            },
+            child: Text('Restore'.tr()),
           ),
         ],
       ),
-    ),
-  );
-}
-// Add this method to delete a backup from Google Drive
-Future<void> _deleteGoogleDriveBackup(String fileId) async {
-  if (!mounted) return;
-  
-  // Show confirmation dialog
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Confirm Delete'),
-      content: const Text(
-        'Are you sure you want to delete this backup from Google Drive?\n '
-        'This action cannot be undone.'
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          style: TextButton.styleFrom(
-            foregroundColor: Colors.red,
-          ),
-          child: const Text('Delete'),
-        ),
-      ],
-    ),
-  ) ?? false;
-  
-  if (!confirmed || !mounted) return;
-  
-  setState(() {
-    _isLoading = true;
-  });
-  
-  try {
-    final success = await BackupService.deleteBackupFromDrive(fileId);
+    ) ?? false;
     
-    if (!mounted) return;
+    if (!confirmed || !mounted) return;
     
     setState(() {
-      _isLoading = false;
+      _isLoading = true;
     });
     
-    if (success) {
-      _showSuccessSnackBar('Backup deleted from Google Drive');
-      _loadGoogleDriveBackups(); // Refresh the Drive backups list
-    } else {
-      _showErrorSnackBar('Failed to delete backup from Google Drive');
-    }
-  } catch (e) {
-    if (!mounted) return;
-    
-    setState(() {
-      _isLoading = false;
-    });
-    
-    _showErrorSnackBar('Error deleting backup: $e');
-  }
-}
-// Add this method to download a backup from Drive
-Future<void> _downloadDriveBackup(String fileId) async {
-  if (!mounted) return;
-  
-  setState(() {
-    _isLoading = true;
-  });
-  
-  try {
-    final localPath = await BackupService.downloadBackupFromDrive(fileId);
-    
-    if (!mounted) return;
-    
-    setState(() {
-      _isLoading = false;
-    });
-    
-    if (localPath != null) {
-      _showSuccessSnackBar('Backup downloaded from Google Drive');
-      _loadBackups(); // Refresh local backup list
-    } else {
-      _showErrorSnackBar('Failed to download backup from Google Drive');
-    }
-  } catch (e) {
-    if (!mounted) return;
-    
-    setState(() {
-      _isLoading = false;
-    });
-    
-    _showErrorSnackBar('Error downloading backup: $e');
-  }
-}
-@override
-Widget build(BuildContext context) {
-  return Scaffold(
-    appBar: AppBar(
-      title: const Text('Backup & Restore'),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.settings),
-          onPressed: _showManageBackupsOptions,
-        ),
-      ],
-    ),
-    body: Column(
-      children: [
-        // Add toggle buttons for local/drive backups
-        Container(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      _showDriveBackups = false;
-                    });
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: !_showDriveBackups ? Colors.blue : Colors.grey.shade300,
-                    foregroundColor: !_showDriveBackups ? Colors.white : Colors.black87,
-                  ),
-                  child: const Text('Device Backups'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      _showDriveBackups = true;
-                      if (_driveBackups.isEmpty) {
-                        _loadGoogleDriveBackups();
-                      }
-                    });
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _showDriveBackups ? Colors.blue : Colors.grey.shade300,
-                    foregroundColor: _showDriveBackups ? Colors.white : Colors.black87,
-                  ),
-                  child: const Text('Google Drive'),
-                ),
-              ),
-            ],
-          ),
-        ),
+    try {
+      final success = await BackupService.restoreFromGoogleDrive(fileId);
+      
+      if (!mounted) return;
+      
+      setState(() {
+        _isLoading = false;
+      });
+      
+      if (success) {
+        _showSuccessSnackBar('Restore from Google Drive completed successfully'.tr());
         
-        // Show appropriate backup list based on toggle
-        Expanded(
-          child: _showDriveBackups
-              ? _buildDriveBackupsList()
-              : _buildLocalBackupsList(),
-        ),
-      ],
-    ),
-    floatingActionButton: FloatingActionButton(
-      onPressed: _createBackup,
-      child: const Icon(Icons.backup),
-    ),
-  );
-}
-
-// Add this method to build the Drive backups list
-Widget _buildDriveBackupsList() {
-  if (_isLoadingDriveBackups) {
-    return const Center(child: CircularProgressIndicator());
+        // Show restart app dialog
+        if (mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => AlertDialog(
+              title: Text('Restart Required'.tr()),
+              content: Text(
+                'The app needs to be restarted to apply the restored settings. Please close and reopen the app.'.tr()
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('OK'.tr()),
+                ),
+              ],
+            ),
+          );
+        }
+      } else {
+        _showErrorSnackBar('Failed to restore from Google Drive'.tr());
+      }
+    } catch (e) {
+      if (!mounted) return;
+      
+      setState(() {
+        _isLoading = false;
+      });
+      
+      _showErrorSnackBar('Error restoring from Google Drive'.tr());
+    }
   }
-  
-  if (_driveBackups.isEmpty) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text('No backups found on Google Drive'),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.refresh),
-            label: const Text('Refresh'),
-            onPressed: _loadGoogleDriveBackups,
-          ),
-        ],
+
+  // Add this method to show Drive backup options
+  void _showDriveBackupOptions(Map<String, dynamic> backup) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.restore),
+              title: Text('Restore from this Google Drive backup'.tr()),
+              onTap: () {
+                Navigator.of(context).pop();
+                _restoreFromGoogleDrive(backup['id']);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.download),
+              title: Text('Download to device'.tr()),
+              onTap: () {
+                Navigator.of(context).pop();
+                _downloadDriveBackup(backup['id']);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: Text('Delete from Google Drive'.tr(), style: const TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.of(context).pop();
+                _deleteGoogleDriveBackup(backup['id']);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
   
-  return ListView.builder(
-    itemCount: _driveBackups.length,
-    itemBuilder: (context, index) {
-      final backup = _driveBackups[index];
-      final id = backup['id'] as String; // Use 'id' instead of 'fileId'
-      final name = backup['name'] as String;
-      final timestamp = backup['timestamp'] as String;
-      final size = backup['size'] as int? ?? 0;
+  // Add this method to delete a backup from Google Drive
+  Future<void> _deleteGoogleDriveBackup(String fileId) async {
+    if (!mounted) return;
+    
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Confirm Delete'.tr()),
+        content: Text(
+          'Are you sure you want to delete this backup from Google Drive? This action cannot be undone.'.tr()
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('Cancel'.tr()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: Text('Delete'.tr()),
+          ),
+        ],
+      ),
+    ) ?? false;
+    
+    if (!confirmed || !mounted) return;
+    
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      final success = await BackupService.deleteBackupFromDrive(fileId);
       
-      return Card(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: InkWell(
-          onTap: () => _showDriveBackupOptions(backup),
-          child: Padding(
+      if (!mounted) return;
+      
+      setState(() {
+        _isLoading = false;
+      });
+      
+      if (success) {
+        _showSuccessSnackBar('Backup deleted from Google Drive'.tr());
+        _loadGoogleDriveBackups(); // Refresh the Drive backups list
+      } else {
+        _showErrorSnackBar('Failed to delete backup from Google Drive'.tr());
+      }
+    } catch (e) {
+      if (!mounted) return;
+      
+      setState(() {
+        _isLoading = false;
+      });
+      
+      _showErrorSnackBar('Error deleting backup'.tr());
+    }
+  }
+  
+  // Add this method to download a backup from Drive
+  Future<void> _downloadDriveBackup(String fileId) async {
+    if (!mounted) return;
+    
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      final localPath = await BackupService.downloadBackupFromDrive(fileId);
+      
+      if (!mounted) return;
+      
+      setState(() {
+        _isLoading = false;
+      });
+      
+      if (localPath != null) {
+        _showSuccessSnackBar('Backup downloaded from Google Drive'.tr());
+        _loadBackups(); // Refresh local backup list
+      } else {
+        _showErrorSnackBar('Failed to download backup from Google Drive'.tr());
+      }
+    } catch (e) {
+      if (!mounted) return;
+      
+      setState(() {
+        _isLoading = false;
+      });
+      
+      _showErrorSnackBar('Error downloading backup'.tr());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Backup & Restore'.tr()),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: _showManageBackupsOptions,
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Add toggle buttons for local/drive backups
+          Container(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _formatBackupDate(timestamp),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _showDriveBackups = false;
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: !_showDriveBackups ? Colors.blue : Colors.grey.shade300,
+                      foregroundColor: !_showDriveBackups ? Colors.white : Colors.black87,
+                    ),
+                    child: Text('Device Backups'.tr()),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _showDriveBackups = true;
+                        if (_driveBackups.isEmpty) {
+                          _loadGoogleDriveBackups();
+                        }
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _showDriveBackups ? Colors.blue : Colors.grey.shade300,
+                      foregroundColor: _showDriveBackups ? Colors.white : Colors.black87,
+                    ),
+                    child: Text('Google Drive'.tr()),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Show appropriate backup list based on toggle
+          Expanded(
+            child: _showDriveBackups
+                ? _buildDriveBackupsList()
+                : _buildLocalBackupsList(),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _createBackup,
+        child: const Icon(Icons.backup),
+      ),
+    );
+  }
+
+  // Add this method to build the Drive backups list
+  Widget _buildDriveBackupsList() {
+    if (_isLoadingDriveBackups) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    
+    if (_driveBackups.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('No backups found on Google Drive'.tr()),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.refresh),
+              label: Text('Refresh'.tr()),
+              onPressed: _loadGoogleDriveBackups,
+            ),
+          ],
+        ),
+      );
+    }
+    
+    return ListView.builder(
+      itemCount: _driveBackups.length,
+      itemBuilder: (context, index) {
+        final backup = _driveBackups[index];
+        final id = backup['id'] as String; // Use 'id' instead of 'fileId'
+        final name = backup['name'] as String;
+        final timestamp = backup['timestamp'] as String;
+        final size = backup['size'] as int? ?? 0;
+        
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: InkWell(
+            onTap: () => _showDriveBackupOptions(backup),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _formatBackupDate(timestamp),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
                         ),
                       ),
-                    ),
-                    Text(
-                      _formatBackupSize(size),
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.cloud,
-                      size: 16,
-                      color: Colors.blue[600],
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        name,
+                      Text(
+                        _formatBackupSize(size),
                         style: TextStyle(
                           color: Colors.grey[600],
                           fontSize: 14,
                         ),
-                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    },
-  );
-}
-
-// Rename the existing backup list method to _buildLocalBackupsList
-Widget _buildLocalBackupsList() {
-  if (_backups.isEmpty) {
-    return Center(
-      child: _isLoading
-          ? const CircularProgressIndicator()
-          : const Text('No local backups found'),
-    );
-  }
-  
-  return ListView.builder(
-    itemCount: _backups.length,
-    itemBuilder: (context, index) {
-      final backup = _backups[index];
-      final path = backup['path'] as String;
-      final timestamp = backup['timestamp'] as String;
-      final version = backup['version'] as String? ?? 'Unknown';
-      final hasDatabases = backup['has_databases'] as bool? ?? false;
-      final size = backup['size'] as int? ?? 0;
-      
-      return Card(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: InkWell(
-          onTap: () => _showBackupOptions(path),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _formatBackupDate(timestamp),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.cloud,
+                        size: 16,
+                        color: Colors.blue[600],
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                    ),
-                    Text(
-                      _formatBackupSize(size),
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(
-                      hasDatabases
-                          ? Icons.storage
-                          : Icons.settings,
-                      size: 16,
-                      color: Colors.grey[600],
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      hasDatabases
-                          ? 'Full backup (v$version)'
-                          : 'Settings only (v$version)',
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
+        );
+      },
+    );
+  }
+
+  // Rename the existing backup list method to _buildLocalBackupsList
+  Widget _buildLocalBackupsList() {
+    if (_backups.isEmpty) {
+      return Center(
+        child: _isLoading
+            ? const CircularProgressIndicator()
+            : Text('No local backups found'.tr()),
       );
-    },
-  );
-}
-  
+    }
+    
+    return ListView.builder(
+      itemCount: _backups.length,
+      itemBuilder: (context, index) {
+        final backup = _backups[index];
+        final path = backup['path'] as String;
+        final timestamp = backup['timestamp'] as String;
+        final version = backup['version'] as String? ?? 'Unknown';
+        final hasDatabases = backup['has_databases'] as bool? ?? false;
+        final size = backup['size'] as int? ?? 0;
+        
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: InkWell(
+            onTap: () => _showBackupOptions(path),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _formatBackupDate(timestamp),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        _formatBackupSize(size),
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        hasDatabases
+                            ? Icons.storage
+                            : Icons.settings,
+                        size: 16,
+                        color: Colors.grey[600],
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        hasDatabases
+                            ? 'Full backup'.tr() + ' (v$version)'
+                            : 'Settings only'.tr() + ' (v$version)',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }

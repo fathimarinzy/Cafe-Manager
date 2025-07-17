@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/menu_item.dart';
 import '../services/kitchen_print_service.dart';
+import '../utils/app_localization.dart';
 
 class KitchenNoteDialog extends StatefulWidget {
   final String initialNote;
@@ -94,9 +95,9 @@ class _KitchenNoteDialogState extends State<KitchenNoteDialog> {
                 color: Colors.blue,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Text(
-                'Kitchen note',
-                style: TextStyle(
+              child: Text(
+                'Kitchen note'.tr(),
+                style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
@@ -117,10 +118,10 @@ class _KitchenNoteDialogState extends State<KitchenNoteDialog> {
                 controller: _noteController,
                 maxLines: null,
                 expands: true,
-                decoration: const InputDecoration(
-                  contentPadding: EdgeInsets.all(12),
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.all(12),
                   border: InputBorder.none,
-                  hintText: 'Enter kitchen note here...',
+                  hintText: 'Enter kitchen note here...'.tr(),
                 ),
               ),
             ),
@@ -135,7 +136,7 @@ class _KitchenNoteDialogState extends State<KitchenNoteDialog> {
                 ElevatedButton.icon(
                   onPressed: _clearNote,
                   icon: const Icon(Icons.delete_outline, size: 18),
-                  label: const Text('Remove'),
+                  label: Text('Remove'.tr()),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red.shade100,
                     foregroundColor: Colors.red.shade900,
@@ -152,7 +153,7 @@ class _KitchenNoteDialogState extends State<KitchenNoteDialog> {
                         backgroundColor: Colors.grey.shade200,
                         foregroundColor: Colors.black,
                       ),
-                      child: const Text('Cancel'),
+                      child: Text('Cancel'.tr()),
                     ),
                     
                     const SizedBox(width: 8),
@@ -176,7 +177,7 @@ class _KitchenNoteDialogState extends State<KitchenNoteDialog> {
                               child: CircularProgressIndicator(strokeWidth: 2)
                             )
                           : const Icon(Icons.check_circle, size: 18),
-                      label: Text(_isPrinting ? 'Printing...' : 'Add'),
+                      label: Text(_isPrinting ? 'Printing...'.tr() : 'Add'.tr()),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue.shade700,
                         foregroundColor: Colors.white,

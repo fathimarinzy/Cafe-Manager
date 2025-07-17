@@ -313,193 +313,245 @@ class AppLocalization {
      'Failed to add person': 'فشل إضافة الشخص',
 
      // Printer Settings Screen
-  'Printer Settings': 'إعدادات الطابعة',
-  'Thermal Printer Configuration': 'تهيئة الطابعة الحرارية',
-  'Printer IP Address': 'عنوان IP للطابعة',
-  'Enter the IP address of your network printer': 'أدخل عنوان IP لطابعة الشبكة',
-  'e.g., 192.168.1.100': 'مثال: 192.168.1.100',
-  'Printer Port': 'منفذ الطابعة',
-  'Default port for most thermal printers is 9100': 'المنفذ الافتراضي لمعظم الطابعات الحرارية هو 9100',
-  'e.g., 9100': 'مثال: 9100',
-  'Save Settings': 'حفظ الإعدادات',
-  'Test Connection': 'اختبار الاتصال',
-  'Testing Connection...': 'جاري اختبار الاتصال...',
-  'Printer Discovery': 'اكتشاف الطابعة',
-  'Automatically find network printers on your local network': 'اكتشف الطابعات على شبكتك المحلية تلقائياً',
-  'Discover Printers': 'اكتشاف الطابعات',
-  'Discovering...': 'جاري الاكتشاف...',
-  'Printer Setup Help': 'مساعدة إعداد الطابعة',
-  '1. Make sure your printer is connected to the same WiFi network as this tablet': '1. تأكد من أن الطابعة متصلة بنفس شبكة الواي فاي مثل هذا الجهاز',
-  '2. Enter the printer\'s IP address (check your printer settings or router)': '2. أدخل عنوان IP للطابعة (تحقق من إعدادات الطابعة أو الراوتر)',
-  '3. Port 9100 is the standard port for most network printers': '3. المنفذ 9100 هو المنفذ القياسي لمعظم طابعات الشبكة',
-  '4. Click "Test Connection" to verify the printer is working': '4. انقر على "اختبار الاتصال" للتحقق من عمل الطابعة',
-  'Discovered Printers': 'الطابعات المكتشفة',
-  'Select': 'تحديد',
-  'Please enter a valid IP address': 'الرجاء إدخال عنوان IP صحيح',
-  'Please enter a valid port number (1-65535)': 'الرجاء إدخال رقم منفذ صحيح (1-65535)',
-  'Printer settings saved': 'تم حفظ إعدادات الطابعة',
-  'Error saving printer settings': 'خطأ في حفظ إعدادات الطابعة',
-  'Successfully connected to printer': 'تم الاتصال بالطابعة بنجاح',
-  'Failed to connect to printer. Please check IP address and port.': 'فشل الاتصال بالطابعة. الرجاء التحقق من عنوان IP والمنفذ.',
-  'Error testing printer connection': 'خطأ في اختبار اتصال الطابعة',
-  'Not connected to Wi-Fi': 'غير متصل بشبكة الواي فاي',
-  'No printers discovered': 'لم يتم اكتشاف أي طابعات',
-  'Error discovering printers': 'خطأ في اكتشاف الطابعات',
-  'Error loading printer settings' :'خطأ في تحميل إعدادات الطابعة',
+    'Printer Settings': 'إعدادات الطابعة',
+    'Thermal Printer Configuration': 'تهيئة الطابعة الحرارية',
+    'Printer IP Address': 'عنوان IP للطابعة',
+    'Enter the IP address of your network printer': 'أدخل عنوان IP لطابعة الشبكة',
+    'e.g., 192.168.1.100': 'مثال: 192.168.1.100',
+    'Printer Port': 'منفذ الطابعة',
+    'Default port for most thermal printers is 9100': 'المنفذ الافتراضي لمعظم الطابعات الحرارية هو 9100',
+    'e.g., 9100': 'مثال: 9100',
+    'Save Settings': 'حفظ الإعدادات',
+    'Test Connection': 'اختبار الاتصال',
+    'Testing Connection...': 'جاري اختبار الاتصال...',
+    'Printer Discovery': 'اكتشاف الطابعة',
+    'Automatically find network printers on your local network': 'اكتشف الطابعات على شبكتك المحلية تلقائياً',
+    'Discover Printers': 'اكتشاف الطابعات',
+    'Discovering...': 'جاري الاكتشاف...',
+    'Printer Setup Help': 'مساعدة إعداد الطابعة',
+    '1. Make sure your printer is connected to the same WiFi network as this tablet': '1. تأكد من أن الطابعة متصلة بنفس شبكة الواي فاي مثل هذا الجهاز',
+    '2. Enter the printer\'s IP address (check your printer settings or router)': '2. أدخل عنوان IP للطابعة (تحقق من إعدادات الطابعة أو الراوتر)',
+    '3. Port 9100 is the standard port for most network printers': '3. المنفذ 9100 هو المنفذ القياسي لمعظم طابعات الشبكة',
+    '4. Click "Test Connection" to verify the printer is working': '4. انقر على "اختبار الاتصال" للتحقق من عمل الطابعة',
+    'Discovered Printers': 'الطابعات المكتشفة',
+    'Select': 'تحديد',
+    'Please enter a valid IP address': 'الرجاء إدخال عنوان IP صحيح',
+    'Please enter a valid port number (1-65535)': 'الرجاء إدخال رقم منفذ صحيح (1-65535)',
+    'Printer settings saved': 'تم حفظ إعدادات الطابعة',
+    'Error saving printer settings': 'خطأ في حفظ إعدادات الطابعة',
+    'Successfully connected to printer': 'تم الاتصال بالطابعة بنجاح',
+    'Failed to connect to printer. Please check IP address and port.': 'فشل الاتصال بالطابعة. الرجاء التحقق من عنوان IP والمنفذ.',
+    'Error testing printer connection': 'خطأ في اختبار اتصال الطابعة',
+    'Not connected to Wi-Fi': 'غير متصل بشبكة الواي فاي',
+    'No printers discovered': 'لم يتم اكتشاف أي طابعات',
+    'Error discovering printers': 'خطأ في اكتشاف الطابعات',
+    'Error loading printer settings' :'خطأ في تحميل إعدادات الطابعة',
 
 
     // Report Screen
-  'Reports': 'التقارير',
-  'Daily Report': 'تقرير يومي',
-  'Monthly Report': 'تقرير شهري',
-  'Custom Report': 'تقرير مخصص',
-  'Selected Date:': 'التاريخ المحدد:',
-  'Month': 'الشهر',
-  'From:': 'من:',
-  'To:': 'إلى:',
-  'Save as PDF': 'حفظ كملف PDF',
-  'No data available': 'لا توجد بيانات متاحة',
-  'Total Orders': 'إجمالي الطلبات',
-  'Total Revenue': 'إجمالي الإيرادات',
-  'Items Sold': 'العناصر المباعة',
-  'Cash and Bank Sales': 'مبيعات نقدية وبنكية',
-  'Payment Method': 'طريقة الدفع',
-  'Revenue': 'الإيرادات',
-  'Total Sales': 'إجمالي المبيعات',
-  'Total Cash Sales': 'إجمالي المبيعات النقدية',
-  'Total Bank Sales': 'إجمالي المبيعات البنكية',
-  'Revenue Breakdown': 'تفصيل الإيرادات',
-  'Discounts': 'الخصومات',
-  'Top Selling Items': 'أكثر العناصر مبيعاً',
-  'No items data available': 'لا توجد بيانات للعناصر', 
-  'sold': 'مباع',
-  'orders': 'طلبات',
-  'Error loading report': 'خطأ في تحميل التقرير',
-  'Report saved as PDF': 'تم حفظ التقرير كملف PDF',
-  'Failed to save report as PDF': 'فشل في حفظ التقرير كملف PDF',
-  'No report data available to save': 'لا توجد بيانات تقرير متاحة للحفظ',
-  'No sales data available':"لا توجد بيانات مبيعات متاحة",
-  'No sales data found':'لم يتم العثور على بيانات المبيعات',
-  'Payment data not available':'بيانات الدفع غير متوفرة',
+    'Reports': 'التقارير',
+    'Daily Report': 'تقرير يومي',
+    'Monthly Report': 'تقرير شهري',
+    'Custom Report': 'تقرير مخصص',
+    'Selected Date:': 'التاريخ المحدد:',
+    'Month': 'الشهر',
+    'From:': 'من:',
+    'To:': 'إلى:',
+    'Save as PDF': 'حفظ كملف PDF',
+    'No data available': 'لا توجد بيانات متاحة',
+    'Total Orders': 'إجمالي الطلبات',
+    'Total Revenue': 'إجمالي الإيرادات',
+    'Items Sold': 'العناصر المباعة',
+    'Cash and Bank Sales': 'مبيعات نقدية وبنكية',
+    'Payment Method': 'طريقة الدفع',
+    'Revenue': 'الإيرادات',
+    'Total Sales': 'إجمالي المبيعات',
+    'Total Cash Sales': 'إجمالي المبيعات النقدية',
+    'Total Bank Sales': 'إجمالي المبيعات البنكية',
+    'Revenue Breakdown': 'تفصيل الإيرادات',
+    'Discounts': 'الخصومات',
+    'Top Selling Items': 'أكثر العناصر مبيعاً',
+    'No items data available': 'لا توجد بيانات للعناصر', 
+    'sold': 'مباع',
+    'orders': 'طلبات',
+    'Error loading report': 'خطأ في تحميل التقرير',
+    'Report saved as PDF': 'تم حفظ التقرير كملف PDF',
+    'Failed to save report as PDF': 'فشل في حفظ التقرير كملف PDF',
+    'No report data available to save': 'لا توجد بيانات تقرير متاحة للحفظ',
+    'No sales data available':"لا توجد بيانات مبيعات متاحة",
+    'No sales data found':'لم يتم العثور على بيانات المبيعات',
+    'Payment data not available':'بيانات الدفع غير متوفرة',
+
+    // Settings screen 
+    'Settings': 'الإعدادات',
+    'Owner': 'المالك',
+    'Business Information': 'معلومات العمل',
+    'Expense': 'المصروفات',
+    'Tax Settings': 'إعدادات الضريبة',
+    'Data & Backup': 'البيانات والنسخ الاحتياطي',
+    'Appearance': 'المظهر',
+    'Language': 'اللغة',
+    'English': 'إنجليزي',
+    'Arabic': 'عربي',
+    'Version 1.0.1': 'الإصدار 1.0.1',
+    'Configure restaurant details': 'تكوين تفاصيل المطعم',
+    'Restaurant Name': 'اسم المطعم',
+    'Enter your restaurant name': 'أدخل اسم المطعم',
+    'Please enter restaurant name': 'الرجاء إدخال اسم المطعم',
+    'Address': 'العنوان',
+    'Enter your restaurant address': 'أدخل عنوان المطعم',
+    'Enter your restaurant phone number': 'أدخل رقم هاتف المطعم',
+    'Update': 'تحديث',
+    'Business information updated (not saved yet)': 'تم تحديث معلومات العمل (لم يتم الحفظ بعد)',
+    'Current Tax Rate': 'معدل الضريبة الحالي',
+    'Sales Tax Rate (%)': 'معدل ضريبة المبيعات (%)',
+    'Enter your tax rate (e.g., 5.0)': 'أدخل معدل الضريبة الخاص بك (مثل 5.0)',
+    'Please enter tax rate': 'الرجاء إدخال معدل الضريبة',
+    'Tax rate must be between 0 and 100': 'يجب أن يكون معدل الضريبة بين 0 و 100',
+    'Tax rate updated (not saved yet)': 'تم تحديث معدل الضريبة (لم يتم الحفظ بعد)',
+    'Expense Management': 'إدارة المصروفات',
+    'Track and manage your expenses': 'تتبع وإدارة مصروفاتك',
+    'View daily and monthly sales reports': 'عرض التقارير اليومية والشهرية للمبيعات',
+    'Product Management': 'إدارة المنتجات',
+    'Add, edit, or remove menu items': 'إضافة أو تعديل أو إزالة عناصر القائمة',
+    'Table Management': 'إدارة الطاولات',
+    'Configure dining tables and layout': 'تكوين طاولات الطعام والتخطيط',
+    'Dining Table Layout': 'تخطيط طاولة الطعام',
+    'Configure table rows and columns': 'تكوين صفوف وأعمدة الطاولة',
+    'Printer Configuration': 'تكوين الطابعة',
+    'Configure thermal printer settings': 'تكوين إعدادات الطابعة الحرارية',
+    'Select Table Layout': 'حدد تخطيط الطاولة',
+    'Table layout saved': 'تم حفظ تخطيط الطاولة',
+    'Backup & Restore': 'النسخ الاحتياطي والاستعادة',
+    'Create, restore, and manage backups': 'إنشاء واستعادة وإدارة النسخ الاحتياطية',
+    'Reset Data': 'إعادة تعيين البيانات',
+    'Clear all app data': 'مسح جميع بيانات التطبيق',
+    'Reset All Data': 'إعادة تعيين جميع البيانات',
+    'This will delete all app data. This action cannot be undone. Are you sure you want to continue?': 'سيؤدي هذا إلى حذف جميع بيانات التطبيق. لا يمكن التراجع عن هذا الإجراء. هل أنت متأكد أنك تريد المتابعة؟',
+    'No': 'لا',
+    'Yes': 'نعم',
+    'Enter Password:': 'أدخل كلمة المرور:',
+    'Please enter the password': 'الرجاء إدخال كلمة المرور',
+    'Incorrect password': 'كلمة مرور غير صحيحة',
+    'Verify': 'تحقق',
+    'Resetting data... Please wait.': 'إعادة تعيين البيانات... يرجى الانتظار.',
+    'This may take a moment. Do not close the app.': 'قد يستغرق هذا لحظة. لا تغلق التطبيق.',
+    'Reset Complete': 'اكتملت إعادة التعيين',
+    'All data has been reset successfully. You must restart the app for changes to take effect completely.': 'تم إعادة تعيين جميع البيانات بنجاح. يجب إعادة تشغيل التطبيق لتصبح التغييرات سارية المفعول بالكامل.',
+    'Error loading settings': 'خطأ في تحميل الإعدادات',
+    'Settings saved successfully': 'تم حفظ الإعدادات بنجاح',
+    'Error saving settings': 'خطأ في حفظ الإعدادات',
+    'Error resetting data': 'خطأ في إعادة تعيين البيانات',
+    'Language changed successfully': 'تم تغيير اللغة بنجاح',
+    'Are you sure you want to logout?': 'هل أنت متأكد أنك تريد تسجيل الخروج؟',
+    'Logout':'تسجيل الخروج',
+
+    // Settings Password Dialog
+    'Enter Password': 'أدخل كلمة المرور',
+    'Please enter the password to access settings': 'الرجاء إدخال كلمة المرور للوصول إلى الإعدادات',
+    'Please enter a password': 'الرجاء إدخال كلمة المرور',
+    'Invalid password': 'كلمة مرور غير صحيحة',
+    'Error verifying password': 'خطأ في التحقق من كلمة المرور',
+
+    // Table Management Screen
+    'No tables available. Add a table to get started.': 'لا توجد طاولات متاحة. أضف طاولة للبدء.',
+    'Capacity': 'السعة',
+    'Delete Table': 'حذف الطاولة',
+    'This action cannot be undone.': 'لا يمكن التراجع عن هذا الإجراء.',
+    'Add Table': 'إضافة طاولة',
+    'Table Number': 'رقم الطاولة',
+    'Number of seats at this table': 'عدد المقاعد في هذه الطاولة',
+    'Note': 'ملاحظة',
+    'Optional information about this table': 'معلومات اختيارية حول هذه الطاولة',
+    'Table Status': 'حالة الطاولة',
+    'Add': 'إضافة',
+    'Please enter a valid table number': 'الرجاء إدخال رقم طاولة صحيح',
+    'Please enter a valid capacity': 'الرجاء إدخال سعة صحيحة',
+    'Edit Table': 'تعديل الطاولة',
 
-
-
-
-      
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      
-
-
-
-
-       
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-     
-
-
-
-
-
-
-
-
-      'menu': 'القائمة',
-      'search': 'بحث',
-      'categories': 'الفئات',
-      'addToCart': 'أضف إلى السلة',
-      'itemAdded': 'تمت إضافة العنصر إلى السلة',
-      
-      
-      'cart': 'عربة التسوق',
-      'clearCart': 'إفراغ السلة',
-      'placeOrder': 'تقديم الطلب',
-      'orderTotal': 'إجمالي الطلب',
-      
     
-      'emptyCart': 'عربة التسوق فارغة',
-
-
-
-
-
-      'settings': 'الإعدادات',
-      'appearance': 'المظهر',
-      'theme': 'السمة',
-      'language': 'اللغة',
-      'businessInformation': 'معلومات العمل',
-      'printerSettings': 'إعدادات الطابعة',
-      'taxSettings': 'إعدادات الضريبة',
-      'products': 'المنتجات',
-      'dataAndBackup': 'البيانات والنسخ الاحتياطي',
-      'advancedSettings': 'إعدادات متقدمة',
-
-      // Common actions
+    // Backup Manager Widget
+    'Error loading backups': 'خطأ في تحميل النسخ الاحتياطية',
+    'Backup created successfully': 'تم إنشاء النسخة الاحتياطية بنجاح',
+    'Failed to create backup': 'فشل في إنشاء النسخة الاحتياطية',
+    'Error creating backup': 'خطأ في إنشاء النسخة الاحتياطية',
+    'Confirm Restore': 'تأكيد الاستعادة',
+    'Restoring will overwrite all current data with the selected backup. This action cannot be undone. Are you sure you want to continue?': 'ستؤدي الاستعادة إلى الكتابة فوق جميع البيانات الحالية بالنسخة الاحتياطية المحددة. لا يمكن التراجع عن هذا الإجراء. هل أنت متأكد أنك تريد المتابعة؟',
+    'Restore': 'استعادة',
+    'Restore completed successfully': 'اكتملت الاستعادة بنجاح',
+    'Restart Required': 'إعادة التشغيل مطلوبة',
+    'The app needs to be restarted to apply the restored settings. Please close and reopen the app.': 'يحتاج التطبيق إلى إعادة التشغيل لتطبيق الإعدادات المستعادة. يرجى إغلاق التطبيق وإعادة فتحه.',
+    'Failed to restore backup': 'فشل في استعادة النسخة الاحتياطية',
+    'Error restoring backup': 'خطأ في استعادة النسخة الاحتياطية',
+    'Confirm Delete': 'تأكيد الحذف',
+    'Are you sure you want to delete this backup? This action cannot be undone.': 'هل أنت متأكد أنك تريد حذف هذه النسخة الاحتياطية؟ لا يمكن التراجع عن هذا الإجراء.',
+    'Backup deleted successfully': 'تم حذف النسخة الاحتياطية بنجاح',
+    'Failed to delete backup': 'فشل في حذف النسخة الاحتياطية',
+    'Error deleting backup': 'خطأ في حذف النسخة الاحتياطية',
+    'Delete Old Backups': 'حذف النسخ الاحتياطية القديمة',
+    'Delete backups older than:': 'حذف النسخ الاحتياطية الأقدم من:',
+    '7 days': '7 أيام',
+    '30 days': '30 يوم',
+    '90 days': '90 يوم',
+    'Deleted': 'تم حذف',
+    'old backup(s)': 'نسخة احتياطية قديمة',
+    'Error deleting old backups': 'خطأ في حذف النسخ الاحتياطية القديمة',
+    'Keep Recent Backups': 'الاحتفاظ بالنسخ الاحتياطية الحديثة',
+    'Keep only the most recent:': 'الاحتفاظ فقط بالأحدث:',
+    '3 backups': '3 نسخ احتياطية',
+    '5 backups': '5 نسخ احتياطية',
+    '10 backups': '10 نسخ احتياطية',
+    'Kept': 'تم الاحتفاظ بـ',
+    'recent backup(s), deleted': 'نسخة احتياطية حديثة، تم حذف',
+    'Error managing backups': 'خطأ في إدارة النسخ الاحتياطية',
+    'Failed to share backup': 'فشل في مشاركة النسخة الاحتياطية',
+    'Error sharing backup': 'خطأ في مشاركة النسخة الاحتياطية',
+    'Backup exported to Downloads folder': 'تم تصدير النسخة الاحتياطية إلى مجلد التنزيلات',
+    'Failed to export backup': 'فشل في تصدير النسخة الاحتياطية',
+    'Error exporting backup': 'خطأ في تصدير النسخة الاحتياطية',
+    'Backup exported to Google Drive': 'تم تصدير النسخة الاحتياطية إلى Google Drive',
+    'Failed to export to Google Drive': 'فشل في التصدير إلى Google Drive',
+    'Note: Google Drive export requires additional setup': 'ملاحظة: تصدير Google Drive يتطلب إعداد إضافي',
+    'Error exporting to Google Drive': 'خطأ في التصدير إلى Google Drive',
+    'Restore from this backup': 'الاستعادة من هذه النسخة الاحتياطية',
+    'Share backup': 'مشاركة النسخة الاحتياطية',
+    'Export to Downloads folder': 'تصدير إلى مجلد التنزيلات',
+    'Export to Google Drive': 'تصدير إلى Google Drive',
+    'Delete backup': 'حذف النسخة الاحتياطية',
+    'Delete old backups': 'حذف النسخ الاحتياطية القديمة',
+    'Keep only recent backups': 'الاحتفاظ بالنسخ الاحتياطية الحديثة فقط',
+    'Error loading Google Drive backups': 'خطأ في تحميل النسخ الاحتياطية من Google Drive',
+    'Confirm Restore from Google Drive': 'تأكيد الاستعادة من Google Drive',
+    'Restoring will download the backup from Google Drive and overwrite all current data. This action cannot be undone. Are you sure you want to continue?': 'ستقوم الاستعادة بتنزيل النسخة الاحتياطية من Google Drive والكتابة فوق جميع البيانات الحالية. لا يمكن التراجع عن هذا الإجراء. هل أنت متأكد أنك تريد المتابعة؟',
+    'Restore from Google Drive completed successfully': 'اكتملت الاستعادة من Google Drive بنجاح',
+    'Failed to restore from Google Drive': 'فشل في الاستعادة من Google Drive',
+    'Error restoring from Google Drive': 'خطأ في الاستعادة من Google Drive',
+    'Restore from this Google Drive backup': 'الاستعادة من هذه النسخة الاحتياطية في Google Drive',
+    'Download to device': 'تنزيل إلى الجهاز',
+    'Delete from Google Drive': 'حذف من Google Drive',
+    'Are you sure you want to delete this backup from Google Drive? This action cannot be undone.': 'هل أنت متأكد أنك تريد حذف هذه النسخة الاحتياطية من Google Drive؟ لا يمكن التراجع عن هذا الإجراء.',
+    'Backup deleted from Google Drive': 'تم حذف النسخة الاحتياطية من Google Drive',
+    'Failed to delete backup from Google Drive': 'فشل في حذف النسخة الاحتياطية من Google Drive',
+    'Backup downloaded from Google Drive': 'تم تنزيل النسخة الاحتياطية من Google Drive',
+    'Failed to download backup from Google Drive': 'فشل في تنزيل النسخة الاحتياطية من Google Drive',
+    'Error downloading backup': 'خطأ في تنزيل النسخة الاحتياطية',
+    'Device Backups': 'النسخ الاحتياطية للجهاز',
+    'Google Drive': 'Google Drive',
+    'No backups found on Google Drive': 'لم يتم العثور على نسخ احتياطية في Google Drive',
+    'Refresh': 'تحديث',
+    'No local backups found': 'لم يتم العثور على نسخ احتياطية محلية',
+    'Full backup': 'نسخة احتياطية كاملة',
+    'Settings only': 'الإعدادات فقط',
+    'Unknown date': 'تاريخ غير معروف',
     
-      'add': 'إضافة',
-      'edit': 'تعديل',
-      'delete': 'حذف',
-    
-      'print': 'طباعة',
-      'back': 'رجوع',
-      'Logout': 'تسجيل الخروج',
-      'languageChanged': 'تم تغيير اللغة بنجاح',
-     // Add more translations as needed
-      'Are you sure you want to logout?':'هل أنت متأكد أنك تريد تسجيل الخروج؟',
+
+    // Kitchen Note Dialog
+    'Enter kitchen note here...': 'أدخل ملاحظة المطبخ هنا...',
+    'Printing...': 'جاري الطباعة...',
+
+
+
+
     },
   };
 

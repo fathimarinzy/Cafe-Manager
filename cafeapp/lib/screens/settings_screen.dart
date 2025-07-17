@@ -80,46 +80,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
       
-      // Wait for settings to load if they haven't been initialized
       if (!settingsProvider.isInitialized) {
         await Future.delayed(const Duration(milliseconds: 500));
       }
       
-      // Check if widget is still mounted before updating state
       if (!mounted) return;
       
-      // Load business info (now at the top)
       _businessNameController.text = settingsProvider.businessName;
       _addressController.text = settingsProvider.businessAddress;
       _phoneController.text = settingsProvider.businessPhone;
       
-      // Load printer settings
       _autoPrintReceipts = settingsProvider.autoPrintReceipts;
       _autoPrintKitchenOrders = settingsProvider.autoPrintKitchenOrders;
       _selectedPrinter = settingsProvider.selectedPrinter;
       
-      // Load tax settings
       _taxRateController.text = settingsProvider.taxRate.toString();
       
-      // Load table layout
       _tableRows = settingsProvider.tableRows;
       _tableColumns = settingsProvider.tableColumns;
       
-      // Load receipt footer
       _receiptFooterController.text = settingsProvider.receiptFooter;
       
-      // Load appearance settings
       _selectedTheme = settingsProvider.appTheme;
       _selectedLanguage = settingsProvider.appLanguage;
       
-      // Load advanced settings (server URL)
       _serverUrlController.text = settingsProvider.serverUrl;
     } catch (e) {
       debugPrint('Error loading settings: $e');
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading settings: $e')),
+          SnackBar(content: Text('${'Error loading settings'.tr()}: $e')),
         );
       }
     } finally {
@@ -146,69 +137,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
       
       final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
       
-      // Parse tax rate
       double taxRate = 5.0;
       try {
         taxRate = double.parse(_taxRateController.text);
       } catch (e) {
         debugPrint('Error parsing tax rate: $e');
       }
-        // Business info settings - only owner can change
+        
       if (_isOwner) {
         await settingsProvider.saveAllSettings(
-          // Business info
           businessName: _businessNameController.text,
           businessAddress: _addressController.text,
           businessPhone: _phoneController.text,
-          
-          // Tax settings
           taxRate: taxRate,
-          
-          // Table layout
           tableRows: _tableRows,
           tableColumns: _tableColumns,
-          
-          // Server URL
           serverUrl: _showAdvancedSettings ? _serverUrlController.text : null,
         );
       }
       
-      // Save all settings at once
       await settingsProvider.saveAllSettings(
-     
-        // Printer settings
         autoPrintReceipts: _autoPrintReceipts,
         autoPrintKitchenOrders: _autoPrintKitchenOrders,
         selectedPrinter: _selectedPrinter,
-        
-        // Tax settings
         taxRate: taxRate,
-        
-        // Table layout
         tableRows: _tableRows,
         tableColumns: _tableColumns,
-        
-        // Receipt footer
         receiptFooter: _receiptFooterController.text,
-        
-        // Appearance
         appTheme: _selectedTheme,
         appLanguage: _selectedLanguage,
-        
-        // Advanced (Server URL)
         serverUrl: _serverUrlController.text,
       );
       
-      // Check if widget is still mounted before updating UI
       if (!mounted) return;
       
-      // Update table provider with new layout
       final tableProvider = Provider.of<TableProvider>(context, listen: false);
       await tableProvider.refreshTables();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Settings saved successfully')),
+          SnackBar(content: Text('Settings saved successfully'.tr())),
         );
       }
     } catch (e) {
@@ -216,7 +184,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving settings: $e')),
+          SnackBar(content: Text('${'Error saving settings'.tr()}: $e')),
         );
       }
     } finally {
@@ -227,198 +195,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     }
   }
-  
-  // Future<void> _backupData() async {
-  //   try {
-  //     setState(() {
-  //       _isLoading = true;
-  //     });
-      
-  //     // Save current settings first to ensure they're included in the backup
-  //     await _saveSettings();
-      
-  //     // Create the backup
-  //     final backupPath = await BackupService.backupData();
-      
-  //     // Check if widget is still mounted before updating UI
-  //     if (!mounted) return;
-      
-  //     setState(() {
-  //       _isLoading = false;
-  //     });
-      
-  //     if (backupPath != null) {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(
-  //           content: const Text('Backup created successfully'),
-  //           action: SnackBarAction(
-  //             label: 'Share',
-  //             onPressed: () {
-  //               BackupService.shareBackup(backupPath);
-  //             },
-  //           ),
-  //         ),
-  //       );
-  //     } else {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         const SnackBar(content: Text('Failed to create backup')),
-  //       );
-  //     }
-  //   } catch (e) {
-  //     debugPrint('Error creating backup: $e');
-      
-  //     if (mounted) {
-  //       setState(() {
-  //         _isLoading = false;
-  //       });
-        
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(content: Text('Error creating backup: $e')),
-  //       );
-  //     }
-  //   }
-  // }
-  
-  // Future<void> _restoreData() async {
-  //   try {
-  //     // Get list of available backups
-  //     final backups = await BackupService.getAvailableBackups();
-      
-  //     // Check if widget is still mounted before continuing
-  //     if (!mounted) return;
-      
-  //     if (backups.isEmpty) {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         const SnackBar(content: Text('No backups found')),
-  //       );
-  //       return;
-  //     }
-      
-  //     // Show dialog to select backup
-  //     final selectedBackup = await showDialog<Map<String, dynamic>>(
-  //       context: context,
-  //       builder: (ctx) => AlertDialog(
-  //         title: const Text('Select Backup to Restore'),
-  //         content: SizedBox(
-  //           width: double.maxFinite,
-  //           height: 300,
-  //           child: ListView.builder(
-  //             itemCount: backups.length,
-  //             itemBuilder: (context, index) {
-  //               final backup = backups[index];
-  //               final DateTime timestamp = DateTime.parse(backup['timestamp']);
-  //               final String date = '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')}';
-  //               final String time = '${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}';
-                
-  //               return ListTile(
-  //                 title: Text('Backup from $date'),
-  //                 subtitle: Text('Created at $time'),
-  //                 onTap: () => Navigator.of(ctx).pop(backup),
-  //               );
-  //             },
-  //           ),
-  //         ),
-  //         actions: [
-  //           TextButton(
-  //             onPressed: () => Navigator.of(ctx).pop(),
-  //             child: const Text('Cancel'),
-  //           ),
-  //         ],
-  //       ),
-  //     );
-      
-  //     // Check if widget is still mounted before continuing
-  //     if (!mounted) return;
-      
-  //     if (selectedBackup == null) return;
-      
-  //     // For the second dialog, also check if mounted
-  //     final confirmed = await showDialog<bool>(
-  //       context: context,
-  //       builder: (ctx) => AlertDialog(
-  //         title: const Text('Confirm Restore'),
-  //         content: const Text(
-  //           'Restoring from backup will overwrite all current settings.\n'
-  //           'This action cannot be undone. Are you sure you want to continue?'
-  //         ),
-  //         actions: [
-  //           TextButton(
-  //             child: const Text('Cancel'),
-  //             onPressed: () => Navigator.of(ctx).pop(false),
-  //           ),
-  //           TextButton(
-  //             child: const Text('Restore', style: TextStyle(color: Colors.blue)),
-  //             onPressed: () => Navigator.of(ctx).pop(true),
-  //           ),
-  //         ],
-  //       ),
-  //     ) ?? false;
-      
-  //     // Check if widget is still mounted before continuing
-  //     if (!mounted) return;
-      
-  //     if (!confirmed) return;
-      
-  //     // Restore the backup
-  //     setState(() {
-  //       _isLoading = true;
-  //     });
-      
-  //     final success = await BackupService.restoreData(selectedBackup['path']);
-      
-  //     // Final mounted check before updating UI
-  //     if (!mounted) return;
-      
-  //     setState(() {
-  //       _isLoading = false;
-  //     });
-      
-  //     if (success) {
-  //       // Reload settings - breaking this up into separate operations with mounted checks
-  //       await _loadSettings();
-        
-  //       // Check mounted state again before showing message
-  //       if (!mounted) return;
-        
-  //       // Show success message
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         const SnackBar(content: Text('Backup restored successfully')),
-  //       );
-        
-  //       // Refresh table provider - check mounted again
-  //       if (!mounted) return;
-  //       final tableProvider = Provider.of<TableProvider>(context, listen: false);
-  //       tableProvider.refreshTables();
-  //     } else {
-  //       // Only access context if still mounted
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         const SnackBar(content: Text('Failed to restore backup')),
-  //       );
-  //     }
-  //   } catch (e) {
-  //     debugPrint('Error restoring backup: $e');
-      
-  //     if (mounted) {
-  //       setState(() {
-  //         _isLoading = false;
-  //       });
-        
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(content: Text('Error restoring backup: $e')),
-  //       );
-  //     }
-  //   }
-  // }
 
-  // Show reset confirmation dialog
   void _showResetConfirmationDialog() {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Reset All Data'),
-        content: const Text(
-          'This will delete all app data.\n'
-          'This action cannot be undone. Are you sure you want to continue?'
+        title: Text('Reset All Data'.tr()),
+        content: Text(
+          'This will delete all app data. This action cannot be undone. Are you sure you want to continue?'.tr(),
         ),
         actions: [
           TextButton(
@@ -426,7 +210,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             style: TextButton.styleFrom(
               foregroundColor: Colors.grey,
             ),
-            child: const Text('No'),
+            child: Text('No'.tr()),
           ),
           TextButton(
             onPressed: () {
@@ -436,14 +220,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             style: TextButton.styleFrom(
               foregroundColor: Colors.red,
             ),
-            child: const Text('Yes'),
+            child: Text('Yes'.tr()),
           ),
         ],
       ),
     );
   }
 
-  // Show password verification dialog
   void _showPasswordDialog() {
     final passwordController = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -452,267 +235,152 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Enter Password : '),
+        title: Text('Enter Password:'.tr()),
         content: Form(
           key: formKey,
           child: TextFormField(
             controller: passwordController,
             obscureText: true,
-            decoration: const InputDecoration(
-              labelText: 'Password',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: 'Password'.tr(),
+              border: const OutlineInputBorder(),
             ),
             validator: (value) {
               if (value == null || value.isEmpty) {
-                return 'Please enter the password';
+                return 'Please enter the password'.tr();
               }
               if (isPasswordIncorrect) {
-                  return 'Incorrect password';
+                return 'Incorrect password'.tr();
               }
               return null;
             },
-             onChanged: (value) {
-                // Reset the incorrect flag when user types
-                if (isPasswordIncorrect) {
-                  setState(() {
-                    isPasswordIncorrect = false;
-                  });
-                  // This will rebuild the form without the error
-                  formKey.currentState?.validate();
-                }
-              },
+            onChanged: (value) {
+              if (isPasswordIncorrect) {
+                setState(() {
+                  isPasswordIncorrect = false;
+                });
+                formKey.currentState?.validate();
+              }
+            },
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
+            child: Text('Cancel'.tr()),
           ),
           TextButton(
             onPressed: () {
-                // Verify password - you should replace with your own password verification
-                // For this example, I'm using a hard-coded password 'staff123'
-                if (passwordController.text == '1234') {
-                  Navigator.of(ctx).pop();
-                  _resetAllData();
-                } else {
-                  // Set the flag and trigger validation to show error
-                  setState(() {
-                    isPasswordIncorrect = true;
-                  });
-                  formKey.currentState?.validate();
-                }
-              },
-            child: const Text('Verify'),
+              if (passwordController.text == '1234') {
+                Navigator.of(ctx).pop();
+                _resetAllData();
+              } else {
+                setState(() {
+                  isPasswordIncorrect = true;
+                });
+                formKey.currentState?.validate();
+              }
+            },
+            child: Text('Verify'.tr()),
           ),
         ],
       ),
     );
   }
 
-  // Reset all data
   Future<void> _resetAllData() async {
-  if (!mounted) return;
-  
-  setState(() {
-    _isLoading = true;
-  });
+    if (!mounted) return;
+    
+    setState(() {
+      _isLoading = true;
+    });
 
-  try {
-    // Show a progress dialog
-    if (mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => WillPopScope(
-          // Prevent dialog from being dismissed with back button
-          onWillPop: () async => false,
-          child: const AlertDialog(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Resetting data... Please wait.'),
-                SizedBox(height: 8),
-                Text(
-                  'This may take a moment. Do not close the app.',
-                  style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
-                ),
-              ],
+    try {
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => WillPopScope(
+            onWillPop: () async => false,
+            child: AlertDialog(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text('Resetting data... Please wait.'.tr()),
+                  const SizedBox(height: 8),
+                  Text(
+                    'This may take a moment. Do not close the app.'.tr(),
+                    style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      );
-    }
-    
-    // Get instance of our new database reset service
-    final dbResetService = DatabaseResetService();
-    
-    // Use the force reset method that handles readonly database issues
-    await dbResetService.forceResetAllDatabases();
-    
-    // Reset settings to defaults
-    if (!mounted) return;
-    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-    await settingsProvider.resetSettings();
-    
-    // Reset table layouts
-    if (!mounted) return;
-    final tableProvider = Provider.of<TableProvider>(context, listen: false);
-    await tableProvider.refreshTables();
-    
-    // Pop the progress dialog
-    if (mounted) Navigator.of(context).pop();
-    
-    // Show success message with restart instruction
-    if (mounted) {
-      // Show a dialog instructing the user to restart the app
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Reset Complete'),
-          content: const Text(
-            'All data has been reset successfully.\n'
-            'You must restart the app for changes to take effect completely.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                // Reload settings
-                _loadSettings();
-              },
-              child: const Text('OK'),
+        );
+      }
+      
+      final dbResetService = DatabaseResetService();
+      await dbResetService.forceResetAllDatabases();
+      
+      if (!mounted) return;
+      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+      await settingsProvider.resetSettings();
+      
+      if (!mounted) return;
+      final tableProvider = Provider.of<TableProvider>(context, listen: false);
+      await tableProvider.refreshTables();
+      
+      if (mounted) Navigator.of(context).pop();
+      
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            title: Text('Reset Complete'.tr()),
+            content: Text(
+              'All data has been reset successfully. You must restart the app for changes to take effect completely.'.tr(),
             ),
-          ],
-        ),
-      );
-    }
-  } catch (e) {
-    // Pop the progress dialog in case of error
-    if (mounted) Navigator.of(context).pop();
-    
-    debugPrint('Error resetting data: $e');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error resetting data: $e')),
-      );
-    }
-  } finally {
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  _loadSettings();
+                },
+                child: Text('OK'.tr()),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) Navigator.of(context).pop();
+      
+      debugPrint('Error resetting data: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${'Error resetting data'.tr()}: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
-}
 
-//   // Methods to clear each database
-// Future<void> _clearMenuDatabase() async {
-//   try {
-//     // Use repository pattern to get a fresh database connection
-//     final menuRepo = LocalMenuRepository();
-//     final db = await menuRepo.database;
-    
-//     // Delete all records
-//     await db.delete('menu_items');
-    
-//     // Try to reset the sequence counter
-//     try {
-//       await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "menu_items"');
-//     } catch (e) {
-//       // Ignore if not supported
-//       debugPrint('Could not reset sequence for menu_items: $e');
-//     }
-    
-//     debugPrint('Menu database cleared successfully');
-//   } catch (e) {
-//     debugPrint('Error clearing menu database: $e');
-//     // Don't rethrow - continue with other operations
-//   }
-// }
-
-// Future<void> _clearOrderDatabase() async {
-//   try {
-//     // Use repository pattern to get a fresh database connection
-//     final orderRepo = LocalOrderRepository();
-//     final db = await orderRepo.database;
-    
-//     // Delete in the correct order to maintain foreign key integrity
-//     await db.delete('order_items');
-//     await db.delete('orders');
-    
-//     // Try to reset the sequence counters
-//     try {
-//       await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "orders"');
-//       await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "order_items"');
-//     } catch (e) {
-//       debugPrint('Could not reset sequences for orders: $e');
-//     }
-    
-//     debugPrint('Order database cleared successfully');
-//   } catch (e) {
-//     debugPrint('Error clearing order database: $e');
-//   }
-// }
-
-// Future<void> _clearPersonDatabase() async {
-//   try {
-//     // Use repository pattern to get a fresh database connection
-//     final personRepo = LocalPersonRepository();
-//     final db = await personRepo.database;
-    
-//     // Delete all records
-//     await db.delete('persons');
-    
-//     // Try to reset the sequence counter
-//     try {
-//       await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "persons"');
-//     } catch (e) {
-//       debugPrint('Could not reset sequence for persons: $e');
-//     }
-    
-//     debugPrint('Person database cleared successfully');
-//   } catch (e) {
-//     debugPrint('Error clearing person database: $e');
-//   }
-// }
-
-// Future<void> _clearExpenseDatabase() async {
-//   try {
-//     // Use repository pattern to get a fresh database connection
-//     final expenseRepo = LocalExpenseRepository();
-//     final db = await expenseRepo.database;
-    
-//     // Delete in the correct order to maintain foreign key integrity
-//     await db.delete('expense_items');
-//     await db.delete('expenses');
-    
-//     // Try to reset the sequence counters
-//     try {
-//       await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "expenses"');
-//       await db.execute('DELETE FROM SQLITE_SEQUENCE WHERE name = "expense_items"');
-//     } catch (e) {
-//       debugPrint('Could not reset sequences for expenses: $e');
-//     }
-    
-//     debugPrint('Expense database cleared successfully');
-//   } catch (e) {
-//     debugPrint('Error clearing expense database: $e');
-//   }
-// }
-
-  // Add the Tables section widget with dining table layout option
   Widget _buildTablesSection() {
     return Card(
       child: Column(
         children: [
           ListTile(
             leading: Icon(Icons.table_bar, color: Colors.blue[700]),
-            title: const Text('Table Management'),
-            subtitle: const Text('Configure dining tables and layout'),
+            title: Text('Table Management'.tr()),
+            subtitle: Text('Configure dining tables and layout'.tr()),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
             onTap: () {
               Navigator.of(context).push(
@@ -725,8 +393,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Divider(height: 1, indent: 70),
           ListTile(
             leading: Icon(Icons.grid_view, color: Colors.blue[700]),
-            title: const Text('Dining Table Layout'),
-            subtitle: const Text('Configure table rows and columns'),
+            title: Text('Dining Table Layout'.tr()),
+            subtitle: Text('Configure table rows and columns'.tr()),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
             onTap: _showLayoutDialog,
           ),
@@ -735,35 +403,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
   
-  // Show layout selection dialog (copied from DiningTableScreen)
   void _showLayoutDialog() {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        // Get screen width to calculate dialog width
         final screenWidth = MediaQuery.of(context).size.width;
         
         return AlertDialog(
-          title: const Text(
-            'Select Table Layout',
-            style: TextStyle(
-              fontSize: 18, // Smaller title font
+          title: Text(
+            'Select Table Layout'.tr(),
+            style: const TextStyle(
+              fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
           contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-          // Make dialog narrower - only 65% of screen width
           content: SizedBox(
             width: screenWidth * 0.65,
             child: ListView(
               shrinkWrap: true,
               children: _layoutOptions.map((option) {
                 return ListTile(
-                  dense: true, // Makes the list tile more compact
+                  dense: true,
                   title: Text(
                     option['label'],
                     style: const TextStyle(
-                      fontSize: 14, // Smaller font for options
+                      fontSize: 14,
                     ),
                   ),
                   onTap: () {
@@ -771,12 +436,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _tableRows = option['rows'];
                       _tableColumns = option['columns'];
                     });
-                    // Save the selected layout to persist it
                     _saveLayout(option['rows'], option['columns']);
                     Navigator.pop(context);
                   },
                   trailing: (_tableRows == option['rows'] && _tableColumns == option['columns']) 
-                    ? const Icon(Icons.check, color: Colors.green, size: 18) // Smaller checkmark
+                    ? const Icon(Icons.check, color: Colors.green, size: 18)
                     : null,
                 );
               }).toList(),
@@ -785,9 +449,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(fontSize: 14), // Smaller font for button
+              child: Text(
+                'Cancel'.tr(),
+                style: const TextStyle(fontSize: 14),
               ),
             ),
           ],
@@ -796,25 +460,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
   
-  // Save layout configuration to SharedPreferences
   Future<void> _saveLayout(int rows, int columns) async {
     try {
-      // First update the SettingsProvider
       final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
       await settingsProvider.saveAllSettings(
         tableRows: rows,
         tableColumns: columns,
       );
       
-      // Also directly update the shared preferences with the exact same keys used in DiningTableScreen
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('dining_table_rows', rows);
       await prefs.setInt('dining_table_columns', columns);
       
-      // Show a confirmation message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Table layout saved')),
+          SnackBar(content: Text('Table layout saved'.tr())),
         );
       }
     } catch (e) {
@@ -822,7 +482,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
   
-  // Predefined layout options (same as DiningTableScreen)
   final List<Map<String, dynamic>> _layoutOptions = [
     {'label': '3x4 Layout', 'rows': 3, 'columns': 4},
     {'label': '4x4 Layout', 'rows': 4, 'columns': 4},
@@ -836,13 +495,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Settings ${_isOwner ? "(Owner)" : ""}'),
+        title: Text('${'Settings'.tr()} ${_isOwner ? "(${_getOwnerText()})" : ""}'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         actions: [
           TextButton.icon(
             icon: const Icon(Icons.save),
-            label: const Text('Save'),
+            label: Text('Save'.tr()),
             onPressed: _saveSettings,
             style: TextButton.styleFrom(
               foregroundColor: Colors.blue[700],
@@ -857,51 +516,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                // BUSINESS INFORMATION - Most important, at the top
-                _buildSectionHeader('Business Information'),
+                _buildSectionHeader('Business Information'.tr()),
                 _buildBusinessInfoSection(),
 
                 const Divider(),
-                _buildSectionHeader('Expense'),
+                _buildSectionHeader('Expense'.tr()),
                 _expenseSection(),
                 const Divider(),
-                _buildSectionHeader('Reports'),
+                _buildSectionHeader('Reports'.tr()),
                 _buildReportsSection(),
                 const Divider(),
-                // TAX SETTINGS - Important for sales
-                _buildSectionHeader('Tax Settings'),
+                _buildSectionHeader('Tax Settings'.tr()),
                 _buildTaxSettingsSection(),
                  
                 const Divider(),
                 
-                // PRINTER SETTINGS SECTION
-                _buildSectionHeader('Printer Settings'),
+                _buildSectionHeader('Printer Settings'.tr()),
                 _buildPrinterSettingsSection(),
                 const Divider(),
               
-                // PRODUCT MANAGEMENT - Add the new section
-                _buildSectionHeader('Products'),
+                _buildSectionHeader('Products'.tr()),
                 _buildProductSection(),
                 const Divider(),
                 
-                // TABLE MANAGEMENT - Add the new section
-                _buildSectionHeader('Tables'),
+                _buildSectionHeader('Tables'.tr()),
                 _buildTablesSection(),
                 const Divider(),
                 
-                // DATA MANAGEMENT
-                _buildSectionHeader('Data & Backup'),
+                _buildSectionHeader('Data & Backup'.tr()),
                 _buildDataBackupSection(),
                 const SizedBox(height: 16),
                 const Divider(),
-                // APP APPEARANCE
-                _buildSectionHeader('Appearance'),
+                _buildSectionHeader('Appearance'.tr()),
                 Card(
                   child: Column(
                     children: [
                       ListTile(
-                        title: Text('language'.tr()),
-                        subtitle: Text(_selectedLanguage),
+                        title: Text('Language'.tr()),
+                        subtitle: Text(_getLanguageDisplayName(_selectedLanguage)),
                         trailing: DropdownButton<String>(
                           value: _selectedLanguage,
                           onChanged: (String? newValue) {
@@ -910,14 +562,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 _selectedLanguage = newValue;
                               });
                               
-                              // Apply the language change
                               final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
                               settingsProvider.setLanguage(newValue);
                                 
-                              // Show a confirmation message
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('languageChanged'.tr()),
+                                  content: Text('Language changed successfully'.tr()),
                                   duration: const Duration(seconds: 2),
                                 ),
                               );
@@ -927,7 +577,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               .map<DropdownMenuItem<String>>((String value) {
                             return DropdownMenuItem<String>(
                               value: value,
-                              child: Text(value),
+                              child: Text(_getLanguageDisplayName(value)),
                             );
                           }).toList(),
                           underline: Container(),
@@ -938,33 +588,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const Divider(),
                 
-                // ADVANCED SETTINGS TOGGLE
                 InkWell(
                   onTap: () {
                     setState(() {
                       _showAdvancedSettings = !_showAdvancedSettings;
                     });
                   },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Show/hide advanced settings controls if needed
-                      ],
+                      children: [],
                     ),
                   ),
                 ),
                 
-                // logout section
-                _buildSectionHeader('Logout'),
+                _buildSectionHeader('Logout'.tr()),
                 _logoutsection(),
              
-                // ABOUT
                 const Divider(),
                 ListTile(
-                    title: Text(_businessNameController.text.isNotEmpty ? _businessNameController.text : 'SIMS CAFE'),
-                  subtitle: const Text('Version 1.0.1'),
+                  title: Text(_businessNameController.text.isNotEmpty ? _businessNameController.text : 'SIMS CAFE'),
+                  subtitle: Text('Version 1.0.1'.tr()),
                   leading: const Icon(Icons.info_outline),
                 ),
                 const SizedBox(height: 40),
@@ -974,21 +619,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // Build the Data & Backup section with the new Reset option
+  // Helper method to get owner text translation
+  String _getOwnerText() {
+    return 'Owner'.tr();
+  }
+
+  // Helper method to get language display name
+  String _getLanguageDisplayName(String language) {
+    switch (language) {
+      case 'English':
+        return 'English'.tr();
+      case 'Arabic':
+        return 'Arabic'.tr();
+      default:
+        return language;
+    }
+  }
+
   Widget _buildDataBackupSection() {
     return Card(
       child: Column(
         children: [
-          // ListTile(
-          //   leading: Icon(Icons.backup, color: Colors.blue[700]),
-          //   title: const Text('Backup App Data'),
-          //   subtitle: const Text('Save all settings and configuration'),
-          //   onTap: _backupData,
-          // ),
           ListTile(
             leading: Icon(Icons.backup, color: Colors.blue[700]),
-            title: const Text('Backup & Restore'),
-            subtitle: const Text('Create, restore, and manage backups'),
+            title: Text('Backup & Restore'.tr()),
+            subtitle: Text('Create, restore, and manage backups'.tr()),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
             onTap: () {
               Navigator.of(context).push(
@@ -999,17 +654,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
           const Divider(height: 1, indent: 70),
-          // ListTile(
-          //   leading: Icon(Icons.restore, color: Colors.green[700]),
-          //   title: const Text('Restore From Backup'),
-          //   subtitle: const Text('Load settings from a previous backup'),
-          //   onTap: _restoreData,
-          // ),
-          const Divider(height: 1, indent: 70),
           ListTile(
             leading: Icon(Icons.delete_forever, color: Colors.red[700]),
-            title: const Text('Reset Data'),
-            subtitle: const Text('Clear all app data '),
+            title: Text('Reset Data'.tr()),
+            subtitle: Text('Clear all app data'.tr()),
             onTap: _showResetConfirmationDialog,
           ),
         ],
@@ -1017,32 +665,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
   
-  // Add this method to build the Tax Settings section as a ListTile
   Widget _buildTaxSettingsSection() {
     return Card(
       child: ListTile(
         leading: Icon(Icons.attach_money, color: Colors.blue[700]),
-        title: const Text('Tax Settings'),
-        subtitle: Text('Current Tax Rate: ${_taxRateController.text}%'),
+        title: Text('Tax Settings'.tr()),
+        subtitle: Text('${'Current Tax Rate'.tr()}: ${_taxRateController.text}%'),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: _showTaxSettingsDialog,
       ),
     );
   }
 
-  // Add this method to show the tax settings dialog
   void _showTaxSettingsDialog() {
-    // Create temporary controller with current value
     final taxRateController = TextEditingController(text: _taxRateController.text);
-    
-    // Form key for validation
     final formKey = GlobalKey<FormState>();
     
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Tax Settings'),
+          title: Text('Tax Settings'.tr()),
           content: Form(
             key: formKey,
             child: Column(
@@ -1050,7 +693,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Current Tax Rate: ${_taxRateController.text}%',
+                  '${'Current Tax Rate'.tr()}: ${_taxRateController.text}%',
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
@@ -1060,24 +703,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: taxRateController,
-                  decoration: const InputDecoration(
-                    labelText: 'Sales Tax Rate (%)',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: 'Sales Tax Rate (%)'.tr(),
+                    border: const OutlineInputBorder(),
                     suffixText: '%',
-                    hintText: 'Enter your tax rate (e.g., 5.0)',
+                    hintText: 'Enter your tax rate (e.g., 5.0)'.tr(),
                   ),
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please enter tax rate';
+                      return 'Please enter tax rate'.tr();
                     }
                     try {
                       final rate = double.parse(value);
                       if (rate < 0 || rate > 100) {
-                        return 'Tax rate must be between 0 and 100';
+                        return 'Tax rate must be between 0 and 100'.tr();
                       }
                     } catch (e) {
-                      return 'Please enter a valid number';
+                      return 'Please enter a valid number'.tr();
                     }
                     return null;
                   },
@@ -1088,27 +731,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              child: Text('Cancel'.tr()),
             ),
             TextButton(
               onPressed: () {
-                // Validate the form
                 if (formKey.currentState!.validate()) {
-                  // Update the main controller with the dialog value
                   setState(() {
                     _taxRateController.text = taxRateController.text;
                   });
                   
-                  // Close the dialog
                   Navigator.pop(context);
                   
-                  // Show a snackbar to confirm changes
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Tax rate updated (not saved yet)')),
+                    SnackBar(content: Text('Tax rate updated (not saved yet)'.tr())),
                   );
                 }
               },
-              child: const Text('Update'),
+              child: Text('Update'.tr()),
             ),
           ],
         );
@@ -1120,8 +759,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Card(
       child: ListTile(
         leading: Icon(Icons.analytics, color: Colors.blue[700]),
-        title: const Text('Reports'),
-        subtitle: const Text('View daily and monthly sales reports'),
+        title: Text('Reports'.tr()),
+        subtitle: Text('View daily and monthly sales reports'.tr()),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () {
           Navigator.of(context).push(
@@ -1134,17 +773,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
   
-  // This will create the Business Information section as a ListTile
   Widget _buildBusinessInfoSection() {
     return Card(
       child: ListTile(
         leading: Icon(Icons.business, color: _isOwner ? Colors.blue[700] : Colors.grey),
-        title: const Text('Business Information'),
+        title: Text('Business Information'.tr()),
         subtitle: Text(_isOwner 
             ? (_businessNameController.text.isNotEmpty 
                 ? _businessNameController.text 
-                : 'Configure restaurant details')
-            : 'Configure restaurant details'),
+                : 'Configure restaurant details'.tr())
+            : 'Configure restaurant details'.tr()),
         trailing: _isOwner ? const Icon(Icons.arrow_forward_ios, size: 16) : null,
         onTap: _isOwner ? _showBusinessInfoDialog : null,
         enabled: _isOwner,
@@ -1157,8 +795,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Card(
       child: ListTile(
         leading: Icon(Icons.money_off, color: Colors.blue[700]),
-        title: const Text('Expense Management'),
-        subtitle: const Text('Track and manage your expenses'),
+        title: Text('Expense Management'.tr()),
+        subtitle: Text('Track and manage your expenses'.tr()),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () {
           Navigator.of(context).push(
@@ -1171,17 +809,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
   
-  // Add this method to show the dialog with the text form fields
   void _showBusinessInfoDialog() {
-    // Create temporary controllers with current values
     final businessNameController = TextEditingController(text: _businessNameController.text);
     final addressController = TextEditingController(text: _addressController.text);
     final phoneController = TextEditingController(text: _phoneController.text);
+    
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Business Information'),
+          title: Text('Business Information'.tr()),
           content: SingleChildScrollView(
             child: Form(
               child: Column(
@@ -1189,14 +826,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   TextFormField(
                     controller: businessNameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Restaurant Name',
-                      border: OutlineInputBorder(),
-                      hintText: 'Enter your restaurant name',
+                    decoration: InputDecoration(
+                      labelText: 'Restaurant Name'.tr(),
+                      border: const OutlineInputBorder(),
+                      hintText: 'Enter your restaurant name'.tr(),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter restaurant name';
+                        return 'Please enter restaurant name'.tr();
                       }
                       return null;
                     },
@@ -1204,20 +841,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: addressController,
-                    decoration: const InputDecoration(
-                      labelText: 'Address',
-                      border: OutlineInputBorder(),
-                      hintText: 'Enter your restaurant address',
+                    decoration: InputDecoration(
+                      labelText: 'Address'.tr(),
+                      border: const OutlineInputBorder(),
+                      hintText: 'Enter your restaurant address'.tr(),
                     ),
                     maxLines: 2,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: phoneController,
-                    decoration: const InputDecoration(
-                      labelText: 'Phone Number',
-                      border: OutlineInputBorder(),
-                      hintText: 'Enter your restaurant phone number',
+                    decoration: InputDecoration(
+                      labelText: 'Phone Number'.tr(),
+                      border: const OutlineInputBorder(),
+                      hintText: 'Enter your restaurant phone number'.tr(),
                     ),
                     keyboardType: TextInputType.phone,
                   ),
@@ -1228,26 +865,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              child: Text('Cancel'.tr()),
             ),
             TextButton(
               onPressed: () {
-                // Update the main controllers with the dialog values
                 setState(() {
                   _businessNameController.text = businessNameController.text;
                   _addressController.text = addressController.text;
                   _phoneController.text = phoneController.text;
                 });
                 
-                // Close the dialog
                 Navigator.pop(context);
                 
-                // Show a snackbar to confirm changes
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Business information updated (not saved yet)')),
+                  SnackBar(content: Text('Business information updated (not saved yet)'.tr())),
                 );
               },
-              child: const Text('Update'),
+              child: Text('Update'.tr()),
             ),
           ],
         );
@@ -1255,24 +889,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
   
-  // Show logout confirmation dialog
   void _showLogoutDialog() {
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
-        // Add this to constrain and control the dialog size
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
-        // Control the dialog size with insets
         insetPadding: EdgeInsets.symmetric(
-          horizontal: MediaQuery.of(context).size.width * 0.15, // 70% width
-          vertical: MediaQuery.of(context).size.height * 0.3   // 40% height
+          horizontal: MediaQuery.of(context).size.width * 0.15,
+          vertical: MediaQuery.of(context).size.height * 0.3
         ),
         child: Container(
-          // Explicit dimensions for the dialog content
           width: 400,
-          padding: const EdgeInsets.all(24), // Increased padding for more space
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1280,30 +910,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 'Logout'.tr(), 
                 style: TextStyle(
                   color: Colors.blue.shade900,
-                  fontSize: 22, // Increased font size
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
                 )
               ),
-              const SizedBox(height: 20), // More space
+              const SizedBox(height: 20),
               Text(
                 'Are you sure you want to logout?'.tr(),
                 style: const TextStyle(
-                  fontSize: 16, // Increased font size
+                  fontSize: 16,
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 32), // More space
+              const SizedBox(height: 32),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly, // Space buttons evenly
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   SizedBox(
-                    width: 120, // Fixed width for buttons
-                    height: 48, // Taller buttons
+                    width: 120,
+                    height: 48,
                     child: TextButton(
                       onPressed: () => Navigator.of(ctx).pop(),
                       style: TextButton.styleFrom(
                         foregroundColor: Colors.grey,
-                        textStyle: const TextStyle(fontSize: 16), // Larger text
+                        textStyle: const TextStyle(fontSize: 16),
                         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
@@ -1314,24 +944,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   SizedBox(
-                    width: 120, // Fixed width for buttons
-                    height: 48, // Taller buttons
+                    width: 120,
+                    height: 48,
                     child: TextButton(
                       onPressed: () {
                         Navigator.of(ctx).pop();
-                        // Get the auth provider and log out
                         final authProvider = Provider.of<AuthProvider>(context, listen: false);
                         authProvider.logout();
-                        // Navigate to login screen
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(builder: (_) => const LoginScreen()),
                           (route) => false,
                         );
                       },
                       style: TextButton.styleFrom(
-                        backgroundColor: Colors.red.shade50, // Background color
+                        backgroundColor: Colors.red.shade50,
                         foregroundColor: Colors.red,
-                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold), // Larger text
+                        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
@@ -1350,13 +978,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // Add the Product section widget
   Widget _buildProductSection() {
     return Card(
       child: ListTile(
         leading: Icon(Icons.inventory, color: Colors.blue[700]),
-        title: const Text('Product Management'),
-        subtitle: const Text('Add, edit, or remove menu items'),
+        title: Text('Product Management'.tr()),
+        subtitle: Text('Add, edit, or remove menu items'.tr()),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () {
           Navigator.of(context).push(
@@ -1372,8 +999,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _logoutsection() {  
     return Card(
       child: ListTile(
-        leading: Icon(Icons.inventory, color: Colors.blue[700]),
-        title: const Text('Logout'),
+        leading: Icon(Icons.logout, color: Colors.blue[700]),
+        title: Text('Logout'.tr()),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () {
           _showLogoutDialog();
@@ -1382,13 +1009,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
   
-  // Add the Printer Settings section widget
   Widget _buildPrinterSettingsSection() {
     return Card(
       child: ListTile(
         leading: Icon(Icons.print, color: Colors.blue[700]),
-        title: const Text('Printer Configuration'),
-        subtitle: const Text('Configure thermal printer settings'),
+        title: Text('Printer Configuration'.tr()),
+        subtitle: Text('Configure thermal printer settings'.tr()),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () {
           Navigator.of(context).push(

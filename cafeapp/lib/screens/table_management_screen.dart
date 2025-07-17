@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/table_provider.dart';
 import '../models/table_model.dart';
+import '../utils/app_localization.dart';
 
 class TableManagementScreen extends StatefulWidget {
   const TableManagementScreen({super.key});
@@ -18,21 +19,20 @@ class _TableManagementScreenState extends State<TableManagementScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tables'),
+        title: Text('Tables'.tr()),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: () {
-              // Show add dialog with empty fields
               _showAddTableDialog(context);
             },
           ),
         ],
       ),
       body: tables.isEmpty
-          ? const Center(child: Text('No tables available. Add a table to get started.'))
+          ? Center(child: Text('No tables available. Add a table to get started.'.tr()))
           : ListView.builder(
               itemCount: tables.length,
               itemBuilder: (ctx, index) {
@@ -48,12 +48,11 @@ class _TableManagementScreenState extends State<TableManagementScreen> {
                         style: const TextStyle(color: Colors.white),
                       ),
                     ),
-                    title: Text('Table ${table.number}'),
-                    subtitle: Text('Capacity: ${table.capacity} | ${table.isOccupied ? 'Occupied' : 'Available'}'),
+                    title: Text('${'Table'.tr()} ${table.number}'),
+                    subtitle: Text('${'Capacity'.tr()}: ${table.capacity} | ${table.isOccupied ? 'Occupied'.tr() : 'Available'.tr()}'),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Toggle status button
                         IconButton(
                           icon: Icon(
                             table.isOccupied ? Icons.event_busy : Icons.event_available,
@@ -63,14 +62,12 @@ class _TableManagementScreenState extends State<TableManagementScreen> {
                             tableProvider.toggleTableStatus(table.id);
                           },
                         ),
-                        // Edit button
                         IconButton(
                           icon: const Icon(Icons.edit, color: Colors.blue),
                           onPressed: () {
                             _showEditTableDialog(context, table);
                           },
                         ),
-                        // Delete button
                         IconButton(
                           icon: const Icon(Icons.delete, color: Colors.red),
                           onPressed: () {
@@ -90,15 +87,15 @@ class _TableManagementScreenState extends State<TableManagementScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Delete Table ${table.number}?'),
-        content: const Text('This action cannot be undone.'),
+        title: Text('${'Delete Table'.tr()} ${table.number}?'),
+        content: Text('This action cannot be undone.'.tr()),
         actions: [
           TextButton(
-            child: const Text('Cancel'),
+            child: Text('Cancel'.tr()),
             onPressed: () => Navigator.of(ctx).pop(),
           ),
           TextButton(
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: Text('Delete'.tr(), style: const TextStyle(color: Colors.red)),
             onPressed: () {
               Provider.of<TableProvider>(context, listen: false).deleteTable(table.id);
               Navigator.of(ctx).pop();
@@ -109,27 +106,21 @@ class _TableManagementScreenState extends State<TableManagementScreen> {
     );
   }
 
-  // Separate method for adding a table (with empty fields)
   void _showAddTableDialog(BuildContext context) {
     final numberController = TextEditingController();
     final capacityController = TextEditingController();
     final noteController = TextEditingController();
     bool isOccupied = false;
 
-    // Get the screen width and height to calculate dialog dimensions
     final screenSize = MediaQuery.of(context).size;
     final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-    
-    // Dialog width - using 80% of screen width, with max width
     final dialogWidth = screenSize.width * 0.8 > 500 ? 500.0 : screenSize.width * 0.8;
 
-    // Use a scrollable builder to handle keyboard pushing content
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setState) {
           return Dialog(
-            // Specify custom width for the dialog
             insetPadding: EdgeInsets.symmetric(
               horizontal: (screenSize.width - dialogWidth) / 2,
               vertical: 24,
@@ -146,49 +137,47 @@ class _TableManagementScreenState extends State<TableManagementScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Dialog title
-                      const Text(
-                        'Add Table',
-                        style: TextStyle(
+                      Text(
+                        'Add Table'.tr(),
+                        style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(height: 24),
                       
-                      // Form content
                       TextField(
                         controller: numberController,
-                        decoration: const InputDecoration(
-                          labelText: 'Table Number',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: 'Table Number'.tr(),
+                          border: const OutlineInputBorder(),
                         ),
                         keyboardType: TextInputType.number,
                       ),
                       const SizedBox(height: 16),
                       TextField(
                         controller: capacityController,
-                        decoration: const InputDecoration(
-                          labelText: 'Capacity',
-                          border: OutlineInputBorder(),
-                          helperText: 'Number of seats at this table',
+                        decoration: InputDecoration(
+                          labelText: 'Capacity'.tr(),
+                          border: const OutlineInputBorder(),
+                          helperText: 'Number of seats at this table'.tr(),
                         ),
                         keyboardType: TextInputType.number,
                       ),
                       const SizedBox(height: 16),
                       TextField(
                         controller: noteController,
-                        decoration: const InputDecoration(
-                          labelText: 'Note',
-                          border: OutlineInputBorder(),
-                          helperText: 'Optional information about this table',
+                        decoration: InputDecoration(
+                          labelText: 'Note'.tr(),
+                          border: const OutlineInputBorder(),
+                          helperText: 'Optional information about this table'.tr(),
                         ),
                         maxLines: 2,
                       ),
                       const SizedBox(height: 16),
                       SwitchListTile(
-                        title: const Text('Table Status'),
-                        subtitle: Text(isOccupied ? 'Occupied' : 'Available'),
+                        title: Text('Table Status'.tr()),
+                        subtitle: Text(isOccupied ? 'Occupied'.tr() : 'Available'.tr()),
                         value: isOccupied,
                         activeColor: Colors.red,
                         inactiveTrackColor: const Color.fromRGBO(76, 175, 80, 0.5),
@@ -201,32 +190,30 @@ class _TableManagementScreenState extends State<TableManagementScreen> {
                       
                       const SizedBox(height: 24),
                       
-                      // Action buttons
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           TextButton(
-                            child: const Text('Cancel'),
+                            child: Text('Cancel'.tr()),
                             onPressed: () => Navigator.of(ctx).pop(),
                           ),
                           const SizedBox(width: 16),
                           ElevatedButton(
-                            child: const Text('Add'),
+                            child: Text('Add'.tr()),
                             onPressed: () {
-                              // Validate inputs
                               final number = int.tryParse(numberController.text);
                               final capacity = int.tryParse(capacityController.text);
                               
                               if (number == null || number <= 0) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Please enter a valid table number'))
+                                  SnackBar(content: Text('Please enter a valid table number'.tr()))
                                 );
                                 return;
                               }
                               
                               if (capacity == null || capacity <= 0) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Please enter a valid capacity'))
+                                  SnackBar(content: Text('Please enter a valid capacity'.tr()))
                                 );
                                 return;
                               }
@@ -258,29 +245,22 @@ class _TableManagementScreenState extends State<TableManagementScreen> {
     );
   }
 
-  // Method for editing an existing table
   void _showEditTableDialog(BuildContext context, TableModel table) {
     final numberController = TextEditingController(text: table.number.toString());
     final capacityController = TextEditingController(text: table.capacity.toString());
     final noteController = TextEditingController(text: table.note);
     bool isOccupied = table.isOccupied;
 
-    // Get the screen width and height to calculate dialog dimensions
     final screenSize = MediaQuery.of(context).size;
-    // final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-    
-    // Dialog width - using 80% of screen width, but limiting to a reasonable size
     final dialogWidth = screenSize.width * 0.8 > 500 ? 500.0 : screenSize.width * 0.8;
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setState) {
-          // Get updated keyboard height inside the builder
           final updatedKeyboardHeight = MediaQuery.of(context).viewInsets.bottom;
           
           return Dialog(
-            // Specify custom width for the dialog
             insetPadding: EdgeInsets.symmetric(
               horizontal: (screenSize.width - dialogWidth) / 2,
               vertical: 24,
@@ -297,9 +277,8 @@ class _TableManagementScreenState extends State<TableManagementScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Dialog title
                       Text(
-                        'Edit Table ${table.number}',
+                        '${'Edit Table'.tr()} ${table.number}',
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -307,39 +286,38 @@ class _TableManagementScreenState extends State<TableManagementScreen> {
                       ),
                       const SizedBox(height: 24),
                       
-                      // Form content
                       TextField(
                         controller: numberController,
-                        decoration: const InputDecoration(
-                          labelText: 'Table Number',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: 'Table Number'.tr(),
+                          border: const OutlineInputBorder(),
                         ),
                         keyboardType: TextInputType.number,
                       ),
                       const SizedBox(height: 16),
                       TextField(
                         controller: capacityController,
-                        decoration: const InputDecoration(
-                          labelText: 'Capacity',
-                          border: OutlineInputBorder(),
-                          helperText: 'Number of seats at this table',
+                        decoration: InputDecoration(
+                          labelText: 'Capacity'.tr(),
+                          border: const OutlineInputBorder(),
+                          helperText: 'Number of seats at this table'.tr(),
                         ),
                         keyboardType: TextInputType.number,
                       ),
                       const SizedBox(height: 16),
                       TextField(
                         controller: noteController,
-                        decoration: const InputDecoration(
-                          labelText: 'Note',
-                          border: OutlineInputBorder(),
-                          helperText: 'Optional information about this table',
+                        decoration: InputDecoration(
+                          labelText: 'Note'.tr(),
+                          border: const OutlineInputBorder(),
+                          helperText: 'Optional information about this table'.tr(),
                         ),
                         maxLines: 2,
                       ),
                       const SizedBox(height: 16),
                       SwitchListTile(
-                        title: const Text('Table Status'),
-                        subtitle: Text(isOccupied ? 'Occupied' : 'Available'),
+                        title: Text('Table Status'.tr()),
+                        subtitle: Text(isOccupied ? 'Occupied'.tr() : 'Available'.tr()),
                         value: isOccupied,
                         activeColor: Colors.red,
                         inactiveTrackColor: const Color.fromRGBO(76, 175, 80, 0.5),
@@ -352,32 +330,30 @@ class _TableManagementScreenState extends State<TableManagementScreen> {
                       
                       const SizedBox(height: 24),
                       
-                      // Action buttons
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           TextButton(
-                            child: const Text('Cancel'),
+                            child: Text('Cancel'.tr()),
                             onPressed: () => Navigator.of(ctx).pop(),
                           ),
                           const SizedBox(width: 16),
                           ElevatedButton(
-                            child: const Text('Save'),
+                            child: Text('Save'.tr()),
                             onPressed: () {
-                              // Validate inputs
                               final number = int.tryParse(numberController.text);
                               final capacity = int.tryParse(capacityController.text);
                               
                               if (number == null || number <= 0) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Please enter a valid table number'))
+                                  SnackBar(content: Text('Please enter a valid table number'.tr()))
                                 );
                                 return;
                               }
                               
                               if (capacity == null || capacity <= 0) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Please enter a valid capacity'))
+                                  SnackBar(content: Text('Please enter a valid capacity'.tr()))
                                 );
                                 return;
                               }
