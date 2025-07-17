@@ -24,7 +24,6 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
   int _columns = 4; // Default columns
   int _rows = 4;    // Default rows
   
-  
   @override
   void initState() {
     super.initState();
@@ -68,7 +67,6 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
     }
   }
   
-  
   @override
   void dispose() {
     _timer.cancel();
@@ -99,36 +97,9 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
         ),
         title: Text(
           'Dining Tables'.tr(),
-          style: TextStyle(color: Colors.black),
+          style: const TextStyle(color: Colors.black),
         ),
         actions: [
-          // Layout selector button
-          // TextButton.icon(
-          //   onPressed: _showLayoutDialog,
-          //   icon: const Icon(Icons.grid_view, color: Colors.black),
-          //   label: Text('$_rows x $_columns', style: const TextStyle(color: Colors.black)),
-
-          // ),
-          const SizedBox(width: 10),
-          // Tables management button
-          // TextButton.icon(
-          //   onPressed: _navigateToTableManagement,
-          //   icon: const Icon(Icons.table_bar, color: Colors.black),
-          //   label: const Text('Tables', style: TextStyle(color: Colors.black)),
-          // ),
-          const SizedBox(width: 10),
-          // Refresh button to manually update table status
-          // IconButton(
-          //   onPressed: () {
-          //     tableProvider.refreshTables();
-          //     setState(() {});
-          //     ScaffoldMessenger.of(context).showSnackBar(
-          //       const SnackBar(content: Text('Tables refreshed')),
-          //     );
-          //   },
-          //   icon: const Icon(Icons.refresh, color: Colors.black),
-          //   tooltip: 'Refresh tables',
-          // ),
           const SizedBox(width: 10),
           // Time display
           Padding(
@@ -161,7 +132,7 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
               const SizedBox(height: 8), // Reduced spacing
               Expanded(
                 child: tables.isEmpty 
-                  ?  Center(child: Text('No tables available. Add tables from the Tables menu.'.tr()))
+                  ? Center(child: Text('No tables available. Add tables from the Tables menu.'.tr()))
                   : LayoutBuilder(
                       builder: (context, constraints) {
                         // Calculate the size for each table card based on available space
@@ -192,6 +163,8 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
                             
                             // Get the OrderProvider
                             final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+                            // IMPORTANT: Always use English for internal service type
+                            // This ensures consistency with payment processing logic
                             final String serviceType = 'Dining - Table ${table.number}';
 
                             return _buildTableCard(
@@ -263,77 +236,77 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
   }
 
   // Check if there's an active (pending) order for a table
-Future<void> _checkForActiveOrder(int tableNumber, String serviceType, OrderProvider orderProvider) async {
-  // Show loading indicator
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (BuildContext context) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
-    },
-  );
-  
-  try {
-    // Get the order history provider
-    final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
+  Future<void> _checkForActiveOrder(int tableNumber, String serviceType, OrderProvider orderProvider) async {
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const Center(
+          child: CircularProgressIndicator(),
+        );
+      },
+    );
     
-    // Load orders for this table
-    await historyProvider.loadOrdersByTable(serviceType);
-    
-    // Look for a pending order
-    final orders = historyProvider.orders;
-    final pendingOrders = orders.where((order) => 
-      order.status.toLowerCase() == 'pending').toList();
-    
-    if (pendingOrders.isNotEmpty) {
-      // Found at least one active order - close the loading dialog
+    try {
+      // Get the order history provider
+      final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
+      
+      // Load orders for this table
+      await historyProvider.loadOrdersByTable(serviceType);
+      
+      // Look for a pending order
+      final orders = historyProvider.orders;
+      final pendingOrders = orders.where((order) => 
+        order.status.toLowerCase() == 'pending').toList();
+      
+      if (pendingOrders.isNotEmpty) {
+        // Found at least one active order - close the loading dialog
+        if (context.mounted) {
+          Navigator.of(context).pop();
+          
+          // Use the first pending order
+          final activeOrder = pendingOrders.first;
+          
+          orderProvider.setCurrentOrderId(activeOrder.id);
+          orderProvider.setCurrentServiceType(serviceType);
+          // Load existing items into the cart
+          await orderProvider.loadExistingOrderItems(activeOrder.id);
+          
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => MenuScreen(
+                serviceType: serviceType,
+                existingOrderId: activeOrder.id,
+              ),
+            ),
+          );
+          return;
+        }
+      }
+      
+      // No active order found - close the loading dialog and proceed with new order
       if (context.mounted) {
         Navigator.of(context).pop();
-        
-        // Use the first pending order
-        final activeOrder = pendingOrders.first;
-        
-        orderProvider.setCurrentOrderId(activeOrder.id);
-        orderProvider.setCurrentServiceType(serviceType);
-        // Load existing items into the cart
-        await orderProvider.loadExistingOrderItems(activeOrder.id);
-        
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => MenuScreen(
-              serviceType: serviceType,
-              existingOrderId: activeOrder.id,
-            ),
-          ),
-        );
-        return;
+        _navigateToMenuScreen(serviceType, orderProvider);
+      }
+    } catch (e) {
+      // Error occurred - close the loading dialog and proceed with new order
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        debugPrint('Error checking for active orders: $e');
+        _navigateToMenuScreen(serviceType, orderProvider);
       }
     }
-    
-    // No active order found - close the loading dialog and proceed with new order
-    if (context.mounted) {
-      Navigator.of(context).pop();
-      _navigateToMenuScreen(serviceType, orderProvider);
-    }
-  } catch (e) {
-    // Error occurred - close the loading dialog and proceed with new order
-    if (context.mounted) {
-      Navigator.of(context).pop();
-      debugPrint('Error checking for active orders: $e');
-      _navigateToMenuScreen(serviceType, orderProvider);
-    }
   }
-}
   
   // Show dialog for occupied tables
   void _showOccupiedTableDialog(int tableNumber, String serviceType, OrderProvider orderProvider) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-       title: Text('${'Table'.tr()} $tableNumber'),
+        title: Text('${'Table'.tr()} $tableNumber'),
         content: Text('Table is currently occupied. You can start a new order or view current orders.'.tr()),
         actions: [
           TextButton(
@@ -346,7 +319,7 @@ Future<void> _checkForActiveOrder(int tableNumber, String serviceType, OrderProv
               // Navigate to view orders for this table
               _navigateToTableOrders(tableNumber);
             },
-            child:  Text('View Orders'.tr()),
+            child: Text('View Orders'.tr()),
           ),
           TextButton(
             onPressed: () {
@@ -354,7 +327,7 @@ Future<void> _checkForActiveOrder(int tableNumber, String serviceType, OrderProv
               // Check for active orders before creating a new one
               _checkForActiveOrder(tableNumber, serviceType, orderProvider);
             },
-            child:  Text('New Order'.tr()),
+            child: Text('New Order'.tr()),
           ),
         ],
       ),
