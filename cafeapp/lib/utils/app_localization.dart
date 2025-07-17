@@ -543,11 +543,74 @@ class AppLocalization {
     'Full backup': 'نسخة احتياطية كاملة',
     'Settings only': 'الإعدادات فقط',
     'Unknown date': 'تاريخ غير معروف',
-    
+
 
     // Kitchen Note Dialog
     'Enter kitchen note here...': 'أدخل ملاحظة المطبخ هنا...',
     'Printing...': 'جاري الطباعة...',
+
+    // Table Orders Screen
+    'Failed to load orders': 'فشل في تحميل الطلبات',
+    'No orders found for Table': 'لم يتم العثور على طلبات للطاولة',
+    'This table has no active or completed orders': 'هذه الطاولة ليس لديها طلبات نشطة أو مكتملة',
+    'Create Order': 'إنشاء طلب',
+    'View Details': 'عرض التفاصيل',
+    'more item': 'عنصر إضافي',
+    'more items': 'عناصر إضافية',
+    'Completed': 'مكتمل',
+    'Cancelled': 'ملغي',
+
+
+    // Tender Screen
+    'Cancel Order': 'إلغاء الطلب',
+    'Processing payment...': 'جاري معالجة الدفع...',
+    'Please select a payment method': 'الرجاء اختيار طريقة دفع',
+    'Discount of': 'خصم قدره',
+    'applied successfully': 'تم تطبيقه بنجاح',
+    'Preview': 'معاينة',
+    'Error loading PDF preview': 'خطأ في تحميل معاينة PDF',
+    'Error generating bill preview': 'خطأ في إنشاء معاينة الفاتورة',
+    'Failed to update order status, but continuing with payment processing': 'فشل في تحديث حالة الطلب، ولكن متابعة معالجة الدفع',
+    'Error processing payment': 'خطأ في معالجة الدفع',
+    'Apply Discount': 'تطبيق خصم',
+    'Current Total': 'المجموع الحالي',
+    'New Total': 'المجموع الجديد',
+    'Discount Amount': 'مبلغ الخصم',
+    'Apply': 'تطبيق',
+    'Cancel Order?': 'إلغاء الطلب؟',
+    'Are you sure you want to cancel this order?': 'هل أنت متأكد أنك تريد إلغاء هذا الطلب؟',
+    'Order cancelled successfully': 'تم إلغاء الطلب بنجاح',
+    'Failed to cancel order. Please try again.': 'فشل في إلغاء الطلب. يرجى المحاولة مرة أخرى.',
+    'Error cancelling order': 'خطأ في إلغاء الطلب',
+    'Terminal credit card': 'بطاقة ائتمان المحطة',
+    'Balance amount': 'المبلغ المتبقي',
+    'Received': 'مستلم',
+    'Last 4 digit': 'آخر 4 أرقام',
+    'Approval code': 'رمز الموافقة',
+    'Please enter a valid amount': 'الرجاء إدخال مبلغ صحيح',
+    'No remaining balance to pay': 'لا يوجد رصيد متبقي للدفع',
+    'Confirm': 'تأكيد',
+    'Do you want to print?': 'هل تريد الطباعة؟',
+    'Payment of': 'دفعة بمبلغ',
+    'accepted. Return change': 'مقبولة. إرجاع الباقي',
+    'accepted': 'مقبولة',
+    'Payment complete!': 'اكتمل الدفع!',
+    'Balance amount is': 'المبلغ المتبقي هو',
+    'Please select a payment method first': 'الرجاء اختيار طريقة دفع أولاً',
+    'Bank': 'بنك',
+    'Customer Credit': 'ائتمان العميل',
+    'Credit Sale': 'بيع بالائتمان',
+    'Order type': 'نوع الطلب',
+    'Status': 'الحالة',
+    'Total amount': 'المبلغ الإجمالي',
+    'Coupon code': 'رمز القسيمة',
+    'Paid amount': 'المبلغ المدفوع',
+    'Printer Not Available': 'الطابعة غير متاحة',
+    'No printer was found. Would you like to save the receipt as a PDF?': 'لم يتم العثور على طابعة. هل تريد حفظ الإيصال كملف PDF؟',
+    'Save PDF': 'حفظ PDF',
+    'View Bill': 'عرض الفاتورة',
+
+
 
 
 
