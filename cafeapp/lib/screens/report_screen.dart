@@ -39,141 +39,155 @@ class _ReportScreenState extends State<ReportScreen> {
   @override
   void initState() {
     super.initState();
-    // Set the start date to the same day in the previous month
     final now = DateTime.now();
     
-    // Calculate previous month's date (handle edge cases like January)
     if (now.month == 1) {
-      // If current month is January, go to December of previous year
       _startDate = DateTime(now.year - 1, 12, now.day);
     } else {
-      // Normal case - previous month, same day
       _startDate = DateTime(now.year, now.month - 1, now.day);
     }
     
-    // Handle edge cases where the previous month might have fewer days
-    // (e.g., March 31 -> February 28/29)
     final daysInPreviousMonth = _getDaysInMonth(_startDate.year, _startDate.month);
     if (_startDate.day > daysInPreviousMonth) {
       _startDate = DateTime(_startDate.year, _startDate.month, daysInPreviousMonth);
     }
     
     _endDate = DateTime.now();
-    
-
     _loadReport();
+  }
+
+  // Helper method to get translated service type for display
+  String _getTranslatedServiceType(String serviceType) {
+    if (serviceType.contains('Dining')) {
+      return 'Dining'.tr();
+    } else if (serviceType.contains('Takeout')) {
+      return 'Takeout'.tr();
+    } else if (serviceType.contains('Delivery')) {
+      return 'Delivery'.tr();
+    } else if (serviceType.contains('Drive')) {
+      return 'Drive Through'.tr();
+    } else if (serviceType.contains('Catering')) {
+      return 'Catering'.tr();
+    } else {
+      return serviceType;
+    }
+  }
+
+  // Helper method for orders count text
+  String getOrdersCountText(int count) {
+    if (count == 1) {
+      return '1 ${'order'.tr()}';
+    } else {
+      return '$count ${'orders'.tr()}';
+    }
+  }
+
+  // Helper method for sold items count text
+  String getSoldCountText(int count) {
+    if (count == 1) {
+      return '1 ${'sold'.tr()}';
+    } else {
+      return '$count ${'sold'.tr()}';
+    }
   }
   
   // Generate and save PDF report
   Future<void> _generateAndSavePdf() async {
-  if (_reportData == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-       SnackBar(content: Text('No report data available to save'.tr())),
-    );
-    return;
-  }
-  
-  setState(() {
-    _isSavingPdf = true;
-  });
+    if (_reportData == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No report data available to save'.tr())),
+      );
+      return;
+    }
+    
+    setState(() {
+      _isSavingPdf = true;
+    });
 
-  try {
-    // Generate PDF document
-    final pdf = await _generateReportPdf();
-    
-    // Create a descriptive filename based on report type and date
-    String filename;
-    if (_selectedReportType == 'daily') {
-      filename = 'Report_${DateFormat('dd-MM-yyyy').format(_selectedDate)}';
-    } else if (_selectedReportType == 'monthly') {
-      filename = 'Report_${DateFormat('MMMM_yyyy').format(_startDate)}';
-    } else {
-      // Custom date range
-      filename = 'Report_${DateFormat('dd-MM-yyyy').format(_startDate)}_to_${DateFormat('dd-MM-yyyy').format(_endDate)}';
-    }
-    
-    // Remove any invalid filename characters
-    filename = filename.replaceAll(' ', '_');
-    
-    // Save PDF using Android intent with custom filename
-    final saved = await _saveWithAndroidIntent(pdf, filename);
+    try {
+      final pdf = await _generateReportPdf();
+      
+      String filename;
+      if (_selectedReportType == 'daily') {
+        filename = 'Report_${DateFormat('dd-MM-yyyy').format(_selectedDate)}';
+      } else if (_selectedReportType == 'monthly') {
+        filename = 'Report_${DateFormat('MMMM_yyyy').format(_startDate)}';
+      } else {
+        filename = 'Report_${DateFormat('dd-MM-yyyy').format(_startDate)}_to_${DateFormat('dd-MM-yyyy').format(_endDate)}';
+      }
+      
+      filename = filename.replaceAll(' ', '_');
+      final saved = await _saveWithAndroidIntent(pdf, filename);
 
-  if (mounted) {
-    if (saved) {
-      ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(content: Text('Report saved as PDF'.tr())),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(content: Text('Failed to save report as PDF'.tr())),
-      );
+      if (mounted) {
+        if (saved) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Report saved as PDF'.tr())),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to save report as PDF'.tr())),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error generating or saving PDF: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error'.tr())),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingPdf = false;
+        });
+      }
     }
   }
-  } catch (e) {
-    debugPrint('Error generating or saving PDF: $e');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error'.tr())),
-      );
-    }
-  } finally {
-    if (mounted) {
-      setState(() {
-        _isSavingPdf = false;
-      });
-    }
-  }
-}
+
   Future<bool> _saveWithAndroidIntent(pw.Document pdf, String filename) async {
-  try {
-    if (!Platform.isAndroid) {
-      debugPrint('This method only works on Android');
+    try {
+      if (!Platform.isAndroid) {
+        debugPrint('This method only works on Android');
+        return false;
+      }
+      
+      final tempDir = await getTemporaryDirectory();
+      final tempFilename = 'temp_$filename.pdf';
+      final tempFile = File('${tempDir.path}/$tempFilename');
+      
+      await tempFile.writeAsBytes(await pdf.save());
+      
+      const platform = MethodChannel('com.simsrestocafe/file_picker');
+      
+      final result = await platform.invokeMethod('createDocument', {
+        'path': tempFile.path,
+        'mimeType': 'application/pdf',
+        'fileName': '$filename.pdf',
+      });
+      
+      return result == true;
+    } catch (e) {
+      debugPrint('Error saving PDF with Android intent: $e');
       return false;
     }
-    
-    // First save PDF to a temporary file
-    final tempDir = await getTemporaryDirectory();
-    final tempFilename = 'temp_$filename.pdf';
-    final tempFile = File('${tempDir.path}/$tempFilename');
-    
-    // Write PDF to temporary file
-    await tempFile.writeAsBytes(await pdf.save());
-    
-    // Create platform channel for intent
-    const platform = MethodChannel('com.simsrestocafe/file_picker');
-    
-    // Call the native method with file path and custom filename
-    final result = await platform.invokeMethod('createDocument', {
-      'path': tempFile.path,
-      'mimeType': 'application/pdf',
-      'fileName': '$filename.pdf',
-    });
-    
-    return result == true;
-  } catch (e) {
-    debugPrint('Error saving PDF with Android intent: $e');
-    return false;
   }
-}
   
   // Generate PDF report from report data
   Future<pw.Document> _generateReportPdf() async {
     final pdf = pw.Document();
     
-    // Try to load custom font if available
     pw.Font? ttf;
     try {
       final fontData = await rootBundle.load("assets/fonts/open-sans.regular.ttf");
       ttf = pw.Font.ttf(fontData.buffer.asByteData());
     } catch (e) {
       debugPrint('Could not load font, using default: $e');
-      // Continue without custom font
     }
     
-    // Get business info for header
     final businessInfo = await BillService.getBusinessInfo();
     
-    // Format date range for title
     String reportTitle;
     String dateRangeText;
     
@@ -188,15 +202,10 @@ class _ReportScreenState extends State<ReportScreen> {
       dateRangeText = '${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}';
     }
     
-    // Format currency
     final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
-    
-    // Extract report sections
-    // final summary = _reportData!['summary'] ?? {};
     final revenue = _reportData!['revenue'] ?? {};
     final paymentTotals = _reportData!['paymentTotals'] as Map<String, dynamic>? ?? {};
     final serviceTypeSales = _reportData!['serviceTypeSales'] as List? ?? [];
-    // final topItems = _reportData!['topItems'] as List? ?? [];
     
     pdf.addPage(
       pw.MultiPage(
@@ -215,17 +224,6 @@ class _ReportScreenState extends State<ReportScreen> {
                 ),
                 textAlign: pw.TextAlign.center,
               ),
-              // pw.SizedBox(height: 5),
-              // pw.Text(
-              //   businessInfo['address']!,
-              //   style: pw.TextStyle(font: ttf, fontSize: 10),
-              //   textAlign: pw.TextAlign.center,
-              // ),
-              // pw.Text(
-              //   'Tel: ${businessInfo['phone']}',
-              //   style: pw.TextStyle(font: ttf, fontSize: 10),
-              //   textAlign: pw.TextAlign.center,
-              // ),
               pw.SizedBox(height: 10),
               pw.Text(
                 reportTitle,
@@ -268,45 +266,6 @@ class _ReportScreenState extends State<ReportScreen> {
         },
         build: (pw.Context context) {
           return [
-            // Summary Section
-            // pw.Container(
-            //   padding: const pw.EdgeInsets.all(10),
-            //   decoration: pw.BoxDecoration(
-            //     border: pw.Border.all(color: PdfColors.grey300),
-            //     borderRadius: const pw.BorderRadius.all(pw.Radius.circular(5)),
-            //   ),
-            //   child: pw.Column(
-            //     crossAxisAlignment: pw.CrossAxisAlignment.start,
-            //     // children: [
-            //     //   pw.Text(
-            //     //     'Summary',
-            //     //     style: pw.TextStyle(font: ttf, fontSize: 14, fontWeight: pw.FontWeight.bold),
-            //     //   ),
-            //     //   pw.SizedBox(height: 10),
-            //     //   pw.Row(
-            //     //     mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
-            //     //     children: [
-            //     //       _buildPdfSummaryItem(
-            //     //         'Total Orders', 
-            //     //         '${summary['totalOrders'] ?? 0}', 
-            //     //         ttf
-            //     //       ),
-            //     //       _buildPdfSummaryItem(
-            //     //         'Total Revenue', 
-            //     //         currencyFormat.format(summary['totalRevenue'] ?? 0.0), 
-            //     //         ttf
-            //     //       ),
-            //     //       _buildPdfSummaryItem(
-            //     //         'Items Sold', 
-            //     //         '${summary['totalItemsSold'] ?? 0}', 
-            //     //         ttf
-            //     //       ),
-            //     //     ],
-            //     //   ),
-            //     // ],
-            //   ),
-            // ),
-            
             pw.SizedBox(height: 15),
             
             // Payment Totals Section
@@ -327,7 +286,6 @@ class _ReportScreenState extends State<ReportScreen> {
                   pw.Table(
                     border: pw.TableBorder.all(color: PdfColors.grey300),
                     children: [
-                      // Header row
                       pw.TableRow(
                         decoration: const pw.BoxDecoration(color: PdfColors.blue100),
                         children: [
@@ -356,11 +314,8 @@ class _ReportScreenState extends State<ReportScreen> {
                           ),
                         ],
                       ),
-                      // Cash row
                       _buildPdfPaymentRow('Cash Sales', 'cash', paymentTotals, currencyFormat, ttf),
-                      // Bank row
                       _buildPdfPaymentRow('Bank Sales', 'bank', paymentTotals, currencyFormat, ttf),
-                      // Total row
                       pw.TableRow(
                         decoration: const pw.BoxDecoration(color: PdfColors.blue50),
                         children: [
@@ -417,7 +372,6 @@ class _ReportScreenState extends State<ReportScreen> {
                     : pw.Table(
                         border: pw.TableBorder.all(color: PdfColors.grey300),
                         children: [
-                          // Header row
                           pw.TableRow(
                             decoration: const pw.BoxDecoration(color: PdfColors.blue100),
                             children: [
@@ -446,7 +400,6 @@ class _ReportScreenState extends State<ReportScreen> {
                               ),
                             ],
                           ),
-                          // Service type rows
                           ...serviceTypeSales.map((service) => _buildPdfServiceTypeRow(service, currencyFormat, ttf)),
                         ],
                       ),
@@ -473,91 +426,16 @@ class _ReportScreenState extends State<ReportScreen> {
                   pw.SizedBox(height: 10),
                   pw.Table(
                     children: [
-                      _buildPdfRevenueRow('Subtotal', revenue['subtotal'] as double? ?? 0.0, currencyFormat, ttf),
-                      _buildPdfRevenueRow('Tax', revenue['tax'] as double? ?? 0.0, currencyFormat, ttf),
-                      _buildPdfRevenueRow('Discounts', revenue['discounts'] as double? ?? 0.0, currencyFormat, ttf),
+                      _buildPdfRevenueRow('Subtotal'.tr(), revenue['subtotal'] as double? ?? 0.0, currencyFormat, ttf),
+                      _buildPdfRevenueRow('Tax'.tr(), revenue['tax'] as double? ?? 0.0, currencyFormat, ttf),
+                      _buildPdfRevenueRow('Discounts'.tr(), revenue['discounts'] as double? ?? 0.0, currencyFormat, ttf),
                       pw.TableRow(children: [pw.SizedBox(height: 5), pw.SizedBox(height: 5)]),
-                      _buildPdfRevenueRow('Total Revenue', revenue['total'] as double? ?? 0.0, currencyFormat, ttf, isTotal: true),
+                      _buildPdfRevenueRow('Total Revenue'.tr(), revenue['total'] as double? ?? 0.0, currencyFormat, ttf, isTotal: true),
                     ],
                   ),
                 ],
               ),
             ),
-            
-            pw.SizedBox(height: 15),
-            
-            // Top Items Section
-            // if (topItems.isNotEmpty) pw.Container(
-            //   padding: const pw.EdgeInsets.all(10),
-            //   decoration: pw.BoxDecoration(
-            //     border: pw.Border.all(color: PdfColors.grey300),
-            //     borderRadius: const pw.BorderRadius.all(pw.Radius.circular(5)),
-            //   ),
-            //   child: pw.Column(
-            //     crossAxisAlignment: pw.CrossAxisAlignment.start,
-            //     children: [
-            //       pw.Text(
-            //         'Top Selling Items',
-            //         style: pw.TextStyle(font: ttf, fontSize: 14, fontWeight: pw.FontWeight.bold),
-            //       ),
-            //       pw.SizedBox(height: 10),
-            //       pw.Table(
-            //         border: pw.TableBorder.all(color: PdfColors.grey300),
-            //         children: [
-            //           // Header row
-            //           pw.TableRow(
-            //             decoration: const pw.BoxDecoration(color: PdfColors.blue100),
-            //             children: [
-            //               pw.Padding(
-            //                 padding: const pw.EdgeInsets.all(5),
-            //                 child: pw.Text(
-            //                   'Rank',
-            //                   style: pw.TextStyle(font: ttf, fontWeight: pw.FontWeight.bold),
-            //                   textAlign: pw.TextAlign.center,
-            //                 ),
-            //               ),
-            //               pw.Padding(
-            //                 padding: const pw.EdgeInsets.all(5),
-            //                 child: pw.Text(
-            //                   'Item',
-            //                   style: pw.TextStyle(font: ttf, fontWeight: pw.FontWeight.bold),
-            //                 ),
-            //               ),
-            //               pw.Padding(
-            //                 padding: const pw.EdgeInsets.all(5),
-            //                 child: pw.Text(
-            //                   'Price',
-            //                   style: pw.TextStyle(font: ttf, fontWeight: pw.FontWeight.bold),
-            //                   textAlign: pw.TextAlign.right,
-            //                 ),
-            //               ),
-            //               pw.Padding(
-            //                 padding: const pw.EdgeInsets.all(5),
-            //                 child: pw.Text(
-            //                   'Qty',
-            //                   style: pw.TextStyle(font: ttf, fontWeight: pw.FontWeight.bold),
-            //                   textAlign: pw.TextAlign.center,
-            //                 ),
-            //               ),
-            //               pw.Padding(
-            //                 padding: const pw.EdgeInsets.all(5),
-            //                 child: pw.Text(
-            //                   'Revenue',
-            //                   style: pw.TextStyle(font: ttf, fontWeight: pw.FontWeight.bold),
-            //                   textAlign: pw.TextAlign.right,
-            //                 ),
-            //               ),
-            //             ],
-            //           ),
-            //           // Top items rows - limit to top 10
-            //           ...topItems.take(10).toList().asMap().entries.map(
-            //             (entry) => _buildPdfTopItemRow(entry.key + 1, entry.value, currencyFormat, ttf)
-            //           ).toList(),
-            //         ],
-            //       ),
-            //     ],
-            //   ),
-            // ),
           ];
         },
       ),
@@ -566,34 +444,6 @@ class _ReportScreenState extends State<ReportScreen> {
     return pdf;
   }
   
-  // // Helper method to build a summary item for PDF
-  // pw.Widget _buildPdfSummaryItem(String title, String value, pw.Font? font) {
-  //   return pw.Container(
-  //     padding: const pw.EdgeInsets.all(10),
-  //     decoration: pw.BoxDecoration(
-  //       border: pw.Border.all(color: PdfColors.grey300),
-  //       borderRadius: const pw.BorderRadius.all(pw.Radius.circular(5)),
-  //     ),
-  //     width: 120,
-  //     child: pw.Column(
-  //       children: [
-  //         pw.Text(
-  //           title,
-  //           style: pw.TextStyle(font: font, fontSize: 10),
-  //           textAlign: pw.TextAlign.center,
-  //         ),
-  //         pw.SizedBox(height: 5),
-  //         pw.Text(
-  //           value,
-  //           style: pw.TextStyle(font: font, fontSize: 14, fontWeight: pw.FontWeight.bold),
-  //           textAlign: pw.TextAlign.center,
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
-  
-  // Helper method to build payment row for PDF
   pw.TableRow _buildPdfPaymentRow(String label, String method, Map<String, dynamic> paymentTotals, NumberFormat formatter, pw.Font? font) {
     return pw.TableRow(
       children: [
@@ -624,7 +474,6 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
   
-  // Helper method to build service type row for PDF
   pw.TableRow _buildPdfServiceTypeRow(Map<String, dynamic> service, NumberFormat formatter, pw.Font? font) {
     final serviceType = service['serviceType']?.toString() ?? '';
     final totalOrders = service['totalOrders'] as int? ?? 0;
@@ -659,7 +508,6 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
   
-  // Helper method to build revenue row for PDF
   pw.TableRow _buildPdfRevenueRow(String label, double amount, NumberFormat formatter, pw.Font? font, {bool isTotal = false}) {
     return pw.TableRow(
       children: [
@@ -682,103 +530,41 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
   
-  // Helper method to build top item row for PDF
-  // pw.TableRow _buildPdfTopItemRow(int rank, Map<String, dynamic> item, NumberFormat formatter, pw.Font? font) {
-  //   final name = item['name']?.toString() ?? '';
-  //   final quantity = item['quantity'] as int? ?? 0;
-  //   final price = item['price'] as double? ?? 0.0;
-  //   final totalRevenue = item['total_revenue'] as double? ?? 0.0;
-    
-  //   return pw.TableRow(
-  //     children: [
-  //       pw.Padding(
-  //         padding: const pw.EdgeInsets.all(5),
-  //         child: pw.Text(
-  //           '$rank',
-  //           style: pw.TextStyle(font: font),
-  //           textAlign: pw.TextAlign.center,
-  //         ),
-  //       ),
-  //       pw.Padding(
-  //         padding: const pw.EdgeInsets.all(5),
-  //         child: pw.Text(
-  //           name,
-  //           style: pw.TextStyle(font: font),
-  //         ),
-  //       ),
-  //       pw.Padding(
-  //         padding: const pw.EdgeInsets.all(5),
-  //         child: pw.Text(
-  //           formatter.format(price),
-  //           style: pw.TextStyle(font: font),
-  //           textAlign: pw.TextAlign.right,
-  //         ),
-  //       ),
-  //       pw.Padding(
-  //         padding: const pw.EdgeInsets.all(5),
-  //         child: pw.Text(
-  //           '$quantity',
-  //           style: pw.TextStyle(font: font),
-  //           textAlign: pw.TextAlign.center,
-  //         ),
-  //       ),
-  //       pw.Padding(
-  //         padding: const pw.EdgeInsets.all(5),
-  //         child: pw.Text(
-  //           formatter.format(totalRevenue),
-  //           style: pw.TextStyle(font: font),
-  //           textAlign: pw.TextAlign.right,
-  //         ),
-  //       ),
-  //     ],
-  //   );
-  // }
-  
-  // Helper to get the number of days in a month
   int _getDaysInMonth(int year, int month) {
-    // Use the trick that the day 0 of the next month is the last day of the current month
     return DateTime(year, month + 1, 0).day;
   }
     
-  // Generate a cache key based on report parameters
   String _getCacheKey(String reportType, DateTime date, {DateTime? endDate}) {
     if (reportType == 'daily') {
       return 'daily_${DateFormat('yyyy-MM-dd').format(date)}';
     } else if (reportType == 'monthly') {
       return 'monthly_${DateFormat('yyyy-MM').format(date)}';
     } else {
-      // Custom date range
       return 'custom_${DateFormat('yyyy-MM-dd').format(date)}_${DateFormat('yyyy-MM-dd').format(endDate ?? date)}';
     }
   }
   
-  // Load report data from local database
   Future<void> _loadReport() async {
-    if (_isLoading) return; // Prevent multiple simultaneous loads
+    if (_isLoading) return;
     
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // Determine date range based on report type
       DateTime startDate, endDate;
       
       if (_selectedReportType == 'daily') {
-        // Daily report - use selected date
         startDate = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
         endDate = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, 23, 59, 59);
       } else if (_selectedReportType == 'monthly') {
-        // Monthly report - use full month
         startDate = DateTime(_startDate.year, _startDate.month, 1);
-        // Last day of month
         if (_startDate.month < 12) {
           endDate = DateTime(_startDate.year, _startDate.month + 1, 0, 23, 59, 59);
         } else {
           endDate = DateTime(_startDate.year + 1, 1, 0, 23, 59, 59);
         }
       } else {
-        // Custom date range - use start and end dates
         startDate = DateTime(_startDate.year, _startDate.month, _startDate.day);
         endDate = DateTime(_endDate.year, _endDate.month, _endDate.day, 23, 59, 59);
       }
@@ -789,10 +575,8 @@ class _ReportScreenState extends State<ReportScreen> {
         endDate: endDate
       );
       
-      // Debug logging for date range
       debugPrint('Loading report for date range: ${DateFormat('yyyy-MM-dd').format(startDate)} to ${DateFormat('yyyy-MM-dd').format(endDate)}');
       
-      // Check if we have cached data
       if (_reportCache.containsKey(cacheKey)) {
         setState(() {
           _reportData = _reportCache[cacheKey];
@@ -801,13 +585,9 @@ class _ReportScreenState extends State<ReportScreen> {
         return;
       }
 
-      // Load report data from local repositories
       final reportData = await _generateLocalReport(startDate, endDate);
-      
-      // Store results in cache
       _reportCache[cacheKey] = reportData;
       
-      // Update state with the report data
       if (mounted) {
         setState(() {
           _reportData = reportData;
@@ -827,35 +607,24 @@ class _ReportScreenState extends State<ReportScreen> {
     }
   }
 
-  // Generate report data from local database with explicit date range
   Future<Map<String, dynamic>> _generateLocalReport(DateTime startDate, DateTime endDate) async {
-    // Get all orders from local database
     final List<Order> allOrders = await _orderRepo.getAllOrders();
-    
-    // Get all expenses from local database
     final List<Map<String, dynamic>> allExpenses = await _expenseRepo.getAllExpenses();
     
-    // Filter orders based on date range
     List<Order> filteredOrders = _filterOrdersByDateRange(allOrders, startDate, endDate);
-    
-    // Filter expenses based on date range
     List<Map<String, dynamic>> filteredExpenses = _filterExpensesByDateRange(allExpenses, startDate, endDate);
     
-    // Generate report data
     final reportData = _createReportFromData(filteredOrders, filteredExpenses);
-    
     return reportData;
   }
-  // Filter orders by explicit date range
+
   List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, DateTime endDate) {
     return orders.where((order) {
       if (order.createdAt == null) return false;
       
-      // Parse the date from the order
       DateTime orderDate;
       try {
         if (order.createdAt!.contains('local_')) {
-          // Handle local timestamp format
           final parts = order.createdAt!.split('_');
           if (parts.length > 1) {
             final timestamp = int.parse(parts.last);
@@ -865,11 +634,9 @@ class _ReportScreenState extends State<ReportScreen> {
             return false;
           }
         } else {
-          // Standard ISO date format
           orderDate = DateTime.parse(order.createdAt!);
         }
         
-        // Now check if order date is within range
         return (orderDate.isAfter(startDate.subtract(const Duration(seconds: 1))) || 
                 orderDate.isAtSameMomentAs(startDate)) && 
                (orderDate.isBefore(endDate.add(const Duration(seconds: 1))) || 
@@ -882,7 +649,6 @@ class _ReportScreenState extends State<ReportScreen> {
     }).toList();
   }
 
-  // Filter expenses by explicit date range
   List<Map<String, dynamic>> _filterExpensesByDateRange(
     List<Map<String, dynamic>> expenses, 
     DateTime startDate, 
@@ -891,7 +657,6 @@ class _ReportScreenState extends State<ReportScreen> {
     return expenses.where((expense) {
       final dateStr = expense['date'] as String;
       
-      // Parse the date string (expected format: "dd-MM-yyyy")
       DateTime expenseDate;
       try {
         final parts = dateStr.split('-');
@@ -901,7 +666,6 @@ class _ReportScreenState extends State<ReportScreen> {
           final year = int.parse(parts[2]);
           expenseDate = DateTime(year, month, day);
           
-          // Check if expense date is within range
           return (expenseDate.isAfter(startDate.subtract(const Duration(days: 1))) || 
                   expenseDate.isAtSameMomentAs(startDate)) && 
                  (expenseDate.isBefore(endDate.add(const Duration(days: 1))) || 
@@ -914,7 +678,6 @@ class _ReportScreenState extends State<ReportScreen> {
     }).toList();
   }
   
-  // Helper to safely get payment values
   double _getPaymentValue(Map<String, dynamic> paymentTotals, String method, String type) {
     try {
       return (paymentTotals[method] as Map<String, dynamic>?)?[type] as double? ?? 0.0;
@@ -923,34 +686,26 @@ class _ReportScreenState extends State<ReportScreen> {
     }
   }
   
-  // Modified _createReportFromData method to group all "Dining" orders together
   Map<String, dynamic> _createReportFromData(List<Order> orders, List<Map<String, dynamic>> expenses) {
-    // Debug logging
     debugPrint('Creating report from ${orders.length} orders and ${expenses.length} expenses');
     
-    // 1. Calculate summary statistics
     final totalOrders = orders.length;
     final totalRevenue = orders.fold(0.0, (sum, order) => sum + order.total);
     final totalItemsSold = orders.fold(0, (sum, order) => sum + order.items.length);
     
-    // 2. Group orders by service type
     final Map<String, List<Order>> ordersByServiceType = {};
     for (final order in orders) {
-      // Normalize the service type - if it contains "Dining", use just "Dining"
       String serviceType = order.serviceType;
       if (serviceType.contains('Dining')) {
         serviceType = 'Dining';
       }
-      
       ordersByServiceType.putIfAbsent(serviceType, () => []).add(order);
     }
     
-    // 3. Calculate revenue breakdown
     final subtotal = orders.fold(0.0, (sum, order) => sum + order.subtotal);
     final tax = orders.fold(0.0, (sum, order) => sum + order.tax);
     final discount = orders.fold(0.0, (sum, order) => sum + order.discount);
     
-    // 4. Calculate payment method totals
     final Map<String, Map<String, double>> paymentTotals = {
       'cash': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
       'bank': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
@@ -958,7 +713,6 @@ class _ReportScreenState extends State<ReportScreen> {
       'total': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
     };
     
-    // Sum sales by payment method
     for (final order in orders) {
       final paymentMethod = (order.paymentMethod ?? 'cash').toLowerCase();
       if (paymentMethod == 'cash') {
@@ -968,11 +722,9 @@ class _ReportScreenState extends State<ReportScreen> {
       } else {
         paymentTotals['other']!['sales'] = (paymentTotals['other']!['sales'] ?? 0.0) + order.total;
       }
-      // Update total sales
       paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + order.total;
     }
     
-    // Sum expenses by account type
     for (final expense in expenses) {
       final accountType = (expense['accountType'] as String? ?? '').toLowerCase();
       final total = (expense['grandTotal'] as num? ?? 0).toDouble();
@@ -984,16 +736,13 @@ class _ReportScreenState extends State<ReportScreen> {
       } else {
         paymentTotals['other']!['expenses'] = (paymentTotals['other']!['expenses'] ?? 0.0) + total;
       }
-      // Update total expenses
       paymentTotals['total']!['expenses'] = (paymentTotals['total']!['expenses'] ?? 0.0) + total;
     }
     
-    // Calculate net for each payment method
     for (final key in paymentTotals.keys) {
       paymentTotals[key]!['net'] = (paymentTotals[key]!['sales'] ?? 0.0) - (paymentTotals[key]!['expenses'] ?? 0.0);
     }
     
-    // 5. Calculate top-selling items
     final Map<String, Map<String, dynamic>> itemSales = {};
     
     for (final order in orders) {
@@ -1015,11 +764,9 @@ class _ReportScreenState extends State<ReportScreen> {
       }
     }
     
-    // Convert to list and sort by revenue
     final topItems = itemSales.values.toList()
       ..sort((a, b) => (b['total_revenue'] as double).compareTo(a['total_revenue'] as double));
     
-    // 6. Prepare service type sales data
     final serviceTypeSales = ordersByServiceType.entries.map((entry) {
       final serviceType = entry.key;
       final orders = entry.value;
@@ -1033,7 +780,6 @@ class _ReportScreenState extends State<ReportScreen> {
       };
     }).toList();
     
-    // 7. Assemble the full report data
     return {
       'summary': {
         'totalOrders': totalOrders,
@@ -1099,7 +845,7 @@ class _ReportScreenState extends State<ReportScreen> {
         _startDate = picked.start;
         _endDate = picked.end;
         _isCustomDateRange = true;
-        _selectedReportType = 'custom'; // Set report type to custom when date range is selected
+        _selectedReportType = 'custom';
       });
       _loadReport();
     }
@@ -1109,7 +855,7 @@ class _ReportScreenState extends State<ReportScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title:  Text('Reports'.tr()),
+        title: Text('Reports'.tr()),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         leading: IconButton(
@@ -1117,7 +863,6 @@ class _ReportScreenState extends State<ReportScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
-          // Add PDF save button to app bar
           _isSavingPdf
               ? const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16.0),
@@ -1141,7 +886,6 @@ class _ReportScreenState extends State<ReportScreen> {
       ),
       body: Column(
         children: [
-          // Report Type Selection
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -1173,7 +917,6 @@ class _ReportScreenState extends State<ReportScreen> {
                     //     _selectedReportType == 'monthly',
                     //   ),
                     // ),
-                    const SizedBox(width: 12),
                     Expanded(
                       child: _buildReportTypeCard(
                         'custom',
@@ -1186,7 +929,6 @@ class _ReportScreenState extends State<ReportScreen> {
                 ),
                 const SizedBox(height: 16),
                 
-                // Date/Period Selection
                 if (_selectedReportType == 'daily')
                   _buildDateSelector()
                 else if (_selectedReportType == 'monthly')
@@ -1197,12 +939,11 @@ class _ReportScreenState extends State<ReportScreen> {
             ),
           ),
           
-          // Report Content
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _reportData == null
-                    ?  Center(child: Text('No data available'.tr()))
+                    ? Center(child: Text('No data available'.tr()))
                     : _buildReportContent(),
           ),
         ],
@@ -1216,12 +957,10 @@ class _ReportScreenState extends State<ReportScreen> {
         if (_selectedReportType != type) {
           setState(() {
             _selectedReportType = type;
-            // Initialize date range based on selected report type
             if (type == 'daily') {
               _isCustomDateRange = false;
             } else if (type == 'monthly') {
               _isCustomDateRange = false;
-              // Set to first day of current month
               final now = DateTime.now();
               _startDate = DateTime(now.year, now.month, 1);
             } else if (type == 'custom') {
@@ -1279,7 +1018,7 @@ class _ReportScreenState extends State<ReportScreen> {
                 Icon(Icons.calendar_today, color: Colors.grey.shade600),
                 const SizedBox(width: 8),
                 Text(
-                  'Selected Date: ${DateFormat('dd-MM-yyyy').format(_selectedDate)}'.tr(),
+                  '${'Selected Date:'.tr()} ${DateFormat('dd-MM-yyyy').format(_selectedDate)}',
                   style: const TextStyle(fontSize: 16),
                 ),
               ],
@@ -1308,7 +1047,7 @@ class _ReportScreenState extends State<ReportScreen> {
                 Icon(Icons.calendar_month, color: Colors.grey.shade600),
                 const SizedBox(width: 8),
                 Text(
-                  'Month: ${DateFormat('MMMM yyyy').format(_startDate)}'.tr(),
+                  '${'Month'.tr()}: ${DateFormat('MMMM yyyy').format(_startDate)}',
                   style: const TextStyle(fontSize: 16),
                 ),
               ],
@@ -1331,7 +1070,6 @@ class _ReportScreenState extends State<ReportScreen> {
     
     if (picked != null) {
       setState(() {
-        // Set to first day of selected month
         _startDate = DateTime(picked.year, picked.month, 1);
         _isCustomDateRange = false;
       });
@@ -1370,7 +1108,7 @@ class _ReportScreenState extends State<ReportScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'From: ${DateFormat('dd MMM yyyy').format(_startDate)}'.tr(),
+                          '${'From:'.tr()} ${DateFormat('dd MMM yyyy').format(_startDate)}',
                           style: const TextStyle(fontSize: 14),
                         ),
                         const Icon(Icons.calendar_today, size: 16),
@@ -1391,7 +1129,7 @@ class _ReportScreenState extends State<ReportScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'To: ${DateFormat('dd MMM yyyy').format(_endDate)}'.tr(),
+                          '${'To:'.tr()} ${DateFormat('dd MMM yyyy').format(_endDate)}',
                           style: const TextStyle(fontSize: 14),
                         ),
                         const Icon(Icons.calendar_today, size: 16),
@@ -1415,23 +1153,14 @@ class _ReportScreenState extends State<ReportScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Summary Cards
           _buildSummarySection(),
           const SizedBox(height: 24),
-          
-          // Payment Totals section
           _buildPaymentTotalsSection(),
           const SizedBox(height: 24),
-          
-          // Service Type Sales Section
           _buildServiceTypeSalesSection(),
           const SizedBox(height: 24),
-          
-          // Revenue Breakdown
           _buildRevenueSection(),
           const SizedBox(height: 24),
-          
-          // Top Items
           if (_reportData!['topItems'] != null)
             _buildTopItemsSection(),
         ],
@@ -1530,9 +1259,9 @@ class _ReportScreenState extends State<ReportScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-             Text(
+            Text(
               'Total Sales'.tr(),
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -1543,8 +1272,8 @@ class _ReportScreenState extends State<ReportScreen> {
             borderRadius: BorderRadius.circular(8),
           ),
           child: serviceTypeSales.isEmpty
-              ?  Padding(
-                  padding: EdgeInsets.all(32),
+              ? Padding(
+                  padding: const EdgeInsets.all(32),
                   child: Center(child: Text('No sales data found'.tr())),
                 )
               : ListView.separated(
@@ -1562,7 +1291,6 @@ class _ReportScreenState extends State<ReportScreen> {
                       padding: const EdgeInsets.all(16),
                       child: Row(
                         children: [
-                          // Service type icon and name
                           Expanded(
                             flex: 3,
                             child: Row(
@@ -1581,14 +1309,14 @@ class _ReportScreenState extends State<ReportScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        serviceTypeName,
+                                        _getTranslatedServiceType(serviceTypeName),
                                         style: const TextStyle(
                                           fontWeight: FontWeight.w600,
                                           fontSize: 16,
                                         ),
                                       ),
                                       Text(
-                                        '$totalOrders orders'.tr(),
+                                        getOrdersCountText(totalOrders),
                                         style: TextStyle(
                                           color: Colors.grey.shade600,
                                           fontSize: 12,
@@ -1601,7 +1329,6 @@ class _ReportScreenState extends State<ReportScreen> {
                             ),
                           ),
                           
-                          // Revenue
                           Expanded(
                             flex: 2,
                             child: Column(
@@ -1633,9 +1360,9 @@ class _ReportScreenState extends State<ReportScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-         Text(
+        Text(
           'Revenue Breakdown'.tr(),
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
         Container(
@@ -1681,15 +1408,16 @@ class _ReportScreenState extends State<ReportScreen> {
       ],
     );
   }
+
   Widget _buildTopItemsSection() {
     final topItems = _reportData!['topItems'] as List? ?? [];
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-         Text(
+        Text(
           'Top Selling Items'.tr(),
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
         Container(
@@ -1698,8 +1426,8 @@ class _ReportScreenState extends State<ReportScreen> {
             borderRadius: BorderRadius.circular(8),
           ),
           child: topItems.isEmpty
-              ?  Padding(
-                  padding: EdgeInsets.all(32),
+              ? Padding(
+                  padding: const EdgeInsets.all(32),
                   child: Center(child: Text('No items data available'.tr())),
                 )
               : ListView.separated(
@@ -1726,13 +1454,13 @@ class _ReportScreenState extends State<ReportScreen> {
                         ),
                       ),
                       title: Text(name),
-                      subtitle: Text('Price: ${price.toStringAsFixed(3)}'.tr()),
+                      subtitle: Text('${'Price'.tr()}: ${price.toStringAsFixed(3)}'),
                       trailing: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            '$quantity sold'.tr(),
+                            getSoldCountText(quantity),
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           Text(
@@ -1755,26 +1483,23 @@ class _ReportScreenState extends State<ReportScreen> {
   Widget _buildPaymentTotalsSection() {
     if (_reportData == null) return const SizedBox();
     
-    // Get payment totals from the report data
     final paymentTotals = _reportData!['paymentTotals'] as Map<String, dynamic>?;
     
     if (paymentTotals == null) {
-      return  Center(child: Text('Payment data not available'.tr()));
+      return Center(child: Text('Payment data not available'.tr()));
     }
     
-    // Format currency
     final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-         Text(
+        Text(
           'Cash and Bank Sales'.tr(),
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
         
-        // Cash and Bank Summary Table
         Container(
           decoration: BoxDecoration(
             border: Border.all(color: Colors.grey.shade300),
@@ -1782,7 +1507,6 @@ class _ReportScreenState extends State<ReportScreen> {
           ),
           child: Column(
             children: [
-              // Table header
               Container(
                 padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                 decoration: BoxDecoration(
@@ -1798,7 +1522,7 @@ class _ReportScreenState extends State<ReportScreen> {
                       flex: 3,
                       child: Text(
                         'Payment Method'.tr(),
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
                         ),
@@ -1808,7 +1532,7 @@ class _ReportScreenState extends State<ReportScreen> {
                       flex: 2,
                       child: Text(
                         'Revenue'.tr(),
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
                         ),
@@ -1819,7 +1543,7 @@ class _ReportScreenState extends State<ReportScreen> {
                       flex: 2,
                       child: Text(
                         'Expenses'.tr(),
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
                         ),
@@ -1830,7 +1554,6 @@ class _ReportScreenState extends State<ReportScreen> {
                 ),
               ),
               
-              // Cash row
               _buildPaymentRow(
                 'Total Cash Sales'.tr(), 
                 _getPaymentValue(paymentTotals, 'cash', 'sales'),
@@ -1839,7 +1562,6 @@ class _ReportScreenState extends State<ReportScreen> {
                 Colors.grey.shade100,
               ),
               
-              // Bank row
               _buildPaymentRow(
                 'Total Bank Sales'.tr(), 
                 _getPaymentValue(paymentTotals, 'bank', 'sales'),
@@ -1848,10 +1570,8 @@ class _ReportScreenState extends State<ReportScreen> {
                 Colors.white,
               ),
               
-              // Divider
               Divider(height: 1, color: Colors.grey.shade300),
               
-              // Total row
               _buildPaymentRow(
                 'Total Sales'.tr(), 
                 _getPaymentValue(paymentTotals, 'total', 'sales'),
@@ -1867,7 +1587,6 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
-  // Helper to build a single row in the payment table
   Widget _buildPaymentRow(
     String method, 
     double sales, 
@@ -1917,7 +1636,6 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
-  // Helper method to get service type icon
   IconData _getServiceTypeIcon(String serviceType) {
     if (serviceType.contains('Dining')) {
       return Icons.restaurant;
@@ -1934,7 +1652,6 @@ class _ReportScreenState extends State<ReportScreen> {
     }
   }
 
-  // Helper method to get service type color
   Color _getServiceTypeColor(String serviceType) {
     if (serviceType.contains('Dining')) {
       return Colors.blue;
@@ -1944,12 +1661,10 @@ class _ReportScreenState extends State<ReportScreen> {
       return Colors.green;
     } else if (serviceType.contains('Catering')) {
       return Colors.purple;
-    } else if (serviceType.contains('Drive' )) {
+    } else if (serviceType.contains('Drive')) {
       return Colors.red;
     } else {
       return Colors.grey;
     }
   }
 }
-
-  

@@ -52,9 +52,17 @@ class LoginScreenState extends State<LoginScreen> {
     });
 
     try {
+      // TRIM THE INPUT VALUES HERE
+      final trimmedUsername = _usernameController.text.trim();
+      final trimmedPassword = _passwordController.text.trim();
+      
+      debugPrint('Attempting login with username: "$trimmedUsername"');
+      debugPrint('Original username: "${_usernameController.text}"');
+      debugPrint('Username length: ${_usernameController.text.length}, Trimmed length: ${trimmedUsername.length}');
+      
       final success = await Provider.of<AuthProvider>(context, listen: false).login(
-        _usernameController.text,
-        _passwordController.text,
+        trimmedUsername,
+        trimmedPassword,
       );
       
       if (!mounted) return;
@@ -132,8 +140,18 @@ class LoginScreenState extends State<LoginScreen> {
                       color: Colors.blue[900],
                     ),
                   ),
+                  // Add input formatters to prevent/handle whitespace
+                  onChanged: (value) {
+                    // Optional: Remove this if you want to allow whitespace and just trim it
+                    if (value.endsWith(' ')) {
+                      _usernameController.text = value.trimRight();
+                      _usernameController.selection = TextSelection.fromPosition(
+                        TextPosition(offset: _usernameController.text.length),
+                      );
+                    }
+                  },
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
+                    if (value == null || value.trim().isEmpty) {
                       return 'Please enter your username'.tr();
                     }
                     return null;
@@ -174,8 +192,17 @@ class LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   obscureText: _obscurePassword,
+                  onChanged: (value) {
+                    // Optional: Remove this if you want to allow whitespace and just trim it
+                    if (value.endsWith(' ')) {
+                      _passwordController.text = value.trimRight();
+                      _passwordController.selection = TextSelection.fromPosition(
+                        TextPosition(offset: _passwordController.text.length),
+                      );
+                    }
+                  },
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
+                    if (value == null || value.trim().isEmpty) {
                       return 'Please enter your password'.tr();
                     }
                     return null;

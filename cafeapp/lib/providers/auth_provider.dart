@@ -1,4 +1,4 @@
-// lib/providers/auth_provider.dart
+// lib/providers/auth_provider.dart - Fixed version
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -51,37 +51,49 @@ class AuthProvider with ChangeNotifier {
     return false;
   }
 
-  // Login with local credentials
+  // Login with local credentials - FIXED VERSION
   Future<bool> login(String username, String password) async {
     try {
       _isLoading = true;
       notifyListeners();
       
+      // Add debugging
+      debugPrint('Login attempt - Username: $username, Password length: ${password.length}');
+      debugPrint('Expected - Username: $defaultUsername, Password: $defaultPassword');
+      
+      // Trim whitespace from inputs
+      final trimmedUsername = username.trim();
+      final trimmedPassword = password.trim();
+      
       // Simple validation against default credentials
-      // You can modify this to check against multiple valid credentials if needed
-      bool isValid = (username == defaultUsername && password == defaultPassword);
+      bool isValid = (trimmedUsername == defaultUsername && trimmedPassword == defaultPassword);
       
       // For demo purposes, you can also allow any username with password "password"
       // Remove this in production!
-      isValid = isValid || (password == "password");
+      isValid = isValid || (trimmedPassword == "password");
+      
+      debugPrint('Login validation result: $isValid');
       
       if (isValid) {
         _isAuthenticated = true;
-        _username = username;
+        _username = trimmedUsername;
         
         // Save login state to SharedPreferences
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('isLoggedIn', true);
-        await prefs.setString('username', username);
+        await prefs.setString('username', trimmedUsername);
         
         _isLoading = false;
         _isInitialized = true;
         notifyListeners();
+        
+        debugPrint('Login successful, auth state updated');
         return true;
       }
       
       _isLoading = false;
       notifyListeners();
+      debugPrint('Login failed - invalid credentials');
       return false;
     } catch (error) {
       debugPrint('Login error: $error');
