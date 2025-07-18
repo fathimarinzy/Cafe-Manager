@@ -7,6 +7,8 @@ import 'order_details_screen.dart';
 import '../screens/dashboard_screen.dart';
 import 'dart:async';
 import '../utils/app_localization.dart';
+import '../utils/service_type_utils.dart';
+
 
 class OrderListScreen extends StatefulWidget {
   final String? serviceType;
@@ -579,27 +581,9 @@ Widget _buildOrderCard(OrderHistory order) {
     );
   }
 
-  // Helper method to translate service type for display
+ // Helper method to translate service type for display
   String _getTranslatedServiceType(String serviceType) {
-    if (serviceType.contains('Dining')) {
-      // Extract table number if it exists
-      final tableMatch = RegExp(r'Table (\d+)').firstMatch(serviceType);
-      if (tableMatch != null) {
-        final tableNumber = tableMatch.group(1);
-        return '${'Dining'.tr()} - ${'Table'.tr()} $tableNumber';
-      }
-      return 'Dining'.tr();
-    } else if (serviceType.contains('Takeout')) {
-      return 'Takeout'.tr();
-    } else if (serviceType.contains('Delivery')) {
-      return 'Delivery'.tr();
-    } else if (serviceType.contains('Drive')) {
-      return 'Drive Through'.tr();
-    } else if (serviceType.contains('Catering')) {
-      return 'Catering'.tr();
-    } else {
-      return serviceType; // Fallback to original
-    }
+    return ServiceTypeUtils.getTranslated(serviceType);
   }
 
   // Helper method to translate status
@@ -617,34 +601,10 @@ Widget _buildOrderCard(OrderHistory order) {
   }
 
   IconData _getServiceTypeIcon(String serviceType) {
-    if (serviceType.contains('Dining')) {
-      return Icons.restaurant;
-    } else if (serviceType.contains('Takeout')) {
-      return Icons.takeout_dining;
-    } else if (serviceType.contains('Delivery')) {
-      return Icons.delivery_dining;
-    } else if (serviceType.contains('Drive')) {
-      return Icons.drive_eta;
-    } else if (serviceType.contains('Catering')) {
-      return Icons.cake;
-    } else {
-      return Icons.receipt;
-    }
+    return ServiceTypeUtils.getIcon(serviceType);
   }
-  
+
   Color _getServiceTypeColor(String serviceType) {
-    if (serviceType.contains('Dining')) {
-      return const Color.fromARGB(255, 83, 153, 232); // Dark blue for dining
-    } else if (serviceType.contains('Takeout')) {
-      return const Color.fromARGB(255, 121, 221, 124); // Green for takeout
-    } else if (serviceType.contains('Delivery')) {
-      return const Color.fromARGB(255, 255, 152, 0); // Orange for delivery
-    } else if (serviceType.contains('Drive')) {
-      return const Color.fromARGB(255, 219, 128, 128); // Light red for drive through
-    } else if (serviceType.contains('Catering')) {
-      return const Color.fromARGB(255, 232, 216, 65); // Yellow for catering
-    } else {
-      return const Color(0xFF607D8B); // Light charcoal for other order types
-    }
+    return ServiceTypeUtils.getColor(serviceType);
   }
 }

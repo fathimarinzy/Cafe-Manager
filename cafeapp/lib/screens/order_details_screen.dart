@@ -12,6 +12,7 @@ import '../services/bill_service.dart';
 import '../repositories/local_order_repository.dart';
 import '../models/order.dart';
 import '../utils/app_localization.dart';
+import '../utils/service_type_utils.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
   final int orderId;
@@ -860,8 +861,7 @@ void _showEditOrderItemsDialog() {
                   _buildInfoRow(
                     _getServiceTypeIcon(_order!.serviceType),
                     'Service Type'.tr(),
-                    _order!.serviceType.tr()
-                  ),
+                    _getTranslatedServiceType(_order!.serviceType)                  ),
                   const SizedBox(height: 8),
                 _buildInfoRow(
                   Icons.access_time,
@@ -1090,20 +1090,18 @@ void _showEditOrderItemsDialog() {
       ],
     );
   }
+  // Replace the existing _getServiceTypeIcon method with:
+IconData _getServiceTypeIcon(String serviceType) {
+  return ServiceTypeUtils.getIcon(serviceType);
+}
   
-  IconData _getServiceTypeIcon(String serviceType) {
-    if (serviceType.contains('Dining')) {
-      return Icons.restaurant;
-    } else if (serviceType.contains('Takeout')) {
-      return Icons.takeout_dining;
-    } else if (serviceType.contains('Delivery')) {
-      return Icons.delivery_dining;
-    } else if (serviceType.contains('Drive')) {
-      return Icons.drive_eta;
-    } else if (serviceType.contains('Catering')) {
-      return Icons.cake;
-    } else {
-      return Icons.receipt;
-    }
-  }
+ // The OrderDetailsScreen doesn't seem to have a color method, but if you need one:
+// Color _getServiceTypeColor(String serviceType) {
+//   return ServiceTypeUtils.getColor(serviceType);
+// }
+
+// // If you need translated service type display in OrderDetailsScreen:
+String _getTranslatedServiceType(String serviceType) {
+  return ServiceTypeUtils.getTranslated(serviceType);
+}
 }

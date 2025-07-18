@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cafeapp/utils/app_localization.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
@@ -557,17 +558,17 @@ class BillService {
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Printer Not Available'),
-          content: const Text('Could not connect to the thermal printer. Would you like to save the bill as a PDF?'),
+          title:  Text('Printer Not Available'.tr()),
+          content:  Text('Could not connect to the thermal printer. Would you like to save the bill as a PDF?'.tr()),
           actions: <Widget>[
             TextButton(
-              child: const Text('Cancel'),
+              child:  Text('Cancel'.tr()),
               onPressed: () {
                 Navigator.of(dialogContext).pop(false);
               },
             ),
             TextButton(
-              child: const Text('Save PDF'),
+              child:  Text('Save PDF'.tr()),
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
               },
@@ -613,7 +614,7 @@ class BillService {
       // Successfully printed
       return {
         'success': true,
-        'message': 'Order processed and bill printed successfully',
+        'message': 'Order processed and bill printed successfully'.tr(),
         'printed': true,
         'saved': false,
         'filePath': null,
@@ -649,7 +650,7 @@ class BillService {
       // User canceled
       return {
         'success': true, // Still mark as success as the order will be processed
-        'message': 'Order processed, but bill was not printed or saved',
+        'message': 'Order processed, but bill was not printed or saved'.tr(),
         'printed': false,
         'saved': false,
         'filePath': null,
@@ -676,7 +677,7 @@ class BillService {
     if (saved) {
       return {
         'success': true,
-        'message': 'Order processed and bill saved as PDF',
+        'message': 'Order processed and bill saved as PDF'.tr(),
         'printed': false,
         'saved': true,
         'filePath': null,
@@ -686,7 +687,7 @@ class BillService {
     // If we get here, saving failed
     return {
       'success': false,
-      'message': 'Failed to save the bill',
+      'message': 'Failed to save the bill'.tr(),
       'printed': false,
       'saved': false,
       'filePath': null,
@@ -927,17 +928,17 @@ class BillService {
           barrierDismissible: false,
           builder: (BuildContext context) {
             return AlertDialog(
-              title: const Text('Printer Not Available'),
-              content: const Text('Could not print kitchen receipt. Would you like to save it as a PDF?'),
+              title:  Text('Printer Not Available'.tr()),
+              content:  Text('Could not print kitchen receipt. Would you like to save it as a PDF?'.tr()),
               actions: <Widget>[
                 TextButton(
-                  child: const Text('Cancel'),
+                  child:  Text('Cancel'.tr()),
                   onPressed: () {
                     Navigator.of(context).pop(false);
                   },
                 ),
                 TextButton(
-                  child: const Text('Save PDF'),
+                  child:  Text('Save PDF'.tr()),
                   onPressed: () {
                     Navigator.of(context).pop(true);
                   },
@@ -955,7 +956,7 @@ class BillService {
         if (saved) {
           return {
             'success': true,
-            'message': 'Kitchen receipt saved as PDF',
+            'message': 'Kitchen receipt saved as PDF'.tr(),
             'printed': false,
             'saved': true,
           };
@@ -966,7 +967,7 @@ class BillService {
     // If we get here, printing and saving both failed or were declined
     return {
       'success': false,
-      'message': 'Failed to print or save kitchen receipt',
+      'message': 'Failed to print or save kitchen receipt'.tr(),
       'printed': false,
       'saved': false,
     };

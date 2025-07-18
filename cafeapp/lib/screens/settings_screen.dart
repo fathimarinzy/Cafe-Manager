@@ -13,6 +13,8 @@ import '../screens/expense_screen.dart';
 import '../screens/report_screen.dart';
 import '../widgets/backup_manager_widget.dart';
 import '../utils/database_reset_service.dart';
+import 'package:flutter/services.dart';
+
 
 class SettingsScreen extends StatefulWidget {
   final String userType;
@@ -348,6 +350,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onPressed: () {
                   Navigator.of(ctx).pop();
                   _loadSettings();
+                  // Close the app completely
+                  SystemNavigator.pop();
                 },
                 child: Text('OK'.tr()),
               ),

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../providers/order_provider.dart';
 import 'dashboard_screen.dart';
 import '../utils/app_localization.dart';
+import '../utils/service_type_utils.dart';
 
 class OrderConfirmationScreen extends StatefulWidget {
   final String serviceType;
@@ -90,7 +91,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                       ),
                         const SizedBox(height: 4),
                        Text(
-                        '${'Service Type'.tr()}: ${widget.serviceType.tr()}',
+                        ('${'Service Type'.tr()}: ${_getTranslatedServiceType(widget.serviceType)}'),
                         style: TextStyle(
                           fontWeight: FontWeight.w500, 
                           color: Colors.grey[800]   
@@ -480,4 +481,18 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
       });
     }
   }
+
+  // Add these helper methods if you need service type display:
+String _getTranslatedServiceType(String serviceType) {
+  return ServiceTypeUtils.getTranslated(serviceType);
+}
+
+// IconData _getServiceTypeIcon(String serviceType) {
+//   return ServiceTypeUtils.getIcon(serviceType);
+// }
+
+// Color _getServiceTypeColor(String serviceType) {
+//   return ServiceTypeUtils.getColor(serviceType);
+// }
+
 }

@@ -281,7 +281,7 @@ class AppLocalization {
       'Dining': 'تناول الطعام',
       'Takeout': 'طلب خارجي',
       'Delivery': 'توصيل',
-      'Drive': 'السيارة',
+      'Drive Through': 'السيارة',
       'Catering': 'تموين',
 
       // Order List Screen
@@ -610,6 +610,16 @@ class AppLocalization {
     'Save PDF': 'حفظ PDF',
     'View Bill': 'عرض الفاتورة',
 
+
+    //bill Service
+    'Could not connect to the thermal printer. Would you like to save the bill as a PDF?':'تعذر الاتصال بالطابعة الحرارية. هل ترغب في حفظ الفاتورة بصيغة PDF؟',
+    'Order processed and bill printed successfully':'تم معالجة الطلب وطباعة الفاتورة بنجاح',
+    'Order processed, but bill was not printed or saved':'تم معالجة الطلب، ولكن لم يتم طباعة الفاتورة أو حفظها',
+    'Order processed and bill saved as PDF':'تم معالجة الطلب وحفظ الفاتورة بصيغة PDF',
+    'Failed to save the bill':"فشل في حفظ الفاتورة",
+    'Could not print kitchen receipt. Would you like to save it as a PDF?':'تعذر طباعة إيصال المطبخ. هل ترغب في حفظه كملف PDF؟',
+    'Kitchen receipt saved as PDF':'إيصال المطبخ محفوظ بصيغة PDF',
+    'Failed to print or save kitchen receipt':'فشل في طباعة أو حفظ إيصال المطبخ'
 
 
 

@@ -10,6 +10,8 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import '../utils/app_localization.dart';
+import '../utils/service_type_utils.dart';
+
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
@@ -57,21 +59,48 @@ class _ReportScreenState extends State<ReportScreen> {
   }
 
   // Helper method to get translated service type for display
-  String _getTranslatedServiceType(String serviceType) {
-    if (serviceType.contains('Dining')) {
-      return 'Dining'.tr();
-    } else if (serviceType.contains('Takeout')) {
-      return 'Takeout'.tr();
-    } else if (serviceType.contains('Delivery')) {
-      return 'Delivery'.tr();
-    } else if (serviceType.contains('Drive')) {
-      return 'Drive Through'.tr();
-    } else if (serviceType.contains('Catering')) {
-      return 'Catering'.tr();
-    } else {
-      return serviceType;
+
+String _getTranslatedServiceType(String serviceType) {
+  // Handle English to current language
+  if (serviceType.contains('Dining')) {
+    // Extract table number if it exists
+    final tableMatch = RegExp(r'Table (\d+)').firstMatch(serviceType);
+    if (tableMatch != null) {
+      final tableNumber = tableMatch.group(1);
+      return '${'Dining'.tr()} - ${'Table'.tr()} $tableNumber';
     }
+    return 'Dining'.tr();
+  } else if (serviceType.contains('Takeout')) {
+    return 'Takeout'.tr();
+  } else if (serviceType.contains('Delivery')) {
+    return 'Delivery'.tr();
+  } else if (serviceType.contains('Drive')) {
+    return 'Drive Through'.tr();
+  } else if (serviceType.contains('Catering')) {
+    return 'Catering'.tr();
+  } 
+  
+  // Handle Arabic to current language (for consistency)
+  else if (serviceType.contains('تناول الطعام')) {
+    // Extract table number if it exists
+    final tableMatch = RegExp(r'الطاولة (\d+)').firstMatch(serviceType);
+    if (tableMatch != null) {
+      final tableNumber = tableMatch.group(1);
+      return '${'Dining'.tr()} - ${'Table'.tr()} $tableNumber';
+    }
+    return 'Dining'.tr();
+  } else if (serviceType.contains('طلب خارجي')) {
+    return 'Takeout'.tr();
+  } else if (serviceType.contains('توصيل')) {
+    return 'Delivery'.tr();
+  } else if (serviceType.contains('السيارة')) {
+    return 'Drive Through'.tr();
+  } else if (serviceType.contains('تموين')) {
+    return 'Catering'.tr();
+  } else {
+    return serviceType; // Fallback to original
   }
+}
 
   // Helper method for orders count text
   String getOrdersCountText(int count) {
@@ -692,16 +721,12 @@ class _ReportScreenState extends State<ReportScreen> {
     final totalOrders = orders.length;
     final totalRevenue = orders.fold(0.0, (sum, order) => sum + order.total);
     final totalItemsSold = orders.fold(0, (sum, order) => sum + order.items.length);
-    
+
     final Map<String, List<Order>> ordersByServiceType = {};
     for (final order in orders) {
-      String serviceType = order.serviceType;
-      if (serviceType.contains('Dining')) {
-        serviceType = 'Dining';
-      }
-      ordersByServiceType.putIfAbsent(serviceType, () => []).add(order);
-    }
-    
+      String normalizedServiceType = _normalizeServiceType(order.serviceType);
+      ordersByServiceType.putIfAbsent(normalizedServiceType, () => []).add(order);
+    }  
     final subtotal = orders.fold(0.0, (sum, order) => sum + order.subtotal);
     final tax = orders.fold(0.0, (sum, order) => sum + order.tax);
     final discount = orders.fold(0.0, (sum, order) => sum + order.discount);
@@ -1635,36 +1660,24 @@ class _ReportScreenState extends State<ReportScreen> {
       ),
     );
   }
+  // Helper method to normalize service types for grouping
+String _normalizeServiceType(String serviceType) {
+  return ServiceTypeUtils.normalize(serviceType);
+}
 
-  IconData _getServiceTypeIcon(String serviceType) {
-    if (serviceType.contains('Dining')) {
-      return Icons.restaurant;
-    } else if (serviceType.contains('Delivery')) {
-      return Icons.delivery_dining;
-    } else if (serviceType.contains('Takeout')) {
-      return Icons.takeout_dining;
-    } else if (serviceType.contains('Drive')) {
-      return Icons.drive_eta;
-    } else if (serviceType.contains('Catering')) {
-      return Icons.cake;
-    } else {
-      return Icons.receipt;
-    }
-  }
+// // Helper method to get translated service type for display
+// String _getTranslatedServiceType(String serviceType) {
+//   return ServiceTypeUtils.getTranslated(serviceType);
+// }
 
-  Color _getServiceTypeColor(String serviceType) {
-    if (serviceType.contains('Dining')) {
-      return Colors.blue;
-    } else if (serviceType.contains('Delivery')) {
-      return Colors.orange;
-    } else if (serviceType.contains('Takeout')) {
-      return Colors.green;
-    } else if (serviceType.contains('Catering')) {
-      return Colors.purple;
-    } else if (serviceType.contains('Drive')) {
-      return Colors.red;
-    } else {
-      return Colors.grey;
-    }
-  }
+IconData _getServiceTypeIcon(String serviceType) {
+  return ServiceTypeUtils.getIcon(serviceType);
+}
+
+Color _getServiceTypeColor(String serviceType) {
+  return ServiceTypeUtils.getColor(serviceType);
+}
+
+
+  
 }

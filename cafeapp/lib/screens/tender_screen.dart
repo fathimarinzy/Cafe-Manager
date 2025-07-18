@@ -20,6 +20,7 @@ import '../models/order.dart';
 import '../models/order_item.dart';
 import '../repositories/local_order_repository.dart';
 import '../utils/app_localization.dart';
+import '../utils/service_type_utils.dart';
 
 class TenderScreen extends StatefulWidget {
   final OrderHistory order;
@@ -1939,7 +1940,7 @@ class _TenderScreenState extends State<TenderScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('${'Order type'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                Text(widget.order.serviceType, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                Text(_getTranslatedServiceType(widget.order.serviceType), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -2516,4 +2517,8 @@ class _TenderScreenState extends State<TenderScreen> {
       ),
     );
   }
+  
+  String _getTranslatedServiceType(String serviceType) {
+  return ServiceTypeUtils.getTranslated(serviceType);
+}
 }
