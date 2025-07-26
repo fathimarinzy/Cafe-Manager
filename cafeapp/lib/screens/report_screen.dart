@@ -42,18 +42,10 @@ class _ReportScreenState extends State<ReportScreen> {
   void initState() {
     super.initState();
     final now = DateTime.now();
+    // Set start date to first day of current month instead of previous month
+    _startDate = DateTime(now.year, now.month, 1);
     
-    if (now.month == 1) {
-      _startDate = DateTime(now.year - 1, 12, now.day);
-    } else {
-      _startDate = DateTime(now.year, now.month - 1, now.day);
-    }
-    
-    final daysInPreviousMonth = _getDaysInMonth(_startDate.year, _startDate.month);
-    if (_startDate.day > daysInPreviousMonth) {
-      _startDate = DateTime(_startDate.year, _startDate.month, daysInPreviousMonth);
-    }
-    
+    // End date remains current date
     _endDate = DateTime.now();
     _loadReport();
   }
@@ -375,6 +367,8 @@ String _getTranslatedServiceType(String serviceType) {
                       ),
                     ],
                   ),
+                   // Add Balance Row as separate widget
+                  _buildPdfBalanceRow(paymentTotals, currencyFormat, ttf),   
                 ],
               ),
             ),
@@ -472,7 +466,38 @@ String _getTranslatedServiceType(String serviceType) {
     
     return pdf;
   }
+  pw.Widget _buildPdfBalanceRow(Map<String, dynamic> paymentTotals, NumberFormat formatter, pw.Font? font) {
+  // Calculate balance (Total Revenue - Total Expenses)
+  final totalRevenue = _getPaymentValue(paymentTotals, 'total', 'sales');
+  final totalExpenses = _getPaymentValue(paymentTotals, 'total', 'expenses');
+  final balance = totalRevenue - totalExpenses;
   
+  return pw.Container(
+    padding: const pw.EdgeInsets.all(5),
+    decoration: pw.BoxDecoration(
+      color: balance >= 0 ? PdfColors.green50 : PdfColors.red50,
+      border: pw.Border.all(color: PdfColors.grey300),
+    ),
+    child: pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+      children: [
+        pw.Text(
+          'Balance'.tr(),
+          style: pw.TextStyle(font: font, fontWeight: pw.FontWeight.bold),
+        ),
+        pw.Text(
+          formatter.format(balance),
+          style: pw.TextStyle(
+            font: font, 
+            fontWeight: pw.FontWeight.bold, 
+            color: balance >= 0 ? PdfColors.green800 : PdfColors.red800
+          ),
+        ),
+      ],
+    ),
+  );
+}
+ 
   pw.TableRow _buildPdfPaymentRow(String label, String method, Map<String, dynamic> paymentTotals, NumberFormat formatter, pw.Font? font) {
     return pw.TableRow(
       children: [
@@ -559,9 +584,6 @@ String _getTranslatedServiceType(String serviceType) {
     );
   }
   
-  int _getDaysInMonth(int year, int month) {
-    return DateTime(year, month + 1, 0).day;
-  }
     
   String _getCacheKey(String reportType, DateTime date, {DateTime? endDate}) {
     if (reportType == 'daily') {
@@ -1506,111 +1528,161 @@ String _getTranslatedServiceType(String serviceType) {
   }
 
   Widget _buildPaymentTotalsSection() {
-    if (_reportData == null) return const SizedBox();
-    
-    final paymentTotals = _reportData!['paymentTotals'] as Map<String, dynamic>?;
-    
-    if (paymentTotals == null) {
-      return Center(child: Text('Payment data not available'.tr()));
-    }
-    
-    final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Cash and Bank Sales'.tr(),
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+  if (_reportData == null) return const SizedBox();
+  
+  final paymentTotals = _reportData!['paymentTotals'] as Map<String, dynamic>?;
+  
+  if (paymentTotals == null) {
+    return Center(child: Text('Payment data not available'.tr()));
+  }
+  
+  final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
+  
+  // Calculate balance (Total Revenue - Total Expenses)
+  final totalRevenue = _getPaymentValue(paymentTotals, 'total', 'sales');
+  final totalExpenses = _getPaymentValue(paymentTotals, 'total', 'expenses');
+  final balance = totalRevenue - totalExpenses;
+  
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        'Cash and Bank Sales'.tr(),
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      ),
+      const SizedBox(height: 12),
+      
+      Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(8),
         ),
-        const SizedBox(height: 12),
-        
-        Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade800,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(7),
-                    topRight: Radius.circular(7),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade800,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(7),
+                  topRight: Radius.circular(7),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      'Payment Method'.tr(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        'Payment Method'.tr(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      'Revenue'.tr(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
                       ),
+                      textAlign: TextAlign.right,
                     ),
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        'Revenue'.tr(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.right,
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      'Expenses'.tr(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
                       ),
+                      textAlign: TextAlign.right,
                     ),
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        'Expenses'.tr(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.right,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              
-              _buildPaymentRow(
-                'Total Cash Sales'.tr(), 
-                _getPaymentValue(paymentTotals, 'cash', 'sales'),
-                _getPaymentValue(paymentTotals, 'cash', 'expenses'),
-                currencyFormat,
-                Colors.grey.shade100,
-              ),
-              
-              _buildPaymentRow(
-                'Total Bank Sales'.tr(), 
-                _getPaymentValue(paymentTotals, 'bank', 'sales'),
-                _getPaymentValue(paymentTotals, 'bank', 'expenses'),
-                currencyFormat,
-                Colors.white,
-              ),
-              
-              Divider(height: 1, color: Colors.grey.shade300),
-              
-              _buildPaymentRow(
-                'Total Sales'.tr(), 
-                _getPaymentValue(paymentTotals, 'total', 'sales'),
-                _getPaymentValue(paymentTotals, 'total', 'expenses'),
-                currencyFormat,
-                Colors.blue.shade50,
-                isTotal: true,
-              ),
-            ],
+            ),
+            
+            _buildPaymentRow(
+              'Total Cash Sales'.tr(), 
+              _getPaymentValue(paymentTotals, 'cash', 'sales'),
+              _getPaymentValue(paymentTotals, 'cash', 'expenses'),
+              currencyFormat,
+              Colors.grey.shade100,
+            ),
+            
+            _buildPaymentRow(
+              'Total Bank Sales'.tr(), 
+              _getPaymentValue(paymentTotals, 'bank', 'sales'),
+              _getPaymentValue(paymentTotals, 'bank', 'expenses'),
+              currencyFormat,
+              Colors.white,
+            ),
+            
+            Divider(height: 1, color: Colors.grey.shade300),
+            
+            _buildPaymentRow(
+              'Total'.tr(), 
+              totalRevenue,
+              totalExpenses,
+              currencyFormat,
+              Colors.blue.shade50,
+              isTotal: true,
+            ),
+            
+            // Add Balance Row
+            _buildBalanceRow(
+              'Balance'.tr(),
+              balance,
+              currencyFormat,
+              balance >= 0 ? Colors.green.shade50 : Colors.red.shade50,
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+ Widget _buildBalanceRow(
+  String label, 
+  double balance, 
+  NumberFormat formatter,
+  Color backgroundColor,
+) {
+  return Container(
+    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+    color: backgroundColor,
+    child: Row(
+      children: [
+        Expanded(
+          flex: 3,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 4, // Spans across both Revenue and Expenses columns
+          child: Text(
+            formatter.format(balance),
+            style: TextStyle(
+              color: balance >= 0 ? Colors.green.shade700 : Colors.red.shade700,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+            textAlign: TextAlign.right,
           ),
         ),
       ],
-    );
-  }
+    ),
+  );
+} 
 
   Widget _buildPaymentRow(
     String method, 
