@@ -109,52 +109,58 @@ class OrderProvider with ChangeNotifier {
   }
 
   // Add item to cart for current service type
-  void addToCart(MenuItem item) {
-    if (_currentServiceType.isEmpty) {
-      debugPrint('Warning: No service type selected');
-      return;
-    }
-    
-    final existingIndex = _serviceTypeCarts[_currentServiceType]!
-        .indexWhere((cartItem) => cartItem.id == item.id);
-
-    if (existingIndex >= 0) {
-      // Keep the existing kitchen note if the item already has one
-      String existingNote = _serviceTypeCarts[_currentServiceType]![existingIndex].kitchenNote;
-      String noteToUse = item.kitchenNote.isNotEmpty ? item.kitchenNote : existingNote;
-      
-      _serviceTypeCarts[_currentServiceType]![existingIndex].quantity += 1;
-      
-      // Update the kitchen note if needed
-      if (item.kitchenNote.isNotEmpty && item.kitchenNote != existingNote) {
-        _serviceTypeCarts[_currentServiceType]![existingIndex] = MenuItem(
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          imageUrl: item.imageUrl,
-          category: item.category,
-          isAvailable: item.isAvailable,
-          quantity: _serviceTypeCarts[_currentServiceType]![existingIndex].quantity,
-          kitchenNote: noteToUse,
-        );
-      }
-    } else {
-      final newItem = MenuItem(
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        imageUrl: item.imageUrl,
-        category: item.category,
-        isAvailable: item.isAvailable,
-        quantity: 1,
-        kitchenNote: item.kitchenNote,
-      );
-      _serviceTypeCarts[_currentServiceType]!.add(newItem);
-    }
-    
-    _updateTotals(_currentServiceType);
-    notifyListeners();
+void addToCart(MenuItem item) {
+  if (_currentServiceType.isEmpty) {
+    debugPrint('Warning: No service type selected');
+    return;
   }
+  
+  final existingIndex = _serviceTypeCarts[_currentServiceType]!
+      .indexWhere((cartItem) => cartItem.id == item.id);
+
+  if (existingIndex >= 0) {
+    // Keep the existing kitchen note if the item already has one
+    String existingNote = _serviceTypeCarts[_currentServiceType]![existingIndex].kitchenNote;
+    String noteToUse = item.kitchenNote.isNotEmpty ? item.kitchenNote : existingNote;
+    
+    // Get the existing item
+    final existingItem = _serviceTypeCarts[_currentServiceType]![existingIndex];
+    
+    // Remove the item from its current position
+    _serviceTypeCarts[_currentServiceType]!.removeAt(existingIndex);
+    
+    // Create updated item with incremented quantity
+    final updatedItem = MenuItem(
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      imageUrl: item.imageUrl,
+      category: item.category,
+      isAvailable: item.isAvailable,
+      quantity: existingItem.quantity + 1, // Increment quantity
+      kitchenNote: noteToUse,
+    );
+    
+    // Insert the updated item at the beginning of the list
+    _serviceTypeCarts[_currentServiceType]!.insert(0, updatedItem);
+  } else {
+    // If it's a new item, add it to the beginning of the list
+    final newItem = MenuItem(
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      imageUrl: item.imageUrl,
+      category: item.category,
+      isAvailable: item.isAvailable,
+      quantity: 1,
+      kitchenNote: item.kitchenNote,
+    );
+    _serviceTypeCarts[_currentServiceType]!.insert(0, newItem);
+  }
+  
+  _updateTotals(_currentServiceType);
+  notifyListeners();
+}
   
   // Update item quantity for current service type
   void updateItemQuantity(String id, int quantity) {
@@ -587,8 +593,8 @@ class OrderProvider with ChangeNotifier {
       _serviceTypeCarts[_currentServiceType] = [];
     }
     
-    // Don't check for existing items, just add directly
-    _serviceTypeCarts[_currentServiceType]!.add(item);
+    // Add the item to the beginning of the list (for consistency with addToCart)
+  _serviceTypeCarts[_currentServiceType]!.insert(0, item);
   }
   
   // Update payment method for an order
