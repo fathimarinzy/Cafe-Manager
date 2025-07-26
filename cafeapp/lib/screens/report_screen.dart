@@ -5,13 +5,14 @@ import 'package:pdf/widgets.dart' as pw;
 import '../repositories/local_order_repository.dart';
 import '../repositories/local_expense_repository.dart';
 import '../models/order.dart';
-import '../services/bill_service.dart';
+// import '../services/bill_service.dart';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import '../utils/app_localization.dart';
 import '../utils/service_type_utils.dart';
-
+import 'package:provider/provider.dart';
+import '../providers/settings_provider.dart';
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
@@ -206,8 +207,13 @@ String _getTranslatedServiceType(String serviceType) {
     } catch (e) {
       debugPrint('Could not load font, using default: $e');
     }
+    // Get restaurant name from SettingsProvider instead of BillService
+      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+      final restaurantName = settingsProvider.businessName.isNotEmpty 
+      ? settingsProvider.businessName 
+      : 'SIMS CAFE'; // Fallback name
     
-    final businessInfo = await BillService.getBusinessInfo();
+    // final businessInfo = await BillService.getBusinessInfo();
     
     String reportTitle;
     String dateRangeText;
@@ -237,8 +243,8 @@ String _getTranslatedServiceType(String serviceType) {
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
               pw.Text(
-                businessInfo['name']!,
-                style: pw.TextStyle(
+                restaurantName,               
+                 style: pw.TextStyle(
                   font: ttf,
                   fontSize: 18,
                   fontWeight: pw.FontWeight.bold,

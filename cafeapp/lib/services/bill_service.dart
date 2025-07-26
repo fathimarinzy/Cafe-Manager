@@ -17,7 +17,7 @@ class BillService {
   static Future<Map<String, String>> getBusinessInfo() async {
     final prefs = await SharedPreferences.getInstance();
     return {
-      'name': prefs.getString('business_name') ?? 'SIMS RESTO CAFE',
+      'name': prefs.getString('business_name') ?? 'SIMS CAFE',
       'address': prefs.getString('business_address') ?? '123 Cafe Street, City',
       'phone': prefs.getString('business_phone') ?? '+1234567890',
       'footer': prefs.getString('receipt_footer') ?? 'Thank you for your visit! Please come again.',
@@ -92,7 +92,7 @@ class BillService {
                     pw.Text(businessInfo['address']!, 
                       style: pw.TextStyle(font: ttf, fontSize: 10)
                     ),
-                    pw.Text('Tel: ${businessInfo['phone']}', 
+                    pw.Text('${businessInfo['phone']}', 
                       style: pw.TextStyle(font: ttf, fontSize: 10)
                     ),
                     pw.SizedBox(height: 3),
