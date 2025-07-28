@@ -1,4 +1,3 @@
-// lib/providers/auth_provider.dart - Fixed version
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -67,10 +66,7 @@ class AuthProvider with ChangeNotifier {
       
       // Simple validation against default credentials
       bool isValid = (trimmedUsername == defaultUsername && trimmedPassword == defaultPassword);
-      
-      // For demo purposes, you can also allow any username with password "password"
-      // Remove this in production!
-      isValid = isValid || (trimmedPassword == "password");
+    
       
       debugPrint('Login validation result: $isValid');
       

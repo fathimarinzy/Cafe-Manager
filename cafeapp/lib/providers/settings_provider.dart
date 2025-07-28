@@ -428,7 +428,7 @@ void initializeLanguage() {
       _tableColumns = 4;
       
       // Reset business info
-      _businessName = 'SIMS RESTO CAFE';
+      _businessName = 'SIMS CAFE';
       _businessAddress = '123 Cafe Street, City';
       _businessPhone = '+1234567890';
       

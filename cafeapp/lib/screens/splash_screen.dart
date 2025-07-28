@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../utils/app_localization.dart';
+// import '../utils/app_localization.dart';
 
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
@@ -36,19 +36,30 @@ class SplashScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-            // Loading indicator
-            CircularProgressIndicator(
-              color: Colors.blue[900],
-            ),
-            const SizedBox(height: 20),
-             Text(
-              'Please wait...'.tr(),
+             const SizedBox(height: 10),
+            // Subtitle - Cafe Management
+            Text(
+              'Cafe Management',
               style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey,
+                fontSize: 22,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[700],
+                letterSpacing: 0.5,
               ),
             ),
+            // const SizedBox(height: 20),
+            // // Loading indicator
+            // CircularProgressIndicator(
+            //   color: Colors.blue[900],
+            // ),
+            // const SizedBox(height: 20),
+            //  Text(
+            //   'Please wait...'.tr(),
+            //   style: TextStyle(
+            //     fontSize: 16,
+            //     color: Colors.grey,
+            //   ),
+            // ),
           ],
         ),
       ),

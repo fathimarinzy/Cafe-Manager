@@ -578,6 +578,16 @@ class BillService {
       },
     );
   }
+  // Check if printer is enabled in settings
+static Future<bool> isPrinterEnabled() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('printer_enabled') ?? true;
+  } catch (e) {
+    debugPrint('Error checking printer status: $e');
+    return true; // Default to enabled if error
+  }
+}
 
   // Process the order (try printing, if fails save as PDF) with tax rate
   static Future<Map<String, dynamic>> processOrderBill({
@@ -595,6 +605,99 @@ class BillService {
   }) async {
     // Get the effective tax rate
     final effectiveTaxRate = taxRate ?? 0.0;
+    // Check if printer is enabled before attempting to print
+    final printerEnabled = await isPrinterEnabled();
+
+    if (!printerEnabled) {
+    // Printer is disabled, skip printing and go straight to PDF option
+    if (!context.mounted) {
+      return {
+        'success': false,
+        'message': 'Context no longer valid',
+        'printed': false,
+        'saved': false,
+        'filePath': null,
+      };
+    }
+    // Show dialog to ask if user wants to save PDF since printer is disabled
+    final shouldSave = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Text('Printer Disabled'.tr()),
+          content: Text('Printer connection is disabled. Would you like to save the bill as a PDF?'.tr()),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Cancel'.tr()),
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+            ),
+            TextButton(
+              child: Text('Save PDF'.tr()),
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+            ),
+          ],
+        );
+      },
+    );
+    
+    if (shouldSave == null || !context.mounted) {
+      return {
+        'success': false,
+        'message': 'Dialog was dismissed or context is no longer valid',
+        'printed': false,
+        'saved': false,
+        'filePath': null,
+      };
+    }
+    
+    if (!shouldSave) {
+      return {
+        'success': true,
+        'message': 'Order processed, but bill was not printed or saved'.tr(),
+        'printed': false,
+        'saved': false,
+        'filePath': null,
+      };
+    }
+     // Generate and save PDF
+    final pdf = await generateBill(
+      items: items,
+      serviceType: serviceType,
+      subtotal: subtotal,
+      tax: tax,
+      discount: discount,
+      total: total,
+      personName: personName,
+      tableInfo: tableInfo,
+      isEdited: isEdited,
+      taxRate: effectiveTaxRate,
+    );
+    
+    final saved = await saveWithAndroidIntent(pdf);
+    
+    if (saved) {
+      return {
+        'success': true,
+        'message': 'Order processed and bill saved as PDF'.tr(),
+        'printed': false,
+        'saved': true,
+        'filePath': null,
+      };
+    }
+    
+    return {
+      'success': false,
+      'message': 'Failed to save the bill'.tr(),
+      'printed': false,
+      'saved': false,
+      'filePath': null,
+    };
+  }
     
     // Try to print the bill using direct ESC/POS commands only
     final printed = await printBill(
@@ -894,6 +997,65 @@ class BillService {
   
   }) async {
     try {
+      // Check if printer is enabled
+    final printerEnabled = await isPrinterEnabled();
+    
+    if (!printerEnabled) {
+      // Printer is disabled, skip to PDF option
+      if (context != null && context.mounted) {
+        final pdf = await generateKitchenBill(
+          items: items,
+          serviceType: serviceType,
+          tableInfo: tableInfo,
+          orderNumber: orderNumber,
+        );
+        
+        final shouldSave = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text('Printer Disabled'.tr()),
+              content: Text('Printer connection is disabled. Would you like to save kitchen receipt as PDF?'.tr()),
+              actions: <Widget>[
+                TextButton(
+                  child: Text('Cancel'.tr()),
+                  onPressed: () {
+                    Navigator.of(context).pop(false);
+                  },
+                ),
+                TextButton(
+                  child: Text('Save PDF'.tr()),
+                  onPressed: () {
+                    Navigator.of(context).pop(true);
+                  },
+                ),
+              ],
+            );
+          },
+        ) ?? false;
+        
+        if (shouldSave) {
+          final saved = await saveWithAndroidIntent(pdf);
+          
+          if (saved) {
+            return {
+              'success': true,
+              'message': 'Kitchen receipt saved as PDF'.tr(),
+              'printed': false,
+              'saved': true,
+            };
+          }
+        }
+      }
+      
+      return {
+        'success': true,
+        'message': 'Kitchen receipt skipped (printer disabled)'.tr(),
+        'printed': false,
+        'saved': false,
+      };
+    }
       // Try direct ESC/POS commands for printing a kitchen-focused receipt
       final printed = await ThermalPrinterService.printKitchenReceipt(
         items: items,

@@ -1,15 +1,10 @@
-// lib/screens/dashboard_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/order_provider.dart';
-// import '../providers/auth_provider.dart';
 import 'menu_screen.dart';
 import 'dining_table_screen.dart';
 import 'order_list_screen.dart';
-// import 'login_screen.dart';
 import '../utils/app_localization.dart'; // Import the localization utility
-// import 'package:cafeapp/main.dart'; 
 import '../widgets/settings_password_dialog.dart';
 import '../providers/settings_provider.dart';
 

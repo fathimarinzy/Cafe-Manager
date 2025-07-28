@@ -22,6 +22,10 @@ import '../models/order_history.dart';
 import '../models/order.dart';
 import '../models/order_item.dart';
 import '../models/person.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../screens/printer_settings_screen.dart';
+import '../services/thermal_printer_service.dart';
+
 
 class MenuScreen extends StatefulWidget {
   final String serviceType;
@@ -49,6 +53,10 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
   String _lastCategory = '';
   String _lastSearchQuery = '';
   final Map<String, Uint8List> _imageCache = {};
+    // Add these new variables for printer functionality
+  bool _isPrinterEnabled = true;
+  bool _isCheckingPrinter = false;
+
 
   @override
   void initState() {
@@ -56,6 +64,8 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _loadMenu();
     _updateTime();
+    _loadPrinterSettings(); // Add this line
+
     
    // Set the current service type and order ID in OrderProvider
   WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -91,6 +101,111 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
     }
   });
 }
+  // Add this new method to load printer settings
+  Future<void> _loadPrinterSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _isPrinterEnabled = prefs.getBool('printer_enabled') ?? true;
+      });
+    } catch (e) {
+      debugPrint('Error loading printer settings: $e');
+    }
+  }
+
+  // Add this new method to save printer settings
+  Future<void> _savePrinterSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('printer_enabled', _isPrinterEnabled);
+    } catch (e) {
+      debugPrint('Error saving printer settings: $e');
+    }
+  }
+
+  // Add this new method to toggle printer connection
+  Future<void> _togglePrinterConnection() async {
+    setState(() {
+      _isCheckingPrinter = true;
+    });
+
+    try {
+      if (_isPrinterEnabled) {
+        // Turn off printer
+        setState(() {
+          _isPrinterEnabled = false;
+        });
+        await _savePrinterSettings();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Printer connection disabled'.tr()),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        // Turn on printer and test connection
+        final connected = await ThermalPrinterService.testConnection();
+        
+        if (connected) {
+          setState(() {
+            _isPrinterEnabled = true;
+          });
+          await _savePrinterSettings();
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Printer connected successfully'.tr()),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to connect to printer. Check settings.'.tr()),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 3),
+                action: SnackBarAction(
+                  label: 'Settings'.tr(),
+                  textColor: Colors.white,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const PrinterSettingsScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error toggling printer: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error with printer connection'.tr()),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+
+    setState(() {
+      _isCheckingPrinter = false;
+    });
+  }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -300,8 +415,29 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
             style: const TextStyle(color: Colors.black),
           ),
           actions: [
+            // Add Printer Toggle Button
+            IconButton(
+              onPressed: _isCheckingPrinter ? null : _togglePrinterConnection,
+              icon: _isCheckingPrinter
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.grey.shade600,
+                      ),
+                    )
+                  : Icon(
+                      _isPrinterEnabled ? Icons.print : Icons.print_disabled,
+                      color: _isPrinterEnabled ? Colors.blue.shade700 : Colors.blue.shade700,
+                      size: 24,
+                    ),
+              tooltip: _isPrinterEnabled ? 'Printer Connected'.tr() : 'Printer Disconnected'.tr(),
+            ),
+            const SizedBox(width: 8),
+
             // Add Order List button to the left of time
-            TextButton.icon(
+            TextButton.icon(  
               onPressed: () {
                 Navigator.push(
                   context,

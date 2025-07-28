@@ -609,13 +609,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 
                 _buildSectionHeader('Logout'.tr()),
                 _logoutsection(),
-             
-                const Divider(),
+
+                // const Divider(),
+                // About section with contact numbers
                 ListTile(
-                  title: Text(_businessNameController.text.isNotEmpty ? _businessNameController.text : 'SIMS CAFE'),
-                  subtitle: Text('Version 1.0.1'.tr()),
-                  leading: const Icon(Icons.info_outline),
+                  title: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        ''.tr(),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '+968 7184 0022',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.blue[700],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Text(
+                        '+968 9906 2181',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.blue[700],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Text(
+                        '+968 7989 5704',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.blue[700],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text('Version 1.0.1'.tr()),
+                  ),
+                  leading: const Icon(Icons.contact_support),
                 ),
+             
                 const SizedBox(height: 40),
               ],
             ),

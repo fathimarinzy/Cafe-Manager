@@ -122,14 +122,16 @@
 // }
 
 
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'screens/login_screen.dart';
 import 'screens/person_form_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/splash_screen.dart';
+import 'screens/device_registration_screen.dart';
+import 'screens/company_registration_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/printer_settings_screen.dart';
 import 'screens/expense_screen.dart';
@@ -154,6 +156,7 @@ void main() async {
 
   runApp(const MyApp());
 }
+
 Future<void> initializeLocalDatabase() async {
   // Get the database to initialize it
   final localRepo = LocalMenuRepository();
@@ -161,7 +164,6 @@ Future<void> initializeLocalDatabase() async {
   // Initialize expense database
   final localExpenseRepo = LocalExpenseRepository();
   await localExpenseRepo.database;
-
 }
 
 class MyApp extends StatelessWidget {
@@ -213,35 +215,19 @@ class MyApp extends StatelessWidget {
             ),
             themeMode: settingsProvider.themeMode,
             debugShowCheckedModeBanner: false,
-         
-            home: Consumer<AuthProvider>(
-              builder: (ctx, auth, _) {
-                return auth.isInitialized 
-                    ? (auth.isAuth ? const DashboardScreen() : const LoginScreen())
-                    : FutureBuilder(
-                        future: auth.tryAutoLogin(),
-                        builder: (ctx, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
-                            return const SplashScreen();
-                          } else {
-                            return snapshot.data == true 
-                                ? const DashboardScreen() 
-                                : const LoginScreen();
-                          }
-                        },
-                      );
-              },
-            ),
+            // Always start with splash screen
+            home: const AppInitializer(),
             routes: {
               AppRoutes.login: (ctx) => const LoginScreen(),
               AppRoutes.addperson: (ctx) => const PersonFormScreen(),
               AppRoutes.dashboard: (ctx) => const DashboardScreen(),
+              AppRoutes.deviceRegistration: (ctx) => const DeviceRegistrationScreen(),
+              AppRoutes.companyRegistration: (ctx) => const CompanyRegistrationScreen(),
               AppRoutes.settings: (ctx) => const SettingsScreen(),
               AppRoutes.printerConfig: (ctx) => const PrinterSettingsScreen(),
               AppRoutes.expense: (ctx) => const ExpenseScreen(),
-               AppRoutes.expenseHistory: (ctx) => const ExpenseHistoryScreen(), 
+              AppRoutes.expenseHistory: (ctx) => const ExpenseHistoryScreen(), 
               AppRoutes.reports: (ctx) => const ReportScreen(),
-              
             },
           );
         },
@@ -250,14 +236,74 @@ class MyApp extends StatelessWidget {
   }
 }
 
+// New widget to handle app initialization
+class AppInitializer extends StatefulWidget {
+  const AppInitializer({super.key});
+
+  @override
+  State<AppInitializer> createState() => _AppInitializerState();
+}
+
+class _AppInitializerState extends State<AppInitializer> {
+  @override
+  void initState() {
+    super.initState();
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    // Show splash screen for at least 2 seconds
+    await Future.delayed(const Duration(seconds: 2));
+    
+    if (!mounted) return;
+    
+    // Check if device is already registered
+    final prefs = await SharedPreferences.getInstance();
+    final isDeviceRegistered = prefs.getBool('device_registered') ?? false;
+    
+    if (!isDeviceRegistered) {
+      // First time installation - go to device registration
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const DeviceRegistrationScreen()),
+      );
+      return;
+    }
+    
+    // Device is registered, proceed with normal auth flow
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    // Try auto login
+    final isAuthenticated = await authProvider.tryAutoLogin();
+    
+    if (!mounted) return;
+    
+    // Navigate to appropriate screen
+    if (isAuthenticated) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const DashboardScreen()),
+      );
+    } else {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const SplashScreen();
+  }
+}
+
 class AppRoutes {
   static const String login = '/login';
   static const String addperson = '/add-person';
   static const String dashboard = '/dashboard';
+  static const String deviceRegistration = '/device-registration';
+  static const String companyRegistration = '/company-registration';
   static const String settings = '/settings';
   static const String printerConfig = '/printer-settings';
   static const String expense = '/expense'; 
   static const String expenseHistory = '/expense-history';
   static const String reports = '/reports';
-
 }

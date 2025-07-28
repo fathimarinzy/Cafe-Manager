@@ -58,7 +58,7 @@ class SettingsPasswordService {
           ),
           SettingsPassword(
             id: 2,
-            password: "owner123", // Default password for owner
+            password: "admin@cafeplus25!", // Default password for owner
             userType: "owner",
             isActive: true,
           ),
