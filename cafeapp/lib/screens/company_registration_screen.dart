@@ -118,14 +118,6 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
       await prefs.setString('customer_address', _customerAddressController.text.trim());
       await prefs.setString('customer_phone', _customerPhoneController.text.trim());
 
-      // // Also update settings provider with customer information
-      // if (mounted) {
-      //   final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-      //   await settingsProvider.setSetting('business_name', _customerNameController.text.trim());
-      //   await settingsProvider.setSetting('business_address', _customerAddressController.text.trim());
-      //   await settingsProvider.setSetting('business_phone', _customerPhoneController.text.trim());
-      // }
-
       // Show success message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
