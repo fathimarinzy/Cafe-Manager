@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_localization.dart';
-import 'login_screen.dart';
 import 'company_registration_screen.dart';
+import 'online_company_registration_screen.dart';
 
 class DeviceRegistrationScreen extends StatefulWidget {
   const DeviceRegistrationScreen({super.key});
@@ -71,14 +71,6 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
         _isOfflineEnabled = true;
         // Hide keyboard and show success feedback
         _hiddenFocusNode.unfocus();
-        // Show a brief success message
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   SnackBar(
-        //     content: Text('Offline mode unlocked!'.tr()),
-        //     backgroundColor: Colors.green,
-        //     duration: const Duration(seconds: 2),
-        //   ),
-        // );
       } else {
         _isOfflineEnabled = false;
         _isOfflineSelected = false;
@@ -93,7 +85,7 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
     });
   }
 
- Future<void> _onNextPressed() async {
+  Future<void> _onNextPressed() async {
     if (!_isNextButtonEnabled) return;
 
     try {
@@ -101,16 +93,14 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
       
       // Save the selected mode
       if (_isOnlineSelected) {
-        // Mark device as registered for online mode
-        await prefs.setBool('device_registered', true);
+        // Save online mode but don't mark device as fully registered yet
         await prefs.setString('device_mode', 'online');
-        // Also save if the unlock code was entered
         await prefs.setBool('offline_unlocked', _enteredCode == "0000");
         
-        // Navigate to login screen for online mode
+        // Navigate to online company registration screen
         if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const LoginScreen()),
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (context) => const OnlineCompanyRegistrationScreen()),
           );
         }
       } else if (_isOfflineSelected) {
@@ -119,7 +109,7 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
         await prefs.setString('device_mode', 'offline');
         await prefs.setBool('offline_unlocked', true);
         
-        // Navigate to company registration screen for offline mode (use push instead of pushReplacement)
+        // Navigate to offline company registration screen
         if (mounted) {
           Navigator.of(context).push(
             MaterialPageRoute(builder: (context) => const CompanyRegistrationScreen()),
@@ -275,7 +265,7 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
                                                       if (_isOnlineSelected) ...[
                                                         const SizedBox(height: 2),
                                                         Text(
-                                                          '',
+                                                          'Cloud-based registration with Firebase',
                                                           style: TextStyle(
                                                             fontSize: 11,
                                                             color: Colors.blue[600],
@@ -341,7 +331,7 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
                                                       if (!_isOfflineEnabled) ...[
                                                         const SizedBox(height: 2),
                                                         Text(
-                                                          '',
+                                                          'Requires special unlock code',
                                                           style: TextStyle(
                                                             fontSize: 11,
                                                             color: Colors.grey[500],
@@ -356,7 +346,8 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
                                           ),
                                         ),
                                       ),
-                                      const SizedBox(height: 20), // Add spacing between checkbox and button if needed
+                                      const SizedBox(height: 20),
+                                      
                                       SizedBox(
                                         width: 200,
                                         height: 50,
@@ -380,14 +371,12 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
                                           ),
                                         ),
                                       ),
-
                                     ],
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                          
                         ],
                       ),
                     ),

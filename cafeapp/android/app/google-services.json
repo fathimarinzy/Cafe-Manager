@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "964942933502",
+    "project_id": "simscafe-c743e",
+    "storage_bucket": "simscafe-c743e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:964942933502:android:37f129dfabff854f9a64af",
+        "android_client_info": {
+          "package_name": "com.example.cafeapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDmpMjCIqh4RVXmY19JRwZhK0S2NxpsaBk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

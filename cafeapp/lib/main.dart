@@ -132,6 +132,7 @@ import 'screens/dashboard_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/device_registration_screen.dart';
 import 'screens/company_registration_screen.dart';
+import 'screens/online_company_registration_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/printer_settings_screen.dart';
 import 'screens/expense_screen.dart';
@@ -149,13 +150,55 @@ import 'providers/order_history_provider.dart';
 import 'repositories/local_menu_repository.dart';
 import 'repositories/local_expense_repository.dart';
 
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; 
+import 'services/firebase_service.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
    // Initialize local database
   await initializeLocalDatabase();
+  // Initialize Firebase
+  await FirebaseService.initialize();
+
+   try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    debugPrint("✅ Firebase initialized successfully!");
+
+    // ✅ Test Firestore connection
+    await testFirestore();
+
+  } catch (e) {
+    debugPrint("❌ Firebase initialization failed: $e");
+  }
 
   runApp(const MyApp());
 }
+
+/// Firestore connection test
+Future<void> testFirestore() async {
+  try {
+    FirebaseFirestore firestore = FirebaseFirestore.instance;
+
+    await firestore.collection('test').doc('connection-test').set({
+      'message': 'Firestore connection successful!',
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    debugPrint("✅ Firestore write test successful!");
+
+    DocumentSnapshot doc = await firestore.collection('test').doc('connection-test').get();
+    if (doc.exists) {
+      debugPrint("✅ Firestore read test successful: ${doc.data()}");
+    }
+  } catch (e) {
+    debugPrint("❌ Firestore test failed: $e");
+  }
+}
+
 
 Future<void> initializeLocalDatabase() async {
   // Get the database to initialize it
@@ -223,6 +266,7 @@ class MyApp extends StatelessWidget {
               AppRoutes.dashboard: (ctx) => const DashboardScreen(),
               AppRoutes.deviceRegistration: (ctx) => const DeviceRegistrationScreen(),
               AppRoutes.companyRegistration: (ctx) => const CompanyRegistrationScreen(),
+              AppRoutes.onlineCompanyRegistration: (ctx) => const OnlineCompanyRegistrationScreen(),
               AppRoutes.settings: (ctx) => const SettingsScreen(),
               AppRoutes.printerConfig: (ctx) => const PrinterSettingsScreen(),
               AppRoutes.expense: (ctx) => const ExpenseScreen(),
@@ -301,6 +345,7 @@ class AppRoutes {
   static const String dashboard = '/dashboard';
   static const String deviceRegistration = '/device-registration';
   static const String companyRegistration = '/company-registration';
+    static const String onlineCompanyRegistration = '/online-company-registration';
   static const String settings = '/settings';
   static const String printerConfig = '/printer-settings';
   static const String expense = '/expense'; 
