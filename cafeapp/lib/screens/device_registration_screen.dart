@@ -198,8 +198,8 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
                                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
                                 child: Container(
                                   width: double.infinity,
-                                  constraints: const BoxConstraints(maxWidth: 400),
-                                  padding: const EdgeInsets.all(24),
+                                  constraints: const BoxConstraints(maxWidth: 500),
+                                  padding: const EdgeInsets.all(35),
                                   decoration: BoxDecoration(
                                     color: Colors.grey[50],
                                     borderRadius: BorderRadius.circular(16),
@@ -265,7 +265,7 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
                                                       if (_isOnlineSelected) ...[
                                                         const SizedBox(height: 2),
                                                         Text(
-                                                          'Cloud-based registration with Firebase',
+                                                          '',
                                                           style: TextStyle(
                                                             fontSize: 11,
                                                             color: Colors.blue[600],
@@ -331,7 +331,7 @@ class _DeviceRegistrationScreenState extends State<DeviceRegistrationScreen> {
                                                       if (!_isOfflineEnabled) ...[
                                                         const SizedBox(height: 2),
                                                         Text(
-                                                          'Requires special unlock code',
+                                                          '',
                                                           style: TextStyle(
                                                             fontSize: 11,
                                                             color: Colors.grey[500],

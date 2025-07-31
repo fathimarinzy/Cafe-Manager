@@ -125,6 +125,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+// import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'screens/login_screen.dart';
 import 'screens/person_form_screen.dart';
@@ -149,65 +150,60 @@ import 'providers/order_history_provider.dart';
 
 import 'repositories/local_menu_repository.dart';
 import 'repositories/local_expense_repository.dart';
-
-import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; 
 import 'services/firebase_service.dart';
+import 'dart:async';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-   // Initialize local database
-  await initializeLocalDatabase();
-  // Initialize Firebase
-  await FirebaseService.initialize();
-
-   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    debugPrint("✅ Firebase initialized successfully!");
-
-    // ✅ Test Firestore connection
-    await testFirestore();
-
-  } catch (e) {
-    debugPrint("❌ Firebase initialization failed: $e");
-  }
-
+  
+  // Quick initialization - only critical components
+  await quickInitialization();
+  
   runApp(const MyApp());
 }
 
-/// Firestore connection test
-Future<void> testFirestore() async {
+Future<void> quickInitialization() async {
   try {
-    FirebaseFirestore firestore = FirebaseFirestore.instance;
-
-    await firestore.collection('test').doc('connection-test').set({
-      'message': 'Firestore connection successful!',
-      'timestamp': FieldValue.serverTimestamp(),
-    });
-
-    debugPrint("✅ Firestore write test successful!");
-
-    DocumentSnapshot doc = await firestore.collection('test').doc('connection-test').get();
-    if (doc.exists) {
-      debugPrint("✅ Firestore read test successful: ${doc.data()}");
-    }
+    // Reduce overall timeout from 15s to 3s
+    await Future.any([
+      _performQuickInitialization(),
+      Future.delayed(const Duration(seconds: 3), () {
+        debugPrint('⚠️ Quick initialization timed out - continuing anyway');
+      }),
+    ]);
   } catch (e) {
-    debugPrint("❌ Firestore test failed: $e");
+    debugPrint('⚠️ Quick initialization error: $e');
+    // Continue anyway - app should work in offline mode
   }
 }
 
+Future<void> _performQuickInitialization() async {
+  // Initialize only critical local database
+  await initializeLocalDatabase();
+  
+  // Initialize Firebase without waiting for connection test
+  FirebaseService.initializeQuickly(); // Don't await this
+  
+  debugPrint('✅ Quick initialization completed');
+}
 
 Future<void> initializeLocalDatabase() async {
-  // Get the database to initialize it
-  final localRepo = LocalMenuRepository();
-  await localRepo.database;
-  // Initialize expense database
-  final localExpenseRepo = LocalExpenseRepository();
-  await localExpenseRepo.database;
+  try {
+    // Get the database to initialize it
+    final localRepo = LocalMenuRepository();
+    await localRepo.database;
+    
+    // Initialize expense database
+    final localExpenseRepo = LocalExpenseRepository();
+    await localExpenseRepo.database;
+    
+    debugPrint('✅ Local databases initialized');
+  } catch (e) {
+    debugPrint('❌ Error initializing local databases: $e');
+    rethrow; // This is critical - app can't work without local DB
+  }
 }
+
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -241,7 +237,6 @@ class MyApp extends StatelessWidget {
               fontFamily: 'Roboto',
               visualDensity: VisualDensity.adaptivePlatformDensity,
               brightness: Brightness.dark,
-              // Additional dark theme customizations
               appBarTheme: AppBarTheme(
                 backgroundColor: Colors.grey[850],
                 foregroundColor: Colors.white,
@@ -258,7 +253,6 @@ class MyApp extends StatelessWidget {
             ),
             themeMode: settingsProvider.themeMode,
             debugShowCheckedModeBanner: false,
-            // Always start with splash screen
             home: const AppInitializer(),
             routes: {
               AppRoutes.login: (ctx) => const LoginScreen(),
@@ -280,7 +274,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// New widget to handle app initialization
+// Updated app initializer with timeout handling
 class AppInitializer extends StatefulWidget {
   const AppInitializer({super.key});
 
@@ -296,40 +290,107 @@ class _AppInitializerState extends State<AppInitializer> {
   }
 
   Future<void> _initializeApp() async {
-    // Show splash screen for at least 2 seconds
-    await Future.delayed(const Duration(seconds: 2));
-    
-    if (!mounted) return;
-    
-    // Check if device is already registered
-    final prefs = await SharedPreferences.getInstance();
-    final isDeviceRegistered = prefs.getBool('device_registered') ?? false;
-    
-    if (!isDeviceRegistered) {
-      // First time installation - go to device registration
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const DeviceRegistrationScreen()),
-      );
-      return;
+    try {
+      // Reduce minimum splash time and total timeout
+      final List<Future> futures = [
+        Future.delayed(const Duration(milliseconds: 500)), // Reduced from 2 seconds
+        _performAppInitialization(), // App initialization
+      ];
+      
+      // Reduce total timeout from 12s to 4s
+      await Future.any([
+        Future.wait(futures),
+        Future.delayed(const Duration(seconds: 4), () {
+          debugPrint('⚠️ App initialization timed out - proceeding anyway');
+        }),
+      ]);
+      
+    } catch (e) {
+      debugPrint('⚠️ App initialization error: $e');
     }
     
-    // Device is registered, proceed with normal auth flow
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    
-    // Try auto login
-    final isAuthenticated = await authProvider.tryAutoLogin();
-    
-    if (!mounted) return;
-    
-    // Navigate to appropriate screen
-    if (isAuthenticated) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const DashboardScreen()),
-      );
-    } else {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-      );
+    // Always proceed to next screen quickly
+    if (mounted) {
+      _navigateToNextScreen();
+    }
+  }
+
+  Future<void> _performAppInitialization() async {
+    try {
+      // Check device registration locally (fast)
+      final prefs = await SharedPreferences.getInstance();
+      final isDeviceRegistered = prefs.getBool('device_registered') ?? false;
+      
+      if (!isDeviceRegistered) {
+        return; // Skip auth for new installations
+      }
+      
+      // For registered devices, try quick auto-login
+      if (mounted) {
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        
+        // Reduce auto-login timeout from 10s to 3s
+        await Future.any([
+          authProvider.tryAutoLogin(),
+          Future.delayed(const Duration(seconds: 3), () {
+            debugPrint('⚠️ Auto-login timed out - proceeding to login screen');
+            return false;
+          }),
+        ]);
+      }
+      
+    } catch (e) {
+      debugPrint('⚠️ Error during app initialization: $e');
+    }
+  }
+
+  void _navigateToNextScreen() {
+    try {
+      final prefs = SharedPreferences.getInstance();
+      
+      prefs.then((prefs) {
+        if (!mounted) return;
+        
+        final isDeviceRegistered = prefs.getBool('device_registered') ?? false;
+        
+        if (!isDeviceRegistered) {
+          // First time installation
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const DeviceRegistrationScreen()),
+          );
+          return;
+        }
+        
+        // Check auth status
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        
+        if (authProvider.isAuth) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const DashboardScreen()),
+          );
+        } else {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+          );
+        }
+      }).catchError((e) {
+        debugPrint('Error during navigation: $e');
+        // Fallback to device registration
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const DeviceRegistrationScreen()),
+          );
+        }
+      });
+      
+    } catch (e) {
+      debugPrint('Error in navigation logic: $e');
+      // Fallback navigation
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const DeviceRegistrationScreen()),
+        );
+      }
     }
   }
 
@@ -345,7 +406,7 @@ class AppRoutes {
   static const String dashboard = '/dashboard';
   static const String deviceRegistration = '/device-registration';
   static const String companyRegistration = '/company-registration';
-    static const String onlineCompanyRegistration = '/online-company-registration';
+  static const String onlineCompanyRegistration = '/online-company-registration';
   static const String settings = '/settings';
   static const String printerConfig = '/printer-settings';
   static const String expense = '/expense'; 

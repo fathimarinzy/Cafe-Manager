@@ -1,4 +1,3 @@
-// lib/screens/online_company_registration_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -201,7 +200,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
         SnackBar(
           content: Text(message),
           backgroundColor: Colors.red,
-          duration: const Duration(seconds: 3),
+          duration: const Duration(seconds: 2),
         ),
       );
     }
@@ -212,14 +211,14 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text('Register Your Company'.tr()),
+        // title: Text('Register Your Company'.tr()),
         backgroundColor: Colors.blue[900],
         foregroundColor: Colors.white,
         elevation: 0,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(55.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -248,7 +247,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Register your company with our cloud service',
+                      'Register Your Company',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey[600],
@@ -259,7 +258,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                 ),
               ),
               
-              const SizedBox(height: 40),
+              const SizedBox(height: 85),
               
               // Generate Keys Section
               if (!_showGeneratedKeys) ...[
@@ -301,7 +300,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                           ),
                         ),
                         child: Text(
-                          'Generate Keys'.tr(),
+                          'Generate'.tr(),
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -413,7 +412,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                           ),
                           decoration: InputDecoration(
                             counterText: '',
-                            hintText: 'KEY ${index + 1}',
+                            // hintText: 'KEY ${index + 1}',
                             hintStyle: TextStyle(
                               color: Colors.grey[400],
                               fontSize: 10,
@@ -482,7 +481,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                   controller: _customerNameController,
                   focusNode: _customerNameFocus,
                   decoration: InputDecoration(
-                    labelText: 'Business Name'.tr(),
+                    labelText: 'Name'.tr(),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -502,7 +501,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                   focusNode: _customerAddressFocus,
                   maxLines: 2,
                   decoration: InputDecoration(
-                    labelText: 'Business Address'.tr(),
+                    labelText: 'Address'.tr(),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
