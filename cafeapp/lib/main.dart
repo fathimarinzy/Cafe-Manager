@@ -125,7 +125,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-// import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'screens/login_screen.dart';
 import 'screens/person_form_screen.dart';
@@ -158,7 +157,7 @@ void main() async {
   
   // Quick initialization - only critical components
   await quickInitialization();
-  
+
   runApp(const MyApp());
 }
 

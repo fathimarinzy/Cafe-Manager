@@ -5,7 +5,9 @@ import 'package:pdf/widgets.dart' as pw;
 import '../repositories/local_order_repository.dart';
 import '../repositories/local_expense_repository.dart';
 import '../models/order.dart';
-// import '../services/bill_service.dart';
+import '../services/thermal_printer_service.dart';
+import 'package:esc_pos_printer/esc_pos_printer.dart';
+import 'package:esc_pos_utils/esc_pos_utils.dart';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -37,7 +39,7 @@ class _ReportScreenState extends State<ReportScreen> {
   late DateTime _startDate;
   late DateTime _endDate;
   bool _isCustomDateRange = false;
-  bool _isSavingPdf = false;
+  bool _isPrinting = false; // Add printing state
 
   @override
   void initState() {
@@ -51,49 +53,247 @@ class _ReportScreenState extends State<ReportScreen> {
     _loadReport();
   }
 
-  // Helper method to get translated service type for display
+  // Add print report method
+  Future<void> _printReport() async {
+    if (_reportData == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No report data available to print'.tr())),
+      );
+      return;
+    }
+    
+    setState(() {
+      _isPrinting = true;
+    });
 
-String _getTranslatedServiceType(String serviceType) {
-  // Handle English to current language
-  if (serviceType.contains('Dining')) {
-    // Extract table number if it exists
-    final tableMatch = RegExp(r'Table (\d+)').firstMatch(serviceType);
-    if (tableMatch != null) {
-      final tableNumber = tableMatch.group(1);
-      return '${'Dining'.tr()} - ${'Table'.tr()} $tableNumber';
+    try {
+      final printed = await _printThermalReport();
+      
+      if (mounted) {
+        if (printed) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Report printed successfully'.tr())),
+          );
+        } else {
+          // If printing failed, offer to save as PDF
+          final shouldSave = await _showPrintFailedDialog();
+          if (shouldSave == true) {
+            await _savePdfFallback();
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error printing report: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error printing report'.tr())),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPrinting = false;
+        });
+      }
     }
-    return 'Dining'.tr();
-  } else if (serviceType.contains('Takeout')) {
-    return 'Takeout'.tr();
-  } else if (serviceType.contains('Delivery')) {
-    return 'Delivery'.tr();
-  } else if (serviceType.contains('Drive')) {
-    return 'Drive Through'.tr();
-  } else if (serviceType.contains('Catering')) {
-    return 'Catering'.tr();
-  } 
-  
-  // Handle Arabic to current language (for consistency)
-  else if (serviceType.contains('تناول الطعام')) {
-    // Extract table number if it exists
-    final tableMatch = RegExp(r'الطاولة (\d+)').firstMatch(serviceType);
-    if (tableMatch != null) {
-      final tableNumber = tableMatch.group(1);
-      return '${'Dining'.tr()} - ${'Table'.tr()} $tableNumber';
-    }
-    return 'Dining'.tr();
-  } else if (serviceType.contains('طلب خارجي')) {
-    return 'Takeout'.tr();
-  } else if (serviceType.contains('توصيل')) {
-    return 'Delivery'.tr();
-  } else if (serviceType.contains('السيارة')) {
-    return 'Drive Through'.tr();
-  } else if (serviceType.contains('تموين')) {
-    return 'Catering'.tr();
-  } else {
-    return serviceType; // Fallback to original
   }
-}
+
+  // Show dialog when printing fails
+  Future<bool?> _showPrintFailedDialog() async {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Printer Not Available'.tr()),
+          content: Text('Could not connect to the thermal printer. Would you like to save the report as a PDF instead?'.tr()),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Cancel'.tr()),
+              onPressed: () {
+                Navigator.of(context).pop(false);
+              },
+            ),
+            TextButton(
+              child: Text('Save PDF'.tr()),
+              onPressed: () {
+                Navigator.of(context).pop(true);
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Print report using thermal printer
+  Future<bool> _printThermalReport() async {
+    try {
+      final ip = await ThermalPrinterService.getPrinterIp();
+      final port = await ThermalPrinterService.getPrinterPort();
+      final businessInfo = await ThermalPrinterService.getBusinessInfo();
+      
+      // Get report title and date range
+      String reportTitle;
+      String dateRangeText;
+      
+      if (_selectedReportType == 'daily') {
+        reportTitle = 'Daily Report'.tr();
+        dateRangeText = DateFormat('dd MMM yyyy').format(_selectedDate);
+      } else if (_selectedReportType == 'monthly') {
+        reportTitle = 'Monthly Report'.tr();
+        dateRangeText = DateFormat('MMMM yyyy').format(_startDate);
+      } else {
+        reportTitle = 'Monthly Report'.tr();
+        dateRangeText = '${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}';
+      }
+      
+      final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
+      final revenue = _reportData!['revenue'] ?? {};
+      final paymentTotals = _reportData!['paymentTotals'] as Map<String, dynamic>? ?? {};
+      final serviceTypeSales = _reportData!['serviceTypeSales'] as List? ?? [];
+      
+      // Initialize printer
+      final profile = await CapabilityProfile.load();
+      final printer = NetworkPrinter(PaperSize.mm80, profile);
+      
+      debugPrint('Connecting to printer at $ip:$port for report');
+      final PosPrintResult result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 5));
+      
+      if (result != PosPrintResult.success) {
+        debugPrint('Failed to connect to printer: ${result.msg}');
+        return false;
+      }
+      
+      // Print report header
+      printer.text(businessInfo['name']!, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
+      printer.text('', styles: const PosStyles(align: PosAlign.center));
+      printer.text(reportTitle, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
+      printer.text(dateRangeText, styles: const PosStyles(align: PosAlign.center));
+      printer.text('Generated: ${DateFormat('dd MMM yyyy HH:mm').format(DateTime.now())}', styles: const PosStyles(align: PosAlign.center));
+      
+      // Divider
+      printer.hr(ch: '=', len: 32);
+      
+      // Cash and Bank Sales Section
+      printer.text('Cash and Bank Sales'.tr(), styles: const PosStyles(align: PosAlign.center, bold: true));
+      printer.hr();
+      
+      // Table headers
+      printer.row([
+        PosColumn(text: 'Method'.tr(), width: 4, styles: const PosStyles(bold: true)),
+        PosColumn(text: 'Revenue'.tr(), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+        PosColumn(text: 'Expenses'.tr(), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+      ]);
+      printer.hr();
+      
+      // Cash row
+      printer.row([
+        PosColumn(text: 'Cash Sales'.tr(), width: 4),
+        PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'cash', 'sales')), width: 4, styles: const PosStyles(align: PosAlign.right)),
+        PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'cash', 'expenses')), width: 4, styles: const PosStyles(align: PosAlign.right)),
+      ]);
+      
+      // Bank row
+      printer.row([
+        PosColumn(text: 'Bank Sales'.tr(), width: 4),
+        PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'bank', 'sales')), width: 4, styles: const PosStyles(align: PosAlign.right)),
+        PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'bank', 'expenses')), width: 4, styles: const PosStyles(align: PosAlign.right)),
+      ]);
+      
+      printer.hr();
+      
+      // Total row
+      printer.row([
+        PosColumn(text: 'Total'.tr(), width: 4, styles: const PosStyles(bold: true)),
+        PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'total', 'sales')), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+        PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'total', 'expenses')), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+      ]);
+      
+      // Balance row
+      final totalRevenue = _getPaymentValue(paymentTotals, 'total', 'sales');
+      final totalExpenses = _getPaymentValue(paymentTotals, 'total', 'expenses');
+      final balance = totalRevenue - totalExpenses;
+      
+      printer.row([
+        PosColumn(text: 'Balance'.tr(), width: 8, styles: const PosStyles(bold: true)),
+        PosColumn(text: currencyFormat.format(balance), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+      ]);
+      
+      printer.text('', styles: const PosStyles(align: PosAlign.center));
+      
+      // Service Type Sales Section
+      printer.text('Total Sales'.tr(), styles: const PosStyles(align: PosAlign.center, bold: true));
+      printer.hr();
+      
+      if (serviceTypeSales.isNotEmpty) {
+        printer.row([
+          PosColumn(text: 'Service Type'.tr(), width: 6, styles: const PosStyles(bold: true)),
+          PosColumn(text: 'Orders'.tr(), width: 3, styles: const PosStyles(bold: true, align: PosAlign.center)),
+          PosColumn(text: 'Revenue'.tr(), width: 3, styles: const PosStyles(bold: true, align: PosAlign.right)),
+        ]);
+        printer.hr();
+        
+        for (var service in serviceTypeSales) {
+          final serviceType = service['serviceType']?.toString() ?? '';
+          final totalOrders = service['totalOrders'] as int? ?? 0;
+          final totalRevenue = service['totalRevenue'] as double? ?? 0.0;
+          
+          printer.row([
+            PosColumn(text: _getTranslatedServiceType(serviceType), width: 6),
+            PosColumn(text: '$totalOrders', width: 3, styles: const PosStyles(align: PosAlign.center)),
+            PosColumn(text: currencyFormat.format(totalRevenue), width: 3, styles: const PosStyles(align: PosAlign.right)),
+          ]);
+        }
+      } else {
+        printer.text('No sales data available'.tr(), styles: const PosStyles(align: PosAlign.center));
+      }
+      
+      printer.text('', styles: const PosStyles(align: PosAlign.center));
+      
+      // Revenue Breakdown Section
+      printer.text('Revenue Breakdown'.tr(), styles: const PosStyles(align: PosAlign.center, bold: true));
+      printer.hr();
+      
+      printer.row([
+        PosColumn(text: 'Subtotal:'.tr(), width: 8, styles: const PosStyles(align: PosAlign.right)),
+        PosColumn(text: currencyFormat.format(revenue['subtotal'] as double? ?? 0.0), width: 4, styles: const PosStyles(align: PosAlign.right)),
+      ]);
+      
+      printer.row([
+        PosColumn(text: 'Tax:'.tr(), width: 8, styles: const PosStyles(align: PosAlign.right)),
+        PosColumn(text: currencyFormat.format(revenue['tax'] as double? ?? 0.0), width: 4, styles: const PosStyles(align: PosAlign.right)),
+      ]);
+      
+      printer.row([
+        PosColumn(text: 'Discounts:'.tr(), width: 8, styles: const PosStyles(align: PosAlign.right)),
+        PosColumn(text: currencyFormat.format(revenue['discounts'] as double? ?? 0.0), width: 4, styles: const PosStyles(align: PosAlign.right)),
+      ]);
+      
+      printer.hr();
+      
+      printer.row([
+        PosColumn(text: 'Total Revenue:'.tr(), width: 8, styles: const PosStyles(align: PosAlign.right, bold: true)),
+        PosColumn(text: currencyFormat.format(revenue['total'] as double? ?? 0.0), width: 4, styles: const PosStyles(align: PosAlign.right, bold: true)),
+      ]);
+      
+      // Footer
+      printer.text('', styles: const PosStyles(align: PosAlign.center));
+      printer.hr(ch: '=', len: 32);
+      printer.text('End of Report', styles: const PosStyles(align: PosAlign.center));
+      
+      // Cut paper
+      printer.cut();
+      
+      // Disconnect
+      printer.disconnect();
+      
+      return true;
+    } catch (e) {
+      debugPrint('Error printing thermal report: $e');
+      return false;
+    }
+  }
 
   // Helper method for orders count text
   String getOrdersCountText(int count) {
@@ -113,17 +313,53 @@ String _getTranslatedServiceType(String serviceType) {
     }
   }
   
-  // Generate and save PDF report
-  Future<void> _generateAndSavePdf() async {
-    if (_reportData == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No report data available to save'.tr())),
-      );
-      return;
-    }
+  // Helper method to get translated service type for display
+  String _getTranslatedServiceType(String serviceType) {
+    // Handle English to current language
+    if (serviceType.contains('Dining')) {
+      // Extract table number if it exists
+      final tableMatch = RegExp(r'Table (\d+)').firstMatch(serviceType);
+      if (tableMatch != null) {
+        final tableNumber = tableMatch.group(1);
+        return '${'Dining'.tr()} - ${'Table'.tr()} $tableNumber';
+      }
+      return 'Dining'.tr();
+    } else if (serviceType.contains('Takeout')) {
+      return 'Takeout'.tr();
+    } else if (serviceType.contains('Delivery')) {
+      return 'Delivery'.tr();
+    } else if (serviceType.contains('Drive')) {
+      return 'Drive Through'.tr();
+    } else if (serviceType.contains('Catering')) {
+      return 'Catering'.tr();
+    } 
     
+    // Handle Arabic to current language (for consistency)
+    else if (serviceType.contains('تناول الطعام')) {
+      // Extract table number if it exists
+      final tableMatch = RegExp(r'الطاولة (\d+)').firstMatch(serviceType);
+      if (tableMatch != null) {
+        final tableNumber = tableMatch.group(1);
+        return '${'Dining'.tr()} - ${'Table'.tr()} $tableNumber';
+      }
+      return 'Dining'.tr();
+    } else if (serviceType.contains('طلب خارجي')) {
+      return 'Takeout'.tr();
+    } else if (serviceType.contains('توصيل')) {
+      return 'Delivery'.tr();
+    } else if (serviceType.contains('السيارة')) {
+      return 'Drive Through'.tr();
+    } else if (serviceType.contains('تموين')) {
+      return 'Catering'.tr();
+    } else {
+      return serviceType; // Fallback to original
+    }
+  }
+  
+  // Save PDF as fallback when printing fails
+  Future<void> _savePdfFallback() async {
     setState(() {
-      _isSavingPdf = true;
+      _isPrinting = true;
     });
 
     try {
@@ -156,13 +392,13 @@ String _getTranslatedServiceType(String serviceType) {
       debugPrint('Error generating or saving PDF: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error'.tr())),
+          SnackBar(content: Text('Error saving PDF'.tr())),
         );
       }
     } finally {
       if (mounted) {
         setState(() {
-          _isSavingPdf = false;
+          _isPrinting = false;
         });
       }
     }
@@ -208,6 +444,7 @@ String _getTranslatedServiceType(String serviceType) {
       debugPrint('Could not load font, using default: $e');
     }
     // Get restaurant name from SettingsProvider instead of BillService
+      if (!mounted) return pdf;
       final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
       final restaurantName = settingsProvider.businessName.isNotEmpty 
       ? settingsProvider.businessName 
@@ -916,7 +1153,8 @@ String _getTranslatedServiceType(String serviceType) {
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
-          _isSavingPdf
+          // Print button only - PDF fallback is handled automatically
+          _isPrinting
               ? const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16.0),
                   child: Center(
@@ -931,9 +1169,9 @@ String _getTranslatedServiceType(String serviceType) {
                   ),
                 )
               : IconButton(
-                  icon: const Icon(Icons.save_alt),
-                  tooltip: 'Save as PDF'.tr(),
-                  onPressed: _reportData == null ? null : _generateAndSavePdf,
+                  icon: const Icon(Icons.print),
+                  tooltip: 'Print Report'.tr(),
+                  onPressed: _reportData == null ? null : _printReport,
                 ),
         ],
       ),
@@ -1754,8 +1992,5 @@ IconData _getServiceTypeIcon(String serviceType) {
 
 Color _getServiceTypeColor(String serviceType) {
   return ServiceTypeUtils.getColor(serviceType);
-}
-
-
-  
+} 
 }

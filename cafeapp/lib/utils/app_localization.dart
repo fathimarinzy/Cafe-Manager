@@ -325,7 +325,7 @@ class AppLocalization {
     'Test Connection': 'اختبار الاتصال',
     'Testing Connection...': 'جاري اختبار الاتصال...',
     'Printer Discovery': 'اكتشاف الطابعة',
-    'Automatically find network printers on your local network': 'اكتشف الطابعات على شبكتك المحلية تلقائياً',
+    'Automatically find network printers on your local network.': 'اكتشف الطابعات على شبكتك المحلية تلقائياً',
     'Discover Printers': 'اكتشاف الطابعات',
     'Discovering...': 'جاري الاكتشاف...',
     'Printer Setup Help': 'مساعدة إعداد الطابعة',
@@ -374,6 +374,7 @@ class AppLocalization {
     'No items data available': 'لا توجد بيانات للعناصر', 
     'sold': 'مباع',
     'orders': 'طلبات',
+    'Could not connect to the thermal printer. Would you like to save the report as a PDF instead?':'تعذر الاتصال بالطابعة الحرارية. هل ترغب في حفظ التقرير كملف PDF؟',
     'Error loading report': 'خطأ في تحميل التقرير',
     'Report saved as PDF': 'تم حفظ التقرير كملف PDF',
     'Failed to save report as PDF': 'فشل في حفظ التقرير كملف PDF',
@@ -381,6 +382,9 @@ class AppLocalization {
     'No sales data available':"لا توجد بيانات مبيعات متاحة",
     'No sales data found':'لم يتم العثور على بيانات المبيعات',
     'Payment data not available':'بيانات الدفع غير متوفرة',
+    'No report data available to print':"لا توجد بيانات تقرير متاحة للطباعة",
+    'Report printed successfully':'تم طباعة التقرير بنجاح',
+    'Error printing report':'خطأ في طباعة التقرير',
 
     // Settings screen 
     'Settings': 'الإعدادات',

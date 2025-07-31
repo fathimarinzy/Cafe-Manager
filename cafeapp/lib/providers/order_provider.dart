@@ -311,14 +311,14 @@ void addToCart(MenuItem item) {
       final now = DateTime.now();
       
       // Format for consistent timestamp handling
-      final timestamp = now.millisecondsSinceEpoch;
-      final formattedTimestamp = 'local_$timestamp';
-      
+      final formattedTimestamp = now.toIso8601String();
       // Create or update the order locally
       Order? localOrder;
       
       // Log the current state for debugging
       debugPrint('Processing order: currentOrderId=$_currentOrderId');
+      debugPrint('Order timestamp: $formattedTimestamp'); // Add debug log
+
       
       if (_currentOrderId != null) {
         // Updating existing order - make sure to use the existing order ID
