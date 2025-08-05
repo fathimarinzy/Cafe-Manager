@@ -395,6 +395,9 @@ void addToCart(MenuItem item) {
         };
       }
       
+      // Store context mounted state before async operation
+      final isContextMounted = context.mounted;
+      
       // Now print the kitchen receipt with the order ID
       final String orderNumberPadded = localOrder.id.toString().padLeft(4, '0');
       Map<String, dynamic> printResult = await BillService.printKitchenOrderReceipt(
@@ -402,17 +405,18 @@ void addToCart(MenuItem item) {
         serviceType: _currentServiceType,
         tableInfo: tableInfo,
         orderNumber: orderNumberPadded,
-        context: context, // Pass context for dialog if needed
+        context: isContextMounted ? context : null, // Pass context only if still mounted
       );
       
       // If this is a table order, update the table status to occupied
-    if (tableNumber != null && context.mounted) {
+    if (tableNumber != null && isContextMounted && context.mounted) {
       final tableProvider = Provider.of<TableProvider>(context, listen: false);
+      final nonNullTableNumber = tableNumber; // Use non-null assertion since we've already checked
       
       // First try to find the exact table
       final table = tableProvider.tables.firstWhere(
-        (t) => t.number == tableNumber,
-        orElse: () => TableModel(id: '', number: tableNumber!, isOccupied: false)
+        (t) => t.number == nonNullTableNumber,
+        orElse: () => TableModel(id: '', number: nonNullTableNumber, isOccupied: false)
       );
       
       if (table.id.isNotEmpty) {
@@ -426,12 +430,12 @@ void addToCart(MenuItem item) {
         );
         
         await tableProvider.updateTable(updatedTable);
-        debugPrint('Table ${tableNumber.toString()} status updated to occupied');
-      } else if (tableNumber > 0) {
+        debugPrint('Table ${nonNullTableNumber.toString()} status updated to occupied');
+      } else {
         // If the table wasn't found in the provider but we have a valid number,
         // try to update it by number
-        await tableProvider.setTableStatus(tableNumber, true);
-        debugPrint('Table ${tableNumber.toString()} status set to occupied by number');
+        await tableProvider.setTableStatus(nonNullTableNumber, true);
+        debugPrint('Table ${nonNullTableNumber.toString()} status set to occupied by number');
       }
     }
 
@@ -600,11 +604,6 @@ void addToCart(MenuItem item) {
   // Update payment method for an order
   Future<bool> updateOrderPaymentMethod(int orderId, String paymentMethod) async {
     try {
-      if (orderId <= 0) {
-        debugPrint('Cannot update payment method: Invalid order ID');
-        return false;
-      }
-      
       // Get the order from local storage
       final localOrders = await _localOrderRepo.getAllOrders();
       

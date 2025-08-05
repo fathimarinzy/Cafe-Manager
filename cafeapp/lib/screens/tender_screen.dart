@@ -1590,10 +1590,6 @@ class _TenderScreenState extends State<TenderScreen> {
         debugPrint('Created new order with cash payment: ${savedOrder.id}');
       }
       
-      if (savedOrder == null) {
-        throw Exception('Failed to process order in the system');
-      }
-      
       if (widget.order.id == 0) {
         widget.order.id = savedOrder.id ?? 0;
       }
@@ -2517,7 +2513,7 @@ class _TenderScreenState extends State<TenderScreen> {
       ),
     );
   }
-  
+
   String _getTranslatedServiceType(String serviceType) {
   return ServiceTypeUtils.getTranslated(serviceType);
 }

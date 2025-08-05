@@ -97,22 +97,25 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
                           
                           try {
                             await personProvider.addPerson(person);
-                            if (!mounted) return;
+
+                            if (!context.mounted) return;
+                            final messenger = ScaffoldMessenger.of(context); // ✅ assign first
+                            final navigator = Navigator.of(context);  
                             
                             if (personProvider.error.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              messenger.showSnackBar(
                                 SnackBar(
                                   content: Text('Person added successfully'.tr()),
                                 ),
                               );
-                              Navigator.pop(context);
+                              navigator.pop();
                             } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              messenger.showSnackBar(
                                 SnackBar(content: Text(personProvider.error)),
                               );
                             }
                           } catch (e) {
-                            if (!mounted) return;
+                            if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('Failed to add person'.tr())),
                             );

@@ -445,44 +445,50 @@ void _showEditOrderItemsDialog() {
                 child:  Text('Cancel'.tr()),
               ),
               ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
                   bool isChanged = _orderItemsChanged(_originalItems ?? [], editedItems);
-                  
-                  if (mounted && _order != null && isChanged) {
-                    double newSubtotal = _calculateSubtotal(editedItems);
-                    double newTax = newSubtotal * (_taxRate / 100.0);
-                    double newTotal = newSubtotal + newTax - _discountAmount;
-                    
-                    setState(() {
-                      _order = OrderHistory(
-                        id: _order!.id,
-                        serviceType: _order!.serviceType,
-                        total: newTotal,
-                        status: _order!.status,
-                        createdAt: _order!.createdAt,
-                        items: editedItems,
-                      );
-                      _wasEdited = true;
-                    });
-                    
-                    _saveOrderChangesToBackend().then((success) {
-                      if (success && mounted) {
-                        final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
-                        historyProvider.loadOrders();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Order updated successfully'.tr()),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      }
-                    }).catchError((error) {
-                      debugPrint('Error when saving order: $error');
-                    });
+
+                  if (!context.mounted || _order == null || !isChanged) {
+                    if (context.mounted) Navigator.of(context).pop();
+                    return;
                   }
-                  
-                  Navigator.of(context).pop();
-                },
+
+                  double newSubtotal = _calculateSubtotal(editedItems);
+                  double newTax = newSubtotal * (_taxRate / 100.0);
+                  double newTotal = newSubtotal + newTax - _discountAmount;
+
+                  setState(() {
+                    _order = OrderHistory(
+                      id: _order!.id,
+                      serviceType: _order!.serviceType,
+                      total: newTotal,
+                      status: _order!.status,
+                      createdAt: _order!.createdAt,
+                      items: editedItems,
+                    );
+                    _wasEdited = true;
+                  });
+
+                  bool success = false;
+                  try {
+                    success = await _saveOrderChangesToBackend();
+                  } catch (error) {
+                    debugPrint('Error when saving order: $error');
+                  }
+
+                  if (success && context.mounted) {
+                    final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
+                    historyProvider.loadOrders();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Order updated successfully'.tr()),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+
+                  if (context.mounted) Navigator.of(context).pop();
+                },                    
                 child:  Text('Save'.tr()),
               ),
             ],
@@ -513,10 +519,15 @@ void _showEditOrderItemsDialog() {
   }
   
   Future<void> _showAddItemDialog(BuildContext context, List<OrderItem> items, StateSetter setState) async {
-    if (!mounted) return;
+    
+    if (!context.mounted) return;
+
     final menuProvider = Provider.of<MenuProvider>(context, listen: false);
     await menuProvider.fetchMenu();
     await menuProvider.fetchCategories();
+
+    if (!context.mounted) return;
+
     final menuItems = menuProvider.items;
     final categories = menuProvider.categories;
     
@@ -527,8 +538,6 @@ void _showEditOrderItemsDialog() {
     
     List<MenuItem> filteredItems = menuItems;
 
-     if (!mounted) return;
-    
     showDialog(
       context: context,
       builder: (BuildContext ctx) {

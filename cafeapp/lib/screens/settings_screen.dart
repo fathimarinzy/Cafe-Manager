@@ -302,8 +302,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         showDialog(
           context: context,
           barrierDismissible: false,
-          builder: (ctx) => WillPopScope(
-            onWillPop: () async => false,
+          builder: (ctx) => PopScope(
+            canPop: false,
             child: AlertDialog(
               content: Column(
                 mainAxisSize: MainAxisSize.min,

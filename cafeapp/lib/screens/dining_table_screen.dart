@@ -262,7 +262,7 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
       
       if (pendingOrders.isNotEmpty) {
         // Found at least one active order - close the loading dialog
-        if (context.mounted) {
+        if (mounted) {
           Navigator.of(context).pop();
           
           // Use the first pending order
@@ -272,7 +272,8 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
           orderProvider.setCurrentServiceType(serviceType);
           // Load existing items into the cart
           await orderProvider.loadExistingOrderItems(activeOrder.id);
-          
+        
+        if (mounted) { 
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -282,18 +283,19 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
               ),
             ),
           );
+        }
           return;
         }
       }
       
       // No active order found - close the loading dialog and proceed with new order
-      if (context.mounted) {
+      if (mounted) {
         Navigator.of(context).pop();
         _navigateToMenuScreen(serviceType, orderProvider);
       }
     } catch (e) {
       // Error occurred - close the loading dialog and proceed with new order
-      if (context.mounted) {
+      if (mounted) {
         Navigator.of(context).pop();
         debugPrint('Error checking for active orders: $e');
         _navigateToMenuScreen(serviceType, orderProvider);

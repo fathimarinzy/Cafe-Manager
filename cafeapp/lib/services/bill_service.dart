@@ -1002,14 +1002,14 @@ static Future<bool> isPrinterEnabled() async {
     
     if (!printerEnabled) {
       // Printer is disabled, skip to PDF option
-      if (context != null && context.mounted) {
         final pdf = await generateKitchenBill(
           items: items,
           serviceType: serviceType,
           tableInfo: tableInfo,
           orderNumber: orderNumber,
         );
-        
+
+      if (context != null && context.mounted) {
         final shouldSave = await showDialog<bool>(
           context: context,
           barrierDismissible: false,
@@ -1073,8 +1073,6 @@ static Future<bool> isPrinterEnabled() async {
         };
       }
       
-      // If printing failed, try to save as PDF
-      if (context != null && context.mounted) {
         // Generate the PDF
         final pdf = await generateKitchenBill(
           items: items,
@@ -1084,6 +1082,7 @@ static Future<bool> isPrinterEnabled() async {
         
         );
         
+      if (context != null && context.mounted) {
         // Show dialog to ask if user wants to save PDF
         final shouldSave = await showDialog<bool>(
           context: context,

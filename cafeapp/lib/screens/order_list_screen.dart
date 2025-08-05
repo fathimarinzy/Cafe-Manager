@@ -73,7 +73,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
   Widget build(BuildContext context) {
     return PopScope(
       // Handle back button press
-      onPopInvoked: (didPop) async {
+      onPopInvokedWithResult: (didPop, result) async {
         // If opened from MenuScreen, just pop normally instead of navigating to dashboard
         if (widget.fromMenuScreen) {
           return;
@@ -259,8 +259,6 @@ class _OrderListScreenState extends State<OrderListScreen> {
         return 'This Year'.tr();
       case OrderTimeFilter.all:
         return 'All Time'.tr();
-      default:
-        return filter.displayName;
     }
   }
 

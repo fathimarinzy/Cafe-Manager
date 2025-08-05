@@ -267,10 +267,10 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
       setState(() {
         _isLoading = false;
       });
-      
-      _showSuccessSnackBar('Deleted'.tr() + ' $deletedCount ' + 'old backup(s)'.tr());
+
+      _showSuccessSnackBar('${'Deleted'.tr()} $deletedCount ${'old backup(s)'.tr()}');
       _loadBackups(); // Refresh the list
-    } catch (e) {
+      } catch (e) {
       setState(() {
         _isLoading = false;
       });
@@ -327,7 +327,7 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
         _isLoading = false;
       });
       
-      _showSuccessSnackBar('Kept'.tr() + ' $keepCount ' + 'recent backup(s), deleted'.tr() + ' $deletedCount');
+      _showSuccessSnackBar('${'Kept'.tr()} $keepCount ${'recent backup(s), deleted'.tr()} $deletedCount');
       _loadBackups(); // Refresh the list
     } catch (e) {
       setState(() {
@@ -391,10 +391,9 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
       if (success) {
         _showSuccessSnackBar('Backup exported to Google Drive'.tr());
       } else {
-        _showErrorSnackBar(
-          'Failed to export to Google Drive'.tr() + '.\n' +
-          'Note: Google Drive export requires additional setup'.tr() + '.'
-        );
+       _showErrorSnackBar(
+        '${'Failed to export to Google Drive'.tr()}.\n${'Note: Google Drive export requires additional setup'.tr()}.'
+      );
       }
     } catch (e) {
       setState(() {
@@ -860,7 +859,7 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
       itemCount: _driveBackups.length,
       itemBuilder: (context, index) {
         final backup = _driveBackups[index];
-        final id = backup['id'] as String; // Use 'id' instead of 'fileId'
+        // final id = backup['id'] as String; 
         final name = backup['name'] as String;
         final timestamp = backup['timestamp'] as String;
         final size = backup['size'] as int? ?? 0;
@@ -986,8 +985,8 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
                       const SizedBox(width: 8),
                       Text(
                         hasDatabases
-                            ? 'Full backup'.tr() + ' (v$version)'
-                            : 'Settings only'.tr() + ' (v$version)',
+                            ? '${'Full backup'.tr()} (v$version)'
+                            : '${'Settings only'.tr()} (v$version)',
                         style: TextStyle(
                           color: Colors.grey[600],
                           fontSize: 14,
