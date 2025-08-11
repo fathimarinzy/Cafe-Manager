@@ -308,10 +308,10 @@ void addToCart(MenuItem item) {
     }
       
       // Generate a timestamp for order creation
-      final now = DateTime.now();
+      // final now = DateTime.now();
       
       // Format for consistent timestamp handling
-      final formattedTimestamp = now.toIso8601String();
+      final formattedTimestamp = DateTime.now().toLocal().toIso8601String();
       // Create or update the order locally
       Order? localOrder;
       
@@ -388,12 +388,12 @@ void addToCart(MenuItem item) {
         debugPrint('Created new order in local database: ID=${localOrder.id}');
       }
       
-      if (localOrder == null) {
-        return {
-          'success': false,
-          'message': 'Failed to create or update order in the system',
-        };
-      }
+      // if (localOrder == null) {
+      //   return {
+      //     'success': false,
+      //     'message': 'Failed to create or update order in the system',
+      //   };
+      // }  
       
       // Store context mounted state before async operation
       final isContextMounted = context.mounted;

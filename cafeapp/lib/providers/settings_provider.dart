@@ -429,8 +429,8 @@ void initializeLanguage() {
       
       // Reset business info
       _businessName = 'SIMS CAFE';
-      _businessAddress = '123 Cafe Street, City';
-      _businessPhone = '+1234567890';
+      _businessAddress = '';
+      _businessPhone = '';
       
       // Reset receipt settings
       _receiptFooter = 'Thank you for your visit! Please come again.';

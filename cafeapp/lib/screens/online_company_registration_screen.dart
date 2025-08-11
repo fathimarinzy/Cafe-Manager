@@ -315,63 +315,63 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
               // Generated Keys Display and Input Section
               if (_showGeneratedKeys) ...[
                 // Display Generated Keys
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.green[200]!),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.key, color: Colors.green[700]),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Your Registration Keys:'.tr(),
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green[700],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: _generatedKeys.asMap().entries.map((entry) {
-                          return Expanded(
-                            child: Padding(
-                              padding: EdgeInsets.only(
-                                right: entry.key < 4 ? 8.0 : 0,
-                              ),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.green[300]!),
-                                ),
-                                child: Text(
-                                  entry.value,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.green[700],
-                                    letterSpacing: 1,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ],
-                  ),
-                ),
+                // Container(
+                //   padding: const EdgeInsets.all(16),
+                //   decoration: BoxDecoration(
+                //     color: Colors.green[50],
+                //     borderRadius: BorderRadius.circular(12),
+                //     border: Border.all(color: Colors.green[200]!),
+                //   ),
+                //   child: Column(
+                //     crossAxisAlignment: CrossAxisAlignment.start,
+                //     children: [
+                //       Row(
+                //         children: [
+                //           Icon(Icons.key, color: Colors.green[700]),
+                //           const SizedBox(width: 8),
+                //           Text(
+                //             'Your Registration Keys:'.tr(),
+                //             style: TextStyle(
+                //               fontSize: 16,
+                //               fontWeight: FontWeight.bold,
+                //               color: Colors.green[700],
+                //             ),
+                //           ),
+                //         ],
+                //       ),
+                //       const SizedBox(height: 12),
+                //       Row(
+                //         children: _generatedKeys.asMap().entries.map((entry) {
+                //           return Expanded(
+                //             child: Padding(
+                //               padding: EdgeInsets.only(
+                //                 right: entry.key < 4 ? 8.0 : 0,
+                //               ),
+                //               child: Container(
+                //                 padding: const EdgeInsets.symmetric(vertical: 12),
+                //                 decoration: BoxDecoration(
+                //                   color: Colors.white,
+                //                   borderRadius: BorderRadius.circular(8),
+                //                   border: Border.all(color: Colors.green[300]!),
+                //                 ),
+                //                 child: Text(
+                //                   entry.value,
+                //                   textAlign: TextAlign.center,
+                //                   style: TextStyle(
+                //                     fontSize: 12,
+                //                     fontWeight: FontWeight.bold,
+                //                     color: Colors.green[700],
+                //                     letterSpacing: 1,
+                //                   ),
+                //                 ),
+                //               ),
+                //             ),
+                //           );
+                //         }).toList(),
+                //       ),
+                //     ],
+                //   ),
+                // ),
                 
                 const SizedBox(height: 24),
                 

@@ -435,7 +435,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
               tooltip: _isPrinterEnabled ? 'Printer Connected'.tr() : 'Printer Disconnected'.tr(),
             ),
             const SizedBox(width: 8),
-
+ 
             // Add Order List button to the left of time
             TextButton.icon(  
               onPressed: () {

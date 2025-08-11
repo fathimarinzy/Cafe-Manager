@@ -18,8 +18,8 @@ class BillService {
     final prefs = await SharedPreferences.getInstance();
     return {
       'name': prefs.getString('business_name') ?? 'SIMS CAFE',
-      'address': prefs.getString('business_address') ?? '123 Cafe Street, City',
-      'phone': prefs.getString('business_phone') ?? '+1234567890',
+      'address': prefs.getString('business_address') ?? '',
+      'phone': prefs.getString('business_phone') ?? '',
       'footer': prefs.getString('receipt_footer') ?? 'Thank you for your visit! Please come again.',
     };
   }
@@ -1081,7 +1081,7 @@ static Future<bool> isPrinterEnabled() async {
           orderNumber: orderNumber,
         
         );
-        
+
       if (context != null && context.mounted) {
         // Show dialog to ask if user wants to save PDF
         final shouldSave = await showDialog<bool>(

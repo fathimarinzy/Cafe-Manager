@@ -412,7 +412,7 @@ class _TenderScreenState extends State<TenderScreen> {
 
       bool printed = false;
       try {
-        printed = await BillService.printThermalBill(widget.order, isEdited: widget.isEdited, taxRate: widget.taxRate);
+        printed = await BillService.printThermalBill(widget.order, isEdited: widget.isEdited, taxRate: widget.taxRate, discount: discountAmount);
       } catch (e) {
         debugPrint('Printing error: $e');
         debugPrint('Attempted to print using: $savedPrinterName');
@@ -1595,7 +1595,7 @@ class _TenderScreenState extends State<TenderScreen> {
       }
       
       final statusUpdated = await _updateOrderStatus('completed');
-      
+       
       if (!statusUpdated) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1608,7 +1608,7 @@ class _TenderScreenState extends State<TenderScreen> {
       
       bool printed = false;
       try {
-        printed = await BillService.printThermalBill(widget.order, isEdited: widget.isEdited, taxRate: widget.taxRate);
+        printed = await BillService.printThermalBill(widget.order, isEdited: widget.isEdited, taxRate: widget.taxRate, discount: discountAmount);
       } catch (e) {
         debugPrint('Printing error: $e');
       }
