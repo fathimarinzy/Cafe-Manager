@@ -24,6 +24,7 @@ class SettingsProvider with ChangeNotifier {
   
   // Business information
   String _businessName = 'SIMS CAFE';
+  String _secondBusinessName = ''; // Add second business name field
   String _businessAddress = '';
   String _businessPhone = '';
   
@@ -58,6 +59,7 @@ String get languageCode {
   int get tableRows => _tableRows;
   int get tableColumns => _tableColumns;
   String get businessName => _businessName;
+  String get secondBusinessName => _secondBusinessName; // Add getter for second business name
   String get businessAddress => _businessAddress;
   String get businessPhone => _businessPhone;
   String get receiptFooter => _receiptFooter;
@@ -161,6 +163,7 @@ void initializeLanguage() {
       
       // Load business info
       _businessName = prefs.getString('business_name') ?? _businessName;
+      _secondBusinessName = prefs.getString('second_business_name') ?? _secondBusinessName; // Load second business name
       _businessAddress = prefs.getString('business_address') ?? _businessAddress;
       _businessPhone = prefs.getString('business_phone') ?? _businessPhone;
       
@@ -248,6 +251,12 @@ void initializeLanguage() {
             await prefs.setString(key, value);
           }
           break;
+        case 'second_business_name': // Add case for second business name
+          if (value is String) {
+            _secondBusinessName = value;
+            await prefs.setString(key, value);
+          }
+          break;
         case 'business_address':
           if (value is String) {
             _businessAddress = value;
@@ -300,6 +309,7 @@ void initializeLanguage() {
     int? tableRows,
     int? tableColumns,
     String? businessName,
+    String? secondBusinessName, // Add second business name parameter
     String? businessAddress,
     String? businessPhone,
     String? receiptFooter,
@@ -374,6 +384,10 @@ void initializeLanguage() {
       if (businessName != null) {
         _businessName = businessName;
         await prefs.setString('business_name', businessName);
+      }
+      if (secondBusinessName != null) { // Add second business name saving
+        _secondBusinessName = secondBusinessName;
+        await prefs.setString('second_business_name', secondBusinessName);
       }
       
       if (businessAddress != null) {
@@ -450,6 +464,7 @@ void initializeLanguage() {
         tableRows: _tableRows,
         tableColumns: _tableColumns,
         businessName: _businessName,
+        secondBusinessName: _secondBusinessName, // Include second business name in rese
         businessAddress: _businessAddress,
         businessPhone: _businessPhone,
         receiptFooter: _receiptFooter,

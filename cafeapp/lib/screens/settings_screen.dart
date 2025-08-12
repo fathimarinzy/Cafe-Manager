@@ -32,6 +32,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   
   // Business Information
   final _businessNameController = TextEditingController();
+  final _secondBusinessNameController = TextEditingController(); // Add second business name controller
   final _addressController = TextEditingController();
   final _phoneController = TextEditingController();
   
@@ -66,6 +67,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void dispose() {
     _businessNameController.dispose();
+    _secondBusinessNameController.dispose(); // Dispose second business name controller
     _addressController.dispose();
     _phoneController.dispose();
     _taxRateController.dispose();
@@ -89,6 +91,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       
       _businessNameController.text = settingsProvider.businessName;
+      _secondBusinessNameController.text = settingsProvider.secondBusinessName; // Load second business name
       _addressController.text = settingsProvider.businessAddress;
       _phoneController.text = settingsProvider.businessPhone;
       
@@ -149,6 +152,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (_isOwner) {
         await settingsProvider.saveAllSettings(
           businessName: _businessNameController.text,
+          secondBusinessName: _secondBusinessNameController.text, // Save second business name
           businessAddress: _addressController.text,
           businessPhone: _phoneController.text,
           taxRate: taxRate,
@@ -856,6 +860,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   
   void _showBusinessInfoDialog() {
     final businessNameController = TextEditingController(text: _businessNameController.text);
+    final secondBusinessNameController = TextEditingController(text: _secondBusinessNameController.text); // Add second business name controller
     final addressController = TextEditingController(text: _addressController.text);
     final phoneController = TextEditingController(text: _phoneController.text);
     
@@ -882,6 +887,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       }
                       return null;
                     },
+                  ),
+                  const SizedBox(height: 16),
+                  // Add second restaurant name field
+                  TextFormField(
+                    controller: secondBusinessNameController,
+                    decoration: InputDecoration(
+                      labelText: 'Second Restaurant Name'.tr(),
+                      border: const OutlineInputBorder(),
+                      hintText: 'Enter second restaurant name (optional)'.tr(),
+                    ),
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -916,6 +931,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onPressed: () {
                 setState(() {
                   _businessNameController.text = businessNameController.text;
+                  _secondBusinessNameController.text = secondBusinessNameController.text; // Update second business name
                   _addressController.text = addressController.text;
                   _phoneController.text = phoneController.text;
                 });

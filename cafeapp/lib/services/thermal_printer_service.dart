@@ -67,6 +67,7 @@ class ThermalPrinterService {
     final prefs = await SharedPreferences.getInstance();
     return {
       'name': prefs.getString('business_name') ?? 'SIMS CAFE',
+      'second_name': prefs.getString('second_business_name') ?? '',
       'address': prefs.getString('business_address') ?? '',
       'phone': prefs.getString('business_phone') ?? '',
       'footer': prefs.getString('receipt_footer') ?? 'Thank you for your visit! Please come again.',
@@ -168,7 +169,8 @@ class ThermalPrinterService {
       // Print receipt header
       printer.text('RECEIPT', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
       printer.text(businessInfo['name']!, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
-      
+      printer.text(businessInfo['second_name']!, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size1));
+
       printer.text('', styles: const PosStyles(align: PosAlign.center));
       printer.text(businessInfo['address']!, styles: const PosStyles(align: PosAlign.center));
       printer.text('${businessInfo['phone']}', styles: const PosStyles(align: PosAlign.center));

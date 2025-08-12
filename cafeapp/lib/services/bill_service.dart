@@ -18,6 +18,7 @@ class BillService {
     final prefs = await SharedPreferences.getInstance();
     return {
       'name': prefs.getString('business_name') ?? 'SIMS CAFE',
+      'second_name': prefs.getString('second_business_name') ?? '',
       'address': prefs.getString('business_address') ?? '',
       'phone': prefs.getString('business_phone') ?? '',
       'footer': prefs.getString('receipt_footer') ?? 'Thank you for your visit! Please come again.',
@@ -85,6 +86,14 @@ class BillService {
                       style: pw.TextStyle(
                         font: ttf, 
                         fontSize: 12, 
+                        fontWeight: pw.FontWeight.bold
+                      )
+                    ),
+                    pw.SizedBox(height: 2),
+                     pw.Text(businessInfo['second_name']!, 
+                      style: pw.TextStyle(
+                        font: ttf, 
+                        fontSize: 9, 
                         fontWeight: pw.FontWeight.bold
                       )
                     ),

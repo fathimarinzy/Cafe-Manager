@@ -167,10 +167,11 @@ class _ReportScreenState extends State<ReportScreen> {
       
       // Print report header
       printer.text(businessInfo['name']!, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
+      printer.text(businessInfo['second_name']!, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size1));
       printer.text('', styles: const PosStyles(align: PosAlign.center));
       printer.text(reportTitle, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
       printer.text(dateRangeText, styles: const PosStyles(align: PosAlign.center));      
-      // Divider
+      // Divider 
       printer.hr(ch: '=', len: 32);
       
       // Cash and Bank Sales Section
@@ -452,7 +453,10 @@ class _ReportScreenState extends State<ReportScreen> {
       final restaurantName = settingsProvider.businessName.isNotEmpty 
       ? settingsProvider.businessName 
       : 'SIMS CAFE'; // Fallback name
-    
+      final secondBusinessName = settingsProvider.secondBusinessName.isNotEmpty 
+      ? settingsProvider.secondBusinessName 
+      : ''; // Fallback name
+
     // final businessInfo = await BillService.getBusinessInfo();
     
     String reportTitle;
@@ -484,6 +488,16 @@ class _ReportScreenState extends State<ReportScreen> {
             children: [
               pw.Text(
                 restaurantName,               
+                 style: pw.TextStyle(
+                  font: ttf,
+                  fontSize: 18,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+                textAlign: pw.TextAlign.center,
+              ),
+              pw.SizedBox(height: 3),
+              pw.Text(
+                secondBusinessName,               
                  style: pw.TextStyle(
                   font: ttf,
                   fontSize: 18,
