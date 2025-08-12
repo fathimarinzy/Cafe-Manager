@@ -126,223 +126,177 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
- // Print report using thermal printer
-Future<bool> _printThermalReport() async {
-  try {
-    final ip = await ThermalPrinterService.getPrinterIp();
-    final port = await ThermalPrinterService.getPrinterPort();
-    final businessInfo = await ThermalPrinterService.getBusinessInfo();
-    
-    // Get report title and date range
-    String reportTitle;
-    String dateRangeText;
-    
-    if (_selectedReportType == 'daily') {
-      reportTitle = 'Daily Report'.tr();
-      dateRangeText = DateFormat('dd MMM yyyy').format(_selectedDate);
-    } else if (_selectedReportType == 'monthly') {
-      reportTitle = 'Monthly Report'.tr();
-      dateRangeText = DateFormat('MMMM yyyy').format(_startDate);
-    } else {
-      reportTitle = 'Monthly Report'.tr();
-      dateRangeText = '${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}';
-    }
-    
-    final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
-    final revenue = _reportData!['revenue'] ?? {};
-    final paymentTotals = _reportData!['paymentTotals'] as Map<String, dynamic>? ?? {};
-    final serviceTypeSales = _reportData!['serviceTypeSales'] as List? ?? [];
-    
-    // Initialize printer
-    final profile = await CapabilityProfile.load();
-    final printer = NetworkPrinter(PaperSize.mm80, profile);
-    
-    debugPrint('Connecting to printer at $ip:$port for report');
-    final PosPrintResult result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 20)); // ✅ Longer timeout for reports
-    
-    if (result != PosPrintResult.success) {
-      debugPrint('Failed to connect to printer: ${result.msg}');
-      return false;
-    }
-    
-    // Print report header
-    printer.text(businessInfo['name']!, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
-    await Future.delayed(const Duration(milliseconds: 500)); // ✅ CRITICAL - Large header text
-    
-    printer.text('', styles: const PosStyles(align: PosAlign.center));
-    printer.text(reportTitle, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
-    await Future.delayed(const Duration(milliseconds: 400)); // ✅ CRITICAL - Large title
-    
-    printer.text(dateRangeText, styles: const PosStyles(align: PosAlign.center));
-    await Future.delayed(const Duration(milliseconds: 300)); // ✅ IMPORTANT
-    
-    // Divider
-    printer.hr(ch: '=', len: 32);
-    await Future.delayed(const Duration(milliseconds: 400)); // ✅ CRITICAL - Special divider
-    
-    // Cash and Bank Sales Section
-    printer.text('Cash and Bank Sales'.tr(), styles: const PosStyles(align: PosAlign.center, bold: true));
-    await Future.delayed(const Duration(milliseconds: 300)); // ✅ IMPORTANT - Section header
-    
-    printer.hr();
-    await Future.delayed(const Duration(milliseconds: 300)); // ✅ CRITICAL - Divider
-    
-    // Table headers
-    printer.row([
-      PosColumn(text: 'Method'.tr(), width: 4, styles: const PosStyles(bold: true)),
-      PosColumn(text: 'Revenue'.tr(), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-      PosColumn(text: 'Expenses'.tr(), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-    ]);
-    await Future.delayed(const Duration(milliseconds: 200)); // ✅ IMPORTANT - Table header
-    
-    printer.hr();
-    await Future.delayed(const Duration(milliseconds: 300)); // ✅ CRITICAL
-    
-    // Cash row
-    printer.row([
-      PosColumn(text: 'Cash Sales'.tr(), width: 4),
-      PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'cash', 'sales')), width: 4, styles: const PosStyles(align: PosAlign.right)),
-      PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'cash', 'expenses')), width: 4, styles: const PosStyles(align: PosAlign.right)),
-    ]);
-    await Future.delayed(const Duration(milliseconds: 150)); // ✅ IMPORTANT - Table row
-    
-    // Bank row
-    printer.row([
-      PosColumn(text: 'Bank Sales'.tr(), width: 4),
-      PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'bank', 'sales')), width: 4, styles: const PosStyles(align: PosAlign.right)),
-      PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'bank', 'expenses')), width: 4, styles: const PosStyles(align: PosAlign.right)),
-    ]);
-    await Future.delayed(const Duration(milliseconds: 150)); // ✅ IMPORTANT - Table row
-    
-    printer.hr();
-    await Future.delayed(const Duration(milliseconds: 300)); // ✅ CRITICAL
-    
-    // Total row
-    printer.row([
-      PosColumn(text: 'Total'.tr(), width: 4, styles: const PosStyles(bold: true)),
-      PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'total', 'sales')), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-      PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'total', 'expenses')), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-    ]);
-    await Future.delayed(const Duration(milliseconds: 200)); // ✅ IMPORTANT - Bold row
-    
-    // Balance row
-    final totalRevenue = _getPaymentValue(paymentTotals, 'total', 'sales');
-    final totalExpenses = _getPaymentValue(paymentTotals, 'total', 'expenses');
-    final balance = totalRevenue - totalExpenses;
-    
-    printer.row([
-      PosColumn(text: 'Balance'.tr(), width: 8, styles: const PosStyles(bold: true)),
-      PosColumn(text: currencyFormat.format(balance), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-    ]);
-    await Future.delayed(const Duration(milliseconds: 200)); // ✅ IMPORTANT - Balance row
-    
-    printer.text('', styles: const PosStyles(align: PosAlign.center));
-    await Future.delayed(const Duration(milliseconds: 300)); // ✅ IMPORTANT - Section break
-    
-    // Service Type Sales Section
-    printer.text('Total Sales'.tr(), styles: const PosStyles(align: PosAlign.center, bold: true));
-    await Future.delayed(const Duration(milliseconds: 300)); // ✅ IMPORTANT - Section header
-    
-    printer.hr();
-    await Future.delayed(const Duration(milliseconds: 300)); // ✅ CRITICAL
-    
-    if (serviceTypeSales.isNotEmpty) {
+  // Print report using thermal printer
+  Future<bool> _printThermalReport() async {
+    try {
+      final ip = await ThermalPrinterService.getPrinterIp();
+      final port = await ThermalPrinterService.getPrinterPort();
+      final businessInfo = await ThermalPrinterService.getBusinessInfo();
+      
+      // Get report title and date range
+      String reportTitle;
+      String dateRangeText;
+      
+      if (_selectedReportType == 'daily') {
+        reportTitle = 'Daily Report'.tr();
+        dateRangeText = DateFormat('dd MMM yyyy').format(_selectedDate);
+      } else if (_selectedReportType == 'monthly') {
+        reportTitle = 'Monthly Report'.tr();
+        dateRangeText = DateFormat('MMMM yyyy').format(_startDate);
+      } else {
+        reportTitle = 'Monthly Report'.tr();
+        dateRangeText = '${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}';
+      }
+      
+      final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
+      final revenue = _reportData!['revenue'] ?? {};
+      final paymentTotals = _reportData!['paymentTotals'] as Map<String, dynamic>? ?? {};
+      final serviceTypeSales = _reportData!['serviceTypeSales'] as List? ?? [];
+      
+      // Initialize printer
+      final profile = await CapabilityProfile.load();
+      final printer = NetworkPrinter(PaperSize.mm80, profile);
+      
+      debugPrint('Connecting to printer at $ip:$port for report');
+      final PosPrintResult result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 5));
+      
+      if (result != PosPrintResult.success) {
+        debugPrint('Failed to connect to printer: ${result.msg}');
+        return false;
+      }
+      
+      // Print report header
+      printer.text(businessInfo['name']!, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
+      printer.text('', styles: const PosStyles(align: PosAlign.center));
+      printer.text(reportTitle, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
+      printer.text(dateRangeText, styles: const PosStyles(align: PosAlign.center));      
+      // Divider
+      printer.hr(ch: '=', len: 32);
+      
+      // Cash and Bank Sales Section
+      printer.text('Cash and Bank Sales'.tr(), styles: const PosStyles(align: PosAlign.center, bold: true));
+      printer.hr();
+      
+      // Table headers
       printer.row([
-        PosColumn(text: 'Service Type'.tr(), width: 6, styles: const PosStyles(bold: true)),
-        PosColumn(text: 'Orders'.tr(), width: 3, styles: const PosStyles(bold: true, align: PosAlign.center)),
-        PosColumn(text: 'Revenue'.tr(), width: 3, styles: const PosStyles(bold: true, align: PosAlign.right)),
+        PosColumn(text: 'Method'.tr(), width: 4, styles: const PosStyles(bold: true)),
+        PosColumn(text: 'Revenue'.tr(), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+        PosColumn(text: 'Expenses'.tr(), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
       ]);
-      await Future.delayed(const Duration(milliseconds: 200)); // ✅ IMPORTANT
+      printer.hr();
+      
+      // Cash row
+      printer.row([
+        PosColumn(text: 'Cash Sales'.tr(), width: 4),
+        PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'cash', 'sales')), width: 4, styles: const PosStyles(align: PosAlign.right)),
+        PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'cash', 'expenses')), width: 4, styles: const PosStyles(align: PosAlign.right)),
+      ]);
+      
+      // Bank row
+      printer.row([
+        PosColumn(text: 'Bank Sales'.tr(), width: 4),
+        PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'bank', 'sales')), width: 4, styles: const PosStyles(align: PosAlign.right)),
+        PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'bank', 'expenses')), width: 4, styles: const PosStyles(align: PosAlign.right)),
+      ]);
       
       printer.hr();
-      await Future.delayed(const Duration(milliseconds: 300)); // ✅ CRITICAL
       
-      for (int i = 0; i < serviceTypeSales.length; i++) {
-        final service = serviceTypeSales[i];
-        final serviceType = service['serviceType']?.toString() ?? '';
-        final totalOrders = service['totalOrders'] as int? ?? 0;
-        final totalRevenue = service['totalRevenue'] as double? ?? 0.0;
-        
+      // Total row
+      printer.row([
+        PosColumn(text: 'Total'.tr(), width: 4, styles: const PosStyles(bold: true)),
+        PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'total', 'sales')), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+        PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'total', 'expenses')), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+      ]);
+      
+      // Balance row
+      final totalRevenue = _getPaymentValue(paymentTotals, 'total', 'sales');
+      final totalExpenses = _getPaymentValue(paymentTotals, 'total', 'expenses');
+      final balance = totalRevenue - totalExpenses;
+      
+      printer.row([
+        PosColumn(text: 'Balance'.tr(), width: 8, styles: const PosStyles(bold: true)),
+        PosColumn(text: currencyFormat.format(balance), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+      ]);
+      
+      printer.text('', styles: const PosStyles(align: PosAlign.center));
+      
+      // Service Type Sales Section
+      printer.text('Total Sales'.tr(), styles: const PosStyles(align: PosAlign.center, bold: true));
+      printer.hr();
+      
+      if (serviceTypeSales.isNotEmpty) {
         printer.row([
-          PosColumn(text: _getTranslatedServiceType(serviceType), width: 6),
-          PosColumn(text: '$totalOrders', width: 3, styles: const PosStyles(align: PosAlign.center)),
-          PosColumn(text: currencyFormat.format(totalRevenue), width: 3, styles: const PosStyles(align: PosAlign.right)),
+          PosColumn(text: 'Service Type'.tr(), width: 6, styles: const PosStyles(bold: true)),
+          PosColumn(text: 'Orders'.tr(), width: 3, styles: const PosStyles(bold: true, align: PosAlign.center)),
+          PosColumn(text: 'Revenue'.tr(), width: 3, styles: const PosStyles(bold: true, align: PosAlign.right)),
         ]);
-        await Future.delayed(const Duration(milliseconds: 120)); // ✅ IMPORTANT - Service row
+        printer.hr();
         
-        // Keep-alive every 5 services to prevent timeout
-        if ((i + 1) % 5 == 0) {
-          debugPrint('Keep-alive after service ${i + 1}');
-          await Future.delayed(const Duration(milliseconds: 300)); // ✅ CRITICAL - Prevent timeout
+        for (var service in serviceTypeSales) {
+          final serviceType = service['serviceType']?.toString() ?? '';
+          final totalOrders = service['totalOrders'] as int? ?? 0;
+          final totalRevenue = service['totalRevenue'] as double? ?? 0.0;
+          
+          printer.row([
+            PosColumn(text: _getTranslatedServiceType(serviceType), width: 6),
+            PosColumn(text: '$totalOrders', width: 3, styles: const PosStyles(align: PosAlign.center)),
+            PosColumn(text: currencyFormat.format(totalRevenue), width: 3, styles: const PosStyles(align: PosAlign.right)),
+          ]);
         }
+      } else {
+        printer.text('No sales data available'.tr(), styles: const PosStyles(align: PosAlign.center));
       }
-    } else {
-      printer.text('No sales data available'.tr(), styles: const PosStyles(align: PosAlign.center));
-      await Future.delayed(const Duration(milliseconds: 200)); // ✅ IMPORTANT
-    }
-    
-    printer.text('', styles: const PosStyles(align: PosAlign.center));
-    await Future.delayed(const Duration(milliseconds: 400)); // ✅ CRITICAL - Section break
-    
-    // Revenue Breakdown Section
-    printer.text('Revenue Breakdown'.tr(), styles: const PosStyles(align: PosAlign.center, bold: true));
-    await Future.delayed(const Duration(milliseconds: 300)); // ✅ IMPORTANT
-    
-    printer.hr();
-    await Future.delayed(const Duration(milliseconds: 300)); // ✅ CRITICAL
-    
-    printer.row([
-      PosColumn(text: 'Subtotal:'.tr(), width: 8, styles: const PosStyles(align: PosAlign.right)),
-      PosColumn(text: currencyFormat.format(revenue['subtotal'] as double? ?? 0.0), width: 4, styles: const PosStyles(align: PosAlign.right)),
-    ]);
-    await Future.delayed(const Duration(milliseconds: 120)); // ✅ IMPORTANT
-    
-    printer.row([
-      PosColumn(text: 'Tax:'.tr(), width: 8, styles: const PosStyles(align: PosAlign.right)),
-      PosColumn(text: currencyFormat.format(revenue['tax'] as double? ?? 0.0), width: 4, styles: const PosStyles(align: PosAlign.right)),
-    ]);
-    await Future.delayed(const Duration(milliseconds: 120)); // ✅ IMPORTANT
-    
-    printer.row([
-      PosColumn(text: 'Discounts:'.tr(), width: 8, styles: const PosStyles(align: PosAlign.right)),
-      PosColumn(text: currencyFormat.format(revenue['discounts'] as double? ?? 0.0), width: 4, styles: const PosStyles(align: PosAlign.right)),
-    ]);
-    await Future.delayed(const Duration(milliseconds: 120)); // ✅ IMPORTANT
-    
-    printer.hr();
-    await Future.delayed(const Duration(milliseconds: 300)); // ✅ CRITICAL
-    
-    printer.row([
-      PosColumn(text: 'Total Revenue:'.tr(), width: 8, styles: const PosStyles(align: PosAlign.right, bold: true)),
-      PosColumn(text: currencyFormat.format(revenue['total'] as double? ?? 0.0), width: 4, styles: const PosStyles(align: PosAlign.right, bold: true)),
-    ]);
-    await Future.delayed(const Duration(milliseconds: 200)); // ✅ IMPORTANT - Bold total
-    
-    // Footer
-    printer.text('', styles: const PosStyles(align: PosAlign.center));
-    printer.hr(ch: '=', len: 32);
-    await Future.delayed(const Duration(milliseconds: 400)); // ✅ CRITICAL - Special divider
-    
-    printer.text('End of Report', styles: const PosStyles(align: PosAlign.center));
-    printer.text('Generated: ${DateFormat('dd MMM yyyy HH:mm').format(DateTime.now())}', styles: const PosStyles(align: PosAlign.center));
-    await Future.delayed(const Duration(milliseconds: 300)); // ✅ IMPORTANT - Footer
+      
+      printer.text('', styles: const PosStyles(align: PosAlign.center));
+      
+      // Revenue Breakdown Section
+      printer.text('Revenue Breakdown'.tr(), styles: const PosStyles(align: PosAlign.center, bold: true));
+      printer.hr();
+      
+      printer.row([
+        PosColumn(text: 'Subtotal:'.tr(), width: 8, styles: const PosStyles(align: PosAlign.right)),
+        PosColumn(text: currencyFormat.format(revenue['subtotal'] as double? ?? 0.0), width: 4, styles: const PosStyles(align: PosAlign.right)),
+      ]);
+      
+      printer.row([
+        PosColumn(text: 'Tax:'.tr(), width: 8, styles: const PosStyles(align: PosAlign.right)),
+        PosColumn(text: currencyFormat.format(revenue['tax'] as double? ?? 0.0), width: 4, styles: const PosStyles(align: PosAlign.right)),
+      ]);
+      
+      printer.row([
+        PosColumn(text: 'Discounts:'.tr(), width: 8, styles: const PosStyles(align: PosAlign.right)),
+        PosColumn(text: currencyFormat.format(revenue['discounts'] as double? ?? 0.0), width: 4, styles: const PosStyles(align: PosAlign.right)),
+      ]);
+      
+      printer.hr();
+      
+      printer.row([
+        PosColumn(text: 'Total Revenue:'.tr(), width: 8, styles: const PosStyles(align: PosAlign.right, bold: true)),
+        PosColumn(text: currencyFormat.format(revenue['total'] as double? ?? 0.0), width: 4, styles: const PosStyles(align: PosAlign.right, bold: true)),
+      ]);
+      
+      // Footer
+      printer.text('', styles: const PosStyles(align: PosAlign.center));
+      printer.hr(ch: '=', len: 32);
+      printer.text('End of Report', styles: const PosStyles(align: PosAlign.center));
+      printer.text('Generated: ${DateFormat('dd MMM yyyy HH:mm').format(DateTime.now())}', styles: const PosStyles(align: PosAlign.center));
 
-    // Pre-cut delay - MOST CRITICAL for reports
-    await Future.delayed(const Duration(milliseconds: 1500)); // ✅ CRITICAL - Reports have more data
+      // Cut paper
+      // Only critical delays
+      await Future.delayed(const Duration(milliseconds: 800)); // ✅ ONLY before cut (reports need more time)
+      printer.cut();
+      await Future.delayed(const Duration(milliseconds: 1500)); // ✅ ONLY after cut
     
-    // Cut paper
-    printer.cut();
-    await Future.delayed(const Duration(milliseconds: 2500)); // ✅ CRITICAL - Longer wait for reports
-    
-    // Disconnect
-    printer.disconnect();
-    
-    return true;
-  } catch (e) {
-    debugPrint('Error printing thermal report: $e');
-    return false;
+      
+      // Disconnect
+      printer.disconnect();
+      
+      return true;
+    } catch (e) {
+      debugPrint('Error printing thermal report: $e');
+      return false;
+    }
   }
-}
 
   // Helper method for orders count text
   String getOrdersCountText(int count) {

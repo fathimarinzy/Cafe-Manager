@@ -167,14 +167,11 @@ class ThermalPrinterService {
       
       // Print receipt header
       printer.text('RECEIPT', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
-      await Future.delayed(const Duration(milliseconds: 300));
       printer.text(businessInfo['name']!, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
-      await Future.delayed(const Duration(milliseconds: 150)); // Medium delay
-
+      
       printer.text('', styles: const PosStyles(align: PosAlign.center));
       printer.text(businessInfo['address']!, styles: const PosStyles(align: PosAlign.center));
       printer.text('${businessInfo['phone']}', styles: const PosStyles(align: PosAlign.center));
-      await Future.delayed(const Duration(milliseconds: 100)); // Single delay for group
 
 
       // Add EDITED indicator if order was edited
@@ -225,7 +222,6 @@ class ThermalPrinterService {
       
       // Divider
       printer.hr();
-      await Future.delayed(const Duration(milliseconds: 200)); // CRITICAL
 
       // Item headers
       printer.row([
@@ -235,8 +231,6 @@ class ThermalPrinterService {
         PosColumn(text: 'Total', width: 3, styles: const PosStyles(bold: true, align: PosAlign.right)),
       ]);
       printer.hr();
-      await Future.delayed(const Duration(milliseconds: 200)); // CRITICAL
-
       
       // Items
       for (var item in items) {
@@ -246,18 +240,15 @@ class ThermalPrinterService {
           PosColumn(text: item.price.toStringAsFixed(3), width: 2, styles: const PosStyles(align: PosAlign.right)),
           PosColumn(text: (item.price * item.quantity).toStringAsFixed(3), width: 3, styles: const PosStyles(align: PosAlign.right)),
         ]);
-         await Future.delayed(const Duration(milliseconds: 80)); // CRITICAL
 
         // Add kitchen note if present
         if (item.kitchenNote.isNotEmpty) {
           // Use fontType instead of italic
           printer.text('Note: ${item.kitchenNote}', styles: const PosStyles(align: PosAlign.left, fontType: PosFontType.fontB));
-          await Future.delayed(const Duration(milliseconds: 80)); // CRITICAL
         }
       }
       
       printer.hr();
-      await Future.delayed(const Duration(milliseconds: 200)); // CRITICAL
 
       // Totals
       printer.row([
@@ -276,31 +267,24 @@ class ThermalPrinterService {
           PosColumn(text: discount.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right)),
         ]);
       }
-
-      await Future.delayed(const Duration(milliseconds: 100)); // Group delay
       
-      printer.hr();
-     await Future.delayed(const Duration(milliseconds: 200)); // Group delay
-      
+      printer.hr();      
       // Grand total
       printer.row([
         PosColumn(text: 'TOTAL:', width: 8, styles: const PosStyles(align: PosAlign.right, bold: true)),
         PosColumn(text: total.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right, bold: true)),
       ]);
-      
-       await Future.delayed(const Duration(milliseconds: 150));
-      
+            
       // Footer
       printer.text('Thank you for your visit!', styles: const PosStyles(align: PosAlign.center));
       printer.text('Please come again', styles: const PosStyles(align: PosAlign.center));
-      await Future.delayed(const Duration(milliseconds: 200)); // DON'T REDUCE
-
-      await Future.delayed(const Duration(milliseconds: 1000)); // DON'T REDUCE
 
       // Cut paper
+      // Only critical delays
+      await Future.delayed(const Duration(milliseconds: 500)); // ✅ ONLY before cut
       printer.cut();
-      await Future.delayed(const Duration(milliseconds: 2000)); // DON'T REDUCE
-
+      await Future.delayed(const Duration(milliseconds: 1000)); // ✅ ONLY after cut
+    
       // Disconnect
       printer.disconnect();
       
@@ -310,7 +294,6 @@ class ThermalPrinterService {
       return false;
     }
   }
-
   // Print a kitchen receipt with simplified info (just item names, quantities, and notes)
 static Future<bool> printKitchenReceipt({
   required String serviceType,
@@ -327,7 +310,7 @@ static Future<bool> printKitchenReceipt({
     final printer = NetworkPrinter(PaperSize.mm80, profile);
     
     debugPrint('Connecting to printer at $ip:$port for kitchen receipt');
-    final PosPrintResult result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 15)); // ✅ Increased timeout
+    final PosPrintResult result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 10));
     
     if (result != PosPrintResult.success) {
       debugPrint('Failed to connect to printer: ${result.msg}');
@@ -339,97 +322,58 @@ static Future<bool> printKitchenReceipt({
     
     // Print receipt header
     printer.text('KITCHEN ORDER', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
-    await Future.delayed(const Duration(milliseconds: 400)); // ✅ CRITICAL - Large text
-    
     printer.text('ORDER #$billNumber', styles: const PosStyles(align: PosAlign.center, bold: true));
-    await Future.delayed(const Duration(milliseconds: 300)); // ✅ IMPORTANT - Bold text
     
     // Current date and time
     final now = DateTime.now();
     final formattedDate = '${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year}';
     final formattedTime = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
     printer.text('$formattedDate at $formattedTime', styles: const PosStyles(align: PosAlign.center));
-    await Future.delayed(const Duration(milliseconds: 200)); // ✅ IMPORTANT
     
     // Service information
     printer.text('Service: $serviceType', styles: const PosStyles(align: PosAlign.center, bold: true));
-    await Future.delayed(const Duration(milliseconds: 200)); // ✅ IMPORTANT
-    
-    // // Extract and show table info if available
-    // if (tableInfo != null && tableInfo.contains('Table')) {
-    //   final tableNumber = tableInfo.split('Table ').last;
-    //   printer.text('TABLE: $tableNumber', styles: const PosStyles(align: PosAlign.center, bold: true));
-    //   await Future.delayed(const Duration(milliseconds: 200)); // ✅ IMPORTANT
-    // }
     
     // Divider
     printer.hr();
-    await Future.delayed(const Duration(milliseconds: 300)); // ✅ CRITICAL - Divider processing
     
     // Item headers - simplified for kitchen
     printer.row([
       PosColumn(text: 'Item', width: 8, styles: const PosStyles(bold: true)),
       PosColumn(text: 'Qty', width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
     ]);
-    await Future.delayed(const Duration(milliseconds: 200)); // ✅ IMPORTANT
-    
     printer.hr();
-    await Future.delayed(const Duration(milliseconds: 300)); // ✅ CRITICAL
     
     // Items - with focus on name, quantity, and kitchen notes
-    for (int i = 0; i < items.length; i++) {
-      final item = items[i];
-      debugPrint('Printing kitchen item ${i + 1}/${items.length}: ${item.name}');
-      
+    for (var item in items) {
       printer.row([
         PosColumn(text: item.name, width: 8),
         PosColumn(text: '${item.quantity}', width: 4, styles: const PosStyles(align: PosAlign.right)),
       ]);
-      await Future.delayed(const Duration(milliseconds: 200)); // ✅ CRITICAL - Each item needs processing time
       
       // Add kitchen note if present - this is important for kitchen staff
       if (item.kitchenNote.isNotEmpty) {
         printer.text('NOTE: ${item.kitchenNote}', styles: const PosStyles(align: PosAlign.left, fontType: PosFontType.fontB, bold: true));
-        await Future.delayed(const Duration(milliseconds: 150)); // ✅ IMPORTANT - Note processing
       }
       
       // Add a small space between items
       printer.text('', styles: const PosStyles(align: PosAlign.center));
-      await Future.delayed(const Duration(milliseconds: 100)); // ✅ OPTIONAL - Spacing
-      
-      // Keep-alive every 3 items for long orders
-      if ((i + 1) % 3 == 0 && items.length > 3) {
-        debugPrint('Keep-alive after kitchen item ${i + 1}');
-        await Future.delayed(const Duration(milliseconds: 250)); // ✅ CRITICAL - Prevent timeout
-      }
     }
     
     printer.hr();
-    await Future.delayed(const Duration(milliseconds: 300)); // ✅ CRITICAL
-    
-    // // Footer - show table number prominently for kitchen
-    // if (tableInfo != null && tableInfo.contains('Table')) {
-    //   final tableNumber = tableInfo.split('Table ').last;
-    //   printer.text('TABLE $tableNumber', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
-    //   await Future.delayed(const Duration(milliseconds: 400)); // ✅ CRITICAL - Large text
-    // }
-    
-    // Pre-cut delay - CRITICAL for kitchen receipts
-    await Future.delayed(const Duration(milliseconds: 1000)); // ✅ CRITICAL - Ensure all data sent
-    
+      // Only critical delays - these are ESSENTIAL
+    await Future.delayed(const Duration(milliseconds: 500));
     // Cut paper
     printer.cut();
-    await Future.delayed(const Duration(milliseconds: 2000)); // ✅ CRITICAL - Cut completion
+     // Only critical delays - these are ESSENTIAL
+    await Future.delayed(const Duration(milliseconds: 1000));
     
     // Disconnect
     printer.disconnect();
     
-    debugPrint('Kitchen receipt completed successfully');
     return true;
   } catch (e) {
     debugPrint('Error printing kitchen receipt: $e');
     return false;
   }
 }
- 
 }
