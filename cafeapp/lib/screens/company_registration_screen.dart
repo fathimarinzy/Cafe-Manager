@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_localization.dart';
 import 'dashboard_screen.dart';
+import 'package:provider/provider.dart';
+import '../providers/settings_provider.dart';
+
 
 class CompanyRegistrationScreen extends StatefulWidget {
   const CompanyRegistrationScreen({super.key});
@@ -16,15 +19,17 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
   final List<TextEditingController> _keyControllers = List.generate(5, (index) => TextEditingController());
   final List<FocusNode> _keyFocusNodes = List.generate(5, (index) => FocusNode());
   
-  // Customer information controllers
-  final TextEditingController _customerNameController = TextEditingController();
-  final TextEditingController _customerAddressController = TextEditingController();
-  final TextEditingController _customerPhoneController = TextEditingController();
-  
-  // Focus nodes for customer info
-  final FocusNode _customerNameFocus = FocusNode();
-  final FocusNode _customerAddressFocus = FocusNode();
-  final FocusNode _customerPhoneFocus = FocusNode();
+  // Business information controllers
+  final TextEditingController _businessNameController = TextEditingController();
+  final TextEditingController _secondBusinessNameController = TextEditingController();
+  final TextEditingController _businessAddressController = TextEditingController();
+  final TextEditingController _businessPhoneController = TextEditingController();
+
+  // Focus nodes for business info
+  final FocusNode _businessNameFocus = FocusNode();
+  final FocusNode _secondBusinessNameFocus = FocusNode();
+  final FocusNode _businessAddressFocus = FocusNode();
+  final FocusNode _businessPhoneFocus = FocusNode();
   
   bool _isLoading = false;
   bool _showWarning = false;
@@ -35,11 +40,12 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
   @override
   void initState() {
     super.initState();
-    
-     // Add listeners to customer info fields to show warning
-    _customerNameController.addListener(_onCustomerInfoChanged);
-    _customerAddressController.addListener(_onCustomerInfoChanged);
-    _customerPhoneController.addListener(_onCustomerInfoChanged);
+
+     // Add listeners to business info fields to show warning
+    _businessNameController.addListener(_onBusinessInfoChanged);
+    _secondBusinessNameController.addListener(_onBusinessInfoChanged);
+    _businessAddressController.addListener(_onBusinessInfoChanged);
+    _businessPhoneController.addListener(_onBusinessInfoChanged);
   }
 
   @override
@@ -51,22 +57,25 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
     for (var focusNode in _keyFocusNodes) {
       focusNode.dispose();
     }
-    
-    _customerNameController.dispose();
-    _customerAddressController.dispose();
-    _customerPhoneController.dispose();
-    
-    _customerNameFocus.dispose();
-    _customerAddressFocus.dispose();
-    _customerPhoneFocus.dispose();
-    
+
+    _businessNameController.dispose();
+    _secondBusinessNameController.dispose();
+    _businessAddressController.dispose();
+    _businessPhoneController.dispose();
+
+    _businessNameFocus.dispose();
+    _secondBusinessNameFocus.dispose();
+    _businessAddressFocus.dispose();
+    _businessPhoneFocus.dispose();
+
     super.dispose();
   }
 
-  void _onCustomerInfoChanged() {
-    if (!_showWarning && (_customerNameController.text.isNotEmpty || 
-        _customerAddressController.text.isNotEmpty || 
-        _customerPhoneController.text.isNotEmpty)) {
+  void _onBusinessInfoChanged() {
+    if (!_showWarning && (_businessNameController.text.isNotEmpty || 
+        _secondBusinessNameController.text.isNotEmpty ||
+        _businessAddressController.text.isNotEmpty || 
+        _businessPhoneController.text.isNotEmpty)) {
       setState(() {
         _showWarning = true;
       });
@@ -114,10 +123,22 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
       await prefs.setBool('company_registered', true);
       // Mark device as fully registered only after company registration
       await prefs.setBool('device_registered', true);
-      await prefs.setString('customer_name', _customerNameController.text.trim());
-      await prefs.setString('customer_address', _customerAddressController.text.trim());
-      await prefs.setString('customer_phone', _customerPhoneController.text.trim());
 
+      await prefs.setString('business_name', _businessNameController.text.trim());
+      await prefs.setString('second_business_name', _secondBusinessNameController.text.trim());
+      await prefs.setString('business_address', _businessAddressController.text.trim());
+      await prefs.setString('business_phone', _businessPhoneController.text.trim());
+
+  // ADDED: Update SettingsProvider directly to ensure immediate sync
+      if (mounted) {
+        final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+        await settingsProvider.saveAllSettings(
+          businessName: _businessNameController.text.trim(),
+          secondBusinessName: _secondBusinessNameController.text.trim(),
+          businessAddress: _businessAddressController.text.trim(),
+          businessPhone: _businessPhoneController.text.trim(),
+        );
+      }
       // Show success message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -320,10 +341,10 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
 
               // Business Name
               TextField(
-                controller: _customerNameController,
-                focusNode: _customerNameFocus,
+                controller: _businessNameController,
+                focusNode: _businessNameFocus,
                 decoration: InputDecoration(
-                  labelText: 'Name'.tr(),
+                  labelText: 'Business Name'.tr(),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -334,13 +355,28 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
                   prefixIcon: const Icon(Icons.business),
                 ),
               ),
+              const SizedBox(height: 16),
+              // Second Business Name field
+              TextField(
+                controller: _secondBusinessNameController,
+                focusNode: _secondBusinessNameFocus,
+                decoration: InputDecoration(
+                  labelText: 'Second Business Name (Optional)'.tr(),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
+                  ),
+                  // prefixIcon: const Icon(Icons.business_center),
+                ),
+              ),
               
               const SizedBox(height: 16),
               
               // Business Address
               TextField(
-                controller: _customerAddressController,
-                focusNode: _customerAddressFocus,
+                controller: _businessAddressController,
+                focusNode: _businessAddressFocus,
                 maxLines: 2,
                 decoration: InputDecoration(
                   labelText: 'Address'.tr(),
@@ -359,8 +395,8 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
               
               // Business Phone
               TextField(
-                controller: _customerPhoneController,
-                focusNode: _customerPhoneFocus,
+                controller: _businessPhoneController,
+                focusNode: _businessPhoneFocus,
                 keyboardType: TextInputType.phone,
                 decoration: InputDecoration(
                   labelText: 'Phone Number'.tr(),

@@ -4,6 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_localization.dart';
 import '../services/firebase_service.dart';
 import 'dashboard_screen.dart';
+import 'package:provider/provider.dart';
+import '../providers/settings_provider.dart';
 
 class OnlineCompanyRegistrationScreen extends StatefulWidget {
   const OnlineCompanyRegistrationScreen({super.key});
@@ -16,17 +18,19 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
   // Registration key controllers
   final List<TextEditingController> _keyControllers = List.generate(5, (index) => TextEditingController());
   final List<FocusNode> _keyFocusNodes = List.generate(5, (index) => FocusNode());
-  
-  // Customer information controllers
-  final TextEditingController _customerNameController = TextEditingController();
-  final TextEditingController _customerAddressController = TextEditingController();
-  final TextEditingController _customerPhoneController = TextEditingController();
-  
-  // Focus nodes for customer info
-  final FocusNode _customerNameFocus = FocusNode();
-  final FocusNode _customerAddressFocus = FocusNode();
-  final FocusNode _customerPhoneFocus = FocusNode();
-  
+
+  // Business information controllers
+  final TextEditingController _businessNameController = TextEditingController();
+  final TextEditingController _secondBusinessNameController = TextEditingController();
+  final TextEditingController _businessAddressController = TextEditingController();
+  final TextEditingController _businessPhoneController = TextEditingController();
+
+  // Focus nodes for business info
+  final FocusNode _businessNameFocus = FocusNode();
+  final FocusNode _secondBusinessNameFocus = FocusNode();
+  final FocusNode _businessAddressFocus = FocusNode();
+  final FocusNode _businessPhoneFocus = FocusNode();
+
   bool _isLoading = false;
   bool _showWarning = false;
   bool _showGeneratedKeys = false;
@@ -37,11 +41,12 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
   @override
   void initState() {
     super.initState();
-    
-    // Add listeners to customer info fields to show warning
-    _customerNameController.addListener(_onCustomerInfoChanged);
-    _customerAddressController.addListener(_onCustomerInfoChanged);
-    _customerPhoneController.addListener(_onCustomerInfoChanged);
+
+    // Add listeners to business info fields to show warning
+    _businessNameController.addListener(_onBusinessInfoChanged);
+    _secondBusinessNameController.addListener(_onBusinessInfoChanged);
+    _businessAddressController.addListener(_onBusinessInfoChanged);
+    _businessPhoneController.addListener(_onBusinessInfoChanged);
   }
 
   @override
@@ -53,22 +58,25 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
     for (var focusNode in _keyFocusNodes) {
       focusNode.dispose();
     }
-    
-    _customerNameController.dispose();
-    _customerAddressController.dispose();
-    _customerPhoneController.dispose();
-    
-    _customerNameFocus.dispose();
-    _customerAddressFocus.dispose();
-    _customerPhoneFocus.dispose();
-    
+
+    _businessNameController.dispose();
+    _secondBusinessNameController.dispose();
+    _businessAddressController.dispose();
+    _businessPhoneController.dispose();
+
+    _businessNameFocus.dispose();
+    _secondBusinessNameFocus.dispose();
+    _businessAddressFocus.dispose();
+    _businessPhoneFocus.dispose();
+
     super.dispose();
   }
 
-  void _onCustomerInfoChanged() {
-    if (!_showWarning && (_customerNameController.text.isNotEmpty || 
-        _customerAddressController.text.isNotEmpty || 
-        _customerPhoneController.text.isNotEmpty)) {
+  void _onBusinessInfoChanged() {
+    if (!_showWarning && (_businessNameController.text.isNotEmpty || 
+        _secondBusinessNameController.text.isNotEmpty || 
+        _businessAddressController.text.isNotEmpty || 
+        _businessPhoneController.text.isNotEmpty)) {
       setState(() {
         _showWarning = true;
       });
@@ -115,9 +123,9 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
     }
 
     // Validate that business information is filled
-    if (_customerNameController.text.trim().isEmpty ||
-        _customerAddressController.text.trim().isEmpty ||
-        _customerPhoneController.text.trim().isEmpty) {
+    if (_businessNameController.text.trim().isEmpty ||
+        _businessAddressController.text.trim().isEmpty ||
+        _businessPhoneController.text.trim().isEmpty) {
       _showErrorMessage('Please fill all business information fields');
       return;
     }
@@ -147,9 +155,10 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
       // Register with Firebase
       final result = await FirebaseService.registerCompany(
         registrationKeys: _generatedKeys,
-        customerName: _customerNameController.text.trim(),
-        customerAddress: _customerAddressController.text.trim(),
-        customerPhone: _customerPhoneController.text.trim(),
+        customerName: _businessNameController.text.trim(),
+        secondCustomerName: _secondBusinessNameController.text.trim(),
+        customerAddress: _businessAddressController.text.trim(),
+        customerPhone: _businessPhoneController.text.trim(),
         deviceId: deviceId,
       );
 
@@ -159,6 +168,22 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
         await prefs.setBool('device_registered', true);
         await prefs.setString('company_id', result['companyId']);
         await prefs.setString('registration_mode', 'online');
+        // FIXED: Save business information to SharedPreferences so SettingsProvider can load it
+        await prefs.setString('business_name', _businessNameController.text.trim());
+        await prefs.setString('second_business_name', _secondBusinessNameController.text.trim());
+        await prefs.setString('business_address', _businessAddressController.text.trim());
+        await prefs.setString('business_phone', _businessPhoneController.text.trim());
+       
+        // ADDED: Update SettingsProvider directly to ensure immediate sync
+        if (mounted) {
+          final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+          await settingsProvider.saveAllSettings(
+            businessName: _businessNameController.text.trim(),
+            secondBusinessName: _secondBusinessNameController.text.trim(),
+            businessAddress: _businessAddressController.text.trim(),
+            businessPhone: _businessPhoneController.text.trim(),
+          );
+        }
 
         // Show success message
         if (mounted) {
@@ -314,64 +339,64 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
 
               // Generated Keys Display and Input Section
               if (_showGeneratedKeys) ...[
-                // Display Generated Keys
-                // Container(
-                //   padding: const EdgeInsets.all(16),
-                //   decoration: BoxDecoration(
-                //     color: Colors.green[50],
-                //     borderRadius: BorderRadius.circular(12),
-                //     border: Border.all(color: Colors.green[200]!),
-                //   ),
-                //   child: Column(
-                //     crossAxisAlignment: CrossAxisAlignment.start,
-                //     children: [
-                //       Row(
-                //         children: [
-                //           Icon(Icons.key, color: Colors.green[700]),
-                //           const SizedBox(width: 8),
-                //           Text(
-                //             'Your Registration Keys:'.tr(),
-                //             style: TextStyle(
-                //               fontSize: 16,
-                //               fontWeight: FontWeight.bold,
-                //               color: Colors.green[700],
-                //             ),
-                //           ),
-                //         ],
-                //       ),
-                //       const SizedBox(height: 12),
-                //       Row(
-                //         children: _generatedKeys.asMap().entries.map((entry) {
-                //           return Expanded(
-                //             child: Padding(
-                //               padding: EdgeInsets.only(
-                //                 right: entry.key < 4 ? 8.0 : 0,
-                //               ),
-                //               child: Container(
-                //                 padding: const EdgeInsets.symmetric(vertical: 12),
-                //                 decoration: BoxDecoration(
-                //                   color: Colors.white,
-                //                   borderRadius: BorderRadius.circular(8),
-                //                   border: Border.all(color: Colors.green[300]!),
-                //                 ),
-                //                 child: Text(
-                //                   entry.value,
-                //                   textAlign: TextAlign.center,
-                //                   style: TextStyle(
-                //                     fontSize: 12,
-                //                     fontWeight: FontWeight.bold,
-                //                     color: Colors.green[700],
-                //                     letterSpacing: 1,
-                //                   ),
-                //                 ),
-                //               ),
-                //             ),
-                //           );
-                //         }).toList(),
-                //       ),
-                //     ],
-                //   ),
-                // ),
+               // Display Generated Keys
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.green[200]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.key, color: Colors.green[700]),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Your Registration Keys:'.tr(),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: _generatedKeys.asMap().entries.map((entry) {
+                          return Expanded(
+                            child: Padding(
+                              padding: EdgeInsets.only(
+                                right: entry.key < 4 ? 8.0 : 0,
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.green[300]!),
+                                ),
+                                child: Text(
+                                  entry.value,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green[700],
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                ),
                 
                 const SizedBox(height: 24),
                 
@@ -478,10 +503,10 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                 
                 // Business Name
                 TextField(
-                  controller: _customerNameController,
-                  focusNode: _customerNameFocus,
+                  controller: _businessNameController,
+                  focusNode: _businessNameFocus,
                   decoration: InputDecoration(
-                    labelText: 'Name'.tr(),
+                    labelText: 'Business Name'.tr(),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -494,11 +519,25 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                 ),
                 
                 const SizedBox(height: 16),
-                
+                // Second Business Name field
+                TextField(
+                  controller: _secondBusinessNameController,
+                  focusNode: _secondBusinessNameFocus,
+                  decoration: InputDecoration(
+                    labelText: 'Second Business Name (Optional)'.tr(),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
+                    ),
+                    // prefixIcon: const Icon(Icons.business_center),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 // Business Address
                 TextField(
-                  controller: _customerAddressController,
-                  focusNode: _customerAddressFocus,
+                  controller: _businessAddressController,
+                  focusNode: _businessAddressFocus,
                   maxLines: 2,
                   decoration: InputDecoration(
                     labelText: 'Address'.tr(),
@@ -517,8 +556,8 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                 
                 // Business Phone
                 TextField(
-                  controller: _customerPhoneController,
-                  focusNode: _customerPhoneFocus,
+                  controller: _businessPhoneController,
+                  focusNode: _businessPhoneFocus,
                   keyboardType: TextInputType.phone,
                   decoration: InputDecoration(
                     labelText: 'Phone Number'.tr(),

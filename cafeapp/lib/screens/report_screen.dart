@@ -500,7 +500,7 @@ class _ReportScreenState extends State<ReportScreen> {
                 secondBusinessName,               
                  style: pw.TextStyle(
                   font: ttf,
-                  fontSize: 18,
+                  fontSize: 14,
                   fontWeight: pw.FontWeight.bold,
                 ),
                 textAlign: pw.TextAlign.center,

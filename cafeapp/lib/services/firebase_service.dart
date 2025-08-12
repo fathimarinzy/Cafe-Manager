@@ -162,10 +162,11 @@ class FirebaseService {
     return keys;
   }
 
-  // Register company with Firebase (with offline handling)
+  // Register company with Firebase (with offline handling) - UPDATED WITH SECOND CUSTOMER NAME
    static Future<Map<String, dynamic>> registerCompany({
     required List<String> registrationKeys,
     required String customerName,
+    String? secondCustomerName, // ADDED: Optional second customer name parameter
     required String customerAddress,
     required String customerPhone,
     required String deviceId,
@@ -189,6 +190,7 @@ class FirebaseService {
         _performRegistration(
           registrationKeys: registrationKeys,
           customerName: customerName,
+          secondCustomerName: secondCustomerName, // ADDED: Pass second customer name
           customerAddress: customerAddress,
           customerPhone: customerPhone,
           deviceId: deviceId,
@@ -217,18 +219,20 @@ class FirebaseService {
     }
   }
 
-  // Actual registration logic (separated for timeout handling)
+  // Actual registration logic (separated for timeout handling) - UPDATED WITH SECOND CUSTOMER NAME
   static Future<Map<String, dynamic>> _performRegistration({
     required List<String> registrationKeys,
     required String customerName,
+    String? secondCustomerName, // ADDED: Optional second customer name parameter
     required String customerAddress,
     required String customerPhone,
     required String deviceId,
   }) async {
-    // Create company data
+    // Create company data - UPDATED to include second customer name
     final companyData = {
       'registrationKeys': registrationKeys,
       'customerName': customerName,
+      'secondCustomerName': secondCustomerName ?? '', // ADDED: Include second customer name (empty string if null)
       'customerAddress': customerAddress,
       'customerPhone': customerPhone,
       'deviceId': deviceId,
@@ -296,7 +300,7 @@ class FirebaseService {
     }
   }
 
-  // Actual company details fetch (separated for timeout handling)
+  // Actual company details fetch (separated for timeout handling) - UPDATED TO RETURN SECOND CUSTOMER NAME
   static Future<Map<String, dynamic>> _getCompanyDetailsFromFirestore(String deviceId) async {
     final querySnapshot = await _firestore
         .collection(_companiesCollection)
@@ -316,6 +320,7 @@ class FirebaseService {
         'isRegistered': true,
         'companyId': doc.id,
         'customerName': data['customerName'] ?? '',
+        'secondCustomerName': data['secondCustomerName'] ?? '', // ADDED: Return second customer name
         'customerAddress': data['customerAddress'] ?? '',
         'customerPhone': data['customerPhone'] ?? '',
         'registrationKeys': List<String>.from(data['registrationKeys'] ?? []),
