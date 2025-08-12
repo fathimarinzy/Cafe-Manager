@@ -402,6 +402,8 @@ class AppLocalization {
     'Restaurant Name': 'اسم المطعم',
     'Enter your restaurant name': 'أدخل اسم المطعم',
     'Please enter restaurant name': 'الرجاء إدخال اسم المطعم',
+    'Second Restaurant Name': 'اسم المطعم الثاني',
+    'Enter second restaurant name (optional)': 'أدخل اسم المطعم الثاني (اختياري)',
     'Address': 'العنوان',
     'Enter your restaurant address': 'أدخل عنوان المطعم',
     'Enter your restaurant phone number': 'أدخل رقم هاتف المطعم',
