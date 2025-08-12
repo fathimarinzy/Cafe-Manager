@@ -71,10 +71,15 @@ class LocalOrderRepository {
       final bool isUpdate = order.id != null;
       debugPrint(isUpdate ? 'Updating existing order #${order.id}' : 'Creating new order');
       
-      // Generate a timestamp for local orders
-      final now = DateTime.now();
-      final timestamp = now.millisecondsSinceEpoch;
-      final localTimestamp = order.createdAt ?? 'local_$timestamp';
+       // FIXED: Always use current local time for new orders, preserve existing for updates
+      String timestampToUse;
+      if (isUpdate && order.createdAt != null) {
+        // For updates, preserve the original timestamp
+        timestampToUse = order.createdAt!;
+      } else {
+        // For new orders, use current local time in ISO format
+        timestampToUse = DateTime.now().toIso8601String();
+      }
       
       int orderId;
 
@@ -120,12 +125,11 @@ class LocalOrderRepository {
           );
           
           orderId = order.id!;
-          debugPrint('Updated existing order in local database: ID=$orderId');
+           // Use the original timestamp for updates
+          timestampToUse = existingOrder.first['created_at'] as String;
+          debugPrint('Updated existing order in local database: ID=$orderId, preserved timestamp: $timestampToUse');
         } else {
-          // If the order doesn't exist, insert it with the specified ID
-          // Use the provided createdAt or generate a new timestamp
-          final createdAtTimestamp = order.createdAt ?? localTimestamp;
-          
+         
           final orderMap = {
             'id': order.id,
             'service_type': order.serviceType,
@@ -134,19 +138,16 @@ class LocalOrderRepository {
             'discount': order.discount,
             'total': order.total,
             'status': order.status,
-            'created_at': createdAtTimestamp,
+            'created_at': timestampToUse,
             'payment_method': order.paymentMethod ?? 'cash',
             'customer_id': order.customerId,
           };
           
           orderId = await db.insert('orders', orderMap);
-          debugPrint('Inserted order with specified ID: $orderId');
+          debugPrint('Inserted order with specified ID: $orderId, timestamp: $timestampToUse');
         }
       } else {
-        // Insert as a new order
-        // For new orders, use the provided createdAt or generate a new timestamp
-        final createdAtTimestamp = order.createdAt ?? localTimestamp;
-        
+        // Insert new order
         final orderMap = {
           'service_type': order.serviceType,
           'subtotal': order.subtotal,
@@ -154,13 +155,13 @@ class LocalOrderRepository {
           'discount': order.discount,
           'total': order.total,
           'status': order.status,
-          'created_at': createdAtTimestamp,
+          'created_at': timestampToUse,
           'payment_method': order.paymentMethod ?? 'cash',
           'customer_id': order.customerId,
         };
         
         orderId = await db.insert('orders', orderMap);
-        debugPrint('Inserted new order: ID=$orderId');
+        debugPrint('Inserted new order: ID=$orderId, timestamp: $timestampToUse');
       }
       
       // Now insert the order items
@@ -185,7 +186,7 @@ class LocalOrderRepository {
         discount: order.discount,
         total: order.total,
         status: order.status,
-        createdAt: localTimestamp, // Use the preserved or new timestamp
+        createdAt: timestampToUse, // Use the preserved or new timestamp
         customerId: order.customerId,
         paymentMethod: order.paymentMethod,
       );

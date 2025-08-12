@@ -20,78 +20,54 @@ class OrderHistory {
     required this.createdAt,
     required this.items,
   });
+
+  // FIXED: Simplified factory method without timezone adjustments
   factory OrderHistory.fromOrder(Order order) {
-  // Parse the date string from the order
-  DateTime parsedDate;
-  if (order.createdAt != null) {
-    try {
-      // First check if the date is already a local time string (offline orders)
-      // Look for specific format patterns that indicate a local timestamp
-      if (order.createdAt!.contains('local_') || 
-          order.createdAt!.contains('device_')) {
-        // This is a local timestamp - extract the actual timestamp part
-        final parts = order.createdAt!.split('_');
-        if (parts.length > 1) {
-          // Last part should be the timestamp
-          try {
-            final timestamp = int.parse(parts.last);
-            parsedDate = DateTime.fromMillisecondsSinceEpoch(timestamp);
-            debugPrint('Parsed local timestamp: $parsedDate');
-          } catch (e) {
-            // If timestamp parsing fails, fall back to DateTime.parse
+    DateTime parsedDate;
+    
+    if (order.createdAt != null) {
+      try {
+        // Check if it's a local timestamp format
+        if (order.createdAt!.contains('local_') || 
+            order.createdAt!.contains('device_')) {
+          // Extract timestamp from local format
+          final parts = order.createdAt!.split('_');
+          if (parts.length > 1) {
+            try {
+              final timestamp = int.parse(parts.last);
+              parsedDate = DateTime.fromMillisecondsSinceEpoch(timestamp);
+              debugPrint('Parsed local timestamp: $parsedDate');
+            } catch (e) {
+              parsedDate = DateTime.parse(order.createdAt!);
+              debugPrint('Falling back to DateTime.parse: $parsedDate');
+            }
+          } else {
             parsedDate = DateTime.parse(order.createdAt!);
-            debugPrint('Falling back to DateTime.parse: $parsedDate');
           }
         } else {
-          // If no underscore, try regular parsing
+          // For ISO format timestamps, parse directly without timezone adjustments
+          // Since local orders are stored in local time, use them as-is
           parsedDate = DateTime.parse(order.createdAt!);
+          debugPrint('Parsed timestamp as-is: $parsedDate');
         }
-      } else {
-        // For API-sourced orders, carefully check if it's already been adjusted
-        // First parse the date string to a DateTime object
-        final parsedDateString = DateTime.parse(order.createdAt!);
-        
-        // NEW: Check if this datetime is likely from the local database vs API
-        // Heuristic: If the hour is between 18:00-23:59 or 00:00-05:59, likely already adjusted
-        final hour = parsedDateString.hour;
-        final isLikelyAlreadyAdjusted = 
-            (hour >= 18 && hour <= 23) || (hour >= 0 && hour <= 5);
-        
-        if (isLikelyAlreadyAdjusted) {
-          // Don't adjust, it's likely already a local time that was stored
-          parsedDate = parsedDateString;
-          debugPrint('Using time as-is (likely already adjusted): $parsedDate');
-        } else {
-          // Get the local timezone offset in minutes
-          final localTimeZoneOffset = DateTime.now().timeZoneOffset.inMinutes;
-          
-          // Apply the timezone offset to get the correct local time
-          parsedDate = parsedDateString.add(Duration(minutes: localTimeZoneOffset));
-          
-          debugPrint('Original UTC date: $parsedDateString');
-          debugPrint('Local timezone offset: $localTimeZoneOffset minutes');
-          debugPrint('Adjusted local date: $parsedDate');
-        }
+      } catch (e) {
+        debugPrint('Error parsing date: $e');
+        parsedDate = DateTime.now();
       }
-    } catch (e) {
-      debugPrint('Error parsing date: $e');
+    } else {
       parsedDate = DateTime.now();
+      debugPrint('No createdAt timestamp, using current time');
     }
-  } else {
-    parsedDate = DateTime.now();
-    debugPrint('No createdAt timestamp, using current time');
+    
+    return OrderHistory(
+      id: order.id ?? 0,
+      serviceType: order.serviceType,
+      total: order.total,
+      status: order.status,
+      createdAt: parsedDate,
+      items: order.items,
+    );
   }
-  
-  return OrderHistory(
-    id: order.id ?? 0,
-    serviceType: order.serviceType,
-    total: order.total,
-    status: order.status,
-    createdAt: parsedDate,
-    items: order.items,
-  );
-}
- 
 
   // Method to format the order number
   String get orderNumber => id.toString().padLeft(4, '0');
@@ -101,11 +77,15 @@ class OrderHistory {
     return '${createdAt.day.toString().padLeft(2, '0')}-${createdAt.month.toString().padLeft(2, '0')}-${createdAt.year}';
   }
   
-    String get formattedTime {
+  String get formattedTime {
     // Use 12-hour format with AM/PM
-    return '${createdAt.hour > 12 ? (createdAt.hour - 12) : createdAt.hour}:${createdAt.minute.toString().padLeft(2, '0')} ${createdAt.hour >= 12 ? 'PM' : 'AM'}';
+    final hour = createdAt.hour;
+    final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+    final amPm = hour >= 12 ? 'PM' : 'AM';
+    return '$displayHour:${createdAt.minute.toString().padLeft(2, '0')} $amPm';
   }
 }
+
 
 /// Filter type for order history
 enum OrderTimeFilter {
