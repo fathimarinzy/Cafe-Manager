@@ -8,6 +8,7 @@ import 'dart:async';
 class FirebaseService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static const String _companiesCollection = 'registered_companies';
+  static const String _pendingRegistrationsCollection = 'pending_registrations'; // NEW: Collection for pending registrations
   static bool _isInitialized = false;
   static bool _isOfflineMode = false;
   static Completer<void>? _initCompleter;
@@ -103,8 +104,6 @@ class FirebaseService {
   // Check if Firebase is available
   static bool get isFirebaseAvailable => _isInitialized && !_isOfflineMode;
 
-
-
   // Initialize Firebase with timeout and offline handling
   static Future<void> initialize() async {
     if (_isInitialized) return;
@@ -145,6 +144,7 @@ class FirebaseService {
       // Don't rethrow - allow app to continue in offline mode
     }
   }
+
   // Generate 5 random registration keys
   static List<String> generateRegistrationKeys() {
     final random = Random();
@@ -162,14 +162,130 @@ class FirebaseService {
     return keys;
   }
 
-  // Register company with Firebase (with offline handling) - UPDATED WITH SECOND CUSTOMER NAME
-   static Future<Map<String, dynamic>> registerCompany({
+  // NEW: Store pending registration keys in Firebase
+  static Future<Map<String, dynamic>> storePendingRegistration({
     required List<String> registrationKeys,
+    required String deviceId,
+  }) async {
+    // Ensure Firebase is initialized first
+    await ensureInitialized();
+    
+    if (!isFirebaseAvailable) {
+      return {
+        'success': false,
+        'message': 'No internet connection. Please connect to the internet and try again.',
+        'isOffline': true,
+      };
+    }
+
+    try {
+      debugPrint('🔵 Storing pending registration keys in Firebase...');
+      
+      // Create pending registration data
+      final pendingData = {
+        'registrationKeys': registrationKeys,
+        'deviceId': deviceId,
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+        'expiresAt': Timestamp.fromDate(
+          DateTime.now().add(const Duration(days: 7)), // Keys expire after 7 days
+        ),
+      };
+
+      // Store in pending registrations collection
+      final docRef = await _firestore
+          .collection(_pendingRegistrationsCollection)
+          .add(pendingData);
+
+      debugPrint('✅ Pending registration stored with ID: ${docRef.id}');
+
+      return {
+        'success': true,
+        'pendingId': docRef.id,
+        'message': 'Registration keys generated successfully',
+      };
+    } catch (e) {
+      debugPrint('❌ Error storing pending registration: $e');
+      return {
+        'success': false,
+        'message': 'Failed to generate registration keys: ${e.toString()}',
+      };
+    }
+  }
+
+  // NEW: Get pending registration keys by device ID
+  static Future<Map<String, dynamic>> getPendingRegistration(String deviceId) async {
+    // Ensure Firebase is initialized first
+    await ensureInitialized();
+    
+    if (!isFirebaseAvailable) {
+      return {
+        'success': false,
+        'message': 'No internet connection. Please connect to the internet and try again.',
+        'isOffline': true,
+      };
+    }
+
+    try {
+      debugPrint('🔵 Getting pending registration for device: $deviceId');
+      
+      final querySnapshot = await _firestore
+          .collection(_pendingRegistrationsCollection)
+          .where('deviceId', isEqualTo: deviceId)
+          .where('status', isEqualTo: 'pending')
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        final doc = querySnapshot.docs.first;
+        final data = doc.data();
+        
+        // Check if keys haven't expired
+        final expiresAt = data['expiresAt'] as Timestamp?;
+        if (expiresAt != null && expiresAt.toDate().isBefore(DateTime.now())) {
+          debugPrint('⚠️ Pending registration keys have expired');
+          return {
+            'success': false,
+            'message': 'Registration keys have expired. Please generate new ones.',
+            'isExpired': true,
+          };
+        }
+        
+        debugPrint('✅ Found pending registration for device: $deviceId');
+        
+        return {
+          'success': true,
+          'pendingId': doc.id,
+          'registrationKeys': List<String>.from(data['registrationKeys'] ?? []),
+          'createdAt': data['createdAt'],
+          'expiresAt': data['expiresAt'],
+        };
+      } else {
+        debugPrint('⚠️ No pending registration found for device: $deviceId');
+        return {
+          'success': false,
+          'message': 'No pending registration found. Please generate keys first.',
+          'notFound': true,
+        };
+      }
+    } catch (e) {
+      debugPrint('❌ Error getting pending registration: $e');
+      return {
+        'success': false,
+        'message': 'Error retrieving registration keys: ${e.toString()}',
+      };
+    }
+  }
+
+  // Register company with Firebase (with offline handling) - UPDATED TO USE STORED KEYS
+  static Future<Map<String, dynamic>> registerCompany({
     required String customerName,
-    String? secondCustomerName, // ADDED: Optional second customer name parameter
+    String? secondCustomerName,
     required String customerAddress,
     required String customerPhone,
     required String deviceId,
+    required List<String> userEnteredKeys, // NEW: User entered keys instead of generated keys
   }) async {
     // Ensure Firebase is initialized first
     await ensureInitialized();
@@ -185,15 +301,31 @@ class FirebaseService {
     try {
       debugPrint('🔵 Registering company with Firebase...');
       
+      // First, validate the keys against stored pending registration
+      final pendingResult = await getPendingRegistration(deviceId);
+      if (!pendingResult['success']) {
+        return pendingResult; // Return the error from getPendingRegistration
+      }
+
+      final storedKeys = List<String>.from(pendingResult['registrationKeys'] ?? []);
+      if (!validateRegistrationKeys(storedKeys, userEnteredKeys)) {
+        return {
+          'success': false,
+          'message': 'Invalid registration keys. Please check and try again.',
+          'isInvalidKeys': true,
+        };
+      }
+      
       // Reduce registration timeout from 15s to 8s
       final result = await Future.any([
         _performRegistration(
-          registrationKeys: registrationKeys,
+          registrationKeys: storedKeys, // Use the stored keys
           customerName: customerName,
-          secondCustomerName: secondCustomerName, // ADDED: Pass second customer name
+          secondCustomerName: secondCustomerName,
           customerAddress: customerAddress,
           customerPhone: customerPhone,
           deviceId: deviceId,
+          pendingId: pendingResult['pendingId'],
         ),
         Future.delayed(const Duration(seconds: 8), () {
           throw TimeoutException('Registration timed out', const Duration(seconds: 8));
@@ -219,20 +351,21 @@ class FirebaseService {
     }
   }
 
-  // Actual registration logic (separated for timeout handling) - UPDATED WITH SECOND CUSTOMER NAME
+  // Actual registration logic (separated for timeout handling) - UPDATED TO MARK PENDING AS USED
   static Future<Map<String, dynamic>> _performRegistration({
     required List<String> registrationKeys,
     required String customerName,
-    String? secondCustomerName, // ADDED: Optional second customer name parameter
+    String? secondCustomerName,
     required String customerAddress,
     required String customerPhone,
     required String deviceId,
+    required String pendingId,
   }) async {
-    // Create company data - UPDATED to include second customer name
+    // Create company data
     final companyData = {
       'registrationKeys': registrationKeys,
       'customerName': customerName,
-      'secondCustomerName': secondCustomerName ?? '', // ADDED: Include second customer name (empty string if null)
+      'secondCustomerName': secondCustomerName ?? '',
       'customerAddress': customerAddress,
       'customerPhone': customerPhone,
       'deviceId': deviceId,
@@ -246,6 +379,16 @@ class FirebaseService {
         .collection(_companiesCollection)
         .add(companyData);
 
+    // Mark pending registration as used
+    await _firestore
+        .collection(_pendingRegistrationsCollection)
+        .doc(pendingId)
+        .update({
+      'status': 'used',
+      'usedAt': FieldValue.serverTimestamp(),
+      'companyId': docRef.id,
+    });
+
     debugPrint('✅ Company registered with ID: ${docRef.id}');
 
     return {
@@ -256,7 +399,7 @@ class FirebaseService {
   }
 
   // Check if company is registered (with offline handling)
- static Future<Map<String, dynamic>> getCompanyDetails(String deviceId) async {
+  static Future<Map<String, dynamic>> getCompanyDetails(String deviceId) async {
     // Ensure Firebase is initialized first
     await ensureInitialized();
     
@@ -300,7 +443,7 @@ class FirebaseService {
     }
   }
 
-  // Actual company details fetch (separated for timeout handling) - UPDATED TO RETURN SECOND CUSTOMER NAME
+  // Actual company details fetch (separated for timeout handling)
   static Future<Map<String, dynamic>> _getCompanyDetailsFromFirestore(String deviceId) async {
     final querySnapshot = await _firestore
         .collection(_companiesCollection)
@@ -320,7 +463,7 @@ class FirebaseService {
         'isRegistered': true,
         'companyId': doc.id,
         'customerName': data['customerName'] ?? '',
-        'secondCustomerName': data['secondCustomerName'] ?? '', // ADDED: Return second customer name
+        'secondCustomerName': data['secondCustomerName'] ?? '',
         'customerAddress': data['customerAddress'] ?? '',
         'customerPhone': data['customerPhone'] ?? '',
         'registrationKeys': List<String>.from(data['registrationKeys'] ?? []),

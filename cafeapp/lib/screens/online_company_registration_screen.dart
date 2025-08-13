@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // ADDED: For Timestamp
 import '../utils/app_localization.dart';
 import '../services/firebase_service.dart';
 import 'dashboard_screen.dart';
@@ -33,10 +34,14 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
 
   bool _isLoading = false;
   bool _showWarning = false;
-  bool _showGeneratedKeys = false;
+  bool _showContactInfo = false; // Show contact info instead of generated keys
+  bool _isGeneratingKeys = false; // Loading state for key generation
+  DateTime? _keysGeneratedAt; // ADDED: Track when keys were generated
+  DateTime? _keysExpireAt; // ADDED: Track when keys expire
   
-  // The generated keys that user needs to match
-  List<String> _generatedKeys = [];
+  // NEW: Contact information
+  final String _supportPhone = "+968 7184 0022"; // Replace with actual support number
+  final String _supportEmail = "AI@simsai.tech"; // Replace with actual support email
 
   @override
   void initState() {
@@ -47,6 +52,66 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
     _secondBusinessNameController.addListener(_onBusinessInfoChanged);
     _businessAddressController.addListener(_onBusinessInfoChanged);
     _businessPhoneController.addListener(_onBusinessInfoChanged);
+
+    // ADDED: Check for existing pending keys when screen loads
+    _checkExistingPendingKeys();
+  }
+
+  // ADDED: Check if device already has pending keys
+  Future<void> _checkExistingPendingKeys() async {
+    try {
+      // Get device ID
+      final prefs = await SharedPreferences.getInstance();
+      String? deviceId = prefs.getString('device_id');
+      if (deviceId == null) {
+        deviceId = FirebaseService.generateDeviceId();
+        await prefs.setString('device_id', deviceId);
+        return; // New device, no pending keys
+      }
+
+      // Check for existing pending registration
+      final result = await FirebaseService.getPendingRegistration(deviceId);
+      
+      if (result['success']) {
+        // Found existing pending keys, show contact info directly
+        setState(() {
+          _showContactInfo = true;
+          // ADDED: Store key timestamps for better UX
+          if (result['createdAt'] != null) {
+            _keysGeneratedAt = (result['createdAt'] as Timestamp).toDate();
+          }
+          if (result['expiresAt'] != null) {
+            _keysExpireAt = (result['expiresAt'] as Timestamp).toDate();
+          }
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('You already have pending registration keys. Please use those keys to complete registration.'.tr()),
+              backgroundColor: Colors.grey[600],
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } else if (result['isExpired'] == true) {
+        // Keys expired, user can generate new ones
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Your previous registration keys have expired. You can generate new ones.'.tr()),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+      // If no pending keys found, user can generate new ones (default state)
+      
+    } catch (e) {
+      debugPrint('Error checking existing pending keys: $e');
+      // If error occurs, allow user to generate keys (default state)
+    }
   }
 
   @override
@@ -95,25 +160,73 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
     }
   }
 
-  void _generateKeys() {
+  // UPDATED: Store keys in Firebase and show contact info
+  Future<void> _generateKeys() async {
     setState(() {
-      _generatedKeys = FirebaseService.generateRegistrationKeys();
-      _showGeneratedKeys = true;
+      _isGeneratingKeys = true;
     });
-  }
 
-  bool _validateKeys() {
-    final userKeys = _keyControllers.map((controller) => controller.text.trim()).toList();
-    return FirebaseService.validateRegistrationKeys(_generatedKeys, userKeys);
-  }
+    try {
+      // Get or generate device ID
+      final prefs = await SharedPreferences.getInstance();
+      String? deviceId = prefs.getString('device_id');
+      if (deviceId == null) {
+        deviceId = FirebaseService.generateDeviceId();
+        await prefs.setString('device_id', deviceId);
+      }
 
-  Future<void> _registerCompany() async {
-    // Validate that keys are generated
-    if (_generatedKeys.isEmpty) {
-      _showErrorMessage('Please generate registration keys first');
-      return;
+      // Generate keys
+      final generatedKeys = FirebaseService.generateRegistrationKeys();
+      
+      // Store keys in Firebase
+      final result = await FirebaseService.storePendingRegistration(
+        registrationKeys: generatedKeys,
+        deviceId: deviceId,
+      );
+
+      if (result['success']) {
+        setState(() {
+          _showContactInfo = true;
+          // ADDED: Store key generation timestamp
+          _keysGeneratedAt = DateTime.now();
+          _keysExpireAt = DateTime.now().add(const Duration(days: 7));
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Registration keys generated successfully! Contact support to get your keys.'.tr()),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } else {
+        // UPDATED: Handle specific error cases - removed device registration blocking
+        String errorMessage = result['message'] ?? 'Failed to generate keys';
+        
+        if (result['hasPendingKeys'] == true) {
+          errorMessage = 'This device already has pending registration keys. Please use those keys or contact support.';
+        }
+        
+        _showErrorMessage(errorMessage);
+      }
+    } catch (e) {
+      debugPrint('Error generating keys: $e');
+      _showErrorMessage('Failed to generate keys. Please check your internet connection and try again.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGeneratingKeys = false;
+        });
+      }
     }
+  }
 
+  // REMOVED: _validateKeys() method (no longer needed as validation is done in Firebase)
+
+  // UPDATED: Register company with user-entered keys
+  Future<void> _registerCompany() async {
     // Validate that all key fields are filled
     for (int i = 0; i < 5; i++) {
       if (_keyControllers[i].text.trim().isEmpty) {
@@ -135,16 +248,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
     });
 
     try {
-      // Validate keys
-      if (!_validateKeys()) {
-        _showErrorMessage('Registration keys do not match. Please check and try again.');
-        setState(() {
-          _isLoading = false;
-        });
-        return;
-      }
-
-      // Get or generate device ID
+      // Get device ID
       final prefs = await SharedPreferences.getInstance();
       String? deviceId = prefs.getString('device_id');
       if (deviceId == null) {
@@ -152,14 +256,17 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
         await prefs.setString('device_id', deviceId);
       }
 
+      // Get user entered keys
+      final userEnteredKeys = _keyControllers.map((controller) => controller.text.trim()).toList();
+
       // Register with Firebase
       final result = await FirebaseService.registerCompany(
-        registrationKeys: _generatedKeys,
         customerName: _businessNameController.text.trim(),
         secondCustomerName: _secondBusinessNameController.text.trim(),
         customerAddress: _businessAddressController.text.trim(),
         customerPhone: _businessPhoneController.text.trim(),
         deviceId: deviceId,
+        userEnteredKeys: userEnteredKeys, // Pass user entered keys for validation
       );
 
       if (result['success']) {
@@ -168,13 +275,13 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
         await prefs.setBool('device_registered', true);
         await prefs.setString('company_id', result['companyId']);
         await prefs.setString('registration_mode', 'online');
-        // FIXED: Save business information to SharedPreferences so SettingsProvider can load it
+        // Save business information to SharedPreferences
         await prefs.setString('business_name', _businessNameController.text.trim());
         await prefs.setString('second_business_name', _secondBusinessNameController.text.trim());
         await prefs.setString('business_address', _businessAddressController.text.trim());
         await prefs.setString('business_phone', _businessPhoneController.text.trim());
        
-        // ADDED: Update SettingsProvider directly to ensure immediate sync
+        // Update SettingsProvider directly to ensure immediate sync
         if (mounted) {
           final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
           await settingsProvider.saveAllSettings(
@@ -205,7 +312,22 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
           }
         }
       } else {
-        _showErrorMessage(result['message'] ?? 'Registration failed');
+        // UPDATED: Handle specific error cases for key reuse (removed device blocking)
+        String errorMessage = result['message'] ?? 'Registration failed';
+        
+        if (result['keysAlreadyUsed'] == true) {
+          errorMessage = 'These registration keys have already been used. Please contact support for new keys.';
+        } else if (result['keysJustUsed'] == true) {
+          errorMessage = 'These registration keys were just used. Please contact support for new keys.';
+        } else if (result['isInvalidKeys'] == true) {
+          errorMessage = 'Invalid registration keys. Please check and try again.';
+        } else if (result['notFound'] == true) {
+          errorMessage = 'No pending registration found. Please generate keys first.';
+        } else if (result['isExpired'] == true) {
+          errorMessage = 'Registration keys have expired. Please generate new ones.';
+        }
+        
+        _showErrorMessage(errorMessage);
       }
     } catch (e) {
       debugPrint('Error registering company: $e');
@@ -225,18 +347,35 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
         SnackBar(
           content: Text(message),
           backgroundColor: Colors.red,
-          duration: const Duration(seconds: 2),
+          duration: const Duration(seconds: 3),
         ),
       );
     }
   }
+
+  // ADDED: Helper method to format dates
+  // String _formatDateTime(DateTime? dateTime) {
+  //   if (dateTime == null) return '';
+    
+  //   final now = DateTime.now();
+  //   final difference = dateTime.difference(now);
+    
+  //   if (difference.inDays > 0) {
+  //     return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'}';
+  //   } else if (difference.inHours > 0) {
+  //     return '${difference.inHours} hour${difference.inHours == 1 ? '' : 's'}';
+  //   } else if (difference.inMinutes > 0) {
+  //     return '${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'}';
+  //   } else {
+  //     return 'Soon';
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        // title: Text('Register Your Company'.tr()),
         backgroundColor: Colors.blue[900],
         foregroundColor: Colors.white,
         elevation: 0,
@@ -286,7 +425,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
               const SizedBox(height: 85),
               
               // Generate Keys Section
-              if (!_showGeneratedKeys) ...[
+              if (!_showContactInfo) ...[
                 Center(
                   child: Column(
                     children: [
@@ -315,7 +454,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                       ),
                       const SizedBox(height: 24),
                       ElevatedButton(
-                        onPressed: _generateKeys,
+                        onPressed: _isGeneratingKeys ? null : _generateKeys,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue[700],
                           foregroundColor: Colors.white,
@@ -324,85 +463,188 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: Text(
-                          'Generate'.tr(),
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        child: _isGeneratingKeys
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(
+                                'Generate'.tr(),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                       ),
                     ],
                   ),
                 ),
               ],
 
-              // Generated Keys Display and Input Section
-              if (_showGeneratedKeys) ...[
-               // Display Generated Keys
-                // Container(
-                //   padding: const EdgeInsets.all(16),
-                //   decoration: BoxDecoration(
-                //     color: Colors.green[50],
-                //     borderRadius: BorderRadius.circular(12),
-                //     border: Border.all(color: Colors.green[200]!),
-                //   ),
-                //   child: Column(
-                //     crossAxisAlignment: CrossAxisAlignment.start,
-                //     children: [
-                //       Row(
-                //         children: [
-                //           Icon(Icons.key, color: Colors.green[700]),
-                //           const SizedBox(width: 8),
-                //           Text(
-                //             'Your Registration Keys:'.tr(),
-                //             style: TextStyle(
-                //               fontSize: 16,
-                //               fontWeight: FontWeight.bold,
-                //               color: Colors.green[700],
-                //             ),
-                //           ),
-                //         ],
-                //       ),
-                //       const SizedBox(height: 12),
-                //       Row(
-                //         children: _generatedKeys.asMap().entries.map((entry) {
-                //           return Expanded(
-                //             child: Padding(
-                //               padding: EdgeInsets.only(
-                //                 right: entry.key < 4 ? 8.0 : 0,
-                //               ),
-                //               child: Container(
-                //                 padding: const EdgeInsets.symmetric(vertical: 12),
-                //                 decoration: BoxDecoration(
-                //                   color: Colors.white,
-                //                   borderRadius: BorderRadius.circular(8),
-                //                   border: Border.all(color: Colors.green[300]!),
-                //                 ),
-                //                 child: Text(
-                //                   entry.value,
-                //                   textAlign: TextAlign.center,
-                //                   style: TextStyle(
-                //                     fontSize: 12,
-                //                     fontWeight: FontWeight.bold,
-                //                     color: Colors.green[700],
-                //                     letterSpacing: 1,
-                //                   ),
-                //                 ),
-                //               ),
-                //             ),
-                //           );
-                //         }).toList(),
-                //       ),
-                //     ],
-                //   ),
-                // ),
+              // Contact Information and Registration Section
+              if (_showContactInfo) ...[
+                // Contact Information
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue[200]!),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.blue[700]),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Contact for Keys'.tr(),
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Registration keys have been generated for your device. Please contact support to get your keys:',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.blue[800],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      // Phone contact
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.phone, color: Colors.blue[700], size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            _supportPhone,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.blue[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      // Email contact
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.email, color: Colors.blue[700], size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            _supportEmail,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.blue[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange[300]!),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.access_time, color: Colors.orange[700], size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Keys are valid for 7 days. Please complete registration within this time.',
+                                    style: TextStyle(
+                                      color: Colors.orange[700],
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            // ADDED: Show key generation and expiry information
+                            if (_keysGeneratedAt != null || _keysExpireAt != null) ...[
+                              // const SizedBox(height: 8),
+                              // const Divider(height: 1),
+                              // const SizedBox(height: 8),
+                              if (_keysGeneratedAt != null) ...[
+                                // Row(
+                                //   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                //   children: [
+                                //     Text(
+                                //       'Generated:',
+                                //       style: TextStyle(
+                                //         color: Colors.orange[600],
+                                //         fontSize: 11,
+                                //         fontWeight: FontWeight.w500,
+                                //       ),
+                                //     ),
+                                //     Text(
+                                //       '${_keysGeneratedAt!.day}/${_keysGeneratedAt!.month}/${_keysGeneratedAt!.year} ${_keysGeneratedAt!.hour.toString().padLeft(2, '0')}:${_keysGeneratedAt!.minute.toString().padLeft(2, '0')}',
+                                //       style: TextStyle(
+                                //         color: Colors.orange[700],
+                                //         fontSize: 11,
+                                //         fontWeight: FontWeight.w600,
+                                //       ),
+                                //     ),
+                                //   ],
+                                // ),
+                              ],
+                              if (_keysExpireAt != null) ...[
+                                // const SizedBox(height: 4),
+                                // Row(
+                                //   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                //   children: [
+                                //     Text(
+                                //       'Expires in:',
+                                //       style: TextStyle(
+                                //         color: Colors.orange[600],
+                                //         fontSize: 11,
+                                //         fontWeight: FontWeight.w500,
+                                //       ),
+                                //     ),
+                                //     Text(
+                                //       _formatDateTime(_keysExpireAt),
+                                //       style: TextStyle(
+                                //         color: Colors.orange[700],
+                                //         fontSize: 11,
+                                //         fontWeight: FontWeight.w600,
+                                //       ),
+                                //     ),
+                                //   ],
+                                // ),
+                              ],
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 
                 const SizedBox(height: 24),
                 
                 // Registration Keys Input Section
                 Text(
-                  'Enter the Registration Keys Above:'.tr(),
+                  'Enter Your Registration Keys:'.tr(),
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
@@ -437,7 +679,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                           ),
                           decoration: InputDecoration(
                             counterText: '',
-                            // hintText: 'KEY ${index + 1}',
+                            hintText: 'KEY ${index + 1}',
                             hintStyle: TextStyle(
                               color: Colors.grey[400],
                               fontSize: 10,
@@ -530,7 +772,6 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
                     ),
-                    // prefixIcon: const Icon(Icons.business_center),
                   ),
                 ),
                 const SizedBox(height: 16),
