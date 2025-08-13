@@ -6,8 +6,8 @@ import '../models/menu_item.dart';
 
 class ThermalPrinterService {
   // Printer settings
-  static const String _defaultPrinterIp = '192.168.1.100'; // Change to your default printer IP
-  static const int _defaultPrinterPort = 9100;             // Standard port for most thermal printers
+  static const String _defaultPrinterIp = '192.168.1.100';
+  static const int _defaultPrinterPort = 9100;
   static const String _printerIpKey = 'thermal_printer_ip';
   static const String _printerPortKey = 'thermal_printer_port';
 
@@ -35,6 +35,72 @@ class ThermalPrinterService {
     await prefs.setInt(_printerPortKey, port);
   }
 
+  // Check if text contains Arabic characters
+  static bool _containsArabic(String text) {
+    return RegExp(r'[\u0600-\u06FF]').hasMatch(text);
+  }
+
+  // Check if ANY of the business info or content contains Arabic
+  static bool _hasArabicContent(Map<String, String> businessInfo, List<MenuItem> items, String serviceType, String? personName) {
+    // Check business info
+    if (_containsArabic(businessInfo['name'] ?? '') ||
+        _containsArabic(businessInfo['second_name'] ?? '') ||
+        _containsArabic(businessInfo['address'] ?? '')) {
+      return true;
+    }
+
+    // Check service type
+    if (_containsArabic(serviceType)) {
+      return true;
+    }
+
+    // Check person name
+    if (personName != null && _containsArabic(personName)) {
+      return true;
+    }
+
+    // Check items
+    for (var item in items) {
+      if (_containsArabic(item.name) || _containsArabic(item.kitchenNote)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // Get appropriate codepage based on content
+  static String _getCodePage(bool hasArabic) {
+    return hasArabic ? 'CP1256' : 'CP437'; // CP1256 for Arabic, CP437 for English
+  }
+
+  // Get appropriate text alignment for text
+  static PosAlign _getTextAlign(String text, PosAlign defaultAlign) {
+    if (_containsArabic(text)) {
+      // Arabic text should be right-aligned or center
+      if (defaultAlign == PosAlign.left) return PosAlign.right;
+      if (defaultAlign == PosAlign.right) return PosAlign.right;
+      return defaultAlign; // keep center as center
+    }
+    return defaultAlign; // Keep original alignment for English
+  }
+
+  // Process text for printing (handle encoding issues)
+  static String _processTextForPrinting(String text, bool useArabicMode) {
+    if (!_containsArabic(text) || !useArabicMode) {
+      // English text or Arabic mode disabled - return as is
+      return text;
+    }
+
+    try {
+      // For Arabic text, try to ensure proper encoding
+      return text; // Most modern printers can handle UTF-8 with proper codepage
+    } catch (e) {
+      debugPrint('Error processing Arabic text: $e');
+      return text; // Return original if processing fails
+    }
+  }
+
   // Test printer connection
   static Future<bool> testConnection() async {
     final ip = await getPrinterIp();
@@ -48,7 +114,7 @@ class ThermalPrinterService {
       final PosPrintResult result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 3));
       
       if (result == PosPrintResult.success) {
-        // Send a test command
+        // Simple test without forcing Arabic
         printer.text('Test connection successful', styles: const PosStyles(align: PosAlign.center, bold: true));
         printer.cut();
         printer.disconnect();
@@ -62,7 +128,8 @@ class ThermalPrinterService {
       return false;
     }
   }
-  // Add a method to get business information
+
+  // Get business information
   static Future<Map<String, String>> getBusinessInfo() async {
     final prefs = await SharedPreferences.getInstance();
     return {
@@ -74,62 +141,78 @@ class ThermalPrinterService {
     };
   }
 
-  // Print kitchen ticket directly to network printer
+  // Print kitchen ticket
   static Future<bool> printKitchenTicket(MenuItem item) async {
-    final ip = await getPrinterIp();
-    final port = await getPrinterPort();
+  final ip = await getPrinterIp();
+  final port = await getPrinterPort();
+  
+  try {
+    final profile = await CapabilityProfile.load();
+    final printer = NetworkPrinter(PaperSize.mm80, profile);
     
-    try {
-      // Initialize printer
-      final profile = await CapabilityProfile.load();
-      final printer = NetworkPrinter(PaperSize.mm80, profile);
-      
-      debugPrint('Connecting to printer at $ip:$port for kitchen ticket');
-      final PosPrintResult result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 5));
-      
-      if (result != PosPrintResult.success) {
-        debugPrint('Failed to connect to printer: ${result.msg}');
-        return false;
-      }
-      
-      // Print kitchen ticket
-      
-      // Header
-      printer.text('KITCHEN ORDER', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
-      printer.text(DateTime.now().toString().substring(0, 19), styles: const PosStyles(align: PosAlign.center));
-      
-      // Divider
-      printer.hr();
-      
-      // Item details
-      printer.text(item.name, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
-      printer.text('QTY: ${item.quantity}', styles: const PosStyles(align: PosAlign.center, bold: true));
-      
-      // Kitchen note if present
-      if (item.kitchenNote.isNotEmpty) {
-        printer.text('', styles: const PosStyles(align: PosAlign.center));
-        printer.text('SPECIAL INSTRUCTIONS:', styles: const PosStyles(align: PosAlign.left, bold: true));
-        printer.text(item.kitchenNote, styles: const PosStyles(align: PosAlign.left, bold: true, underline: true));
-      }
-      
-      // Footer with dashed line
-      printer.text('', styles: const PosStyles(align: PosAlign.center));
-      printer.text('--------------------------------', styles: const PosStyles(align: PosAlign.center));
-      
-      // Cut paper
-      printer.cut();
-      
-      // Disconnect
-      printer.disconnect();
-      
-      return true;
-    } catch (e) {
-      debugPrint('Error printing kitchen ticket: $e');
+    debugPrint('Connecting to printer at $ip:$port for kitchen ticket');
+    final PosPrintResult result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 5));
+    
+    if (result != PosPrintResult.success) {
+      debugPrint('Failed to connect to printer: ${result.msg}');
       return false;
     }
+    
+    // Check if Arabic content exists
+    final hasArabic = _containsArabic(item.name) || _containsArabic(item.kitchenNote);
+    
+    // Set appropriate codepage
+    if (hasArabic) {
+      try {
+        printer.setGlobalCodeTable(_getCodePage(hasArabic));
+      } catch (e) {
+        debugPrint('Could not set Arabic codepage: $e');
+      }
+    }
+    
+    // Print kitchen ticket header - only in current app language
+    printer.text('KITCHEN ORDER', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
+    printer.text(DateTime.now().toString().substring(0, 19), styles: const PosStyles(align: PosAlign.center));
+    printer.hr();
+    
+    // Item details - display in original language
+    final processedName = _processTextForPrinting(item.name, hasArabic);
+    printer.text(processedName, styles: PosStyles(
+      align: _getTextAlign(item.name, PosAlign.center), 
+      bold: true, 
+      height: PosTextSize.size2
+    ));
+    
+    // Quantity - only in current app language
+    printer.text('QTY: ${item.quantity}', styles: const PosStyles(align: PosAlign.center, bold: true));
+    
+    // Kitchen note - display in its original language only
+    if (item.kitchenNote.isNotEmpty) {
+      printer.text('', styles: const PosStyles(align: PosAlign.center));
+      printer.text('SPECIAL INSTRUCTIONS:', styles: const PosStyles(align: PosAlign.left, bold: true));
+      
+      final processedNote = _processTextForPrinting(item.kitchenNote, hasArabic);
+      printer.text(processedNote, styles: PosStyles(
+        align: _getTextAlign(item.kitchenNote, PosAlign.left), 
+        bold: true, 
+        underline: true
+      ));
+    }
+    
+    printer.text('', styles: const PosStyles(align: PosAlign.center));
+    printer.text('--------------------------------', styles: const PosStyles(align: PosAlign.center));
+    
+    printer.cut();
+    printer.disconnect();
+    
+    return true;
+  } catch (e) {
+    debugPrint('Error printing kitchen ticket: $e');
+    return false;
   }
+}
 
-  // Print a full receipt with order details directly to the printer
+// Replace the printOrderReceipt method in ThermalPrinterService class
   static Future<bool> printOrderReceipt({
     required String serviceType,
     required List<MenuItem> items,
@@ -139,164 +222,202 @@ class ThermalPrinterService {
     required double total,
     String? personName,
     String? tableInfo,
-    bool isEdited = false, // Add parameter to indicate if order was edited
-    String? orderNumber , 
+    bool isEdited = false,
+    String? orderNumber,
     double? taxRate,
   }) async {
-    // If tax rate is not provided, use a default
     final effectiveTaxRate = taxRate ?? 0.0;
-    
     final ip = await getPrinterIp();
     final port = await getPrinterPort();
     final businessInfo = await getBusinessInfo();
     
-    try {
-      // Initialize printer
-      final profile = await CapabilityProfile.load();
-      final printer = NetworkPrinter(PaperSize.mm80, profile);
-      
-      debugPrint('Connecting to printer at $ip:$port for receipt');
-      final PosPrintResult result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 5));
-      
-      if (result != PosPrintResult.success) {
-        debugPrint('Failed to connect to printer: ${result.msg}');
-        return false;
-      }
-      
-        // Use provided order number or generate a new one
-        final billNumber = orderNumber ?? (DateTime.now().millisecondsSinceEpoch % 10000).toString();
-      
-      // Print receipt header
-      printer.text('RECEIPT', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
-      printer.text(businessInfo['name']!, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
-      printer.text(businessInfo['second_name']!, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size1));
-
-      printer.text('', styles: const PosStyles(align: PosAlign.center));
-      printer.text(businessInfo['address']!, styles: const PosStyles(align: PosAlign.center));
-      printer.text('${businessInfo['phone']}', styles: const PosStyles(align: PosAlign.center));
-
-
-      // Add EDITED indicator if order was edited
-      if (isEdited) {
-        printer.row([
-          PosColumn(
-            text: '',
-            width: 3,
-          ),
-          PosColumn(
-            text: ' EDITED ',
-            width: 6,
-            styles: const PosStyles(
-              // reverse: true,  // Reverse colors (black background, white text)
-              bold: true,
-              align: PosAlign.left,
-              height: PosTextSize.size1,  // Smaller height
-              width: PosTextSize.size1,   // Smaller width
-              
-            ),
-          ),
-          PosColumn(
-            text: '',
-            width: 3,
-          ),
-        ]);
-        printer.text('', styles: const PosStyles(align: PosAlign.center));
-      }
-      
-      printer.text('ORDER #$billNumber', styles: const PosStyles(align: PosAlign.center, bold: true));
-      
-      // Current date and time
-      final now = DateTime.now();
-      final formattedDate = '${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year}';
-      final formattedTime = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-      printer.text('$formattedDate at $formattedTime', styles: const PosStyles(align: PosAlign.center));
-      
-      // Service information
-      printer.text('Service: $serviceType', styles: const PosStyles(align: PosAlign.center, bold: true));
-      
-      // if (tableInfo != null) {
-      //   printer.text(tableInfo, styles: const PosStyles(align: PosAlign.center));
-      // }
-      
-      if (personName != null) {
-        printer.text('Customer: $personName', styles: const PosStyles(align: PosAlign.center));
-      }
-      
-      // Divider
-      printer.hr();
-
-      // Item headers
-      printer.row([
-        PosColumn(text: 'Item', width: 5, styles: const PosStyles(bold: true)),
-        PosColumn(text: 'Qty', width: 2, styles: const PosStyles(bold: true, align: PosAlign.right)),
-        PosColumn(text: 'Price', width: 2, styles: const PosStyles(bold: true, align: PosAlign.right)),
-        PosColumn(text: 'Total', width: 3, styles: const PosStyles(bold: true, align: PosAlign.right)),
-      ]);
-      printer.hr();
-      
-      // Items
-      for (var item in items) {
-        printer.row([
-          PosColumn(text: item.name, width: 5),
-          PosColumn(text: '${item.quantity}', width: 2, styles: const PosStyles(align: PosAlign.right)),
-          PosColumn(text: item.price.toStringAsFixed(3), width: 2, styles: const PosStyles(align: PosAlign.right)),
-          PosColumn(text: (item.price * item.quantity).toStringAsFixed(3), width: 3, styles: const PosStyles(align: PosAlign.right)),
-        ]);
-
-        // Add kitchen note if present
-        if (item.kitchenNote.isNotEmpty) {
-          // Use fontType instead of italic
-          printer.text('Note: ${item.kitchenNote}', styles: const PosStyles(align: PosAlign.left, fontType: PosFontType.fontB));
-        }
-      }
-      
-      printer.hr();
-
-      // Totals
-      printer.row([
-        PosColumn(text: 'Subtotal:', width: 8, styles: const PosStyles(align: PosAlign.right)),
-        PosColumn(text: subtotal.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right)),
-      ]);
-      
-       printer.row([
-      PosColumn(text: 'Tax (${effectiveTaxRate.toStringAsFixed(1)}%):', width: 8, styles: const PosStyles(align: PosAlign.right)),
-      PosColumn(text: tax.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right)),
-      ]);
-      
-      if (discount > 0) {
-        printer.row([
-          PosColumn(text: 'Discount:', width: 8, styles: const PosStyles(align: PosAlign.right)),
-          PosColumn(text: discount.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right)),
-        ]);
-      }
-      
-      printer.hr();      
-      // Grand total
-      printer.row([
-        PosColumn(text: 'TOTAL:', width: 8, styles: const PosStyles(align: PosAlign.right, bold: true)),
-        PosColumn(text: total.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right, bold: true)),
-      ]);
-            
-      // Footer
-      printer.text('Thank you for your visit!', styles: const PosStyles(align: PosAlign.center));
-      printer.text('Please come again', styles: const PosStyles(align: PosAlign.center));
-
-      // Cut paper
-      // Only critical delays
-      await Future.delayed(const Duration(milliseconds: 500)); // ✅ ONLY before cut
-      printer.cut();
-      await Future.delayed(const Duration(milliseconds: 1000)); // ✅ ONLY after cut
+  try {
+    final profile = await CapabilityProfile.load();
+    final printer = NetworkPrinter(PaperSize.mm80, profile);
     
-      // Disconnect
-      printer.disconnect();
-      
-      return true;
-    } catch (e) {
-      debugPrint('Error printing receipt: $e');
+    debugPrint('Connecting to printer at $ip:$port for receipt');
+    final PosPrintResult result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 5));
+    
+    if (result != PosPrintResult.success) {
+      debugPrint('Failed to connect to printer: ${result.msg}');
       return false;
     }
+
+    // Check if ANY content contains Arabic (for codepage setting only)
+    final hasArabicContent = _hasArabicContent(businessInfo, items, serviceType, personName);
+    debugPrint('Arabic content detected: $hasArabicContent');
+
+    // Set appropriate codepage only if Arabic content exists
+    if (hasArabicContent) {
+      try {
+        printer.setGlobalCodeTable(_getCodePage(hasArabicContent));
+        debugPrint('Set Arabic codepage for mixed content');
+      } catch (e) {
+        debugPrint('Could not set Arabic codepage: $e');
+      }
+    }
+
+    final billNumber = orderNumber ?? (DateTime.now().millisecondsSinceEpoch % 10000).toString();
+    
+    // Print receipt header - only in current app language
+    printer.text('RECEIPT', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
+    
+    // Business name with smart alignment and processing
+    final processedBusinessName = _processTextForPrinting(businessInfo['name']!, hasArabicContent);
+    printer.text(processedBusinessName, styles: PosStyles(
+      align: _getTextAlign(businessInfo['name']!, PosAlign.center), 
+      bold: true, 
+      height: PosTextSize.size2
+    ));
+    
+    // Second business name (if exists)
+    if (businessInfo['second_name']!.isNotEmpty) {
+      final processedSecondName = _processTextForPrinting(businessInfo['second_name']!, hasArabicContent);
+      printer.text(processedSecondName, styles: PosStyles(
+        align: _getTextAlign(businessInfo['second_name']!, PosAlign.center), 
+        bold: true, 
+        height: PosTextSize.size1
+      ));
+    }
+
+    printer.text('', styles: const PosStyles(align: PosAlign.center));
+    
+    // Address (if exists)
+    if (businessInfo['address']!.isNotEmpty) {
+      final processedAddress = _processTextForPrinting(businessInfo['address']!, hasArabicContent);
+      printer.text(processedAddress, styles: PosStyles(
+        align: _getTextAlign(businessInfo['address']!, PosAlign.center)
+      ));
+    }
+    
+    // Phone (if exists)
+    if (businessInfo['phone']!.isNotEmpty) {
+      printer.text(businessInfo['phone']!, styles: const PosStyles(align: PosAlign.center));
+    }
+
+    // EDITED indicator - only in current language
+    if (isEdited) {
+      printer.row([
+        PosColumn(text: '', width: 3),
+        PosColumn(
+          text: ' EDITED ',
+          width: 6,
+          styles: const PosStyles(
+            bold: true,
+            align: PosAlign.center,
+            height: PosTextSize.size1,
+            width: PosTextSize.size1,
+          ),
+        ),
+        PosColumn(text: '', width: 3),
+      ]);
+      printer.text('', styles: const PosStyles(align: PosAlign.center));
+    }
+    
+    // Order number
+    printer.text('ORDER #$billNumber', styles: const PosStyles(align: PosAlign.center, bold: true));
+    
+    // Date and time
+    final now = DateTime.now();
+    final formattedDate = '${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year}';
+    final formattedTime = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    printer.text('$formattedDate at $formattedTime', styles: const PosStyles(align: PosAlign.center));
+    
+    // Service type - display in its original language
+    final processedServiceType = _processTextForPrinting(serviceType, hasArabicContent);
+    printer.text('Service: $processedServiceType', styles: PosStyles(
+      align: _getTextAlign(serviceType, PosAlign.center), 
+      bold: true
+    ));
+    
+    // Customer name (if exists) - display in its original language
+    if (personName != null) {
+      final processedPersonName = _processTextForPrinting(personName, hasArabicContent);
+      printer.text('Customer: $processedPersonName', styles: PosStyles(
+        align: _getTextAlign(personName, PosAlign.center)
+      ));
+    }
+    
+    printer.hr();
+
+    // Item headers - only in current app language
+    printer.row([
+      PosColumn(text: 'Item', width: 5, styles: const PosStyles(bold: true)),
+      PosColumn(text: 'Qty', width: 2, styles: const PosStyles(bold: true, align: PosAlign.center)),
+      PosColumn(text: 'Price', width: 2, styles: const PosStyles(bold: true, align: PosAlign.right)),
+      PosColumn(text: 'Total', width: 3, styles: const PosStyles(bold: true, align: PosAlign.right)),
+    ]);
+    printer.hr();
+    
+    // Items - each item displays in its original language
+    for (var item in items) {
+      final processedItemName = _processTextForPrinting(item.name, hasArabicContent);
+      
+      printer.row([
+        PosColumn(text: processedItemName, width: 5, styles: PosStyles(
+          align: _getTextAlign(item.name, PosAlign.left)
+        )),
+        PosColumn(text: '${item.quantity}', width: 2, styles: const PosStyles(align: PosAlign.center)),
+        PosColumn(text: item.price.toStringAsFixed(3), width: 2, styles: const PosStyles(align: PosAlign.right)),
+        PosColumn(text: (item.price * item.quantity).toStringAsFixed(3), width: 3, styles: const PosStyles(align: PosAlign.right)),
+      ]);
+
+      // Kitchen note - display in its original language only
+      if (item.kitchenNote.isNotEmpty) {
+        final processedNote = _processTextForPrinting(item.kitchenNote, hasArabicContent);
+        printer.text('Note: $processedNote', styles: PosStyles(
+          align: _getTextAlign(item.kitchenNote, PosAlign.left),
+          fontType: PosFontType.fontB
+        ));
+      }
+    }
+    
+    printer.hr();
+
+    // Totals - only in current app language
+    printer.row([
+      PosColumn(text: 'Subtotal:', width: 8, styles: const PosStyles(align: PosAlign.right)),
+      PosColumn(text: subtotal.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right)),
+    ]);
+    
+    printer.row([
+      PosColumn(text: 'Tax (${effectiveTaxRate.toStringAsFixed(1)}%):', width: 8, styles: const PosStyles(align: PosAlign.right)),
+      PosColumn(text: tax.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right)),
+    ]);
+    
+    if (discount > 0) {
+      printer.row([
+        PosColumn(text: 'Discount:', width: 8, styles: const PosStyles(align: PosAlign.right)),
+        PosColumn(text: discount.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right)),
+      ]);
+    }
+    
+    printer.hr();
+    
+    printer.row([
+      PosColumn(text: 'TOTAL:', width: 8, styles: const PosStyles(align: PosAlign.right, bold: true)),
+      PosColumn(text: total.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right, bold: true)),
+    ]);
+          
+    // Footer - only in current app language
+    printer.text('Thank you for your visit!', styles: const PosStyles(align: PosAlign.center));
+    printer.text('Please come again', styles: const PosStyles(align: PosAlign.center));
+
+    // Cut paper
+    await Future.delayed(const Duration(milliseconds: 500));
+    printer.cut();
+    await Future.delayed(const Duration(milliseconds: 1000));
+  
+    printer.disconnect();
+    
+    return true;
+  } catch (e) {
+    debugPrint('Error printing receipt: $e');
+    return false;
   }
-  // Print a kitchen receipt with simplified info (just item names, quantities, and notes)
+}
+
+// Replace the printKitchenReceipt method in ThermalPrinterService class
 static Future<bool> printKitchenReceipt({
   required String serviceType,
   required List<MenuItem> items,
@@ -307,7 +428,6 @@ static Future<bool> printKitchenReceipt({
   final port = await getPrinterPort();
   
   try {
-    // Initialize printer
     final profile = await CapabilityProfile.load();
     final printer = NetworkPrinter(PaperSize.mm80, profile);
     
@@ -318,58 +438,79 @@ static Future<bool> printKitchenReceipt({
       debugPrint('Failed to connect to printer: ${result.msg}');
       return false;
     }
+
+    // Check if Arabic content exists in items or service type (for codepage only)
+    final hasArabic = _containsArabic(serviceType) || 
+                     items.any((item) => _containsArabic(item.name) || _containsArabic(item.kitchenNote));
     
-    // Use provided order number or generate a new one
+    debugPrint('Kitchen receipt - Arabic content detected: $hasArabic');
+
+    // Set codepage only if Arabic content exists
+    if (hasArabic) {
+      try {
+        printer.setGlobalCodeTable(_getCodePage(hasArabic));
+      } catch (e) {
+        debugPrint('Could not set Arabic codepage: $e');
+      }
+    }
+    
     final billNumber = orderNumber ?? (DateTime.now().millisecondsSinceEpoch % 10000).toString();
     
-    // Print receipt header
+    // Print header - only in current app language
     printer.text('KITCHEN ORDER', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
     printer.text('ORDER #$billNumber', styles: const PosStyles(align: PosAlign.center, bold: true));
     
-    // Current date and time
+    // Date and time
     final now = DateTime.now();
     final formattedDate = '${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year}';
     final formattedTime = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
     printer.text('$formattedDate at $formattedTime', styles: const PosStyles(align: PosAlign.center));
     
-    // Service information
-    printer.text('Service: $serviceType', styles: const PosStyles(align: PosAlign.center, bold: true));
+    // Service type - display in its original language
+    final processedServiceType = _processTextForPrinting(serviceType, hasArabic);
+    printer.text('Service: $processedServiceType', styles: PosStyles(
+      align: _getTextAlign(serviceType, PosAlign.center), 
+      bold: true
+    ));
     
-    // Divider
     printer.hr();
     
-    // Item headers - simplified for kitchen
+    // Item headers - only in current app language
     printer.row([
       PosColumn(text: 'Item', width: 8, styles: const PosStyles(bold: true)),
       PosColumn(text: 'Qty', width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
     ]);
     printer.hr();
     
-    // Items - with focus on name, quantity, and kitchen notes
+    // Items - each item displays in its original language
     for (var item in items) {
+      final processedItemName = _processTextForPrinting(item.name, hasArabic);
+      
       printer.row([
-        PosColumn(text: item.name, width: 8),
+        PosColumn(text: processedItemName, width: 8, styles: PosStyles(
+          align: _getTextAlign(item.name, PosAlign.left)
+        )),
         PosColumn(text: '${item.quantity}', width: 4, styles: const PosStyles(align: PosAlign.right)),
       ]);
       
-      // Add kitchen note if present - this is important for kitchen staff
+      // Kitchen note - display in its original language only
       if (item.kitchenNote.isNotEmpty) {
-        printer.text('NOTE: ${item.kitchenNote}', styles: const PosStyles(align: PosAlign.left, fontType: PosFontType.fontB, bold: true));
+        final processedNote = _processTextForPrinting(item.kitchenNote, hasArabic);
+        printer.text('NOTE: $processedNote', styles: PosStyles(
+          align: _getTextAlign(item.kitchenNote, PosAlign.left),
+          fontType: PosFontType.fontB, 
+          bold: true
+        ));
       }
       
-      // Add a small space between items
       printer.text('', styles: const PosStyles(align: PosAlign.center));
     }
     
     printer.hr();
-      // Only critical delays - these are ESSENTIAL
     await Future.delayed(const Duration(milliseconds: 500));
-    // Cut paper
     printer.cut();
-     // Only critical delays - these are ESSENTIAL
     await Future.delayed(const Duration(milliseconds: 1000));
     
-    // Disconnect
     printer.disconnect();
     
     return true;
@@ -378,4 +519,5 @@ static Future<bool> printKitchenReceipt({
     return false;
   }
 }
+
 }

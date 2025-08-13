@@ -103,6 +103,19 @@ flutter:
         - asset: assets/fonts/open-sans.bold.ttf
           weight: 700
 
+    - family: Amiri
+      fonts:
+        - asset: assets/fonts/amiri-regular.ttf
+        - asset: assets/fonts/amiri-bold.ttf
+          weight: 700
+
+    - family: Cairo
+      fonts:
+        - asset: assets/fonts/cairo-regular.ttf
+        
+    - family: NotoSansArabic  
+      fonts:
+        - asset: assets/fonts/noto-sans-arabic.ttf
 
 flutter_icons:
   android: "launcher_icon"

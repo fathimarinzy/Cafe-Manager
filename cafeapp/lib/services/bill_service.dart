@@ -11,7 +11,6 @@ import './thermal_printer_service.dart';
 import '../models/order_history.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-
 class BillService {
   // Get business information from shared preferences
   static Future<Map<String, String>> getBusinessInfo() async {
@@ -24,416 +23,572 @@ class BillService {
       'footer': prefs.getString('receipt_footer') ?? 'Thank you for your visit! Please come again.',
     };
   }
-  // Generate PDF bill for order 
-  static Future<pw.Document> generateBill({
-    required List<MenuItem> items,
-    required String serviceType,
-    required double subtotal,
-    required double tax,
-    required double discount,
-    required double total,
-    String? personName,
-    String? tableInfo,
-    bool isEdited = false, // Add parameter to indicate if order was edited
-    String? orderNumber,
-    double? taxRate, // Add tax rate parameter
-  }) async {
-    final pdf = pw.Document();
-     final businessInfo = await getBusinessInfo();
-    
-    // If tax rate is not provided, use a default
-    final effectiveTaxRate = taxRate ?? 0.0;
-    
-    // Try to load custom font if available
-    pw.Font? ttf;
+
+  // Load Arabic-compatible font
+  static Future<pw.Font?> _loadArabicFont() async {
     try {
-      final fontData = await rootBundle.load("assets/fonts/open-sans.regular.ttf");
-      ttf = pw.Font.ttf(fontData.buffer.asByteData());
+      // Try to load Cairo font (good for Arabic)
+      final fontData = await rootBundle.load("assets/fonts/cairo-regular.ttf");
+      return pw.Font.ttf(fontData.buffer.asByteData());
     } catch (e) {
-      debugPrint('Could not load font, using default: $e');
-      // Continue without custom font
+      try {
+        // Fallback to Noto Sans Arabic
+        final fontData = await rootBundle.load("assets/fonts/noto-sans-arabic.ttf");
+        return pw.Font.ttf(fontData.buffer.asByteData());
+      } catch (e2) {
+        try {
+          // Fallback to Amiri font
+          final fontData = await rootBundle.load("assets/fonts/amiri-regular.ttf");
+          return pw.Font.ttf(fontData.buffer.asByteData());
+        } catch (e3) {
+          debugPrint('Could not load any Arabic font: $e3');
+          return null;
+        }
+      }
     }
+  }
+
+  // Check if text contains Arabic characters
+  static bool _containsArabic(String text) {
+    return RegExp(r'[\u0600-\u06FF]').hasMatch(text);
+  }
+
+  // Get appropriate text direction for Arabic text
+  static pw.TextDirection _getTextDirection(String text) {
+    return _containsArabic(text) ? pw.TextDirection.rtl : pw.TextDirection.ltr;
+  }
+
+  // Create text widget with proper direction and font
+  static pw.Widget _createText(
+    String text, {
+    pw.Font? arabicFont,
+    pw.TextStyle? style,
+    pw.TextAlign? textAlign,
+  }) {
+    final textDirection = _getTextDirection(text);
+    final useArabicFont = _containsArabic(text) && arabicFont != null;
     
-    // Format current date and time
-    final now = DateTime.now();
-    final dateFormatter = DateFormat('dd-MM-yyyy');
-    final timeFormatter = DateFormat('hh:mm a');
-    final formattedDate = dateFormatter.format(now);
-    final formattedTime = timeFormatter.format(now);
-    
-    // Generate order number (simple implementation)
-    final billNumber = orderNumber ?? '${now.millisecondsSinceEpoch % 10000}';
-    
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.roll80, // Standard receipt roll width
-        build: (pw.Context context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              // Header
-              pw.Center(
-                child: pw.Column(
-                  children: [
-                     pw.Text('RECEIPT', 
-                      style: pw.TextStyle(
-                        font: ttf, 
-                        fontSize: 14, 
-                        fontWeight: pw.FontWeight.bold
-                      )
-                    ),
-                    pw.Text(businessInfo['name']!, 
-                      style: pw.TextStyle(
-                        font: ttf, 
-                        fontSize: 12, 
-                        fontWeight: pw.FontWeight.bold
-                      )
-                    ),
-                    pw.SizedBox(height: 2),
-                     pw.Text(businessInfo['second_name']!, 
-                      style: pw.TextStyle(
-                        font: ttf, 
-                        fontSize: 9, 
-                        fontWeight: pw.FontWeight.bold
-                      )
-                    ),
-                    pw.SizedBox(height: 5),
-                    pw.Text(businessInfo['address']!, 
-                      style: pw.TextStyle(font: ttf, fontSize: 10)
-                    ),
-                    pw.Text('${businessInfo['phone']}', 
-                      style: pw.TextStyle(font: ttf, fontSize: 10)
-                    ),
-                    pw.SizedBox(height: 3),
-                    
-                    // Add EDITED marker if order was edited
-                    if (isEdited)
-                      pw.Container(
-                        padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: pw.BoxDecoration(
-                          // color: PdfColors.orange100,
-                          // border: pw.Border.all(color: PdfColors.orange),
-                          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
-                        ),
-                        child: pw.Text(
-                          'EDITED',
-                          style: pw.TextStyle(
-                            font: ttf,
-                            fontSize: 5,
-                            fontWeight: pw.FontWeight.bold,
-                            // color: PdfColors.orange900,
-                          ),
-                        ),
-                      ),
-                    
-                    pw.SizedBox(height: 3),
-                    
-                    pw.Text('ORDER #$billNumber', 
-                      style: pw.TextStyle(
-                        font: ttf, 
-                        fontSize: 12, 
-                        fontWeight: pw.FontWeight.bold
-                      )
-                    ),
-                    pw.SizedBox(height: 2),
-                    pw.Text('$formattedDate at $formattedTime', 
-                      style: pw.TextStyle(font: ttf, fontSize: 10)
-                    ),
-                    pw.SizedBox(height: 2),
-                    pw.Text('Service: $serviceType', 
-                      style: pw.TextStyle(
-                        font: ttf, 
-                        fontSize: 10, 
-                        fontWeight: pw.FontWeight.bold
-                      )
-                    ),
-                    // if (tableInfo != null)
-                    //   pw.Text(tableInfo, style: pw.TextStyle(font: ttf, fontSize: 10)),
-                    if (personName != null)
-                      pw.Text('Customer: $personName', style: pw.TextStyle(font: ttf, fontSize: 10)),
-                  ],
-                ),
-              ),
-              
-              pw.SizedBox(height: 10),
-              
-              // Divider
-              pw.Divider(thickness: 1),
-              
-              // Item header
-              pw.Row(
+    return pw.Directionality(
+      textDirection: textDirection,
+      child: pw.Text(
+        text,
+        style: style?.copyWith(
+          font: useArabicFont ? arabicFont : style.font,
+        ) ?? pw.TextStyle(
+          font: useArabicFont ? arabicFont : null,
+        ),
+        textAlign: textAlign,
+        textDirection: textDirection,
+      ),
+    );
+  }
+
+  // Replace the generateBill method in BillService class
+static Future<pw.Document> generateBill({
+  required List<MenuItem> items,
+  required String serviceType,
+  required double subtotal,
+  required double tax,
+  required double discount,
+  required double total,
+  String? personName,
+  String? tableInfo,
+  bool isEdited = false,
+  String? orderNumber,
+  double? taxRate,
+}) async {
+  final pdf = pw.Document();
+  final businessInfo = await getBusinessInfo();
+  
+  // If tax rate is not provided, use a default
+  final effectiveTaxRate = taxRate ?? 0.0;
+  
+  // Load Arabic-compatible font
+  final arabicFont = await _loadArabicFont();
+  
+  // Try to load fallback font for non-Arabic text
+  pw.Font? fallbackFont;
+  try {
+    final fontData = await rootBundle.load("assets/fonts/open-sans.regular.ttf");
+    fallbackFont = pw.Font.ttf(fontData.buffer.asByteData());
+  } catch (e) {
+    debugPrint('Could not load fallback font, using default: $e');
+  }
+  
+  // Format current date and time
+  final now = DateTime.now();
+  final dateFormatter = DateFormat('dd-MM-yyyy');
+  final timeFormatter = DateFormat('hh:mm a');
+  final formattedDate = dateFormatter.format(now);
+  final formattedTime = timeFormatter.format(now);
+  
+  // Generate order number
+  final billNumber = orderNumber ?? '${now.millisecondsSinceEpoch % 10000}';
+  
+  pdf.addPage(
+    pw.Page(
+      pageFormat: PdfPageFormat.roll80,
+      build: (pw.Context context) {
+        return pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          children: [
+            // Header
+            pw.Center(
+              child: pw.Column(
                 children: [
-                  pw.Expanded(
-                    flex: 5, 
-                    child: pw.Text(
-                      'Item', 
-                      style: pw.TextStyle(
-                        font: ttf, 
-                        fontSize: 10, 
-                        fontWeight: pw.FontWeight.bold
-                      )
-                    )
+                  _createText(
+                    'RECEIPT',
+                    arabicFont: arabicFont,
+                    style: pw.TextStyle(
+                      font: fallbackFont,
+                      fontSize: 14,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                    textAlign: pw.TextAlign.center,
                   ),
-                  pw.Expanded(
-                    flex: 1, 
-                    child: pw.Text(
-                      'Qty', 
-                      style: pw.TextStyle(
-                        font: ttf, 
-                        fontSize: 10, 
-                        fontWeight: pw.FontWeight.bold
-                      ), 
-                      textAlign: pw.TextAlign.center
-                    )
+                  _createText(
+                    businessInfo['name']!,
+                    arabicFont: arabicFont,
+                    style: pw.TextStyle(
+                      font: _containsArabic(businessInfo['name']!) ? arabicFont : fallbackFont,
+                      fontSize: 12,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                    textAlign: pw.TextAlign.center,
                   ),
-                  pw.Expanded(
-                    flex: 2, 
-                    child: pw.Text(
-                      'Price', 
+                  pw.SizedBox(height: 2),
+                  if (businessInfo['second_name']!.isNotEmpty)
+                    _createText(
+                      businessInfo['second_name']!,
+                      arabicFont: arabicFont,
                       style: pw.TextStyle(
-                        font: ttf, 
-                        fontSize: 10, 
-                        fontWeight: pw.FontWeight.bold
-                      ), 
-                      textAlign: pw.TextAlign.right
-                    )
+                        font: _containsArabic(businessInfo['second_name']!) ? arabicFont : fallbackFont,
+                        fontSize: 9,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                      textAlign: pw.TextAlign.center,
+                    ),
+                  pw.SizedBox(height: 5),
+                  _createText(
+                    businessInfo['address']!,
+                    arabicFont: arabicFont,
+                    style: pw.TextStyle(
+                      font: _containsArabic(businessInfo['address']!) ? arabicFont : fallbackFont,
+                      fontSize: 10,
+                    ),
+                    textAlign: pw.TextAlign.center,
                   ),
-                  pw.Expanded(
-                    flex: 2, 
-                    child: pw.Text(
-                      'Total', 
+                  _createText(
+                    businessInfo['phone']!,
+                    arabicFont: arabicFont,
+                    style: pw.TextStyle(
+                      font: fallbackFont,
+                      fontSize: 10,
+                    ),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                  pw.SizedBox(height: 3),
+                  
+                  // Add EDITED marker if order was edited
+                  if (isEdited)
+                    pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: pw.BoxDecoration(
+                        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                      ),
+                      child: _createText(
+                        'EDITED',
+                        arabicFont: arabicFont,
+                        style: pw.TextStyle(
+                          font: fallbackFont,
+                          fontSize: 5,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                        textAlign: pw.TextAlign.center,
+                      ),
+                    ),
+                  
+                  pw.SizedBox(height: 3),
+                  
+                  _createText(
+                    'ORDER #$billNumber',
+                    arabicFont: arabicFont,
+                    style: pw.TextStyle(
+                      font: fallbackFont,
+                      fontSize: 12,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                  pw.SizedBox(height: 2),
+                  _createText(
+                    '$formattedDate at $formattedTime',
+                    arabicFont: arabicFont,
+                    style: pw.TextStyle(
+                      font: fallbackFont,
+                      fontSize: 10,
+                    ),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                  pw.SizedBox(height: 2),
+                  _createText(
+                    'Service: $serviceType',
+                    arabicFont: arabicFont,
+                    style: pw.TextStyle(
+                      font: _containsArabic(serviceType) ? arabicFont : fallbackFont,
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                  if (personName != null)
+                    _createText(
+                      'Customer: $personName',
+                      arabicFont: arabicFont,
                       style: pw.TextStyle(
-                        font: ttf, 
-                        fontSize: 10, 
-                        fontWeight: pw.FontWeight.bold
-                      ), 
-                      textAlign: pw.TextAlign.right
-                    )
-                  ),
+                        font: _containsArabic(personName) ? arabicFont : fallbackFont,
+                        fontSize: 10,
+                      ),
+                      textAlign: pw.TextAlign.center,
+                    ),
                 ],
               ),
-              
-              pw.Divider(thickness: 1),
-              
-              // Items
-              pw.Column(
-                children: items.map((item) {
-                  return pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
+            ),
+            
+            pw.SizedBox(height: 10),
+            pw.Divider(thickness: 1),
+            
+            // Item header - only in English (since PDF is for customers)
+            pw.Row(
+              children: [
+                pw.Expanded(
+                  flex: 5,
+                  child: _createText(
+                    'Item',
+                    arabicFont: arabicFont,
+                    style: pw.TextStyle(
+                      font: fallbackFont,
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ),
+                pw.Expanded(
+                  flex: 1,
+                  child: _createText(
+                    'Qty',
+                    arabicFont: arabicFont,
+                    style: pw.TextStyle(
+                      font: fallbackFont,
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                ),
+                pw.Expanded(
+                  flex: 2,
+                  child: _createText(
+                    'Price',
+                    arabicFont: arabicFont,
+                    style: pw.TextStyle(
+                      font: fallbackFont,
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                    textAlign: pw.TextAlign.right,
+                  ),
+                ),
+                pw.Expanded(
+                  flex: 2,
+                  child: _createText(
+                    'Total',
+                    arabicFont: arabicFont,
+                    style: pw.TextStyle(
+                      font: fallbackFont,
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                    textAlign: pw.TextAlign.right,
+                  ),
+                ),
+              ],
+            ),
+            
+            pw.Divider(thickness: 1),
+            
+            // Items - each item displays in its original language
+            pw.Column(
+              children: items.map((item) {
+                return pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(top: 5, bottom: 5),
+                      child: pw.Row(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Expanded(
+                            flex: 5,
+                            child: _createText(
+                              item.name,
+                              arabicFont: arabicFont,
+                              style: pw.TextStyle(
+                                font: _containsArabic(item.name) ? arabicFont : fallbackFont,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                          pw.Expanded(
+                            flex: 1,
+                            child: _createText(
+                              '${item.quantity}',
+                              arabicFont: arabicFont,
+                              style: pw.TextStyle(
+                                font: fallbackFont,
+                                fontSize: 10,
+                              ),
+                              textAlign: pw.TextAlign.center,
+                            ),
+                          ),
+                          pw.Expanded(
+                            flex: 2,
+                            child: _createText(
+                              item.price.toStringAsFixed(3),
+                              arabicFont: arabicFont,
+                              style: pw.TextStyle(
+                                font: fallbackFont,
+                                fontSize: 10,
+                              ),
+                              textAlign: pw.TextAlign.right,
+                            ),
+                          ),
+                          pw.Expanded(
+                            flex: 2,
+                            child: _createText(
+                              (item.price * item.quantity).toStringAsFixed(3),
+                              arabicFont: arabicFont,
+                              style: pw.TextStyle(
+                                font: fallbackFont,
+                                fontSize: 10,
+                              ),
+                              textAlign: pw.TextAlign.right,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    // Add kitchen note if it exists - display in its original language
+                    if (item.kitchenNote.isNotEmpty)
                       pw.Padding(
-                        padding: const pw.EdgeInsets.only(top: 5, bottom: 5),
+                        padding: const pw.EdgeInsets.only(left: 10, bottom: 5),
                         child: pw.Row(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
                           children: [
-                            pw.Expanded(
-                              flex: 5, 
-                              child: pw.Text(
-                                item.name, 
-                                style: pw.TextStyle(font: ttf, fontSize: 10)
-                              )
+                            _createText(
+                              'Note: ',
+                              arabicFont: arabicFont,
+                              style: pw.TextStyle(
+                                font: fallbackFont,
+                                fontSize: 8,
+                                fontWeight: pw.FontWeight.bold,
+                                color: PdfColors.blue900,
+                              ),
                             ),
                             pw.Expanded(
-                              flex: 1, 
-                              child: pw.Text(
-                                '${item.quantity}', 
-                                style: pw.TextStyle(font: ttf, fontSize: 10), 
-                                textAlign: pw.TextAlign.center
-                              )
-                            ),
-                            pw.Expanded(
-                              flex: 2, 
-                              child: pw.Text(
-                                item.price.toStringAsFixed(3), 
-                                style: pw.TextStyle(font: ttf, fontSize: 10), 
-                                textAlign: pw.TextAlign.right
-                              )
-                            ),
-                            pw.Expanded(
-                              flex: 2, 
-                              child: pw.Text(
-                                (item.price * item.quantity).toStringAsFixed(3), 
-                                style: pw.TextStyle(font: ttf, fontSize: 10), 
-                                textAlign: pw.TextAlign.right
-                              )
+                              child: _createText(
+                                item.kitchenNote,
+                                arabicFont: arabicFont,
+                                style: pw.TextStyle(
+                                  font: _containsArabic(item.kitchenNote) ? arabicFont : fallbackFont,
+                                  fontSize: 8,
+                                  fontStyle: pw.FontStyle.italic,
+                                  color: PdfColors.blue900,
+                                ),
+                              ),
                             ),
                           ],
                         ),
                       ),
-                      
-                      // Add kitchen note if it exists
-                      if (item.kitchenNote.isNotEmpty)
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.only(left: 10, bottom: 5),
-                          child: pw.Row(
-                            children: [
-                              pw.Text(
-                                'Note: ',
-                                style: pw.TextStyle(
-                                  font: ttf,
-                                  fontSize: 8,
-                                  fontWeight: pw.FontWeight.bold,
-                                  color: PdfColors.blue900,
-                                ),
-                              ),
-                              pw.Expanded(
-                                child: pw.Text(
-                                  item.kitchenNote,
-                                  style: pw.TextStyle(
-                                    font: ttf,
-                                    fontSize: 8,
-                                    fontStyle: pw.FontStyle.italic,
-                                    color: PdfColors.blue900,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                    ],
-                  );
-                }).toList(),
-              ),
-              
-              pw.Divider(thickness: 1),
-              
-              // Totals
-              pw.Padding(
-                padding: const pw.EdgeInsets.only(top: 5),
-                child: pw.Row(
-                  children: [
-                    pw.Expanded(
-                      flex: 6, 
-                      child: pw.Text(
-                        'Subtotal:', 
-                        style: pw.TextStyle(font: ttf, fontSize: 10), 
-                        textAlign: pw.TextAlign.right
-                      )
-                    ),
-                    pw.Expanded(
-                      flex: 4, 
-                      child: pw.Text(
-                        subtotal.toStringAsFixed(3), 
-                        style: pw.TextStyle(font: ttf, fontSize: 10), 
-                        textAlign: pw.TextAlign.right
-                      )
-                    ),
                   ],
-                ),
+                );
+              }).toList(),
+            ),
+            
+            pw.Divider(thickness: 1),
+            
+            // Totals - only in English
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(top: 5),
+              child: pw.Row(
+                children: [
+                  pw.Expanded(
+                    flex: 6,
+                    child: _createText(
+                      'Subtotal:',
+                      arabicFont: arabicFont,
+                      style: pw.TextStyle(
+                        font: fallbackFont,
+                        fontSize: 10,
+                      ),
+                      textAlign: pw.TextAlign.right,
+                    ),
+                  ),
+                  pw.Expanded(
+                    flex: 4,
+                    child: _createText(
+                      subtotal.toStringAsFixed(3),
+                      arabicFont: arabicFont,
+                      style: pw.TextStyle(
+                        font: fallbackFont,
+                        fontSize: 10,
+                      ),
+                      textAlign: pw.TextAlign.right,
+                    ),
+                  ),
+                ],
               ),
-              
+            ),
+            
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(top: 2),
+              child: pw.Row(
+                children: [
+                  pw.Expanded(
+                    flex: 6,
+                    child: _createText(
+                      'Tax (${effectiveTaxRate.toStringAsFixed(1)}%):',
+                      arabicFont: arabicFont,
+                      style: pw.TextStyle(
+                        font: fallbackFont,
+                        fontSize: 10,
+                      ),
+                      textAlign: pw.TextAlign.right,
+                    ),
+                  ),
+                  pw.Expanded(
+                    flex: 4,
+                    child: _createText(
+                      tax.toStringAsFixed(3),
+                      arabicFont: arabicFont,
+                      style: pw.TextStyle(
+                        font: fallbackFont,
+                        fontSize: 10,
+                      ),
+                      textAlign: pw.TextAlign.right,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            if (discount > 0)
               pw.Padding(
                 padding: const pw.EdgeInsets.only(top: 2),
                 child: pw.Row(
                   children: [
                     pw.Expanded(
-                      flex: 6, 
-                      child: pw.Text(
-                        'Tax (${effectiveTaxRate.toStringAsFixed(1)}%):', 
-                        style: pw.TextStyle(font: ttf, fontSize: 10), 
-                        textAlign: pw.TextAlign.right
-                      )
+                      flex: 6,
+                      child: _createText(
+                        'Discount:',
+                        arabicFont: arabicFont,
+                        style: pw.TextStyle(
+                          font: fallbackFont,
+                          fontSize: 10,
+                        ),
+                        textAlign: pw.TextAlign.right,
+                      ),
                     ),
                     pw.Expanded(
-                      flex: 4, 
-                      child: pw.Text(
-                        tax.toStringAsFixed(3), 
-                        style: pw.TextStyle(font: ttf, fontSize: 10), 
-                        textAlign: pw.TextAlign.right
-                      )
+                      flex: 4,
+                      child: _createText(
+                        discount.toStringAsFixed(3),
+                        arabicFont: arabicFont,
+                        style: pw.TextStyle(
+                          font: fallbackFont,
+                          fontSize: 10,
+                        ),
+                        textAlign: pw.TextAlign.right,
+                      ),
                     ),
                   ],
                 ),
               ),
-              
-              if (discount > 0)
-                pw.Padding(
-                  padding: const pw.EdgeInsets.only(top: 2),
-                  child: pw.Row(
-                    children: [
-                      pw.Expanded(
-                        flex: 6, 
-                        child: pw.Text(
-                          'Discount:', 
-                          style: pw.TextStyle(font: ttf, fontSize: 10), 
-                          textAlign: pw.TextAlign.right
-                        )
+            
+            pw.Divider(thickness: 1),
+            
+            // Grand total
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(top: 2, bottom: 5),
+              child: pw.Row(
+                children: [
+                  pw.Expanded(
+                    flex: 6,
+                    child: _createText(
+                      'TOTAL:',
+                      arabicFont: arabicFont,
+                      style: pw.TextStyle(
+                        font: fallbackFont,
+                        fontSize: 12,
+                        fontWeight: pw.FontWeight.bold,
                       ),
-                      pw.Expanded(
-                        flex: 4, 
-                        child: pw.Text(
-                          discount.toStringAsFixed(3), 
-                          style: pw.TextStyle(font: ttf, fontSize: 10), 
-                          textAlign: pw.TextAlign.right
-                        )
-                      ),
-                    ],
+                      textAlign: pw.TextAlign.right,
+                    ),
                   ),
-                ),
-              
-              pw.Divider(thickness: 1),
-              
-              // Grand total
-              pw.Padding(
-                padding: const pw.EdgeInsets.only(top: 2, bottom: 5),
-                child: pw.Row(
-                  children: [
-                    pw.Expanded(
-                      flex: 6, 
-                      child: pw.Text(
-                        'TOTAL:', 
-                        style: pw.TextStyle(
-                          font: ttf, 
-                          fontSize: 12, 
-                          fontWeight: pw.FontWeight.bold
-                        ), 
-                        textAlign: pw.TextAlign.right
-                      )
+                  pw.Expanded(
+                    flex: 4,
+                    child: _createText(
+                      total.toStringAsFixed(3),
+                      arabicFont: arabicFont,
+                      style: pw.TextStyle(
+                        font: fallbackFont,
+                        fontSize: 12,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                      textAlign: pw.TextAlign.right,
                     ),
-                    pw.Expanded(
-                      flex: 4, 
-                      child: pw.Text(
-                        total.toStringAsFixed(3), 
-                        style: pw.TextStyle(
-                          font: ttf, 
-                          fontSize: 12, 
-                          fontWeight: pw.FontWeight.bold
-                        ), 
-                        textAlign: pw.TextAlign.right
-                      )
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              
-              pw.Divider(thickness: 1),
-              
-              // Footer
-              pw.SizedBox(height: 10),
-              pw.Center(
-                child: pw.Column(
-                  children: [
-                    pw.Text(
-                      'Thank you for your visit!', 
-                      style: pw.TextStyle(font: ttf, fontSize: 10)
+            ),
+            
+            pw.Divider(thickness: 1),
+            
+            // Footer - only in English
+            pw.SizedBox(height: 10),
+            pw.Center(
+              child: pw.Column(
+                children: [
+                  _createText(
+                    'Thank you for your visit!',
+                    arabicFont: arabicFont,
+                    style: pw.TextStyle(
+                      font: fallbackFont,
+                      fontSize: 10,
                     ),
-                    pw.SizedBox(height: 2),
-                    pw.Text(
-                      'Please come again', 
-                      style: pw.TextStyle(font: ttf, fontSize: 10)
+                    textAlign: pw.TextAlign.center,
+                  ),
+                  pw.SizedBox(height: 2),
+                  _createText(
+                    'Please come again',
+                    arabicFont: arabicFont,
+                    style: pw.TextStyle(
+                      font: fallbackFont,
+                      fontSize: 10,
                     ),
-                  ],
-                ),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                ],
               ),
-            ],
-          );
-        },
-      ),
-    );
-    
-    return pdf;
-  }
-
+            ),
+          ],
+        );
+      },
+    ),
+  );
+  
+  return pdf;
+}
   // Direct thermal printing of a bill
   static Future<bool> printThermalBill(OrderHistory order, {bool isEdited = false, double? taxRate, double discount = 0.0 }) async {
     try {
@@ -806,195 +961,200 @@ static Future<bool> isPrinterEnabled() async {
     };
   }
   
-  // Generate PDF kitchen receipt (simplified format) with tax rate
-  static Future<pw.Document> generateKitchenBill({
-    required List<MenuItem> items,
-    required String serviceType,
-    String? tableInfo,
-    String? orderNumber,
+ 
+// Replace the generateKitchenBill method in BillService class
+static Future<pw.Document> generateKitchenBill({
+  required List<MenuItem> items,
+  required String serviceType,
+  String? tableInfo,
+  String? orderNumber,
+}) async {
+  final pdf = pw.Document();
   
-  }) async {
-    final pdf = pw.Document();
-    
-    // Try to load custom font if available
-    pw.Font? ttf;
-    try {
-      final fontData = await rootBundle.load("assets/fonts/open-sans.regular.ttf");
-      ttf = pw.Font.ttf(fontData.buffer.asByteData());
-    } catch (e) {
-      debugPrint('Could not load font, using default: $e');
-      // Continue without custom font
-    }
-    
-    // Format current date and time
-    final now = DateTime.now();
-    final dateFormatter = DateFormat('dd-MM-yyyy');
-    final timeFormatter = DateFormat('hh:mm a');
-    final formattedDate = dateFormatter.format(now);
-    final formattedTime = timeFormatter.format(now);
-    
-    // Use provided order number or generate a new one
-    final billNumber = orderNumber ?? '${now.millisecondsSinceEpoch % 10000}';
-    
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.roll80, // Standard receipt roll width
-        build: (pw.Context context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              // Header
-              pw.Center(
-                child: pw.Column(
-                  children: [
-                    pw.Text('KITCHEN ORDER', 
-                      style: pw.TextStyle(
-                        font: ttf, 
-                        fontSize: 16, 
-                        fontWeight: pw.FontWeight.bold
-                      )
-                    ),
-                    pw.SizedBox(height: 5),
-                    
-                    pw.Text('ORDER #$billNumber', 
-                      style: pw.TextStyle(
-                        font: ttf, 
-                        fontSize: 14, 
-                        fontWeight: pw.FontWeight.bold
-                      )
-                    ),
-                    pw.SizedBox(height: 3),
-                    pw.Text('$formattedDate at $formattedTime', 
-                      style: pw.TextStyle(font: ttf, fontSize: 10)
-                    ),
-                    pw.SizedBox(height: 3),
-                    pw.Text('Service: $serviceType', 
-                      style: pw.TextStyle(
-                        font: ttf, 
-                        fontSize: 12, 
-                        fontWeight: pw.FontWeight.bold
-                      )
-                    ),
-                    // if (tableInfo != null)
-                    //   pw.Text(tableInfo, style: pw.TextStyle(font: ttf, fontSize: 12)),
-                  ],
-                ),
-              ),
-              
-              pw.SizedBox(height: 10),
-              
-              // Divider
-              pw.Divider(thickness: 1),
-              
-              // Item header - simplified for kitchen
-              pw.Row(
+  // Load Arabic-compatible font
+  final arabicFont = await _loadArabicFont();
+  
+  // Try to load custom font if available
+  pw.Font? ttf;
+  try {
+    final fontData = await rootBundle.load("assets/fonts/open-sans.regular.ttf");
+    ttf = pw.Font.ttf(fontData.buffer.asByteData());
+  } catch (e) {
+    debugPrint('Could not load font, using default: $e');
+    // Continue without custom font
+  }
+  
+  // Format current date and time
+  final now = DateTime.now();
+  final dateFormatter = DateFormat('dd-MM-yyyy');
+  final timeFormatter = DateFormat('hh:mm a');
+  final formattedDate = dateFormatter.format(now);
+  final formattedTime = timeFormatter.format(now);
+  
+  // Use provided order number or generate a new one
+  final billNumber = orderNumber ?? '${now.millisecondsSinceEpoch % 10000}';
+  
+  pdf.addPage(
+    pw.Page(
+      pageFormat: PdfPageFormat.roll80, // Standard receipt roll width
+      build: (pw.Context context) {
+        return pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            // Header - only in English
+            pw.Center(
+              child: pw.Column(
                 children: [
-                  pw.Expanded(
-                    flex: 6, 
-                    child: pw.Text(
-                      'Item', 
-                      style: pw.TextStyle(
-                        font: ttf, 
-                        fontSize: 12, 
-                        fontWeight: pw.FontWeight.bold
-                      )
+                  pw.Text('KITCHEN ORDER', 
+                    style: pw.TextStyle(
+                      font: ttf, 
+                      fontSize: 16, 
+                      fontWeight: pw.FontWeight.bold
                     )
                   ),
-                  pw.Expanded(
-                    flex: 2, 
-                    child: pw.Text(
-                      'Qty', 
-                      style: pw.TextStyle(
-                        font: ttf, 
-                        fontSize: 12, 
-                        fontWeight: pw.FontWeight.bold
-                      ), 
-                      textAlign: pw.TextAlign.right
+                  pw.SizedBox(height: 5),
+                  
+                  pw.Text('ORDER #$billNumber', 
+                    style: pw.TextStyle(
+                      font: ttf, 
+                      fontSize: 14, 
+                      fontWeight: pw.FontWeight.bold
                     )
+                  ),
+                  pw.SizedBox(height: 3),
+                  pw.Text('$formattedDate at $formattedTime', 
+                    style: pw.TextStyle(font: ttf, fontSize: 10)
+                  ),
+                  pw.SizedBox(height: 3),
+                  _createText(
+                    'Service: $serviceType',
+                    arabicFont: arabicFont,
+                    style: pw.TextStyle(
+                      font: _containsArabic(serviceType) ? arabicFont : ttf,
+                      fontSize: 12,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                    textAlign: pw.TextAlign.center,
                   ),
                 ],
               ),
-              
-              pw.Divider(thickness: 1),
-              
-              // Items - with focus on name, quantity, and kitchen notes
-              pw.Column(
-                children: items.map((item) {
-                  return pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
+            ),
+            
+            pw.SizedBox(height: 10),
+            
+            // Divider
+            pw.Divider(thickness: 1),
+            
+            // Item header - simplified for kitchen, only in English
+            pw.Row(
+              children: [
+                pw.Expanded(
+                  flex: 6, 
+                  child: pw.Text(
+                    'Item', 
+                    style: pw.TextStyle(
+                      font: ttf, 
+                      fontSize: 12, 
+                      fontWeight: pw.FontWeight.bold
+                    )
+                  )
+                ),
+                pw.Expanded(
+                  flex: 2, 
+                  child: pw.Text(
+                    'Qty', 
+                    style: pw.TextStyle(
+                      font: ttf, 
+                      fontSize: 12, 
+                      fontWeight: pw.FontWeight.bold
+                    ), 
+                    textAlign: pw.TextAlign.right
+                  )
+                ),
+              ],
+            ),
+            
+            pw.Divider(thickness: 1),
+            
+            // Items - each item displays in its original language
+            pw.Column(
+              children: items.map((item) {
+                return pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(top: 5, bottom: 2),
+                      child: pw.Row(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Expanded(
+                            flex: 6, 
+                            child: _createText(
+                              item.name,
+                              arabicFont: arabicFont,
+                              style: pw.TextStyle(
+                                font: _containsArabic(item.name) ? arabicFont : ttf,
+                                fontSize: 12,
+                              ),
+                            )
+                          ),
+                          pw.Expanded(
+                            flex: 2, 
+                            child: pw.Text(
+                              '${item.quantity}', 
+                              style: pw.TextStyle(font: ttf, fontSize: 12), 
+                              textAlign: pw.TextAlign.right
+                            )
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    // Add kitchen note if present - display in its original language
+                    if (item.kitchenNote.isNotEmpty)
                       pw.Padding(
-                        padding: const pw.EdgeInsets.only(top: 5, bottom: 2),
+                        padding: const pw.EdgeInsets.only(left: 10, bottom: 5),
                         child: pw.Row(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
                           children: [
-                            pw.Expanded(
-                              flex: 6, 
-                              child: pw.Text(
-                                item.name, 
-                                style: pw.TextStyle(font: ttf, fontSize: 12)
-                              )
+                            pw.Text(
+                              'NOTE: ',
+                              style: pw.TextStyle(
+                                font: ttf,
+                                fontSize: 10,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
                             ),
                             pw.Expanded(
-                              flex: 2, 
-                              child: pw.Text(
-                                '${item.quantity}', 
-                                style: pw.TextStyle(font: ttf, fontSize: 12), 
-                                textAlign: pw.TextAlign.right
-                              )
+                              child: _createText(
+                                item.kitchenNote,
+                                arabicFont: arabicFont,
+                                style: pw.TextStyle(
+                                  font: _containsArabic(item.kitchenNote) ? arabicFont : ttf,
+                                  fontSize: 10,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ],
                         ),
                       ),
-                      
-                      // Add kitchen note if present - this is important for kitchen staff
-                      if (item.kitchenNote.isNotEmpty)
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.only(left: 10, bottom: 5),
-                          child: pw.Text(
-                            'NOTE: ${item.kitchenNote}',
-                            style: pw.TextStyle(
-                              font: ttf,
-                              fontSize: 10,
-                              fontWeight: pw.FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      
-                      // Add a small space between items
-                      pw.SizedBox(height: 2),
-                    ],
-                  );
-                }).toList(),
-              ),
-              
-              pw.Divider(thickness: 1),
-              
-              // Footer with table number or service type for reference
-              // pw.SizedBox(height: 10),
-              // pw.Center(
-              //   child: pw.Column(
-              //     children: [
-              //       if (tableInfo != null)
-              //         pw.Text(
-              //           'TABLE: ${tableInfo.split("Table ").last}', 
-              //           style: pw.TextStyle(
-              //             font: ttf, 
-              //             fontSize: 14,
-              //             fontWeight: pw.FontWeight.bold
-              //           )
-              //         ),
-              //     ],
-              //   ),
-              // ),
-            ],
-          );
-        },
-      ),
-    );
-    
-    return pdf;
-  }
+                    
+                    // Add a small space between items
+                    pw.SizedBox(height: 2),
+                  ],
+                );
+              }).toList(),
+            ),
+            
+            pw.Divider(thickness: 1),
+          ],
+        );
+      },
+    ),
+  );
+  
+  return pdf;
+}
   
   // Print a kitchen-focused receipt (just item names, quantities, and notes) with tax rate
   static Future<Map<String, dynamic>> printKitchenOrderReceipt({
