@@ -212,25 +212,25 @@ class ThermalPrinterService {
   }
 }
 
-// Replace the printOrderReceipt method in ThermalPrinterService class
-  static Future<bool> printOrderReceipt({
-    required String serviceType,
-    required List<MenuItem> items,
-    required double subtotal,
-    required double tax,
-    required double discount,
-    required double total,
-    String? personName,
-    String? tableInfo,
-    bool isEdited = false,
-    String? orderNumber,
-    double? taxRate,
-  }) async {
-    final effectiveTaxRate = taxRate ?? 0.0;
-    final ip = await getPrinterIp();
-    final port = await getPrinterPort();
-    final businessInfo = await getBusinessInfo();
-    
+// Replace the printOrderReceipt method in your ThermalPrinterService class
+static Future<bool> printOrderReceipt({
+  required String serviceType,
+  required List<MenuItem> items,
+  required double subtotal,
+  required double tax,
+  required double discount,
+  required double total,
+  String? personName,
+  String? tableInfo,
+  bool isEdited = false,
+  String? orderNumber,
+  double? taxRate,
+}) async {
+  final effectiveTaxRate = taxRate ?? 0.0;
+  final ip = await getPrinterIp();
+  final port = await getPrinterPort();
+  final businessInfo = await getBusinessInfo();
+  
   try {
     final profile = await CapabilityProfile.load();
     final printer = NetworkPrinter(PaperSize.mm80, profile);
@@ -260,14 +260,14 @@ class ThermalPrinterService {
     final billNumber = orderNumber ?? (DateTime.now().millisecondsSinceEpoch % 10000).toString();
     
     // Print receipt header - only in current app language
-    printer.text('RECEIPT', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
+    printer.text('RECEIPT', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size3));
     
     // Business name with smart alignment and processing
     final processedBusinessName = _processTextForPrinting(businessInfo['name']!, hasArabicContent);
     printer.text(processedBusinessName, styles: PosStyles(
       align: _getTextAlign(businessInfo['name']!, PosAlign.center), 
       bold: true, 
-      height: PosTextSize.size2
+      height: PosTextSize.size3
     ));
     
     // Second business name (if exists)
@@ -276,7 +276,7 @@ class ThermalPrinterService {
       printer.text(processedSecondName, styles: PosStyles(
         align: _getTextAlign(businessInfo['second_name']!, PosAlign.center), 
         bold: true, 
-        height: PosTextSize.size1
+        height: PosTextSize.size2
       ));
     }
 
@@ -286,13 +286,14 @@ class ThermalPrinterService {
     if (businessInfo['address']!.isNotEmpty) {
       final processedAddress = _processTextForPrinting(businessInfo['address']!, hasArabicContent);
       printer.text(processedAddress, styles: PosStyles(
-        align: _getTextAlign(businessInfo['address']!, PosAlign.center)
+        align: _getTextAlign(businessInfo['address']!, PosAlign.center),
+        height: PosTextSize.size2
       ));
     }
     
     // Phone (if exists)
     if (businessInfo['phone']!.isNotEmpty) {
-      printer.text(businessInfo['phone']!, styles: const PosStyles(align: PosAlign.center));
+      printer.text(businessInfo['phone']!, styles: const PosStyles(align: PosAlign.center,height: PosTextSize.size2));
     }
 
     // EDITED indicator - only in current language
@@ -315,7 +316,8 @@ class ThermalPrinterService {
     }
     
     // Order number
-    printer.text('ORDER #$billNumber', styles: const PosStyles(align: PosAlign.center, bold: true));
+    printer.text('ORDER #$billNumber', styles: const PosStyles(align: PosAlign.center, bold: true,height: PosTextSize.size1,
+      width: PosTextSize.size1));
     
     // Date and time
     final now = DateTime.now();
@@ -327,7 +329,8 @@ class ThermalPrinterService {
     final processedServiceType = _processTextForPrinting(serviceType, hasArabicContent);
     printer.text('Service: $processedServiceType', styles: PosStyles(
       align: _getTextAlign(serviceType, PosAlign.center), 
-      bold: true
+      bold: true,height: PosTextSize.size1,
+      width: PosTextSize.size1,
     ));
     
     // Customer name (if exists) - display in its original language
@@ -338,16 +341,23 @@ class ThermalPrinterService {
       ));
     }
     
-    printer.hr();
+    // FIXED DOTTED LINE - Use custom pattern instead of hr()
+    printer.text('=' * 48, styles: const PosStyles(align: PosAlign.center));
 
     // Item headers - only in current app language
     printer.row([
-      PosColumn(text: 'Item', width: 5, styles: const PosStyles(bold: true)),
-      PosColumn(text: 'Qty', width: 2, styles: const PosStyles(bold: true, align: PosAlign.center)),
-      PosColumn(text: 'Price', width: 2, styles: const PosStyles(bold: true, align: PosAlign.right)),
-      PosColumn(text: 'Total', width: 3, styles: const PosStyles(bold: true, align: PosAlign.right)),
+      PosColumn(text: 'Item', width: 5, styles: const PosStyles(bold: true,height: PosTextSize.size2,
+      )),
+      PosColumn(text: 'Qty', width: 2, styles: const PosStyles(bold: true, align: PosAlign.center,height: PosTextSize.size2,
+      )),
+      PosColumn(text: 'Price', width: 2, styles: const PosStyles(bold: true, align: PosAlign.right,height: PosTextSize.size2,
+      )),
+      PosColumn(text: 'Total', width: 3, styles: const PosStyles(bold: true, align: PosAlign.right,height: PosTextSize.size2,
+     )),
     ]);
-    printer.hr();
+
+    // FIXED DOTTED LINE
+    printer.text('=' * 48, styles: const PosStyles(align: PosAlign.center));
     
     // Items - each item displays in its original language
     for (var item in items) {
@@ -355,11 +365,15 @@ class ThermalPrinterService {
       
       printer.row([
         PosColumn(text: processedItemName, width: 5, styles: PosStyles(
-          align: _getTextAlign(item.name, PosAlign.left)
+          align: _getTextAlign(item.name, PosAlign.left),
+          height: PosTextSize.size2,
         )),
-        PosColumn(text: '${item.quantity}', width: 2, styles: const PosStyles(align: PosAlign.center)),
-        PosColumn(text: item.price.toStringAsFixed(3), width: 2, styles: const PosStyles(align: PosAlign.right)),
-        PosColumn(text: (item.price * item.quantity).toStringAsFixed(3), width: 3, styles: const PosStyles(align: PosAlign.right)),
+        PosColumn(text: '${item.quantity}', width: 2, styles: const PosStyles(align: PosAlign.center,height: PosTextSize.size2,
+        )),
+        PosColumn(text: item.price.toStringAsFixed(3), width: 2, styles: const PosStyles(align: PosAlign.right,height: PosTextSize.size2,
+        )),
+        PosColumn(text: (item.price * item.quantity).toStringAsFixed(3), width: 3, styles: const PosStyles(align: PosAlign.right,height: PosTextSize.size2,
+        )),
       ]);
 
       // Kitchen note - display in its original language only
@@ -367,36 +381,45 @@ class ThermalPrinterService {
         final processedNote = _processTextForPrinting(item.kitchenNote, hasArabicContent);
         printer.text('Note: $processedNote', styles: PosStyles(
           align: _getTextAlign(item.kitchenNote, PosAlign.left),
-          fontType: PosFontType.fontB
+          fontType: PosFontType.fontB,height: PosTextSize.size2,
+      
         ));
       }
     }
     
-    printer.hr();
+    // FIXED DOTTED LINE
+    printer.text('=' * 48, styles: const PosStyles(align: PosAlign.center));
 
     // Totals - only in current app language
     printer.row([
-      PosColumn(text: 'Subtotal:', width: 8, styles: const PosStyles(align: PosAlign.right)),
-      PosColumn(text: subtotal.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right)),
+      PosColumn(text: 'Subtotal:', width: 8, styles: const PosStyles(align: PosAlign.right, height: PosTextSize.size2,)),
+      PosColumn(text: subtotal.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right,height: PosTextSize.size2,
+      )),
     ]);
-    
     printer.row([
-      PosColumn(text: 'Tax (${effectiveTaxRate.toStringAsFixed(1)}%):', width: 8, styles: const PosStyles(align: PosAlign.right)),
-      PosColumn(text: tax.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right)),
+      PosColumn(text: 'Tax (${effectiveTaxRate.toStringAsFixed(1)}%):', width: 8, styles: const PosStyles(align: PosAlign.right,height: PosTextSize.size2,
+      )),
+      PosColumn(text: tax.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right,height: PosTextSize.size2,
+     )),
     ]);
     
     if (discount > 0) {
       printer.row([
-        PosColumn(text: 'Discount:', width: 8, styles: const PosStyles(align: PosAlign.right)),
-        PosColumn(text: discount.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right)),
+        PosColumn(text: 'Discount:', width: 8, styles: const PosStyles(align: PosAlign.right,height: PosTextSize.size2,
+      )),
+        PosColumn(text: discount.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right,height: PosTextSize.size2,
+      )),
       ]);
     }
     
-    printer.hr();
-    
+    // FIXED DOTTED LINE
+    printer.text('=' * 48, styles: const PosStyles(align: PosAlign.center));
+
     printer.row([
-      PosColumn(text: 'TOTAL:', width: 8, styles: const PosStyles(align: PosAlign.right, bold: true)),
-      PosColumn(text: total.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right, bold: true)),
+      PosColumn(text: 'TOTAL:', width: 8, styles: const PosStyles(align: PosAlign.right, bold: true,height: PosTextSize.size3,
+      )),
+      PosColumn(text: total.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right, bold: true,height: PosTextSize.size3,
+      )),
     ]);
           
     // Footer - only in current app language
@@ -417,7 +440,7 @@ class ThermalPrinterService {
   }
 }
 
-// Replace the printKitchenReceipt method in ThermalPrinterService class
+// Also fix the printKitchenReceipt method
 static Future<bool> printKitchenReceipt({
   required String serviceType,
   required List<MenuItem> items,
@@ -458,8 +481,8 @@ static Future<bool> printKitchenReceipt({
     
     // Print header - only in current app language
     printer.text('KITCHEN ORDER', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
-    printer.text('ORDER #$billNumber', styles: const PosStyles(align: PosAlign.center, bold: true));
-    
+    printer.text('ORDER #$billNumber', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size1,width: PosTextSize.size1));
+
     // Date and time
     final now = DateTime.now();
     final formattedDate = '${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year}';
@@ -470,17 +493,21 @@ static Future<bool> printKitchenReceipt({
     final processedServiceType = _processTextForPrinting(serviceType, hasArabic);
     printer.text('Service: $processedServiceType', styles: PosStyles(
       align: _getTextAlign(serviceType, PosAlign.center), 
-      bold: true
+      bold: true,
+      height: PosTextSize.size1,
     ));
     
-    printer.hr();
-    
+    // FIXED DOTTED LINE
+    printer.text('=' * 48, styles: const PosStyles(align: PosAlign.center));
+
     // Item headers - only in current app language
     printer.row([
-      PosColumn(text: 'Item', width: 8, styles: const PosStyles(bold: true)),
-      PosColumn(text: 'Qty', width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+      PosColumn(text: 'Item', width: 8, styles: const PosStyles(bold: true,height: PosTextSize.size2),),
+      PosColumn(text: 'Qty', width: 4, styles: const PosStyles(bold: true, align: PosAlign.right,height: PosTextSize.size2)),
     ]);
-    printer.hr();
+    
+    // FIXED DOTTED LINE
+    printer.text('=' * 48, styles: const PosStyles(align: PosAlign.center));
     
     // Items - each item displays in its original language
     for (var item in items) {
@@ -488,9 +515,9 @@ static Future<bool> printKitchenReceipt({
       
       printer.row([
         PosColumn(text: processedItemName, width: 8, styles: PosStyles(
-          align: _getTextAlign(item.name, PosAlign.left)
+          align: _getTextAlign(item.name, PosAlign.left),height: PosTextSize.size2
         )),
-        PosColumn(text: '${item.quantity}', width: 4, styles: const PosStyles(align: PosAlign.right)),
+        PosColumn(text: '${item.quantity}', width: 4, styles: const PosStyles(align: PosAlign.right,height: PosTextSize.size2)),
       ]);
       
       // Kitchen note - display in its original language only
@@ -499,14 +526,17 @@ static Future<bool> printKitchenReceipt({
         printer.text('NOTE: $processedNote', styles: PosStyles(
           align: _getTextAlign(item.kitchenNote, PosAlign.left),
           fontType: PosFontType.fontB, 
-          bold: true
+          bold: true,
+          height: PosTextSize.size2
         ));
       }
       
       printer.text('', styles: const PosStyles(align: PosAlign.center));
     }
     
-    printer.hr();
+    // FIXED DOTTED LINE
+    printer.text('=' * 48, styles: const PosStyles(align: PosAlign.center));
+    
     await Future.delayed(const Duration(milliseconds: 500));
     printer.cut();
     await Future.delayed(const Duration(milliseconds: 1000));
@@ -519,5 +549,4 @@ static Future<bool> printKitchenReceipt({
     return false;
   }
 }
-
 }
