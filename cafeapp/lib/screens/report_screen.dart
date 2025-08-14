@@ -335,13 +335,13 @@ Future<bool> _printThermalReport() async {
       printer.text(businessInfo['name']!, styles: const PosStyles(
         align: PosAlign.center, 
         bold: true, 
-        height: PosTextSize.size2
+        height: PosTextSize.size3
       ));
     } else {
       printer.text(businessInfo['name']!, styles: const PosStyles(
         align: PosAlign.center, 
         bold: true, 
-        height: PosTextSize.size2
+        height: PosTextSize.size3
       ));
     }
     
@@ -350,13 +350,13 @@ Future<bool> _printThermalReport() async {
         printer.text(businessInfo['second_name']!, styles: const PosStyles(
           align: PosAlign.center, 
           bold: true, 
-          height: PosTextSize.size1
+          height: PosTextSize.size2
         ));
       } else {
         printer.text(businessInfo['second_name']!, styles: const PosStyles(
           align: PosAlign.center, 
           bold: true, 
-          height: PosTextSize.size1
+          height: PosTextSize.size2
         ));
       }
     }
@@ -370,7 +370,8 @@ Future<bool> _printThermalReport() async {
     
     // Cash and Bank Sales Section
     printer.text('Cash and Bank Sales'.tr(), styles: const PosStyles(align: PosAlign.center, bold: true));
-    printer.hr();
+    printer.text('=' * 48, styles: const PosStyles(align: PosAlign.center));
+
     
     // Table headers - only in current language
     printer.row([
@@ -378,7 +379,7 @@ Future<bool> _printThermalReport() async {
       PosColumn(text: 'Revenue'.tr(), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
       PosColumn(text: 'Expenses'.tr(), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
     ]);
-    printer.hr();
+      printer.text('=' * 48, styles: const PosStyles(align: PosAlign.center));
     
     // Cash row
     printer.row([
@@ -394,7 +395,7 @@ Future<bool> _printThermalReport() async {
       PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'bank', 'expenses')), width: 4, styles: const PosStyles(align: PosAlign.right)),
     ]);
     
-    printer.hr();
+    printer.text('=' * 48, styles: const PosStyles(align: PosAlign.center));
     
     // Total row
     printer.row([
@@ -417,7 +418,7 @@ Future<bool> _printThermalReport() async {
     
     // Service Type Sales Section
     printer.text('Total Sales'.tr(), styles: const PosStyles(align: PosAlign.center, bold: true));
-    printer.hr();
+      printer.text('=' * 48, styles: const PosStyles(align: PosAlign.center));
     
     if (serviceTypeSales.isNotEmpty) {
       // Service type headers
@@ -426,8 +427,8 @@ Future<bool> _printThermalReport() async {
         PosColumn(text: 'Orders'.tr(), width: 3, styles: const PosStyles(bold: true, align: PosAlign.center)),
         PosColumn(text: 'Revenue'.tr(), width: 3, styles: const PosStyles(bold: true, align: PosAlign.right)),
       ]);
-      printer.hr();
-      
+      printer.text('=' * 48, styles: const PosStyles(align: PosAlign.center));
+
       for (var service in serviceTypeSales) {
         final serviceType = service['serviceType']?.toString() ?? '';
         final totalOrders = service['totalOrders'] as int? ?? 0;
@@ -456,7 +457,7 @@ Future<bool> _printThermalReport() async {
     
     // Revenue Breakdown Section
     printer.text('Revenue Breakdown'.tr(), styles: const PosStyles(align: PosAlign.center, bold: true));
-    printer.hr();
+      printer.text('=' * 48, styles: const PosStyles(align: PosAlign.center));
     
     // Revenue breakdown rows
     printer.row([
@@ -474,7 +475,7 @@ Future<bool> _printThermalReport() async {
       PosColumn(text: currencyFormat.format(revenue['discounts'] as double? ?? 0.0), width: 4, styles: const PosStyles(align: PosAlign.right)),
     ]);
     
-    printer.hr();
+      printer.text('=' * 48, styles: const PosStyles(align: PosAlign.center));
     
     printer.row([
       PosColumn(text: 'Total Revenue:'.tr(), width: 8, styles: const PosStyles(align: PosAlign.right, bold: true)),
