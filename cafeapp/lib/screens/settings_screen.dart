@@ -326,6 +326,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         );
       }
+      // PRESERVE device registration info before reset
+      final prefs = await SharedPreferences.getInstance();
+      final deviceRegistered = prefs.getBool('device_registered') ?? false;
+      final deviceId = prefs.getString('device_id');
+      final companyName = prefs.getString('company_name');
+      final deviceName = prefs.getString('device_name');
+      final registrationDate = prefs.getString('registration_date');
+
       
       final dbResetService = DatabaseResetService();
       await dbResetService.forceResetAllDatabases();
@@ -333,6 +341,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
       await settingsProvider.resetSettings();
+      
+      // RESTORE device registration info after reset
+    if (deviceRegistered) {
+      await prefs.setBool('device_registered', true);
+      if (deviceId != null) await prefs.setString('device_id', deviceId);
+      if (companyName != null) await prefs.setString('company_name', companyName);
+      if (deviceName != null) await prefs.setString('device_name', deviceName);
+      if (registrationDate != null) await prefs.setString('registration_date', registrationDate);
+      
+      debugPrint('✅ Device registration preserved after reset');
+    }
       
       if (!mounted) return;
       final tableProvider = Provider.of<TableProvider>(context, listen: false);
@@ -355,8 +374,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Navigator.of(ctx).pop();
                   _loadSettings();
                   // Close the app completely
+                  if (!deviceRegistered) {
+                  // Close the app completely only if device wasn't registered
                   SystemNavigator.pop();
-                },
+                  } 
+               },
                 child: Text('OK'.tr()),
               ),
             ],
