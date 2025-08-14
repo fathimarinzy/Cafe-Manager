@@ -163,293 +163,326 @@ static Future<pw.Document> generateBill({
                       arabicFont: arabicFont,
                       style: pw.TextStyle(
                         font: _containsArabic(businessInfo['second_name']!) ? arabicFont : fallbackFont,
-                        fontSize: 9,
+                      fontSize: 9,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                    textAlign: pw.TextAlign.center,
+                  ),
+                pw.SizedBox(height: 5),
+                _createText(
+                  businessInfo['address']!,
+                  arabicFont: arabicFont,
+                  style: pw.TextStyle(
+                    font: _containsArabic(businessInfo['address']!) ? arabicFont : fallbackFont,
+                    fontSize: 10,
+                  ),
+                  textAlign: pw.TextAlign.center,
+                ),
+                _createText(
+                  businessInfo['phone']!,
+                  arabicFont: arabicFont,
+                  style: pw.TextStyle(
+                    font: fallbackFont,
+                    fontSize: 10,
+                  ),
+                  textAlign: pw.TextAlign.center,
+                ),
+                pw.SizedBox(height: 3),
+                
+                // Add EDITED marker if order was edited
+                if (isEdited)
+                  pw.Container(
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: pw.BoxDecoration(
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                    ),
+                    child: _createText(
+                      'EDITED',
+                      arabicFont: arabicFont,
+                      style: pw.TextStyle(
+                        font: fallbackFont,
+                        fontSize: 5,
                         fontWeight: pw.FontWeight.bold,
                       ),
                       textAlign: pw.TextAlign.center,
                     ),
-                  pw.SizedBox(height: 5),
+                  ),
+                
+                pw.SizedBox(height: 3),
+                
+                _createText(
+                  'ORDER #$billNumber',
+                  arabicFont: arabicFont,
+                  style: pw.TextStyle(
+                    font: fallbackFont,
+                    fontSize: 12,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  textAlign: pw.TextAlign.center,
+                ),
+                pw.SizedBox(height: 2),
+                _createText(
+                  '$formattedDate at $formattedTime',
+                  arabicFont: arabicFont,
+                  style: pw.TextStyle(
+                    font: fallbackFont,
+                    fontSize: 10,
+                  ),
+                  textAlign: pw.TextAlign.center,
+                ),
+                pw.SizedBox(height: 2),
+                _createText(
+                  'Service: $serviceType',
+                  arabicFont: arabicFont,
+                  style: pw.TextStyle(
+                    font: _containsArabic(serviceType) ? arabicFont : fallbackFont,
+                    fontSize: 10,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  textAlign: pw.TextAlign.center,
+                ),
+                if (personName != null)
                   _createText(
-                    businessInfo['address']!,
+                    'Customer: $personName',
                     arabicFont: arabicFont,
                     style: pw.TextStyle(
-                      font: _containsArabic(businessInfo['address']!) ? arabicFont : fallbackFont,
+                      font: _containsArabic(personName) ? arabicFont : fallbackFont,
                       fontSize: 10,
                     ),
                     textAlign: pw.TextAlign.center,
                   ),
-                  _createText(
-                    businessInfo['phone']!,
-                    arabicFont: arabicFont,
-                    style: pw.TextStyle(
-                      font: fallbackFont,
-                      fontSize: 10,
-                    ),
-                    textAlign: pw.TextAlign.center,
+              ],
+            ),
+          ),
+          
+          pw.SizedBox(height: 10),
+          pw.Divider(thickness: 1),
+          
+          // Item header - only in English (since PDF is for customers)
+          pw.Row(
+            children: [
+              pw.Expanded(
+                flex: 5,
+                child: _createText(
+                  'Item',
+                  arabicFont: arabicFont,
+                  style: pw.TextStyle(
+                    font: fallbackFont,
+                    fontSize: 10,
+                    fontWeight: pw.FontWeight.bold,
                   ),
-                  pw.SizedBox(height: 3),
-                  
-                  // Add EDITED marker if order was edited
-                  if (isEdited)
-                    pw.Container(
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: pw.BoxDecoration(
-                        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
-                      ),
-                      child: _createText(
-                        'EDITED',
-                        arabicFont: arabicFont,
-                        style: pw.TextStyle(
-                          font: fallbackFont,
-                          fontSize: 5,
-                          fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.Expanded(
+                flex: 1,
+                child: _createText(
+                  'Qty',
+                  arabicFont: arabicFont,
+                  style: pw.TextStyle(
+                    font: fallbackFont,
+                    fontSize: 10,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ),
+              pw.Expanded(
+                flex: 2,
+                child: _createText(
+                  'Price',
+                  arabicFont: arabicFont,
+                  style: pw.TextStyle(
+                    font: fallbackFont,
+                    fontSize: 10,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  textAlign: pw.TextAlign.right,
+                ),
+              ),
+              pw.Expanded(
+                flex: 2,
+                child: _createText(
+                  'Total',
+                  arabicFont: arabicFont,
+                  style: pw.TextStyle(
+                    font: fallbackFont,
+                    fontSize: 10,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  textAlign: pw.TextAlign.right,
+                ),
+              ),
+            ],
+          ),
+          
+          pw.Divider(thickness: 1),
+          
+          // Items - each item displays in its original language
+          pw.Column(
+            children: items.map((item) {
+              return pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.only(top: 5, bottom: 5),
+                    child: pw.Row(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Expanded(
+                          flex: 5,
+                          child: _createText(
+                            item.name,
+                            arabicFont: arabicFont,
+                            style: pw.TextStyle(
+                              font: _containsArabic(item.name) ? arabicFont : fallbackFont,
+                              fontSize: 10,
+                            ),
+                          ),
                         ),
-                        textAlign: pw.TextAlign.center,
-                      ),
+                        pw.Expanded(
+                          flex: 1,
+                          child: _createText(
+                            '${item.quantity}',
+                            arabicFont: arabicFont,
+                            style: pw.TextStyle(
+                              font: fallbackFont,
+                              fontSize: 10,
+                            ),
+                            textAlign: pw.TextAlign.center,
+                          ),
+                        ),
+                        pw.Expanded(
+                          flex: 2,
+                          child: _createText(
+                            item.price.toStringAsFixed(3),
+                            arabicFont: arabicFont,
+                            style: pw.TextStyle(
+                              font: fallbackFont,
+                              fontSize: 10,
+                            ),
+                            textAlign: pw.TextAlign.right,
+                          ),
+                        ),
+                        pw.Expanded(
+                          flex: 2,
+                          child: _createText(
+                            (item.price * item.quantity).toStringAsFixed(3),
+                            arabicFont: arabicFont,
+                            style: pw.TextStyle(
+                              font: fallbackFont,
+                              fontSize: 10,
+                            ),
+                            textAlign: pw.TextAlign.right,
+                          ),
+                        ),
+                      ],
                     ),
+                  ),
                   
-                  pw.SizedBox(height: 3),
-                  
-                  _createText(
-                    'ORDER #$billNumber',
-                    arabicFont: arabicFont,
-                    style: pw.TextStyle(
-                      font: fallbackFont,
-                      fontSize: 12,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                    textAlign: pw.TextAlign.center,
-                  ),
-                  pw.SizedBox(height: 2),
-                  _createText(
-                    '$formattedDate at $formattedTime',
-                    arabicFont: arabicFont,
-                    style: pw.TextStyle(
-                      font: fallbackFont,
-                      fontSize: 10,
-                    ),
-                    textAlign: pw.TextAlign.center,
-                  ),
-                  pw.SizedBox(height: 2),
-                  _createText(
-                    'Service: $serviceType',
-                    arabicFont: arabicFont,
-                    style: pw.TextStyle(
-                      font: _containsArabic(serviceType) ? arabicFont : fallbackFont,
-                      fontSize: 10,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                    textAlign: pw.TextAlign.center,
-                  ),
-                  if (personName != null)
-                    _createText(
-                      'Customer: $personName',
-                      arabicFont: arabicFont,
-                      style: pw.TextStyle(
-                        font: _containsArabic(personName) ? arabicFont : fallbackFont,
-                        fontSize: 10,
+                  // Add kitchen note if it exists - display in its original language
+                  if (item.kitchenNote.isNotEmpty)
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(left: 10, bottom: 5),
+                      child: pw.Row(
+                        children: [
+                          _createText(
+                            'Note: ',
+                            arabicFont: arabicFont,
+                            style: pw.TextStyle(
+                              font: fallbackFont,
+                              fontSize: 8,
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColors.blue900,
+                            ),
+                          ),
+                          pw.Expanded(
+                            child: _createText(
+                              item.kitchenNote,
+                              arabicFont: arabicFont,
+                              style: pw.TextStyle(
+                                font: _containsArabic(item.kitchenNote) ? arabicFont : fallbackFont,
+                                fontSize: 8,
+                                fontStyle: pw.FontStyle.italic,
+                                color: PdfColors.blue900,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      textAlign: pw.TextAlign.center,
                     ),
                 ],
-              ),
-            ),
-            
-            pw.SizedBox(height: 10),
-            pw.Divider(thickness: 1),
-            
-            // Item header - only in English (since PDF is for customers)
-            pw.Row(
+              );
+            }).toList(),
+          ),
+          
+          pw.Divider(thickness: 1),
+          
+          // Totals - only in English
+          pw.Padding(
+            padding: const pw.EdgeInsets.only(top: 5),
+            child: pw.Row(
               children: [
                 pw.Expanded(
-                  flex: 5,
+                  flex: 6,
                   child: _createText(
-                    'Item',
+                    'Subtotal:',
                     arabicFont: arabicFont,
                     style: pw.TextStyle(
                       font: fallbackFont,
                       fontSize: 10,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
-                ),
-                pw.Expanded(
-                  flex: 1,
-                  child: _createText(
-                    'Qty',
-                    arabicFont: arabicFont,
-                    style: pw.TextStyle(
-                      font: fallbackFont,
-                      fontSize: 10,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                    textAlign: pw.TextAlign.center,
-                  ),
-                ),
-                pw.Expanded(
-                  flex: 2,
-                  child: _createText(
-                    'Price',
-                    arabicFont: arabicFont,
-                    style: pw.TextStyle(
-                      font: fallbackFont,
-                      fontSize: 10,
-                      fontWeight: pw.FontWeight.bold,
                     ),
                     textAlign: pw.TextAlign.right,
                   ),
                 ),
                 pw.Expanded(
-                  flex: 2,
+                  flex: 4,
                   child: _createText(
-                    'Total',
+                    subtotal.toStringAsFixed(3),
                     arabicFont: arabicFont,
                     style: pw.TextStyle(
                       font: fallbackFont,
                       fontSize: 10,
-                      fontWeight: pw.FontWeight.bold,
                     ),
                     textAlign: pw.TextAlign.right,
                   ),
                 ),
               ],
             ),
-            
-            pw.Divider(thickness: 1),
-            
-            // Items - each item displays in its original language
-            pw.Column(
-              children: items.map((item) {
-                return pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.only(top: 5, bottom: 5),
-                      child: pw.Row(
-                        crossAxisAlignment: pw.CrossAxisAlignment.start,
-                        children: [
-                          pw.Expanded(
-                            flex: 5,
-                            child: _createText(
-                              item.name,
-                              arabicFont: arabicFont,
-                              style: pw.TextStyle(
-                                font: _containsArabic(item.name) ? arabicFont : fallbackFont,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ),
-                          pw.Expanded(
-                            flex: 1,
-                            child: _createText(
-                              '${item.quantity}',
-                              arabicFont: arabicFont,
-                              style: pw.TextStyle(
-                                font: fallbackFont,
-                                fontSize: 10,
-                              ),
-                              textAlign: pw.TextAlign.center,
-                            ),
-                          ),
-                          pw.Expanded(
-                            flex: 2,
-                            child: _createText(
-                              item.price.toStringAsFixed(3),
-                              arabicFont: arabicFont,
-                              style: pw.TextStyle(
-                                font: fallbackFont,
-                                fontSize: 10,
-                              ),
-                              textAlign: pw.TextAlign.right,
-                            ),
-                          ),
-                          pw.Expanded(
-                            flex: 2,
-                            child: _createText(
-                              (item.price * item.quantity).toStringAsFixed(3),
-                              arabicFont: arabicFont,
-                              style: pw.TextStyle(
-                                font: fallbackFont,
-                                fontSize: 10,
-                              ),
-                              textAlign: pw.TextAlign.right,
-                            ),
-                          ),
-                        ],
-                      ),
+          ),
+          
+          pw.Padding(
+            padding: const pw.EdgeInsets.only(top: 2),
+            child: pw.Row(
+              children: [
+                pw.Expanded(
+                  flex: 6,
+                  child: _createText(
+                    'Tax (${effectiveTaxRate.toStringAsFixed(1)}%):',
+                    arabicFont: arabicFont,
+                    style: pw.TextStyle(
+                      font: fallbackFont,
+                      fontSize: 10,
                     ),
-                    
-                    // Add kitchen note if it exists - display in its original language
-                    if (item.kitchenNote.isNotEmpty)
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.only(left: 10, bottom: 5),
-                        child: pw.Row(
-                          children: [
-                            _createText(
-                              'Note: ',
-                              arabicFont: arabicFont,
-                              style: pw.TextStyle(
-                                font: fallbackFont,
-                                fontSize: 8,
-                                fontWeight: pw.FontWeight.bold,
-                                color: PdfColors.blue900,
-                              ),
-                            ),
-                            pw.Expanded(
-                              child: _createText(
-                                item.kitchenNote,
-                                arabicFont: arabicFont,
-                                style: pw.TextStyle(
-                                  font: _containsArabic(item.kitchenNote) ? arabicFont : fallbackFont,
-                                  fontSize: 8,
-                                  fontStyle: pw.FontStyle.italic,
-                                  color: PdfColors.blue900,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                );
-              }).toList(),
-            ),
-            
-            pw.Divider(thickness: 1),
-            
-            // Totals - only in English
-            pw.Padding(
-              padding: const pw.EdgeInsets.only(top: 5),
-              child: pw.Row(
-                children: [
-                  pw.Expanded(
-                    flex: 6,
-                    child: _createText(
-                      'Subtotal:',
-                      arabicFont: arabicFont,
-                      style: pw.TextStyle(
-                        font: fallbackFont,
-                        fontSize: 10,
-                      ),
-                      textAlign: pw.TextAlign.right,
-                    ),
+                    textAlign: pw.TextAlign.right,
                   ),
-                  pw.Expanded(
-                    flex: 4,
-                    child: _createText(
-                      subtotal.toStringAsFixed(3),
-                      arabicFont: arabicFont,
-                      style: pw.TextStyle(
-                        font: fallbackFont,
-                        fontSize: 10,
-                      ),
-                      textAlign: pw.TextAlign.right,
+                ),
+                pw.Expanded(
+                  flex: 4,
+                  child: _createText(
+                    tax.toStringAsFixed(3),
+                    arabicFont: arabicFont,
+                    style: pw.TextStyle(
+                      font: fallbackFont,
+                      fontSize: 10,
                     ),
+                    textAlign: pw.TextAlign.right,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            
+          ),
+          
+          if (discount > 0)
             pw.Padding(
               padding: const pw.EdgeInsets.only(top: 2),
               child: pw.Row(
@@ -457,7 +490,7 @@ static Future<pw.Document> generateBill({
                   pw.Expanded(
                     flex: 6,
                     child: _createText(
-                      'Tax (${effectiveTaxRate.toStringAsFixed(1)}%):',
+                      'Discount:',
                       arabicFont: arabicFont,
                       style: pw.TextStyle(
                         font: fallbackFont,
@@ -469,7 +502,7 @@ static Future<pw.Document> generateBill({
                   pw.Expanded(
                     flex: 4,
                     child: _createText(
-                      tax.toStringAsFixed(3),
+                      discount.toStringAsFixed(3),
                       arabicFont: arabicFont,
                       style: pw.TextStyle(
                         font: fallbackFont,
@@ -481,114 +514,82 @@ static Future<pw.Document> generateBill({
                 ],
               ),
             ),
-            
-            if (discount > 0)
-              pw.Padding(
-                padding: const pw.EdgeInsets.only(top: 2),
-                child: pw.Row(
-                  children: [
-                    pw.Expanded(
-                      flex: 6,
-                      child: _createText(
-                        'Discount:',
-                        arabicFont: arabicFont,
-                        style: pw.TextStyle(
-                          font: fallbackFont,
-                          fontSize: 10,
-                        ),
-                        textAlign: pw.TextAlign.right,
-                      ),
+          
+          pw.Divider(thickness: 1),
+          
+          // Grand total
+          pw.Padding(
+            padding: const pw.EdgeInsets.only(top: 2, bottom: 5),
+            child: pw.Row(
+              children: [
+                pw.Expanded(
+                  flex: 6,
+                  child: _createText(
+                    'TOTAL:',
+                    arabicFont: arabicFont,
+                    style: pw.TextStyle(
+                      font: fallbackFont,
+                      fontSize: 12,
+                      fontWeight: pw.FontWeight.bold,
                     ),
-                    pw.Expanded(
-                      flex: 4,
-                      child: _createText(
-                        discount.toStringAsFixed(3),
-                        arabicFont: arabicFont,
-                        style: pw.TextStyle(
-                          font: fallbackFont,
-                          fontSize: 10,
-                        ),
-                        textAlign: pw.TextAlign.right,
-                      ),
-                    ),
-                  ],
+                    textAlign: pw.TextAlign.right,
+                  ),
                 ),
-              ),
-            
-            pw.Divider(thickness: 1),
-            
-            // Grand total
-            pw.Padding(
-              padding: const pw.EdgeInsets.only(top: 2, bottom: 5),
-              child: pw.Row(
-                children: [
-                  pw.Expanded(
-                    flex: 6,
-                    child: _createText(
-                      'TOTAL:',
-                      arabicFont: arabicFont,
-                      style: pw.TextStyle(
-                        font: fallbackFont,
-                        fontSize: 12,
-                        fontWeight: pw.FontWeight.bold,
-                      ),
-                      textAlign: pw.TextAlign.right,
-                    ),
-                  ),
-                  pw.Expanded(
-                    flex: 4,
-                    child: _createText(
-                      total.toStringAsFixed(3),
-                      arabicFont: arabicFont,
-                      style: pw.TextStyle(
-                        font: fallbackFont,
-                        fontSize: 12,
-                        fontWeight: pw.FontWeight.bold,
-                      ),
-                      textAlign: pw.TextAlign.right,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            
-            pw.Divider(thickness: 1),
-            
-            // Footer - only in English
-            pw.SizedBox(height: 10),
-            pw.Center(
-              child: pw.Column(
-                children: [
-                  _createText(
-                    'Thank you for your visit!',
+                pw.Expanded(
+                  flex: 4,
+                  child: _createText(
+                    total.toStringAsFixed(3),
                     arabicFont: arabicFont,
                     style: pw.TextStyle(
                       font: fallbackFont,
-                      fontSize: 10,
+                      fontSize: 12,
+                      fontWeight: pw.FontWeight.bold,
                     ),
-                    textAlign: pw.TextAlign.center,
+                    textAlign: pw.TextAlign.right,
                   ),
-                  pw.SizedBox(height: 2),
-                  _createText(
-                    'Please come again',
-                    arabicFont: arabicFont,
-                    style: pw.TextStyle(
-                      font: fallbackFont,
-                      fontSize: 10,
-                    ),
-                    textAlign: pw.TextAlign.center,
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        );
-      },
-    ),
-  );
-  
-  return pdf;
+          ),
+          
+          pw.Divider(thickness: 1),
+          
+          // Footer - only in English
+          pw.SizedBox(height: 10),
+          pw.Center(
+            child: pw.Column(
+              children: [
+                _createText(
+                  'Thank you for your visit!',
+                  arabicFont: arabicFont,
+                  style: pw.TextStyle(
+                    font: fallbackFont,
+                    fontSize: 10,
+                  ),
+                  textAlign: pw.TextAlign.center,
+                ),
+                pw.SizedBox(height: 2),
+                _createText(
+                  'Please come again',
+                  arabicFont: arabicFont,
+                  style: pw.TextStyle(
+                    font: fallbackFont,
+                    fontSize: 10,
+                  ),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    },
+  ),
+);
+
+return pdf;
 }
+
   // Direct thermal printing of a bill
   static Future<bool> printThermalBill(OrderHistory order, {bool isEdited = false, double? taxRate, double discount = 0.0 }) async {
     try {
@@ -617,7 +618,7 @@ static Future<pw.Document> generateBill({
       double adjustedTotal = order.total - discount;
     
       
-      // Use the direct printer service to print the receipt
+      // Use the direct printer service to print the receipt to RECEIPT printer
       final printed = await ThermalPrinterService.printOrderReceipt(
         items: items,
         serviceType: order.serviceType,
@@ -635,6 +636,43 @@ static Future<pw.Document> generateBill({
       return printed;
     } catch (e) {
       debugPrint('Error printing thermal bill: $e');
+      return false;
+    }
+  }
+
+  // Print KOT (Kitchen Order Ticket) - NEW METHOD
+  static Future<bool> printKotOrder(OrderHistory order) async {
+    try {
+      // Convert order items to MenuItem objects
+      final items = order.items.map((item) => 
+        MenuItem(
+          id: item.id.toString(),
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          imageUrl: '',
+          category: '',
+          kitchenNote: item.kitchenNote,
+        )
+      ).toList();
+      
+      // Extract tableInfo if this is a dining order
+      String? tableInfo;
+      if (order.serviceType.startsWith('Dining - Table')) {
+        tableInfo = order.serviceType;
+      }
+      
+      // Use the KOT printer service to print to KOT printer
+      final printed = await ThermalPrinterService.printKotReceipt(
+        items: items,
+        serviceType: order.serviceType,
+        tableInfo: tableInfo,
+        orderNumber: order.orderNumber,
+      );
+      
+      return printed;
+    } catch (e) {
+      debugPrint('Error printing KOT order: $e');
       return false;
     }
   }
@@ -657,7 +695,7 @@ static Future<pw.Document> generateBill({
       // Get the tax rate from settings if not provided
       final effectiveTaxRate = taxRate ?? 0.0;
       
-      // Use direct ESC/POS commands for printing
+      // Use direct ESC/POS commands for printing to RECEIPT printer
       final printed = await ThermalPrinterService.printOrderReceipt(
         items: items,
         serviceType: serviceType,
@@ -675,6 +713,29 @@ static Future<pw.Document> generateBill({
       return printed;
     } catch (e) {
       debugPrint('Error printing bill: $e');
+      return false;
+    }
+  }
+
+  // Print KOT to KOT printer - NEW METHOD
+  static Future<bool> printKot({
+    required List<MenuItem> items,
+    required String serviceType,
+    String? tableInfo,
+    String? orderNumber,
+  }) async {
+    try {
+      // Use direct ESC/POS commands for printing to KOT printer
+      final printed = await ThermalPrinterService.printKotReceipt(
+        items: items,
+        serviceType: serviceType,
+        tableInfo: tableInfo,
+        orderNumber: orderNumber,
+      );
+      
+      return printed;
+    } catch (e) {
+      debugPrint('Error printing KOT: $e');
       return false;
     }
   }
@@ -742,6 +803,7 @@ static Future<pw.Document> generateBill({
       },
     );
   }
+
   // Check if printer is enabled in settings
 static Future<bool> isPrinterEnabled() async {
   try {
@@ -961,8 +1023,7 @@ static Future<bool> isPrinterEnabled() async {
     };
   }
   
- 
-// Replace the generateKitchenBill method in BillService class
+  // Replace the generateKitchenBill method in BillService class
 static Future<pw.Document> generateKitchenBill({
   required List<MenuItem> items,
   required String serviceType,
@@ -1076,7 +1137,7 @@ static Future<pw.Document> generateKitchenBill({
             
             pw.Divider(thickness: 1),
             
-            // Items - each item displays in its original language
+           // Items - each item displays in its original language
             pw.Column(
               children: items.map((item) {
                 return pw.Column(
@@ -1166,67 +1227,68 @@ static Future<pw.Document> generateKitchenBill({
   
   }) async {
     try {
-      // Check if printer is enabled
-    final printerEnabled = await isPrinterEnabled();
-    
-    if (!printerEnabled) {
-      // Printer is disabled, skip to PDF option
-        final pdf = await generateKitchenBill(
-          items: items,
-          serviceType: serviceType,
-          tableInfo: tableInfo,
-          orderNumber: orderNumber,
-        );
-
-      if (context != null && context.mounted) {
-        final shouldSave = await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              title: Text('Printer Disabled'.tr()),
-              content: Text('Printer connection is disabled. Would you like to save kitchen receipt as PDF?'.tr()),
-              actions: <Widget>[
-                TextButton(
-                  child: Text('Cancel'.tr()),
-                  onPressed: () {
-                    Navigator.of(context).pop(false);
-                  },
-                ),
-                TextButton(
-                  child: Text('Save PDF'.tr()),
-                  onPressed: () {
-                    Navigator.of(context).pop(true);
-                  },
-                ),
-              ],
-            );
-          },
-        ) ?? false;
-        
-        if (shouldSave) {
-          final saved = await saveWithAndroidIntent(pdf);
+      // Check if KOT printer is enabled
+      final kotEnabled = await ThermalPrinterService.isKotPrinterEnabled();
+      
+      if (!kotEnabled) {
+        // KOT printer is disabled, skip to PDF option or just skip entirely
+        if (context != null && context.mounted) {
+          final shouldSave = await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: Text('KOT Printer Disabled'.tr()),
+                content: Text('KOT printer is disabled. Would you like to save kitchen receipt as PDF?'.tr()),
+                actions: <Widget>[
+                  TextButton(
+                    child: Text('Cancel'.tr()),
+                    onPressed: () {
+                      Navigator.of(context).pop(false);
+                    },
+                  ),
+                  TextButton(
+                    child: Text('Save PDF'.tr()),
+                    onPressed: () {
+                      Navigator.of(context).pop(true);
+                    },
+                  ),
+                ],
+              );
+            },
+          ) ?? false;
           
-          if (saved) {
-            return {
-              'success': true,
-              'message': 'Kitchen receipt saved as PDF'.tr(),
-              'printed': false,
-              'saved': true,
-            };
+          if (shouldSave) {
+            final pdf = await generateKitchenBill(
+              items: items,
+              serviceType: serviceType,
+              tableInfo: tableInfo,
+              orderNumber: orderNumber,
+            );
+            
+            final saved = await saveWithAndroidIntent(pdf);
+            
+            if (saved) {
+              return {
+                'success': true,
+                'message': 'Kitchen receipt saved as PDF'.tr(),
+                'printed': false,
+                'saved': true,
+              };
+            }
           }
         }
+        
+        return {
+          'success': true,
+          'message': 'Kitchen receipt skipped (KOT printer disabled)'.tr(),
+          'printed': false,
+          'saved': false,
+        };
       }
       
-      return {
-        'success': true,
-        'message': 'Kitchen receipt skipped (printer disabled)'.tr(),
-        'printed': false,
-        'saved': false,
-      };
-    }
-      // Try direct ESC/POS commands for printing a kitchen-focused receipt
-      final printed = await ThermalPrinterService.printKitchenReceipt(
+      // Try direct ESC/POS commands for printing a kitchen-focused receipt to KOT printer
+      final printed = await ThermalPrinterService.printKotReceipt(
         items: items,
         serviceType: serviceType,
         tableInfo: tableInfo,
@@ -1236,20 +1298,19 @@ static Future<pw.Document> generateKitchenBill({
       if (printed) {
         return {
           'success': true,
-          'message': 'Kitchen receipt printed successfully',
+          'message': 'Kitchen receipt printed successfully to KOT printer',
           'printed': true,
           'saved': false,
         };
       }
       
-        // Generate the PDF
-        final pdf = await generateKitchenBill(
-          items: items,
-          serviceType: serviceType,
-          tableInfo: tableInfo,
-          orderNumber: orderNumber,
-        
-        );
+      // Generate the PDF if printing failed
+      final pdf = await generateKitchenBill(
+        items: items,
+        serviceType: serviceType,
+        tableInfo: tableInfo,
+        orderNumber: orderNumber,
+      );
 
       if (context != null && context.mounted) {
         // Show dialog to ask if user wants to save PDF
@@ -1258,8 +1319,8 @@ static Future<pw.Document> generateKitchenBill({
           barrierDismissible: false,
           builder: (BuildContext context) {
             return AlertDialog(
-              title:  Text('Printer Not Available'.tr()),
-              content:  Text('Could not print kitchen receipt. Would you like to save it as a PDF?'.tr()),
+              title:  Text('KOT Printer Not Available'.tr()),
+              content:  Text('Could not print kitchen receipt to KOT printer. Would you like to save it as a PDF?'.tr()),
               actions: <Widget>[
                 TextButton(
                   child:  Text('Cancel'.tr()),

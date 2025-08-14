@@ -444,6 +444,9 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
       }
       
       if (result['success']) {
+        
+        if (!mounted) return;
+
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(result['message'])),
@@ -455,6 +458,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
           (route) => false,
         );
       } else {
+        if (!mounted) return;
         // Show error message but stay on page
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
