@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/table_provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/demo_service.dart'; // Add this import
 import 'package:shared_preferences/shared_preferences.dart';
 import 'login_screen.dart';
 import 'modifier_screen.dart'; 
@@ -15,7 +16,6 @@ import '../widgets/backup_manager_widget.dart';
 import '../utils/database_reset_service.dart';
 import 'package:flutter/services.dart';
 
-
 class SettingsScreen extends StatefulWidget {
   final String userType;
   const SettingsScreen({super.key, this.userType = 'staff'});
@@ -27,12 +27,15 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
-  bool _showAdvancedSettings = false;
+  final _showAdvancedSettings = false;
   bool get _isOwner => widget.userType == 'owner';
+  bool _isDemoMode = false;
+  bool _isDemoExpired = false;
+  int _remainingDemoDays = 0;
   
   // Business Information
   final _businessNameController = TextEditingController();
-  final _secondBusinessNameController = TextEditingController(); // Add second business name controller
+  final _secondBusinessNameController = TextEditingController();
   final _addressController = TextEditingController();
   final _phoneController = TextEditingController();
   
@@ -62,12 +65,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _loadSettings();
+    _checkDemoStatus();
+  }
+
+  Future<void> _checkDemoStatus() async {
+    final isDemoMode = await DemoService.isDemoMode();
+    final isDemoExpired = await DemoService.isDemoExpired();
+    final remainingDays = await DemoService.getRemainingDemoDays();
+    
+    setState(() {
+      _isDemoMode = isDemoMode;
+      _isDemoExpired = isDemoExpired;
+      _remainingDemoDays = remainingDays;
+    });
   }
   
   @override
   void dispose() {
     _businessNameController.dispose();
-    _secondBusinessNameController.dispose(); // Dispose second business name controller
+    _secondBusinessNameController.dispose();
     _addressController.dispose();
     _phoneController.dispose();
     _taxRateController.dispose();
@@ -91,7 +107,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       
       _businessNameController.text = settingsProvider.businessName;
-      _secondBusinessNameController.text = settingsProvider.secondBusinessName; // Load second business name
+      _secondBusinessNameController.text = settingsProvider.secondBusinessName;
       _addressController.text = settingsProvider.businessAddress;
       _phoneController.text = settingsProvider.businessPhone;
       
@@ -128,6 +144,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
   
   Future<void> _saveSettings() async {
+    // Check if demo is expired and prevent saving
+    if (_isDemoExpired) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Demo expired. Settings cannot be modified.'.tr()),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
@@ -152,7 +179,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (_isOwner) {
         await settingsProvider.saveAllSettings(
           businessName: _businessNameController.text,
-          secondBusinessName: _secondBusinessNameController.text, // Save second business name
+          secondBusinessName: _secondBusinessNameController.text,
           businessAddress: _addressController.text,
           businessPhone: _phoneController.text,
           taxRate: taxRate,
@@ -326,14 +353,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         );
       }
-      // PRESERVE device registration info before reset
+      
       final prefs = await SharedPreferences.getInstance();
       final deviceRegistered = prefs.getBool('device_registered') ?? false;
       final deviceId = prefs.getString('device_id');
       final companyName = prefs.getString('company_name');
       final deviceName = prefs.getString('device_name');
       final registrationDate = prefs.getString('registration_date');
-
       
       final dbResetService = DatabaseResetService();
       await dbResetService.forceResetAllDatabases();
@@ -342,16 +368,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
       await settingsProvider.resetSettings();
       
-      // RESTORE device registration info after reset
-    if (deviceRegistered) {
-      await prefs.setBool('device_registered', true);
-      if (deviceId != null) await prefs.setString('device_id', deviceId);
-      if (companyName != null) await prefs.setString('company_name', companyName);
-      if (deviceName != null) await prefs.setString('device_name', deviceName);
-      if (registrationDate != null) await prefs.setString('registration_date', registrationDate);
-      
-      debugPrint('✅ Device registration preserved after reset');
-    }
+      if (deviceRegistered) {
+        await prefs.setBool('device_registered', true);
+        if (deviceId != null) await prefs.setString('device_id', deviceId);
+        if (companyName != null) await prefs.setString('company_name', companyName);
+        if (deviceName != null) await prefs.setString('device_name', deviceName);
+        if (registrationDate != null) await prefs.setString('registration_date', registrationDate);
+        
+        debugPrint('✅ Device registration preserved after reset');
+      }
       
       if (!mounted) return;
       final tableProvider = Provider.of<TableProvider>(context, listen: false);
@@ -373,10 +398,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onPressed: () {
                   Navigator.of(ctx).pop();
                   _loadSettings();
-                  // Close the app completely
                   if (!deviceRegistered) {
-                  // Close the app completely only if device wasn't registered
-                  SystemNavigator.pop();
+                    SystemNavigator.pop();
                   } 
                },
                 child: Text('OK'.tr()),
@@ -408,25 +431,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         children: [
           ListTile(
-            leading: Icon(Icons.table_bar, color: Colors.blue[700]),
+            leading: Icon(Icons.table_bar, color: _isDemoExpired ? Colors.grey : Colors.blue[700]),
             title: Text('Table Management'.tr()),
             subtitle: Text('Configure dining tables and layout'.tr()),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: () {
+            trailing: _isDemoExpired ? null : const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: _isDemoExpired ? null : () {
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (context) => const TableManagementScreen(),
                 ),
               );
             },
+            enabled: !_isDemoExpired,
           ),
           const Divider(height: 1, indent: 70),
           ListTile(
-            leading: Icon(Icons.grid_view, color: Colors.blue[700]),
+            leading: Icon(Icons.grid_view, color: _isDemoExpired ? Colors.grey : Colors.blue[700]),
             title: Text('Dining Table Layout'.tr()),
             subtitle: Text('Configure table rows and columns'.tr()),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: _showLayoutDialog,
+            trailing: _isDemoExpired ? null : const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: _isDemoExpired ? null : _showLayoutDialog,
+            enabled: !_isDemoExpired,
           ),
         ],
       ),
@@ -529,14 +554,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         actions: [
-          TextButton.icon(
-            icon: const Icon(Icons.save),
-            label: Text('Save'.tr()),
-            onPressed: _saveSettings,
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.blue[700],
+          if (!_isDemoExpired) // Hide save button if demo expired
+            TextButton.icon(
+              icon: const Icon(Icons.save),
+              label: Text('Save'.tr()),
+              onPressed: _saveSettings,
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.blue[700],
+              ),
             ),
-          ),
         ],
       ),
       body: _isLoading 
@@ -546,98 +572,94 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                _buildSectionHeader('Business Information'.tr()),
-                _buildBusinessInfoSection(),
+                // Only show business information if not expired or is active demo
+                if (!_isDemoExpired || _isDemoMode) ...[
+                  _buildSectionHeader('Business Information'.tr()),
+                  _buildBusinessInfoSection(),
+                  const Divider(),
+                ],
 
-                const Divider(),
-                _buildSectionHeader('Expense'.tr()),
-                _expenseSection(),
-                const Divider(),
+                // Only show other sections if demo is not expired
+                if (!_isDemoExpired) ...[
+                  _buildSectionHeader('Expense'.tr()),
+                  _expenseSection(),
+                  const Divider(),
+                ],
+                
+                // Always show Reports section (even if demo expired)
                 _buildSectionHeader('Reports'.tr()),
                 _buildReportsSection(),
                 const Divider(),
-                _buildSectionHeader('Tax Settings'.tr()),
-                _buildTaxSettingsSection(),
-                 
-                const Divider(),
                 
-                _buildSectionHeader('Printer Settings'.tr()),
-                _buildPrinterSettingsSection(),
-                const Divider(),
-              
-                _buildSectionHeader('Products'.tr()),
-                _buildProductSection(),
-                const Divider(),
+                // Only show other sections if demo is not expired
+                if (!_isDemoExpired) ...[
+                  _buildSectionHeader('Tax Settings'.tr()),
+                  _buildTaxSettingsSection(),
+                  const Divider(),
+                  
+                  _buildSectionHeader('Printer Settings'.tr()),
+                  _buildPrinterSettingsSection(),
+                  const Divider(),
                 
-                _buildSectionHeader('Tables'.tr()),
-                _buildTablesSection(),
-                const Divider(),
-                
-                _buildSectionHeader('Data & Backup'.tr()),
-                _buildDataBackupSection(),
-                const SizedBox(height: 16),
-                const Divider(),
-                _buildSectionHeader('Appearance'.tr()),
-                Card(
-                  child: Column(
-                    children: [
-                      ListTile(
-                        title: Text('Language'.tr()),
-                        subtitle: Text(_getLanguageDisplayName(_selectedLanguage)),
-                        trailing: DropdownButton<String>(
-                          value: _selectedLanguage,
-                          onChanged: (String? newValue) {
-                            if (newValue != null) {
-                              setState(() {
-                                _selectedLanguage = newValue;
-                              });
-                              
-                              final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-                              settingsProvider.setLanguage(newValue);
+                  _buildSectionHeader('Products'.tr()),
+                  _buildProductSection(),
+                  const Divider(),
+                  
+                  _buildSectionHeader('Tables'.tr()),
+                  _buildTablesSection(),
+                  const Divider(),
+                  
+                  _buildSectionHeader('Data & Backup'.tr()),
+                  _buildDataBackupSection(),
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  
+                  _buildSectionHeader('Appearance'.tr()),
+                  Card(
+                    child: Column(
+                      children: [
+                        ListTile(
+                          title: Text('Language'.tr()),
+                          subtitle: Text(_getLanguageDisplayName(_selectedLanguage)),
+                          trailing: DropdownButton<String>(
+                            value: _selectedLanguage,
+                            onChanged: (String? newValue) {
+                              if (newValue != null) {
+                                setState(() {
+                                  _selectedLanguage = newValue;
+                                });
                                 
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Language changed successfully'.tr()),
-                                  duration: const Duration(seconds: 2),
-                                ),
+                                final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+                                settingsProvider.setLanguage(newValue);
+                                  
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Language changed successfully'.tr()),
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            },
+                            items: <String>['English', 'Arabic']
+                                .map<DropdownMenuItem<String>>((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text(_getLanguageDisplayName(value)),
                               );
-                            }
-                          },
-                          items: <String>['English', 'Arabic']
-                              .map<DropdownMenuItem<String>>((String value) {
-                            return DropdownMenuItem<String>(
-                              value: value,
-                              child: Text(_getLanguageDisplayName(value)),
-                            );
-                          }).toList(),
-                          underline: Container(),
+                            }).toList(),
+                            underline: Container(),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(),
-                
-                InkWell(
-                  onTap: () {
-                    setState(() {
-                      _showAdvancedSettings = !_showAdvancedSettings;
-                    });
-                  },
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [],
+                      ],
                     ),
                   ),
-                ),
+                  const Divider(),
+                ],
                 
                 _buildSectionHeader('Logout'.tr()),
                 _logoutsection(),
 
-                // const Divider(),
-                // About section with contact numbers
+                // About section - modified for demo
                 ListTile(
                   title: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -650,30 +672,133 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        '+968 7184 0022',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.blue[700],
-                          fontWeight: FontWeight.w500,
+                      
+                      // Show demo info or contact numbers based on demo status
+                      if (_isDemoMode && !_isDemoExpired) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.green[50],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.green[300]!),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.schedule, color: Colors.green[700], size: 20),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Demo Mode Active'.tr(),
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green[700],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                '${'Remaining Days'.tr()}: $_remainingDemoDays/30',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: _remainingDemoDays <= 5 ? Colors.red[700] : Colors.green[700],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      Text(
-                        '+968 9906 2181',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.blue[700],
-                          fontWeight: FontWeight.w500,
+                      ] else if (_isDemoExpired) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.red[50],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.red[300]!),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.access_time, color: Colors.red[700], size: 20),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Demo Expired'.tr(),
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.red[700],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Contact support for full registration:',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.red[700],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      Text(
-                        '+968 7989 5704',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.blue[700],
-                          fontWeight: FontWeight.w500,
+                        const SizedBox(height: 8),
+                        Text(
+                          '+968 7184 0022',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.blue[700],
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      ),
+                        Text(
+                          '+968 9906 2181',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.blue[700],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Text(
+                          '+968 7989 5704',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.blue[700],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ] else ...[
+                        // Regular contact numbers for non-demo users
+                        Text(
+                          '+968 7184 0022',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.blue[700],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Text(
+                          '+968 9906 2181',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.blue[700],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Text(
+                          '+968 7989 5704',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.blue[700],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                   subtitle: Padding(
@@ -690,12 +815,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // Helper method to get owner text translation
   String _getOwnerText() {
     return 'Owner'.tr();
   }
 
-  // Helper method to get language display name
   String _getLanguageDisplayName(String language) {
     switch (language) {
       case 'English':
@@ -712,24 +835,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         children: [
           ListTile(
-            leading: Icon(Icons.backup, color: Colors.blue[700]),
+            leading: Icon(Icons.backup, color: _isDemoExpired ? Colors.grey : Colors.blue[700]),
             title: Text('Backup & Restore'.tr()),
             subtitle: Text('Create, restore, and manage backups'.tr()),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: () {
+            trailing: _isDemoExpired ? null : const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: _isDemoExpired ? null : () {
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (context) => const BackupManagerWidget(),
                 ),
               );
             },
+            enabled: !_isDemoExpired,
           ),
           const Divider(height: 1, indent: 70),
           ListTile(
-            leading: Icon(Icons.delete_forever, color: Colors.red[700]),
+            leading: Icon(Icons.delete_forever, color: _isDemoExpired ? Colors.grey : Colors.red[700]),
             title: Text('Reset Data'.tr()),
             subtitle: Text('Clear all app data'.tr()),
-            onTap: _showResetConfirmationDialog,
+            onTap: _isDemoExpired ? null : _showResetConfirmationDialog,
+            enabled: !_isDemoExpired,
           ),
         ],
       ),
@@ -739,11 +864,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildTaxSettingsSection() {
     return Card(
       child: ListTile(
-        leading: Icon(Icons.attach_money, color: Colors.blue[700]),
+        leading: Icon(Icons.attach_money, color: _isDemoExpired ? Colors.grey : Colors.blue[700]),
         title: Text('Tax Settings'.tr()),
         subtitle: Text('${'Current Tax Rate'.tr()}: ${_taxRateController.text}%'),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: _showTaxSettingsDialog,
+        trailing: _isDemoExpired ? null : const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: _isDemoExpired ? null : _showTaxSettingsDialog,
+        enabled: !_isDemoExpired,
       ),
     );
   }
@@ -829,7 +955,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildReportsSection() {
     return Card(
       child: ListTile(
-        leading: Icon(Icons.analytics, color: Colors.blue[700]),
+        leading: Icon(Icons.analytics, color: Colors.blue[700]), // Always enabled
         title: Text('Reports'.tr()),
         subtitle: Text('View daily and monthly sales reports'.tr()),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
@@ -847,17 +973,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildBusinessInfoSection() {
     return Card(
       child: ListTile(
-        leading: Icon(Icons.business, color: _isOwner ? Colors.blue[700] : Colors.grey),
+        leading: Icon(Icons.business, color: (_isOwner && !_isDemoExpired) ? Colors.blue[700] : Colors.grey),
         title: Text('Business Information'.tr()),
-        subtitle: Text(_isOwner 
+        subtitle: Text((_isOwner && !_isDemoExpired)
             ? (_businessNameController.text.isNotEmpty 
                 ? _businessNameController.text 
                 : 'Configure restaurant details'.tr())
             : 'Configure restaurant details'.tr()),
-        trailing: _isOwner ? const Icon(Icons.arrow_forward_ios, size: 16) : null,
-        onTap: _isOwner ? _showBusinessInfoDialog : null,
-        enabled: _isOwner,
-        tileColor: _isOwner ? null : Colors.grey.shade100,
+        trailing: (_isOwner && !_isDemoExpired) ? const Icon(Icons.arrow_forward_ios, size: 16) : null,
+        onTap: (_isOwner && !_isDemoExpired) ? _showBusinessInfoDialog : null,
+        enabled: (_isOwner && !_isDemoExpired),
+        tileColor: (_isOwner && !_isDemoExpired) ? null : Colors.grey.shade100,
       ),
     );
   }
@@ -865,24 +991,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _expenseSection() {
     return Card(
       child: ListTile(
-        leading: Icon(Icons.money_off, color: Colors.blue[700]),
+        leading: Icon(Icons.money_off, color: _isDemoExpired ? Colors.grey : Colors.blue[700]),
         title: Text('Expense Management'.tr()),
         subtitle: Text('Track and manage your expenses'.tr()),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: () {
+        trailing: _isDemoExpired ? null : const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: _isDemoExpired ? null : () {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => const ExpenseScreen(),
             ),
           );
         },
+        enabled: !_isDemoExpired,
       ),
     );
   }
   
   void _showBusinessInfoDialog() {
     final businessNameController = TextEditingController(text: _businessNameController.text);
-    final secondBusinessNameController = TextEditingController(text: _secondBusinessNameController.text); // Add second business name controller
+    final secondBusinessNameController = TextEditingController(text: _secondBusinessNameController.text);
     final addressController = TextEditingController(text: _addressController.text);
     final phoneController = TextEditingController(text: _phoneController.text);
     
@@ -911,7 +1038,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  // Add second restaurant name field
                   TextFormField(
                     controller: secondBusinessNameController,
                     decoration: InputDecoration(
@@ -953,7 +1079,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onPressed: () {
                 setState(() {
                   _businessNameController.text = businessNameController.text;
-                  _secondBusinessNameController.text = secondBusinessNameController.text; // Update second business name
+                  _secondBusinessNameController.text = secondBusinessNameController.text;
                   _addressController.text = addressController.text;
                   _phoneController.text = phoneController.text;
                 });
@@ -1064,17 +1190,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildProductSection() {
     return Card(
       child: ListTile(
-        leading: Icon(Icons.inventory, color: Colors.blue[700]),
+        leading: Icon(Icons.inventory, color: _isDemoExpired ? Colors.grey : Colors.blue[700]),
         title: Text('Product Management'.tr()),
         subtitle: Text('Add, edit, or remove menu items'.tr()),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: () {
+        trailing: _isDemoExpired ? null : const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: _isDemoExpired ? null : () {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => const ModifierScreen(),
             ),
           );
         },
+        enabled: !_isDemoExpired,
       ),
     );
   }
@@ -1095,17 +1222,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildPrinterSettingsSection() {
     return Card(
       child: ListTile(
-        leading: Icon(Icons.print, color: Colors.blue[700]),
+        leading: Icon(Icons.print, color: _isDemoExpired ? Colors.grey : Colors.blue[700]),
         title: Text('Printer Configuration'.tr()),
         subtitle: Text('Configure thermal printer settings'.tr()),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: () {
+        trailing: _isDemoExpired ? null : const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: _isDemoExpired ? null : () {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (context) => const PrinterSettingsScreen(),
             ),
           );
         },
+        enabled: !_isDemoExpired,
       ),
     );
   }

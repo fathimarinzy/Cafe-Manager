@@ -8,12 +8,12 @@ import 'dart:async';
 class FirebaseService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static const String _companiesCollection = 'registered_companies';
-  static const String _pendingRegistrationsCollection = 'pending_registrations'; // NEW: Collection for pending registrations
+  static const String _pendingRegistrationsCollection = 'pending_registrations';
+  static const String _demoRegistrationsCollection = 'demo_registrations'; // NEW: Demo collection
   static bool _isInitialized = false;
   static bool _isOfflineMode = false;
   static Completer<void>? _initCompleter;
 
-  
   // Quick initialization that doesn't block app startup
   static void initializeQuickly() {
     if (_isInitialized || _initCompleter != null) return;
@@ -40,7 +40,6 @@ class FirebaseService {
     try {
       debugPrint('🔵 Background Firebase initialization...');
       
-      // Reduce Firebase init timeout from 10s to 5s
       await Future.any([
         Firebase.initializeApp(
           options: DefaultFirebaseOptions.currentPlatform,
@@ -54,7 +53,6 @@ class FirebaseService {
       _isOfflineMode = false;
       debugPrint('✅ Background Firebase initialized successfully');
       
-      // Enable offline persistence (non-blocking)
       _setupOfflinePersistence();
       
     } catch (e) {
@@ -83,7 +81,6 @@ class FirebaseService {
     
     if (_initCompleter != null) {
       try {
-        // Wait max 2 seconds for background init to complete
         await Future.any([
           _initCompleter!.future,
           Future.delayed(const Duration(seconds: 2), () {
@@ -104,44 +101,150 @@ class FirebaseService {
   // Check if Firebase is available
   static bool get isFirebaseAvailable => _isInitialized && !_isOfflineMode;
 
-  // Initialize Firebase with timeout and offline handling
-  static Future<void> initialize() async {
-    if (_isInitialized) return;
+  // NEW: Store demo registration in Firebase
+  static Future<Map<String, dynamic>> storeDemoRegistration({
+    required String businessName,
+    String? secondBusinessName,
+    required String businessAddress,
+    required String businessPhone,
+    required String businessEmail,
+    required String deviceId,
+  }) async {
+    await ensureInitialized();
+    
+    if (!isFirebaseAvailable) {
+      return {
+        'success': false,
+        'message': 'No internet connection. Demo will work in offline mode.',
+        'isOffline': true,
+      };
+    }
 
     try {
-      debugPrint('🔵 Initializing Firebase...');
+      debugPrint('🔵 Storing demo registration in Firebase...');
       
-      // Add timeout to Firebase initialization
-      await Future.any([
-        Firebase.initializeApp(
-          options: DefaultFirebaseOptions.currentPlatform,
-        ),
-        Future.delayed(const Duration(seconds: 10), () {
-          throw TimeoutException('Firebase initialization timed out', const Duration(seconds: 10));
-        }),
-      ]);
-      
-      _isInitialized = true;
-      _isOfflineMode = false;
-      debugPrint('✅ Firebase initialized successfully');
-      
-      // Enable offline persistence for Firestore
-      try {
-        _firestore.settings = const Settings(
-          persistenceEnabled: true,
-          cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-        );
-        debugPrint('✅ Firestore offline persistence enabled');
-      } catch (e) {
-        debugPrint('⚠️ Could not enable Firestore offline persistence: $e');
+      // Check if device already has a demo registration
+      final existingDemo = await _firestore
+          .collection(_demoRegistrationsCollection)
+          .where('deviceId', isEqualTo: deviceId)
+          .limit(1)
+          .get();
+
+      if (existingDemo.docs.isNotEmpty) {
+        // Update existing demo registration
+        final docId = existingDemo.docs.first.id;
+        await _firestore
+            .collection(_demoRegistrationsCollection)
+            .doc(docId)
+            .update({
+          'businessName': businessName,
+          'secondBusinessName': secondBusinessName ?? '',
+          'businessAddress': businessAddress,
+          'businessPhone': businessPhone,
+          'businessEmail': businessEmail,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        debugPrint('✅ Demo registration updated with ID: $docId');
+        return {
+          'success': true,
+          'companyId': docId,
+          'message': 'Demo registration updated successfully',
+        };
+      } else {
+        // Create new demo registration
+        final demoData = {
+          'businessName': businessName,
+          'secondBusinessName': secondBusinessName ?? '',
+          'businessAddress': businessAddress,
+          'businessPhone': businessPhone,
+          'businessEmail': businessEmail,
+          'deviceId': deviceId,
+          'registrationType': 'demo',
+          'isActive': true,
+          'createdAt': FieldValue.serverTimestamp(),
+          'expiresAt': Timestamp.fromDate(
+            DateTime.now().add(const Duration(days: 30)),
+          ),
+        };
+
+        final docRef = await _firestore
+            .collection(_demoRegistrationsCollection)
+            .add(demoData);
+
+        debugPrint('✅ Demo registration stored with ID: ${docRef.id}');
+        return {
+          'success': true,
+          'companyId': docRef.id,
+          'message': 'Demo registration successful',
+        };
       }
-      
     } catch (e) {
-      debugPrint('⚠️ Firebase initialization failed (likely offline): $e');
-      _isOfflineMode = true;
-      _isInitialized = true; // Mark as initialized to prevent blocking
+      debugPrint('❌ Error storing demo registration: $e');
+      return {
+        'success': false,
+        'message': 'Failed to store demo registration: ${e.toString()}',
+      };
+    }
+  }
+
+  // NEW: Get demo registration details
+  static Future<Map<String, dynamic>> getDemoDetails(String deviceId) async {
+    await ensureInitialized();
+    
+    if (!isFirebaseAvailable) {
+      return {
+        'success': true,
+        'isRegistered': false,
+        'isOffline': true,
+        'message': 'Offline mode - Firebase not available',
+      };
+    }
+
+    try {
+      debugPrint('🔵 Getting demo registration for device: $deviceId');
       
-      // Don't rethrow - allow app to continue in offline mode
+      final querySnapshot = await _firestore
+          .collection(_demoRegistrationsCollection)
+          .where('deviceId', isEqualTo: deviceId)
+          .where('isActive', isEqualTo: true)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        final doc = querySnapshot.docs.first;
+        final data = doc.data();
+        
+        debugPrint('✅ Found demo registration for device: $deviceId');
+        
+        return {
+          'success': true,
+          'isRegistered': true,
+          'companyId': doc.id,
+          'businessName': data['businessName'] ?? '',
+          'secondBusinessName': data['secondBusinessName'] ?? '',
+          'businessAddress': data['businessAddress'] ?? '',
+          'businessPhone': data['businessPhone'] ?? '',
+          'businessEmail': data['businessEmail'] ?? '',
+          'registrationType': 'demo',
+          'isActive': data['isActive'] ?? false,
+          'createdAt': data['createdAt'],
+          'expiresAt': data['expiresAt'],
+        };
+      } else {
+        debugPrint('⚠️ No demo registration found for device: $deviceId');
+        return {
+          'success': true,
+          'isRegistered': false,
+          'message': 'No demo registration found for this device',
+        };
+      }
+    } catch (e) {
+      debugPrint('❌ Error getting demo details: $e');
+      return {
+        'success': false,
+        'message': 'Error retrieving demo details: ${e.toString()}',
+      };
     }
   }
 
@@ -162,12 +265,11 @@ class FirebaseService {
     return keys;
   }
 
-  // NEW: Store pending registration keys in Firebase
+  // Store pending registration keys in Firebase
   static Future<Map<String, dynamic>> storePendingRegistration({
     required List<String> registrationKeys,
     required String deviceId,
   }) async {
-    // Ensure Firebase is initialized first
     await ensureInitialized();
     
     if (!isFirebaseAvailable) {
@@ -181,18 +283,16 @@ class FirebaseService {
     try {
       debugPrint('🔵 Storing pending registration keys in Firebase...');
       
-      // Create pending registration data
       final pendingData = {
         'registrationKeys': registrationKeys,
         'deviceId': deviceId,
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
         'expiresAt': Timestamp.fromDate(
-          DateTime.now().add(const Duration(days: 7)), // Keys expire after 7 days
+          DateTime.now().add(const Duration(days: 7)),
         ),
       };
 
-      // Store in pending registrations collection
       final docRef = await _firestore
           .collection(_pendingRegistrationsCollection)
           .add(pendingData);
@@ -213,9 +313,8 @@ class FirebaseService {
     }
   }
 
-  // NEW: Get pending registration keys by device ID
+  // Get pending registration keys by device ID
   static Future<Map<String, dynamic>> getPendingRegistration(String deviceId) async {
-    // Ensure Firebase is initialized first
     await ensureInitialized();
     
     if (!isFirebaseAvailable) {
@@ -241,7 +340,6 @@ class FirebaseService {
         final doc = querySnapshot.docs.first;
         final data = doc.data();
         
-        // Check if keys haven't expired
         final expiresAt = data['expiresAt'] as Timestamp?;
         if (expiresAt != null && expiresAt.toDate().isBefore(DateTime.now())) {
           debugPrint('⚠️ Pending registration keys have expired');
@@ -278,16 +376,16 @@ class FirebaseService {
     }
   }
 
-  // Register company with Firebase (with offline handling) - UPDATED TO USE STORED KEYS
+  // UPDATED: Register company with email field
   static Future<Map<String, dynamic>> registerCompany({
     required String customerName,
     String? secondCustomerName,
     required String customerAddress,
     required String customerPhone,
+    required String customerEmail, // NEW: Email field
     required String deviceId,
-    required List<String> userEnteredKeys, // NEW: User entered keys instead of generated keys
+    required List<String> userEnteredKeys,
   }) async {
-    // Ensure Firebase is initialized first
     await ensureInitialized();
     
     if (!isFirebaseAvailable) {
@@ -301,10 +399,9 @@ class FirebaseService {
     try {
       debugPrint('🔵 Registering company with Firebase...');
       
-      // First, validate the keys against stored pending registration
       final pendingResult = await getPendingRegistration(deviceId);
       if (!pendingResult['success']) {
-        return pendingResult; // Return the error from getPendingRegistration
+        return pendingResult;
       }
 
       final storedKeys = List<String>.from(pendingResult['registrationKeys'] ?? []);
@@ -316,14 +413,14 @@ class FirebaseService {
         };
       }
       
-      // Reduce registration timeout from 15s to 8s
       final result = await Future.any([
         _performRegistration(
-          registrationKeys: storedKeys, // Use the stored keys
+          registrationKeys: storedKeys,
           customerName: customerName,
           secondCustomerName: secondCustomerName,
           customerAddress: customerAddress,
           customerPhone: customerPhone,
+          customerEmail: customerEmail, // Pass email
           deviceId: deviceId,
           pendingId: pendingResult['pendingId'],
         ),
@@ -351,35 +448,35 @@ class FirebaseService {
     }
   }
 
-  // Actual registration logic (separated for timeout handling) - UPDATED TO MARK PENDING AS USED
+  // UPDATED: Add email to registration
   static Future<Map<String, dynamic>> _performRegistration({
     required List<String> registrationKeys,
     required String customerName,
     String? secondCustomerName,
     required String customerAddress,
     required String customerPhone,
+    required String customerEmail, // NEW: Email field
     required String deviceId,
     required String pendingId,
   }) async {
-    // Create company data
     final companyData = {
       'registrationKeys': registrationKeys,
       'customerName': customerName,
       'secondCustomerName': secondCustomerName ?? '',
       'customerAddress': customerAddress,
       'customerPhone': customerPhone,
+      'customerEmail': customerEmail, // NEW: Store email
       'deviceId': deviceId,
+      'registrationType': 'full', // Distinguish from demo
       'isActive': true,
       'registeredAt': FieldValue.serverTimestamp(),
       'lastLoginAt': FieldValue.serverTimestamp(),
     };
 
-    // Add to Firestore
     final docRef = await _firestore
         .collection(_companiesCollection)
         .add(companyData);
 
-    // Mark pending registration as used
     await _firestore
         .collection(_pendingRegistrationsCollection)
         .doc(pendingId)
@@ -398,9 +495,8 @@ class FirebaseService {
     };
   }
 
-  // Check if company is registered (with offline handling)
+  // UPDATED: Check company registration (supports demo and full)
   static Future<Map<String, dynamic>> getCompanyDetails(String deviceId) async {
-    // Ensure Firebase is initialized first
     await ensureInitialized();
     
     if (!isFirebaseAvailable) {
@@ -415,7 +511,6 @@ class FirebaseService {
     try {
       debugPrint('🔵 Checking company registration for device: $deviceId');
       
-      // Reduce company details timeout from 10s to 5s
       final result = await Future.any([
         _getCompanyDetailsFromFirestore(deviceId),
         Future.delayed(const Duration(seconds: 5), () {
@@ -443,20 +538,21 @@ class FirebaseService {
     }
   }
 
-  // Actual company details fetch (separated for timeout handling)
+  // UPDATED: Check both full registration and demo registration
   static Future<Map<String, dynamic>> _getCompanyDetailsFromFirestore(String deviceId) async {
-    final querySnapshot = await _firestore
+    // First check for full registration
+    final fullRegQuery = await _firestore
         .collection(_companiesCollection)
         .where('deviceId', isEqualTo: deviceId)
         .where('isActive', isEqualTo: true)
         .limit(1)
         .get();
 
-    if (querySnapshot.docs.isNotEmpty) {
-      final doc = querySnapshot.docs.first;
+    if (fullRegQuery.docs.isNotEmpty) {
+      final doc = fullRegQuery.docs.first;
       final data = doc.data();
       
-      debugPrint('✅ Found company registration for device: $deviceId');
+      debugPrint('✅ Found full company registration for device: $deviceId');
       
       return {
         'success': true,
@@ -466,19 +562,51 @@ class FirebaseService {
         'secondCustomerName': data['secondCustomerName'] ?? '',
         'customerAddress': data['customerAddress'] ?? '',
         'customerPhone': data['customerPhone'] ?? '',
+        'customerEmail': data['customerEmail'] ?? '',
         'registrationKeys': List<String>.from(data['registrationKeys'] ?? []),
+        'registrationType': data['registrationType'] ?? 'full',
         'isActive': data['isActive'] ?? false,
         'registeredAt': data['registeredAt'],
         'lastLoginAt': data['lastLoginAt'],
       };
-    } else {
-      debugPrint('⚠️ No company found for device: $deviceId');
+    }
+
+    // If no full registration found, check for demo registration
+    final demoQuery = await _firestore
+        .collection(_demoRegistrationsCollection)
+        .where('deviceId', isEqualTo: deviceId)
+        .where('isActive', isEqualTo: true)
+        .limit(1)
+        .get();
+
+    if (demoQuery.docs.isNotEmpty) {
+      final doc = demoQuery.docs.first;
+      final data = doc.data();
+      
+      debugPrint('✅ Found demo registration for device: $deviceId');
+      
       return {
         'success': true,
-        'isRegistered': false,
-        'message': 'No company found for this device',
+        'isRegistered': true,
+        'companyId': doc.id,
+        'customerName': data['businessName'] ?? '',
+        'secondCustomerName': data['secondBusinessName'] ?? '',
+        'customerAddress': data['businessAddress'] ?? '',
+        'customerPhone': data['businessPhone'] ?? '',
+        'customerEmail': data['businessEmail'] ?? '',
+        'registrationType': 'demo',
+        'isActive': data['isActive'] ?? false,
+        'registeredAt': data['createdAt'],
+        'expiresAt': data['expiresAt'],
       };
     }
+
+    debugPrint('⚠️ No company found for device: $deviceId');
+    return {
+      'success': true,
+      'isRegistered': false,
+      'message': 'No company found for this device',
+    };
   }
 
   // Update last login time (with offline handling)
@@ -503,7 +631,6 @@ class FirebaseService {
       debugPrint('✅ Last login updated for company: $companyId');
     } catch (e) {
       debugPrint('⚠️ Error updating last login (non-critical): $e');
-      // Don't throw error for this non-critical operation
     }
   }
 

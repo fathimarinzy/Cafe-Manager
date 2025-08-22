@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // ADDED: For Timestamp
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/app_localization.dart';
 import '../services/firebase_service.dart';
+import '../services/demo_service.dart'; // Add this import
 import 'dashboard_screen.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
@@ -25,23 +26,25 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
   final TextEditingController _secondBusinessNameController = TextEditingController();
   final TextEditingController _businessAddressController = TextEditingController();
   final TextEditingController _businessPhoneController = TextEditingController();
+  final TextEditingController _businessEmailController = TextEditingController(); // NEW: Email controller
 
   // Focus nodes for business info
   final FocusNode _businessNameFocus = FocusNode();
   final FocusNode _secondBusinessNameFocus = FocusNode();
   final FocusNode _businessAddressFocus = FocusNode();
   final FocusNode _businessPhoneFocus = FocusNode();
+  final FocusNode _businessEmailFocus = FocusNode(); // NEW: Email focus node
 
   bool _isLoading = false;
   bool _showWarning = false;
-  bool _showContactInfo = false; // Show contact info instead of generated keys
-  bool _isGeneratingKeys = false; // Loading state for key generation
-  DateTime? _keysGeneratedAt; // ADDED: Track when keys were generated
-  DateTime? _keysExpireAt; // ADDED: Track when keys expire
+  bool _showContactInfo = false;
+  bool _isGeneratingKeys = false;
+  bool _showDemoForm = false; // Add this
+  DateTime? _keysGeneratedAt;
+  DateTime? _keysExpireAt;
   
-  // NEW: Contact information
-  final String _supportPhone = "+968 7184 0022"; // Replace with actual support number
-  final String _supportEmail = "AI@simsai.tech"; // Replace with actual support email
+  final String _supportPhone = "+968 7184 0022";
+  final String _supportEmail = "AI@simsai.tech";
 
   @override
   void initState() {
@@ -53,30 +56,25 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
     _businessAddressController.addListener(_onBusinessInfoChanged);
     _businessPhoneController.addListener(_onBusinessInfoChanged);
 
-    // ADDED: Check for existing pending keys when screen loads
     _checkExistingPendingKeys();
   }
 
-  // ADDED: Check if device already has pending keys
+  // Check if device already has pending keys
   Future<void> _checkExistingPendingKeys() async {
     try {
-      // Get device ID
       final prefs = await SharedPreferences.getInstance();
       String? deviceId = prefs.getString('device_id');
       if (deviceId == null) {
         deviceId = FirebaseService.generateDeviceId();
         await prefs.setString('device_id', deviceId);
-        return; // New device, no pending keys
+        return;
       }
 
-      // Check for existing pending registration
       final result = await FirebaseService.getPendingRegistration(deviceId);
       
       if (result['success']) {
-        // Found existing pending keys, show contact info directly
         setState(() {
           _showContactInfo = true;
-          // ADDED: Store key timestamps for better UX
           if (result['createdAt'] != null) {
             _keysGeneratedAt = (result['createdAt'] as Timestamp).toDate();
           }
@@ -95,7 +93,6 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
           );
         }
       } else if (result['isExpired'] == true) {
-        // Keys expired, user can generate new ones
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -106,17 +103,13 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
           );
         }
       }
-      // If no pending keys found, user can generate new ones (default state)
-      
     } catch (e) {
       debugPrint('Error checking existing pending keys: $e');
-      // If error occurs, allow user to generate keys (default state)
     }
   }
 
   @override
   void dispose() {
-    // Dispose controllers
     for (var controller in _keyControllers) {
       controller.dispose();
     }
@@ -128,11 +121,13 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
     _secondBusinessNameController.dispose();
     _businessAddressController.dispose();
     _businessPhoneController.dispose();
+    _businessEmailController.dispose(); // NEW: Dispose email controller
 
     _businessNameFocus.dispose();
     _secondBusinessNameFocus.dispose();
     _businessAddressFocus.dispose();
     _businessPhoneFocus.dispose();
+    _businessEmailFocus.dispose(); // NEW: Dispose email focus node
 
     super.dispose();
   }
@@ -149,25 +144,21 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
   }
 
   void _onKeyChanged(int index, String value) {
-    // Auto move to next field when current field is filled
     if (value.length >= 6 && index < 4) {
       _keyFocusNodes[index + 1].requestFocus();
     }
     
-    // Move to previous field when current field is empty
     if (value.isEmpty && index > 0) {
       _keyFocusNodes[index - 1].requestFocus();
     }
   }
 
-  // UPDATED: Store keys in Firebase and show contact info
   Future<void> _generateKeys() async {
     setState(() {
       _isGeneratingKeys = true;
     });
 
     try {
-      // Get or generate device ID
       final prefs = await SharedPreferences.getInstance();
       String? deviceId = prefs.getString('device_id');
       if (deviceId == null) {
@@ -175,10 +166,8 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
         await prefs.setString('device_id', deviceId);
       }
 
-      // Generate keys
       final generatedKeys = FirebaseService.generateRegistrationKeys();
       
-      // Store keys in Firebase
       final result = await FirebaseService.storePendingRegistration(
         registrationKeys: generatedKeys,
         deviceId: deviceId,
@@ -187,7 +176,6 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
       if (result['success']) {
         setState(() {
           _showContactInfo = true;
-          // ADDED: Store key generation timestamp
           _keysGeneratedAt = DateTime.now();
           _keysExpireAt = DateTime.now().add(const Duration(days: 7));
         });
@@ -202,7 +190,6 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
           );
         }
       } else {
-        // UPDATED: Handle specific error cases - removed device registration blocking
         String errorMessage = result['message'] ?? 'Failed to generate keys';
         
         if (result['hasPendingKeys'] == true) {
@@ -223,9 +210,96 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
     }
   }
 
-  // REMOVED: _validateKeys() method (no longer needed as validation is done in Firebase)
+   // Add demo registration method
+  Future<void> _registerDemo() async {
+    // Validate business information
+    if (_businessNameController.text.trim().isEmpty ||
+        _businessAddressController.text.trim().isEmpty ||
+        _businessPhoneController.text.trim().isEmpty 
+        ) {
+      _showErrorMessage('Please fill all required business information fields');
+      return;
+    }
 
-  // UPDATED: Register company with user-entered keys
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Get or generate device ID
+      final prefs = await SharedPreferences.getInstance();
+      String? deviceId = prefs.getString('device_id');
+      if (deviceId == null) {
+        deviceId = FirebaseService.generateDeviceId();
+        await prefs.setString('device_id', deviceId);
+      }
+
+      // Start demo with Firebase storage
+      final result = await DemoService.startDemo(
+        businessName: _businessNameController.text.trim(),
+        secondBusinessName: _secondBusinessNameController.text.trim(),
+        businessAddress: _businessAddressController.text.trim(),
+        businessPhone: _businessPhoneController.text.trim(),
+        businessEmail: _businessEmailController.text.trim(),
+        deviceId: deviceId,
+      );
+
+      if (result['success']) {
+        // Save business information to SharedPreferences
+        await prefs.setString('business_name', _businessNameController.text.trim());
+        await prefs.setString('second_business_name', _secondBusinessNameController.text.trim());
+        await prefs.setString('business_address', _businessAddressController.text.trim());
+        await prefs.setString('business_phone', _businessPhoneController.text.trim());
+        await prefs.setString('business_email', _businessEmailController.text.trim());
+        
+        // Update SettingsProvider
+        if (mounted) {
+          final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+          await settingsProvider.saveAllSettings(
+            businessName: _businessNameController.text.trim(),
+            secondBusinessName: _secondBusinessNameController.text.trim(),
+            businessAddress: _businessAddressController.text.trim(),
+            businessPhone: _businessPhoneController.text.trim(),
+          );
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Demo registration successful! You have 30 days to try all features.'.tr()),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          await Future.delayed(const Duration(seconds: 1));
+          
+          if (mounted) {
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const DashboardScreen()),
+              (route) => false,
+            );
+          }
+        }
+      } else {
+        _showErrorMessage(result['message'] ?? 'Demo registration failed');
+      }
+    } catch (e) {
+      debugPrint('Error registering demo: $e');
+      _showErrorMessage('Demo registration failed. Please try again.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // // Email validation helper
+  // bool _isValidEmail(String email) {
+  //   return RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(email);
+  // }
+
   Future<void> _registerCompany() async {
     // Validate that all key fields are filled
     for (int i = 0; i < 5; i++) {
@@ -238,17 +312,23 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
     // Validate that business information is filled
     if (_businessNameController.text.trim().isEmpty ||
         _businessAddressController.text.trim().isEmpty ||
-        _businessPhoneController.text.trim().isEmpty) {
+        _businessPhoneController.text.trim().isEmpty 
+       ) {
       _showErrorMessage('Please fill all business information fields');
       return;
     }
+
+    // // Validate email format
+    // if (!_isValidEmail(_businessEmailController.text.trim())) {
+    //   _showErrorMessage('Please enter a valid email address');
+    //   return;
+    // }
 
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // Get device ID
       final prefs = await SharedPreferences.getInstance();
       String? deviceId = prefs.getString('device_id');
       if (deviceId == null) {
@@ -256,32 +336,29 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
         await prefs.setString('device_id', deviceId);
       }
 
-      // Get user entered keys
       final userEnteredKeys = _keyControllers.map((controller) => controller.text.trim()).toList();
 
-      // Register with Firebase
       final result = await FirebaseService.registerCompany(
         customerName: _businessNameController.text.trim(),
         secondCustomerName: _secondBusinessNameController.text.trim(),
         customerAddress: _businessAddressController.text.trim(),
         customerPhone: _businessPhoneController.text.trim(),
+        customerEmail: _businessEmailController.text.trim(), // NEW: Pass email
         deviceId: deviceId,
-        userEnteredKeys: userEnteredKeys, // Pass user entered keys for validation
+        userEnteredKeys: userEnteredKeys,
       );
 
       if (result['success']) {
-        // Save registration status locally
         await prefs.setBool('company_registered', true);
         await prefs.setBool('device_registered', true);
         await prefs.setString('company_id', result['companyId']);
         await prefs.setString('registration_mode', 'online');
-        // Save business information to SharedPreferences
         await prefs.setString('business_name', _businessNameController.text.trim());
         await prefs.setString('second_business_name', _secondBusinessNameController.text.trim());
         await prefs.setString('business_address', _businessAddressController.text.trim());
         await prefs.setString('business_phone', _businessPhoneController.text.trim());
+        await prefs.setString('business_email', _businessEmailController.text.trim()); // NEW: Save email
        
-        // Update SettingsProvider directly to ensure immediate sync
         if (mounted) {
           final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
           await settingsProvider.saveAllSettings(
@@ -292,7 +369,6 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
           );
         }
 
-        // Show success message
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -301,18 +377,16 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
             ),
           );
 
-          // Navigate to dashboard after a brief delay
           await Future.delayed(const Duration(seconds: 1));
           
           if (mounted) {
             Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(builder: (context) => const DashboardScreen()),
-              (route) => false, // Remove all previous routes
+              (route) => false,
             );
           }
         }
       } else {
-        // UPDATED: Handle specific error cases for key reuse (removed device blocking)
         String errorMessage = result['message'] ?? 'Registration failed';
         
         if (result['keysAlreadyUsed'] == true) {
@@ -352,24 +426,6 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
       );
     }
   }
-
-  // ADDED: Helper method to format dates
-  // String _formatDateTime(DateTime? dateTime) {
-  //   if (dateTime == null) return '';
-    
-  //   final now = DateTime.now();
-  //   final difference = dateTime.difference(now);
-    
-  //   if (difference.inDays > 0) {
-  //     return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'}';
-  //   } else if (difference.inHours > 0) {
-  //     return '${difference.inHours} hour${difference.inHours == 1 ? '' : 's'}';
-  //   } else if (difference.inMinutes > 0) {
-  //     return '${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'}';
-  //   } else {
-  //     return 'Soon';
-  //   }
-  // }
 
   @override
   Widget build(BuildContext context) {
@@ -411,7 +467,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Register Your Company',
+                      _showDemoForm ? 'Demo Registration' : 'Register Your Company',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey[600],
@@ -424,8 +480,8 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
               
               const SizedBox(height: 85),
               
-              // Generate Keys Section
-              if (!_showContactInfo) ...[
+              // Generate Keys Section or Demo Form
+              if (!_showContactInfo && !_showDemoForm) ...[
                 Center(
                   child: Column(
                     children: [
@@ -480,12 +536,267 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                                 ),
                               ),
                       ),
+                      
+                      // Add Get Demo button
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _showDemoForm = true;
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green[700],
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          'Get Demo'.tr(),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ],
 
-              // Contact Information and Registration Section
+              // Demo Form Section
+              if (_showDemoForm) ...[
+                Center(
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.schedule,
+                        size: 64,
+                        color: Colors.green[700],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Try Demo'.tr(),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Try all features for 30 days',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 40),
+
+                // Business Information Section for Demo
+                Text(
+                  'Business Information:'.tr(),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Warning message for demo
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange[300]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info, color: Colors.orange[700], size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Demo mode: You can\'t edit business information later in settings during the trial period.'.tr(),
+                          style: TextStyle(
+                            color: Colors.orange[700],
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Business Name
+                TextField(
+                  controller: _businessNameController,
+                  focusNode: _businessNameFocus,
+                  decoration: InputDecoration(
+                    labelText: 'Business Name'.tr(),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.green[700]!, width: 2),
+                    ),
+                    prefixIcon: const Icon(Icons.business),
+                  ),
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Second Business Name field
+                TextField(
+                  controller: _secondBusinessNameController,
+                  focusNode: _secondBusinessNameFocus,
+                  decoration: InputDecoration(
+                    labelText: 'Second Business Name (Optional)'.tr(),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.green[700]!, width: 2),
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Business Address
+                TextField(
+                  controller: _businessAddressController,
+                  focusNode: _businessAddressFocus,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    labelText: 'Address'.tr(),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.green[700]!, width: 2),
+                    ),
+                    prefixIcon: const Icon(Icons.location_on),
+                  ),
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Business Phone
+                TextField(
+                  controller: _businessPhoneController,
+                  focusNode: _businessPhoneFocus,
+                  keyboardType: TextInputType.phone,
+                  decoration: InputDecoration(
+                    labelText: 'Phone Number'.tr(),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.green[700]!, width: 2),
+                    ),
+                    prefixIcon: const Icon(Icons.phone),
+                  ),
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Business Email
+                TextField(
+                  controller: _businessEmailController,
+                  focusNode: _businessEmailFocus,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: 'Email Address'.tr(),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.green[700]!, width: 2),
+                    ),
+                    prefixIcon: const Icon(Icons.email),
+                  ),
+                ),
+                
+                const SizedBox(height: 40),
+                
+                // Demo Register Button
+                Center(
+                  child: SizedBox(
+                    width: 200,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _registerDemo,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green[700],
+                        foregroundColor: Colors.white,
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Text(
+                              'Demo Register'.tr(),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Back button for demo form
+                Center(
+                  child: TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _showDemoForm = false;
+                        // Clear form fields
+                        _businessNameController.clear();
+                        _secondBusinessNameController.clear();
+                        _businessAddressController.clear();
+                        _businessPhoneController.clear();
+                      });
+                    },
+                    child: Text(
+                      'Back to Registration'.tr(),
+                      style: TextStyle(
+                        color: Colors.blue[700],
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+
+              // Contact Information and Registration Section (existing code)
               if (_showContactInfo) ...[
                 // Contact Information
                 Container(
@@ -580,7 +891,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                                 ),
                               ],
                             ),
-                            // ADDED: Show key generation and expiry information
+                             // ADDED: Show key generation and expiry information
                             if (_keysGeneratedAt != null || _keysExpireAt != null) ...[
                               // const SizedBox(height: 8),
                               // const Divider(height: 1),
@@ -810,6 +1121,26 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                       borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
                     ),
                     prefixIcon: const Icon(Icons.phone),
+                  ),
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Business Email
+                TextField(
+                  controller: _businessEmailController,
+                  focusNode: _businessEmailFocus,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: 'Email Address'.tr(),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
+                    ),
+                    prefixIcon: const Icon(Icons.email),
                   ),
                 ),
                 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
+import '../services/demo_service.dart'; // Add demo service import
 import 'dart:async';
 
 class AuthProvider with ChangeNotifier {
@@ -8,7 +9,7 @@ class AuthProvider with ChangeNotifier {
   bool _isInitialized = false;
   bool _isLoading = false;
   String _username = '';
-  String _registrationMode = 'offline'; // 'online' or 'offline'
+  String _registrationMode = 'offline'; // 'online', 'offline', or 'demo'
   Map<String, dynamic> _companyDetails = {};
   bool _isOfflineMode = false;
 
@@ -37,9 +38,16 @@ class AuthProvider with ChangeNotifier {
       
       final prefs = await SharedPreferences.getInstance();
       
-      // Get registration mode
-      _registrationMode = prefs.getString('device_mode') ?? 'offline';
-      debugPrint('📱 Registration mode: $_registrationMode');
+      // Check if demo mode
+      final isDemoMode = await DemoService.isDemoMode();
+      if (isDemoMode) {
+        _registrationMode = 'demo';
+        debugPrint('📱 Registration mode: $_registrationMode (demo detected)');
+      } else {
+        // Get registration mode
+        _registrationMode = prefs.getString('device_mode') ?? 'offline';
+        debugPrint('📱 Registration mode: $_registrationMode');
+      }
       
       // Check if user is logged in
       final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
@@ -49,7 +57,12 @@ class AuthProvider with ChangeNotifier {
         _username = prefs.getString('username') ?? '';
         debugPrint('👤 Found stored login for: $_username');
         
-        if (_registrationMode == 'online') {
+        if (_registrationMode == 'demo') {
+          // For demo mode, auto-login without Firebase check
+          _isAuthenticated = true;
+          _isOfflineMode = false;
+          debugPrint('✅ Auto-login successful (demo mode)');
+        } else if (_registrationMode == 'online') {
           // For online mode, verify with Firebase (with timeout)
           await _verifyOnlineRegistration(prefs);
         } else {
@@ -88,7 +101,7 @@ class AuthProvider with ChangeNotifier {
         // Add timeout for Firebase check
         final result = await Future.any([
           FirebaseService.getCompanyDetails(deviceId),
-          Future.delayed(const Duration(seconds: 8), () {
+          Future.delayed(const Duration(seconds: 3), () {
             return {
               'success': true,
               'isRegistered': false,
@@ -143,6 +156,14 @@ class AuthProvider with ChangeNotifier {
       notifyListeners();
       
       debugPrint('🔵 Login attempt - Username: $username');
+      
+      // Check if demo mode first
+      final isDemoMode = await DemoService.isDemoMode();
+      if (isDemoMode) {
+        _registrationMode = 'demo';
+        debugPrint('📱 Registration mode: $_registrationMode (demo detected)');
+      }
+      
       debugPrint('📱 Registration mode: $_registrationMode');
       
       // Trim whitespace from inputs
@@ -151,7 +172,12 @@ class AuthProvider with ChangeNotifier {
       
       bool isValid = false;
       
-      if (_registrationMode == 'online' && !_isOfflineMode) {
+      if (_registrationMode == 'demo') {
+        // For demo mode, use demo credentials
+        isValid = (trimmedUsername == DemoService.demoUsername && trimmedPassword == DemoService.demoPassword);
+        _isOfflineMode = false;
+        debugPrint('🔵 Demo login validation: $isValid');
+      } else if (_registrationMode == 'online' && !_isOfflineMode) {
         // For online mode, check if company is registered in Firebase
         await _validateOnlineLogin(trimmedUsername, trimmedPassword);
         isValid = _isAuthenticated;
@@ -287,6 +313,10 @@ class AuthProvider with ChangeNotifier {
 
   // Get company status for display
   String getCompanyStatus() {
+    if (_registrationMode == 'demo') {
+      return 'Demo Mode';
+    }
+    
     if (_isOfflineMode) {
       return 'Offline Mode';
     }
@@ -303,6 +333,10 @@ class AuthProvider with ChangeNotifier {
 
   // Get company name
   String getCompanyName() {
+    if (_registrationMode == 'demo' && _companyDetails.isNotEmpty) {
+      return _companyDetails['businessName'] ?? 'Demo Business';
+    }
+    
     if (_registrationMode == 'online' && _companyDetails.isNotEmpty) {
       return _companyDetails['customerName'] ?? 'Unknown Company';
     }

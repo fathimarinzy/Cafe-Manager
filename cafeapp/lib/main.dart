@@ -150,6 +150,7 @@ import 'providers/order_history_provider.dart';
 import 'repositories/local_menu_repository.dart';
 import 'repositories/local_expense_repository.dart';
 import 'services/firebase_service.dart';
+import 'services/demo_service.dart'; // Add demo service import
 import 'dart:async';
 
 void main() async {
@@ -222,7 +223,7 @@ class MyApp extends StatelessWidget {
       child: Consumer<SettingsProvider>(
         builder: (ctx, settingsProvider, _) {
           return MaterialApp(
-            title: 'Cafe Management',
+            title: 'SIMS Cafe',
             theme: ThemeData(
               primarySwatch: Colors.blue,
               scaffoldBackgroundColor: Colors.white,
@@ -343,35 +344,71 @@ class _AppInitializerState extends State<AppInitializer> {
     }
   }
 
-  void _navigateToNextScreen() {
+   void _navigateToNextScreen() {
     try {
       final prefs = SharedPreferences.getInstance();
       
-      prefs.then((prefs) {
+      prefs.then((prefs) async {
         if (!mounted) return;
         
         final isDeviceRegistered = prefs.getBool('device_registered') ?? false;
+        final isCompanyRegistered = prefs.getBool('company_registered') ?? false;
         
+        // Check demo status
+        final isDemoMode = await DemoService.isDemoMode();
+        final isDemoExpired = await DemoService.isDemoExpired();
+        
+        debugPrint('Navigation check: device=$isDeviceRegistered, company=$isCompanyRegistered, demo=$isDemoMode, expired=$isDemoExpired');
+        
+        if (!mounted) return;
+
         if (!isDeviceRegistered) {
-          // First time installation
+          // First time installation - go to device registration
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const DeviceRegistrationScreen()),
           );
           return;
         }
         
-        // Check auth status
-        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        // Device is registered, check company registration or demo
+        if (!isCompanyRegistered && !isDemoMode) {
+          // Need company registration or demo
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const OnlineCompanyRegistrationScreen()),
+          );
+          return;
+        }
         
-        if (authProvider.isAuth) {
+        // Either company is registered or demo is active
+        if (isCompanyRegistered || (isDemoMode && !isDemoExpired)) {
+          // Check auth status for non-demo or active demo
+          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+          
+          if (authProvider.isAuth) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => const DashboardScreen()),
+            );
+          } else {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => const LoginScreen()),
+            );
+          }
+          return;
+        }
+        
+        // Demo is expired - go directly to dashboard (restricted mode)
+        if (isDemoMode && isDemoExpired) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const DashboardScreen()),
           );
-        } else {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const LoginScreen()),
-          );
+          return;
         }
+        
+        // Fallback - should not reach here but handle gracefully
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const OnlineCompanyRegistrationScreen()),
+        );
+        
       }).catchError((e) {
         debugPrint('Error during navigation: $e');
         // Fallback to device registration

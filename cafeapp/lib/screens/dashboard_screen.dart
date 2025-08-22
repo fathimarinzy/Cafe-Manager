@@ -1,29 +1,175 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/order_provider.dart';
+import '../services/demo_service.dart'; // Add this import
 import 'menu_screen.dart';
 import 'dining_table_screen.dart';
 import 'order_list_screen.dart';
-import '../utils/app_localization.dart'; // Import the localization utility
+import 'settings_screen.dart'; // Add this import
+import '../utils/app_localization.dart';
 import '../widgets/settings_password_dialog.dart';
 import '../providers/settings_provider.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  bool _isDemoExpired = false;
+  bool _isDemoMode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkDemoStatus();
+  }
+
+  Future<void> _checkDemoStatus() async {
+    final isDemoMode = await DemoService.isDemoMode();
+    final isDemoExpired = await DemoService.isDemoExpired();
+    
+    setState(() {
+      _isDemoMode = isDemoMode;
+      _isDemoExpired = isDemoExpired;
+    });
+
+    // Show expiration dialog if demo is expired
+    if (isDemoExpired && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showDemoExpiredDialog();
+      });
+    }
+  }
+
+  void _showDemoExpiredDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.access_time, color: Colors.red[700]),
+              const SizedBox(width: 8),
+              Text(
+                'Demo Expired'.tr(),
+                style: TextStyle(
+                  color: Colors.red[700],
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Your 30-day demo period has expired.\n To continue using all features, please contact support for full registration.'.tr(),
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Contact Support:'.tr(),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue[800],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(Icons.phone, color: Colors.blue[700], size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          '+968 7184 0022',
+                          style: TextStyle(color: Colors.blue[700]),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        Icon(Icons.phone, color: Colors.blue[700], size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          '+968 9906 2181',
+                          style: TextStyle(color: Colors.blue[700]),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        Icon(Icons.phone, color: Colors.blue[700], size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          '+968 7989 5704',
+                          style: TextStyle(color: Colors.blue[700]),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.email, color: Colors.blue[700], size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          'AI@simsai.tech',
+                          style: TextStyle(color: Colors.blue[700]),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.blue[700],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text('OK'.tr()),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     // Color palette
-    const Color primaryColor = Color(0xFF2E3B4E); // Dark blue-gray for app bar
-    const Color backgroundColor = Color(0xFFF5F7FA); // Light gray background
+    const Color primaryColor = Color(0xFF2E3B4E);
+    const Color backgroundColor = Color(0xFFF5F7FA);
     
-    // Service-specific colors as requested
-    const Color diningColor = Color(0xFF1565C0); // Dark blue for dining
-    const Color takeoutColor = Color(0xFF4CAF50); // Green for takeout
-    const Color deliveryColor = Color(0xFFFF9800); // Orange for delivery
-    const Color driveThroughColor = Color(0xFFE57373); // Light red for drive through
-    const Color cateringColor = Color(0xFFFFEB3B); // Yellow for catering
-    const Color orderListColor = Color(0xFF607D8B); // Light charcoal for order list
+    // Service-specific colors
+    const Color diningColor = Color(0xFF1565C0);
+    const Color takeoutColor = Color(0xFF4CAF50);
+    const Color deliveryColor = Color(0xFFFF9800);
+    const Color driveThroughColor = Color(0xFFE57373);
+    const Color cateringColor = Color(0xFFFFEB3B);
+    const Color orderListColor = Color(0xFF607D8B);
 
     final screenSize = MediaQuery.of(context).size;
     final isLandscape = screenSize.width > screenSize.height;
@@ -37,20 +183,17 @@ class DashboardScreen extends StatelessWidget {
     final horizontalPadding = screenSize.width * 0.03;
     final verticalPadding = screenSize.height * 0.02;
 
-    // final authProvider = Provider.of<AuthProvider>(context);
-     // Get settings provider to access business name
     final settingsProvider = Provider.of<SettingsProvider>(context);
     
-    // Get business name from settings (or use default app title if not set)
     final String businessName = settingsProvider.businessName;
     final String appTitle = businessName.isNotEmpty 
         ? businessName 
-        : 'appTitle'.tr(); // Fallback to translated app title
+        : 'appTitle'.tr();
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          appTitle.tr(), // Translated app title
+          appTitle.tr(),
           style: const TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -61,117 +204,29 @@ class DashboardScreen extends StatelessWidget {
         elevation: 2,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
-          // IconButton(
-          //   icon: const Icon(Icons.print),
-          //   onPressed: () {
-          //     Navigator.of(context).pushNamed(AppRoutes.printerConfig);
-          //   },
-          //   tooltip: 'printerSettings'.tr(), // Translated tooltip
-          // ),
           IconButton(
             icon: const Icon(Icons.settings),
-            tooltip: 'settings'.tr(), // Translated tooltip
-            onPressed: () {
-               // Show password dialog before navigating to settings
-              showDialog(
-                context: context,
-                builder: (_) => const SettingsPasswordDialog(),
-              );
+            tooltip: 'settings'.tr(),
+            onPressed: () async {
+              // Check if demo mode is active
+              final isDemoMode = await DemoService.isDemoMode();
+             
+              if (isDemoMode) {
+                // Direct navigation to settings for demo users
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const SettingsScreen(),
+                  ),
+                );
+              } else {
+                // Show password dialog for regular users
+                showDialog(
+                  context: context,
+                  builder: (_) => const SettingsPasswordDialog(),
+                );
+              }
             },
           ),
-          // IconButton(
-          //   icon: const Icon(Icons.exit_to_app),
-          //   onPressed: () {
-          //     showDialog(
-          //       context: context,
-          //       builder: (ctx) => Dialog(
-          //         // Add this to constrain and control the dialog size
-          //         shape: RoundedRectangleBorder(
-          //           borderRadius: BorderRadius.circular(16),
-          //         ),
-          //         // Control the dialog size with insets
-          //         insetPadding: EdgeInsets.symmetric(
-          //           horizontal: MediaQuery.of(context).size.width * 0.15, // 70% width
-          //           vertical: MediaQuery.of(context).size.height * 0.3   // 40% height
-          //         ),
-          //         child: Container(
-          //           // Explicit dimensions for the dialog content
-          //           width: 400,
-          //           padding: const EdgeInsets.all(24), // Increased padding for more space
-          //           child: Column(
-          //             mainAxisSize: MainAxisSize.min,
-          //             children: [
-          //               Text(
-          //                 'Logout'.tr(), 
-          //                 style: TextStyle(
-          //                   color: primaryColor,
-          //                   fontSize: 22, // Increased font size
-          //                   fontWeight: FontWeight.bold,
-          //                 )
-          //               ),
-          //               const SizedBox(height: 20), // More space
-          //               Text(
-          //                 'Are you sure you want to logout?'.tr(),
-          //                 style: const TextStyle(
-          //                   fontSize: 16, // Increased font size
-          //                 ),
-          //                 textAlign: TextAlign.center,
-          //               ),
-          //               const SizedBox(height: 32), // More space
-          //               Row(
-          //                 mainAxisAlignment: MainAxisAlignment.spaceEvenly, // Space buttons evenly
-          //                 children: [
-          //                   SizedBox(
-          //                     width: 120, // Fixed width for buttons
-          //                     height: 48, // Taller buttons
-          //                     child: TextButton(
-          //                       onPressed: () => Navigator.of(ctx).pop(),
-          //                       style: TextButton.styleFrom(
-          //                         foregroundColor: Colors.grey,
-          //                         textStyle: const TextStyle(fontSize: 16), // Larger text
-          //                         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-          //                         shape: RoundedRectangleBorder(
-          //                           borderRadius: BorderRadius.circular(8),
-          //                           side: BorderSide(color: Colors.grey.shade300),
-          //                         ),
-          //                       ),
-          //                       child: Text('Cancel'.tr()),
-          //                     ),
-          //                   ),
-          //                   SizedBox(
-          //                     width: 120, // Fixed width for buttons
-          //                     height: 48, // Taller buttons
-          //                     child: TextButton(
-          //                       onPressed: () {
-          //                         Navigator.of(ctx).pop();
-          //                         authProvider.logout();
-          //                         Navigator.of(context).pushAndRemoveUntil(
-          //                           MaterialPageRoute(builder: (_) => const LoginScreen()),
-          //                           (route) => false,
-          //                         );
-          //                       },
-          //                       style: TextButton.styleFrom(
-          //                         backgroundColor: Colors.red.shade50, // Background color
-          //                         foregroundColor: Colors.red,
-          //                         textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold), // Larger text
-          //                         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-          //                         shape: RoundedRectangleBorder(
-          //                           borderRadius: BorderRadius.circular(8),
-          //                           side: BorderSide(color: Colors.red.shade200),
-          //                         ),
-          //                       ),
-          //                       child: Text('Logout'.tr()),
-          //                     ),
-          //                   ),
-          //                 ],
-          //               ),
-          //             ],
-          //           ),
-          //         ),
-          //       ),
-          //     );
-          //   },
-          // ),
         ],
       ),
       backgroundColor: backgroundColor,
@@ -203,6 +258,7 @@ class DashboardScreen extends StatelessWidget {
                           color: diningColor,
                           isDining: true,
                           screenSize: screenSize,
+                          isDisabled: _isDemoExpired,
                         ),
                         _buildServiceCard(
                           context: context,
@@ -210,6 +266,7 @@ class DashboardScreen extends StatelessWidget {
                           icon: Icons.takeout_dining,
                           color: takeoutColor,
                           screenSize: screenSize,
+                          isDisabled: _isDemoExpired,
                         ),
                         _buildServiceCard(
                           context: context,
@@ -217,6 +274,7 @@ class DashboardScreen extends StatelessWidget {
                           icon: Icons.delivery_dining,
                           color: deliveryColor,
                           screenSize: screenSize,
+                          isDisabled: _isDemoExpired,
                         ),
                         _buildServiceCard(
                           context: context,
@@ -224,6 +282,7 @@ class DashboardScreen extends StatelessWidget {
                           icon: Icons.drive_eta,
                           color: driveThroughColor,
                           screenSize: screenSize,
+                          isDisabled: _isDemoExpired,
                         ),
                         _buildServiceCard(
                           context: context,
@@ -231,6 +290,7 @@ class DashboardScreen extends StatelessWidget {
                           icon: Icons.cake,
                           color: cateringColor,
                           screenSize: screenSize,
+                          isDisabled: _isDemoExpired,
                         ),
                         _buildServiceCard(
                           context: context,
@@ -238,6 +298,7 @@ class DashboardScreen extends StatelessWidget {
                           icon: Icons.list_alt,
                           color: orderListColor,
                           screenSize: screenSize,
+                          isDisabled: _isDemoExpired,
                         ),
                       ],
                     ),
@@ -258,6 +319,7 @@ class DashboardScreen extends StatelessWidget {
     required Color color,
     bool isDining = false,
     required Size screenSize,
+    bool isDisabled = false,
   }) {
     final isLandscape = screenSize.width > screenSize.height;
     final iconSize = isLandscape 
@@ -269,75 +331,86 @@ class DashboardScreen extends StatelessWidget {
 
     final orderProvider = Provider.of<OrderProvider>(context, listen: false);
 
-    return InkWell(
-      onTap: () {
-        if (isDining) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (ctx) => const DiningTableScreen(),
+    return Opacity(
+      opacity: isDisabled ? 0.3 : 1.0,
+      child: InkWell(
+        onTap: isDisabled ? () {
+          // Show message that demo has expired
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Demo expired. Please contact support to continue using this feature.'.tr()),
+              backgroundColor: Colors.red[700],
             ),
           );
-        } else if (title == 'orderList') {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (ctx) => const OrderListScreen(),
-            ),
-          );
-        } else {
-          orderProvider.setCurrentServiceType(title.tr()); // Translate service type
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (ctx) => MenuScreen(serviceType: title.tr(), serviceColor: color),
-            ),
-          );
-        }
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Container(
-          decoration: BoxDecoration(
+        } : () {
+          if (isDining) {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (ctx) => const DiningTableScreen(),
+              ),
+            );
+          } else if (title == 'orderList') {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (ctx) => const OrderListScreen(),
+              ),
+            );
+          } else {
+            orderProvider.setCurrentServiceType(title.tr());
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (ctx) => MenuScreen(serviceType: title.tr(), serviceColor: color),
+              ),
+            );
+          }
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Card(
+          elevation: isDisabled ? 0 : 2,
+          shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: color.withAlpha(20),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: color.withAlpha(40),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color:  Colors.white,
+              boxShadow: isDisabled ? [] : [
+                BoxShadow(
+                  color: color.withAlpha(20),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
                 ),
-                child: Icon(
-                  icon,
-                  size: iconSize,
-                  color: color,
-                ),
-              ),
-              SizedBox(height: screenSize.height * 0.015),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  title.tr(), // Translate the service card title
-                  style: TextStyle(
-                    fontSize: fontSize,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+              ],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color:  color.withAlpha(40),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: iconSize,
+                    color: color,
                   ),
                 ),
-              ),
-            ],
+                SizedBox(height: screenSize.height * 0.015),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    title.tr(),
+                    style: TextStyle(
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.w600,
+                      color:  Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

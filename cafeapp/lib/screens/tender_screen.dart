@@ -2382,7 +2382,7 @@ class _TenderScreenState extends State<TenderScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Payment'.tr()),
+        title: Text('Receipt'.tr()),
         backgroundColor: Colors.blue.shade700,
         foregroundColor: Colors.white,
         actions: [
