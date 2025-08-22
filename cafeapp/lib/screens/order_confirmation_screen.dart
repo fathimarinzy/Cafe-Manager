@@ -5,6 +5,9 @@ import '../providers/order_provider.dart';
 import 'dashboard_screen.dart';
 import '../utils/app_localization.dart';
 import '../utils/service_type_utils.dart';
+import '../models/order.dart';
+import '../repositories/local_order_repository.dart';
+
 
 class OrderConfirmationScreen extends StatefulWidget {
   final String serviceType;
@@ -415,77 +418,84 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
     );
   }
 
-  Future<void> _processOrder() async {
-    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-    
-    // Check if cart is empty
-    if (orderProvider.cartItems.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(content: Text('Cart is empty'.tr())),
-      );
-      return;
-    }
-    
-    setState(() {
-      _isProcessing = true;
-    });
-    
-    try {
-      // Process the order and generate bill - table status update happens inside this method
-      final result = await orderProvider.processOrderWithBill(context);
-      
-      if (!mounted) return;
-      
-      // Reset state in provider
-      if (mounted) {
-        final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-        orderProvider.clearSelectedPerson();
-        orderProvider.clearCart();
-      }
-      
-      if (result['success']) {
-        
-        if (!mounted) return;
+  // In OrderConfirmationScreen, update the _processOrder method:
 
-        // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result['message'])),
+Future<void> _processOrder() async {
+  setState(() {
+    _isProcessing = true;
+  });
+
+  try {
+    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+    final result = await orderProvider.processOrderWithBill(context);
+
+    if (result['success']) {
+      final Order? processedOrder = result['order'];
+      
+      // If we have a customer selected, update the order with customer info
+      if (orderProvider.selectedPerson != null && processedOrder != null) {
+        // Create updated order with customer ID
+        final updatedOrder = Order(
+          id: processedOrder.id,
+          serviceType: processedOrder.serviceType,
+          items: processedOrder.items,
+          subtotal: processedOrder.subtotal,
+          tax: processedOrder.tax,
+          discount: processedOrder.discount,
+          total: processedOrder.total,
+          status: processedOrder.status,
+          createdAt: processedOrder.createdAt,
+          customerId: orderProvider.selectedPerson!.id, // Add customer ID
+          paymentMethod: processedOrder.paymentMethod,
         );
         
-        // Navigate back to dashboard
+        // Save the updated order
+        final localOrderRepo = LocalOrderRepository();
+        await localOrderRepo.saveOrder(updatedOrder);
+        debugPrint('Updated order with customer ID: ${orderProvider.selectedPerson!.id}');
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Order processed successfully'.tr()),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Navigate to order list and clear the navigation stack
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const DashboardScreen()),
           (route) => false,
         );
-      } else {
-        if (!mounted) return;
-        // Show error message but stay on page
+      }
+    } else {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result['message']),
+            content: Text(result['message'] ?? 'Failed to process order'.tr()),
             backgroundColor: Colors.red,
           ),
         );
-        setState(() {
-          _isProcessing = false;
-        });
       }
-    } catch (e) {
-      if (!mounted) return;
-      
-      // Show error message
+    }
+  } catch (e) {
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error processing order'.tr()),
+          content: Text('Error processing order: $e'.tr()),
           backgroundColor: Colors.red,
         ),
       );
+    }
+  } finally {
+    if (mounted) {
       setState(() {
         _isProcessing = false;
       });
     }
   }
-
+}
   // Add these helper methods if you need service type display:
 String _getTranslatedServiceType(String serviceType) {
   return ServiceTypeUtils.getTranslated(serviceType);

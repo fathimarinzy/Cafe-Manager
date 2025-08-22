@@ -161,4 +161,34 @@ class LocalPersonRepository {
       return false;
     }
   }
+
+  // Add this method to your LocalPersonRepository class:
+
+Future<Person?> getPersonById(String id) async {
+  try {
+    final db = await database;
+    
+    final List<Map<String, dynamic>> maps = await db.query(
+      'persons',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    
+    if (maps.isNotEmpty) {
+      return Person(
+        id: maps.first['id'] as String,
+        name: maps.first['name'] as String,
+        phoneNumber: maps.first['phoneNumber'] as String,
+        place: maps.first['place'] as String,
+        dateVisited: maps.first['dateVisited'] as String,
+      );
+    }
+    
+    return null;
+  } catch (e) {
+    debugPrint('Error getting person by ID: $e');
+    return null;
+  }
+}
 }

@@ -13,6 +13,8 @@ import '../repositories/local_order_repository.dart';
 import '../models/order.dart';
 import '../utils/app_localization.dart';
 import '../utils/service_type_utils.dart';
+import '../repositories/local_person_repository.dart';
+import '../models/person.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
   final int orderId;
@@ -31,6 +33,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   List<OrderItem>? _originalItems;
   double _taxRate = 0.0;
   double _discountAmount = 0.0; 
+  Person? _customer; // Add this property
+
 
   @override
   void initState() {
@@ -57,11 +61,22 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       final orderProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
       final order = await orderProvider.getOrderDetails(widget.orderId);
       
-      if (mounted) {
+      if (mounted && order != null) {
+        // Load customer information if customerId exists
+        Person? customer;
+        if (order.customerId != null && order.customerId!.isNotEmpty) {
+          try {
+            final localPersonRepo = LocalPersonRepository();
+            customer = await localPersonRepo.getPersonById(order.customerId!);
+            debugPrint('Loaded customer: ${customer?.name ?? "NA"}');
+          } catch (e) {
+            debugPrint('Error loading customer: $e');
+          }
+        }
+        
         // Check if the order has a discount
         double discount = 0.0;
-        // If we have a complete order from database, try to get its discount
-        if (order != null && order.id > 0) {
+        if (order.id > 0) {
           final localOrderRepo = LocalOrderRepository();
           try {
             final orderFromDb = await localOrderRepo.getOrderById(order.id);
@@ -73,10 +88,12 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
             debugPrint('Error getting order discount from DB: $e');
           }
         }
+        
         setState(() {
           _order = order;
+          _customer = customer; // Set the customer
           _discountAmount = discount;
-          _originalItems = order?.items.map((item) => 
+          _originalItems = order.items.map((item) => 
             OrderItem(
               id: item.id,
               name: item.name,
@@ -114,6 +131,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           order: _order!,
           isEdited: _wasEdited,
           taxRate: _taxRate,
+          customer: _customer, // Pass the customer info
         ),
       ),
     ).then((result) {
@@ -871,6 +889,13 @@ void _showEditOrderItemsDialog() {
                     _getServiceTypeIcon(_order!.serviceType),
                     'Service Type'.tr(),
                     _getTranslatedServiceType(_order!.serviceType)                  ),
+                  const SizedBox(height: 8),
+                  // Add customer info row
+                  _buildInfoRow(
+                    Icons.person,
+                    'Customer'.tr(),
+                    _customer?.name ?? 'NA'.tr()
+                  ),
                   const SizedBox(height: 8),
                 _buildInfoRow(
                   Icons.access_time,

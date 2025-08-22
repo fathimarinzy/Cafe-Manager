@@ -11,6 +11,7 @@ class OrderHistory {
   final String status;
   final DateTime createdAt;
   final List<OrderItem> items;
+  final String? customerId; // Add customerId field
 
   OrderHistory({
     required this.id,
@@ -19,6 +20,7 @@ class OrderHistory {
     required this.status,
     required this.createdAt,
     required this.items,
+    this.customerId, // Add customerId parameter
   });
 
   // FIXED: Simplified factory method without timezone adjustments
@@ -66,6 +68,7 @@ class OrderHistory {
       status: order.status,
       createdAt: parsedDate,
       items: order.items,
+      customerId: order.customerId, // Include customerId from Order
     );
   }
 
