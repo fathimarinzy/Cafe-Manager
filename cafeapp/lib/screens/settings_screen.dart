@@ -697,15 +697,58 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                       color: Colors.green[700],
                                     ),
                                   ),
+                                  const Spacer(),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: _remainingDemoDays <= 5 ? Colors.red[100] : Colors.green[100],
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: _remainingDemoDays <= 5 ? Colors.red[300]! : Colors.green[300]!,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      '$_remainingDemoDays ${'days left'.tr()}',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: _remainingDemoDays <= 5 ? Colors.red[700] : Colors.green[700],
+                                      ),
+                                    ),
+                                  ),
                                 ],
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 12),
                               Text(
-                                '${'Remaining Days'.tr()}: $_remainingDemoDays/30',
+                                'Contact support for full registration:',
                                 style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: _remainingDemoDays <= 5 ? Colors.red[700] : Colors.green[700],
+                                  fontSize: 14,
+                                  color: Colors.green[700],
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '+968 7184 0022',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.blue[700],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              Text(
+                                '+968 9906 2181',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.blue[700],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              Text(
+                                '+968 7989 5704',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.blue[700],
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ],
