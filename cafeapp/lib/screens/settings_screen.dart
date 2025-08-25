@@ -15,6 +15,8 @@ import '../screens/report_screen.dart';
 import '../widgets/backup_manager_widget.dart';
 import '../utils/database_reset_service.dart';
 import 'package:flutter/services.dart';
+import '../services/license_service.dart';
+
 
 class SettingsScreen extends StatefulWidget {
   final String userType;
@@ -32,6 +34,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isDemoMode = false;
   bool _isDemoExpired = false;
   int _remainingDemoDays = 0;
+
+   // Add these license-related variables
+  bool _isLicenseExpired = false;
+  int _remainingLicenseDays = 0;
+  bool _isRegularUser = false;
   
   // Business Information
   final _businessNameController = TextEditingController();
@@ -66,8 +73,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _loadSettings();
     _checkDemoStatus();
+    _checkLicenseStatus(); 
   }
+    
+  // Add this method
+Future<void> _checkLicenseStatus() async {
+  final licenseStatus = await LicenseService.getLicenseStatus();
+  
+  setState(() {
+    _isRegularUser = licenseStatus['isRegistered'] && !_isDemoMode;
+    _isLicenseExpired = licenseStatus['isExpired'];
+    _remainingLicenseDays = licenseStatus['remainingDays'];
+  });
 
+}
+  
   Future<void> _checkDemoStatus() async {
     final isDemoMode = await DemoService.isDemoMode();
     final isDemoExpired = await DemoService.isDemoExpired();
@@ -554,15 +574,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         actions: [
-          if (!_isDemoExpired) // Hide save button if demo expired
-            TextButton.icon(
-              icon: const Icon(Icons.save),
-              label: Text('Save'.tr()),
-              onPressed: _saveSettings,
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.blue[700],
-              ),
+        // Only show save button if not expired (for demo or regular users)
+        if (!_isDemoExpired && !(_isRegularUser && _isLicenseExpired))
+          TextButton.icon(
+            icon: const Icon(Icons.save),
+            label: Text('Save'.tr()),
+            onPressed: _saveSettings,
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.blue[700],
             ),
+          ),
         ],
       ),
       body: _isLoading 
@@ -573,14 +594,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.all(16),
               children: [
                 // Only show business information if not expired or is active demo
-                if (!_isDemoExpired || _isDemoMode) ...[
+                if (!_isDemoExpired || _isDemoMode && !(_isRegularUser && _isLicenseExpired)) ...[
                   _buildSectionHeader('Business Information'.tr()),
                   _buildBusinessInfoSection(),
                   const Divider(),
                 ],
 
                 // Only show other sections if demo is not expired
-                if (!_isDemoExpired) ...[
+                if (!_isDemoExpired && !(_isRegularUser && _isLicenseExpired)) ...[
                   _buildSectionHeader('Expense'.tr()),
                   _expenseSection(),
                   const Divider(),
@@ -592,7 +613,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const Divider(),
                 
                 // Only show other sections if demo is not expired
-                if (!_isDemoExpired) ...[
+                if (!_isDemoExpired && !(_isRegularUser && _isLicenseExpired)) ...[
                   _buildSectionHeader('Tax Settings'.tr()),
                   _buildTaxSettingsSection(),
                   const Divider(),
@@ -659,7 +680,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildSectionHeader('Logout'.tr()),
                 _logoutsection(),
 
-                // About section - modified for demo
+                // About section
                 ListTile(
                   title: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -673,8 +694,105 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       const SizedBox(height: 8),
                       
-                      // Show demo info or contact numbers based on demo status
-                      if (_isDemoMode && !_isDemoExpired) ...[
+                      // Show license info for regular users, demo info for demo users, or contact for others
+                      if (_isRegularUser) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: _isLicenseExpired ? Colors.red[50] : 
+                                  _remainingLicenseDays <= 30 ? Colors.blue[50] : Colors.blue[50],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: _isLicenseExpired ? Colors.red[300]! : 
+                                    _remainingLicenseDays <= 30 ? Colors.blue[300]! : Colors.blue[300]!
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    _isLicenseExpired ? Icons.access_time : Icons.verified,
+                                    color: _isLicenseExpired ? Colors.red[700] :
+                                          _remainingLicenseDays <= 30 ? Colors.blue[900] : Colors.blue[900], 
+                                    size: 20
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    _isLicenseExpired ? 'License Expired'.tr() : 'License Active'.tr(),
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: _isLicenseExpired ? Colors.red[700] : 
+                                            _remainingLicenseDays <= 30 ? Colors.blue[900] : Colors.blue[900],
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  if (!_isLicenseExpired)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: _remainingLicenseDays <= 30 ? Colors.red[100] : Colors.green[100],
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: _remainingLicenseDays <= 30 ? Colors.red[300]! : Colors.green[300]!,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        '$_remainingLicenseDays ${'days left'.tr()}',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: _remainingLicenseDays <= 30 ? Colors.red[700] : Colors.green[700],
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                _isLicenseExpired ? 
+                                'Contact support for license renewal:' :
+                                _remainingLicenseDays <= 30 ?
+                                'License expiring soon. Contact support for renewal:' :
+                                'Contact support for assistance:',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  // color: _isLicenseExpired ? Colors.red[700] : 
+                                        // _remainingLicenseDays <= 30 ? Colors.orange[700] : Colors.green[700],
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '+968 7184 0022',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.blue[700],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              Text(
+                                '+968 9906 2181',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.blue[700],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              Text(
+                                '+968 7989 5704',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.blue[700],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ] else if (_isDemoMode && !_isDemoExpired) ...[
+                        // Existing demo mode display code
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
@@ -754,6 +872,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
                       ] else if (_isDemoExpired) ...[
+                        // Existing demo expired display code
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
@@ -783,7 +902,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 'Contact support for full registration:',
                                 style: TextStyle(
                                   fontSize: 14,
-                                  color: Colors.red[700],
                                 ),
                               ),
                             ],
@@ -815,7 +933,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
                       ] else ...[
-                        // Regular contact numbers for non-demo users
+                        // Default contact numbers for other cases
                         Text(
                           '+968 7184 0022',
                           style: TextStyle(
@@ -849,7 +967,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   leading: const Icon(Icons.contact_support),
                 ),
-             
                 const SizedBox(height: 40),
               ],
             ),

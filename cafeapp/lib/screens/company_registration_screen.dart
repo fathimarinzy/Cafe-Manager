@@ -5,6 +5,7 @@ import '../utils/app_localization.dart';
 import 'dashboard_screen.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/license_service.dart';
 
 
 class CompanyRegistrationScreen extends StatefulWidget {
@@ -123,6 +124,9 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
       await prefs.setBool('company_registered', true);
       // Mark device as fully registered only after company registration
       await prefs.setBool('device_registered', true);
+
+      // Set license start date - ADD THIS LINE
+      await LicenseService.setLicenseStartDate();
 
       await prefs.setString('business_name', _businessNameController.text.trim());
       await prefs.setString('second_business_name', _secondBusinessNameController.text.trim());

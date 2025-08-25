@@ -8,6 +8,7 @@ import '../services/demo_service.dart'; // Add this import
 import 'dashboard_screen.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/license_service.dart';
 
 class OnlineCompanyRegistrationScreen extends StatefulWidget {
   const OnlineCompanyRegistrationScreen({super.key});
@@ -351,8 +352,12 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
       if (result['success']) {
         await prefs.setBool('company_registered', true);
         await prefs.setBool('device_registered', true);
+        // Set license start date - ADD THIS LINE
+        await LicenseService.setLicenseStartDate();
+    
         await prefs.setString('company_id', result['companyId']);
         await prefs.setString('registration_mode', 'online');
+
         await prefs.setString('business_name', _businessNameController.text.trim());
         await prefs.setString('second_business_name', _secondBusinessNameController.text.trim());
         await prefs.setString('business_address', _businessAddressController.text.trim());

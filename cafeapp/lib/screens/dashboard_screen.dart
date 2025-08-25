@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/order_provider.dart';
-import '../services/demo_service.dart'; // Add this import
+import '../services/demo_service.dart';
 import 'menu_screen.dart';
 import 'dining_table_screen.dart';
 import 'order_list_screen.dart';
 import '../utils/app_localization.dart';
 import '../widgets/settings_password_dialog.dart';
 import '../providers/settings_provider.dart';
+import '../services/license_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -18,11 +19,146 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   bool _isDemoExpired = false;
+  bool _isLicenseExpired = false; 
+  bool _isRegularUser = false;   
 
   @override
   void initState() {
     super.initState();
     _checkDemoStatus();
+    _checkLicenseStatus(); 
+  }
+
+  // Add this method
+  Future<void> _checkLicenseStatus() async {
+    final licenseStatus = await LicenseService.getLicenseStatus();
+    final isDemoMode = await DemoService.isDemoMode();
+    
+    setState(() {
+      _isRegularUser = licenseStatus['isRegistered'] && !isDemoMode;
+      _isLicenseExpired = licenseStatus['isExpired'];
+    });
+
+    // Show expiration dialog if license is expired for regular users
+    if (_isLicenseExpired && _isRegularUser && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showLicenseExpiredDialog();
+      });
+    }
+  }
+
+  // Add this method (same as in settings screen)
+  void _showLicenseExpiredDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.access_time, color: Colors.red[700]),
+              const SizedBox(width: 8),
+              Text(
+                'License Expired'.tr(),
+                style: TextStyle(
+                  color: Colors.red[700],
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Your 1-year license has expired.\nTo continue using all features, please contact support for license renewal.'.tr(),
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Contact Support:'.tr(),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue[800],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(Icons.phone, color: Colors.blue[700], size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          '+968 7184 0022',
+                          style: TextStyle(color: Colors.blue[700]),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        Icon(Icons.phone, color: Colors.blue[700], size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          '+968 9906 2181',
+                          style: TextStyle(color: Colors.blue[700]),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        Icon(Icons.phone, color: Colors.blue[700], size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          '+968 7989 5704',
+                          style: TextStyle(color: Colors.blue[700]),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.email, color: Colors.blue[700], size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          'AI@simsai.tech',
+                          style: TextStyle(color: Colors.blue[700]),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.blue[700],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text('OK'.tr()),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _checkDemoStatus() async {
@@ -313,15 +449,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
         : screenSize.width * 0.03;
 
     final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+    final bool shouldDisable = _isDemoExpired || (_isRegularUser && _isLicenseExpired);
 
     return Opacity(
-      opacity: isDisabled ? 0.3 : 1.0,
+      opacity: shouldDisable ? 0.3 : 1.0,
       child: InkWell(
-        onTap: isDisabled ? () {
-          // Show message that demo has expired
+        onTap: shouldDisable ? () {
+          // Show appropriate message based on expiry type
+          String message;
+          if (_isDemoExpired) {
+            message = 'Demo expired. Please contact support to continue using this feature.'.tr();
+          } else if (_isRegularUser && _isLicenseExpired) {
+            message = 'License expired. Please contact support to renew your license.'.tr();
+          } else {
+            message = 'Feature not available.'.tr();
+          }
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Demo expired. Please contact support to continue using this feature.'.tr()),
+              content: Text(message),
               backgroundColor: Colors.red[700],
             ),
           );
@@ -349,15 +494,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         },
         borderRadius: BorderRadius.circular(12),
         child: Card(
-          elevation: isDisabled ? 0 : 2,
+          elevation: shouldDisable ? 0 : 2,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
-              color:  Colors.white,
-              boxShadow: isDisabled ? [] : [
+              color: Colors.white,
+              boxShadow: shouldDisable ? [] : [
                 BoxShadow(
                   color: color.withAlpha(20),
                   blurRadius: 6,
@@ -372,7 +517,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color:  color.withAlpha(40),
+                    color: color.withAlpha(40),
                   ),
                   child: Icon(
                     icon,
@@ -388,7 +533,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     style: TextStyle(
                       fontSize: fontSize,
                       fontWeight: FontWeight.w600,
-                      color:  Colors.black87,
+                      color: Colors.black87,
                     ),
                   ),
                 ),
