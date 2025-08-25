@@ -678,23 +678,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.green[50],
+                            color: Colors.blue[50],
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.green[300]!),
+                            border: Border.all(color: Colors.blue[300]!),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
                                 children: [
-                                  Icon(Icons.schedule, color: Colors.green[700], size: 20),
+                                  Icon(Icons.schedule, color: Colors.blue[900], size: 20),
                                   const SizedBox(width: 8),
                                   Text(
                                     'Demo Mode Active'.tr(),
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.green[700],
+                                      color: Colors.blue[900],
                                     ),
                                   ),
                                   const Spacer(),
@@ -723,7 +723,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 'Contact support for full registration:',
                                 style: TextStyle(
                                   fontSize: 14,
-                                  color: Colors.green[700],
                                 ),
                               ),
                               const SizedBox(height: 4),
