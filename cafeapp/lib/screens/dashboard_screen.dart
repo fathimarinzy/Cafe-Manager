@@ -5,7 +5,6 @@ import '../services/demo_service.dart'; // Add this import
 import 'menu_screen.dart';
 import 'dining_table_screen.dart';
 import 'order_list_screen.dart';
-import 'settings_screen.dart'; // Add this import
 import '../utils/app_localization.dart';
 import '../widgets/settings_password_dialog.dart';
 import '../providers/settings_provider.dart';
@@ -205,23 +204,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             icon: const Icon(Icons.settings),
             tooltip: 'settings'.tr(),
             onPressed: () async {
-              // Check if demo mode is active
-              final isDemoMode = await DemoService.isDemoMode();
-             
-              if (isDemoMode) {
-                // Direct navigation to settings for demo users
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const SettingsScreen(),
-                  ),
-                );
-              } else {
-                // Show password dialog for regular users
-                showDialog(
-                  context: context,
-                  builder: (_) => const SettingsPasswordDialog(),
-                );
-              }
+              showDialog(
+                context: context,
+                builder: (_) => const SettingsPasswordDialog(),
+              );
             },
           ),
         ],
