@@ -9,8 +9,8 @@ class DemoService {
   static const int _demoDaysLimit = 30;
 
   // Demo user credentials
-  static const String demoUsername = 'demo';
-  static const String demoPassword = 'demo123';
+  static const String demoUsername = 'admin';
+  static const String demoPassword = 'admin123';
 
   // Start demo mode and store in Firebase
   static Future<Map<String, dynamic>> startDemo({
