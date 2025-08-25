@@ -371,7 +371,7 @@ class ThermalPrinterService {
       if (result == PosPrintResult.success) {
         await _setupArabicPrinter(printer);
         await _safePrintText(printer, 'Receipt printer test successful', styles: const PosStyles(align: PosAlign.center, bold: true));
-        await _safePrintText(printer, 'اختبار الطابعة نجح', styles: const PosStyles(align: PosAlign.center, bold: true));
+        // await _safePrintText(printer, 'اختبار الطابعة نجح', styles: const PosStyles(align: PosAlign.center, bold: true));
         printer.cut();
         printer.disconnect();
         return true;
@@ -400,7 +400,7 @@ class ThermalPrinterService {
       if (result == PosPrintResult.success) {
         await _setupArabicPrinter(printer);
         await _safePrintText(printer, 'KOT printer test successful', styles: const PosStyles(align: PosAlign.center, bold: true));
-        await _safePrintText(printer, 'اختبار طابعة المطبخ نجح', styles: const PosStyles(align: PosAlign.center, bold: true));
+        // await _safePrintText(printer, 'اختبار طابعة المطبخ نجح', styles: const PosStyles(align: PosAlign.center, bold: true));
         printer.cut();
         printer.disconnect();
         return true;
@@ -531,9 +531,9 @@ class ThermalPrinterService {
         ]);
 
         // Kitchen note - will be printed in its original language
-        if (item.kitchenNote.isNotEmpty) {
-          await _safePrintText(printer, 'Note: ${item.kitchenNote}', styles: const PosStyles(fontType: PosFontType.fontB));
-        }
+        // if (item.kitchenNote.isNotEmpty) {
+        //   await _safePrintText(printer, 'Note: ${item.kitchenNote}', styles: const PosStyles(fontType: PosFontType.fontB));
+        // }
       }
       
       await _safePrintText(printer, '=' * 48, styles: const PosStyles(align: PosAlign.center));
@@ -670,7 +670,7 @@ class ThermalPrinterService {
                              items.any((item) => _containsArabic(item.name) || _containsArabic(item.kitchenNote));
       
       if (hasArabicContent) {
-        await _safePrintText(printer, 'طلب المطبخ', styles: const PosStyles(align: PosAlign.center, bold: true));
+        // await _safePrintText(printer, 'طلب المطبخ', styles: const PosStyles(align: PosAlign.center, bold: true));
         await _safePrintText(printer, '');
       }
       

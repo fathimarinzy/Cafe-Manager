@@ -204,10 +204,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     }
     
     // Print kitchen receipt after successful update
-    if (updatedOrder != null) {
-      await _printKitchenReceipt();
-    }
-    
+    await _printKitchenReceipt();
+      
     // Force a refresh of the OrderHistoryProvider to update other screens
     if (mounted) {
       final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
@@ -751,6 +749,76 @@ void _showEditOrderItemsDialog() {
     );
   }
 
+  Future<void> _reprintReceipt() async {
+  if (_order == null) return;
+    
+  try {
+    // Convert order items to MenuItem objects
+    final items = _order!.items.map((item) => 
+      MenuItem(
+        id: item.id.toString(),
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        imageUrl: '',
+        category: '',
+        kitchenNote: item.kitchenNote,
+      )
+    ).toList();
+    
+    // Extract tableInfo if this is a dining order
+    String? tableInfo;
+    if (_order!.serviceType.startsWith('Dining - Table')) {
+      tableInfo = _order!.serviceType;
+    }
+    
+    // Print KOT receipt instead of main receipt
+    final result = await BillService.printKitchenOrderReceipt(
+      items: items,
+      serviceType: _order!.serviceType,
+      tableInfo: tableInfo,
+      orderNumber: _order!.orderNumber,
+      context: mounted ? context : null,
+    );
+    
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+      
+      // Check if result is not null and has expected structure
+      if (result['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'KOT receipt reprinted successfully'.tr()),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Failed to reprint KOT receipt'.tr()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+        }
+  } catch (e) {
+    debugPrint('Error reprinting KOT receipt: $e');
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error reprinting KOT receipt: ${e.toString()}'.tr()),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+}
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -1032,8 +1100,22 @@ void _showEditOrderItemsDialog() {
                           ),
                         ),
                       ),
+                      const SizedBox(width: 12), // Space between buttons
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.print),
+                          label: Text('Reprint KOT'.tr()),
+                          onPressed: _reprintReceipt,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue[900],
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
                     ],
-                  ),
+                  ),      
                 ],
               ),
             ),

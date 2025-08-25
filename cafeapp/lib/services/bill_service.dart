@@ -238,8 +238,7 @@ class BillService {
                       arabicFont: arabicFont,
                       fallbackFont: fallbackFont,
                       style: pw.TextStyle(
-                        fontSize: 12,
-                        fontWeight: pw.FontWeight.bold,
+                        fontSize: 10,
                       ),
                       textAlign: pw.TextAlign.center,
                     ),
@@ -391,36 +390,36 @@ class BillService {
                       ),
                       
                       // Add kitchen note if it exists - display in its original language
-                      if (item.kitchenNote.isNotEmpty)
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.only(left: 10, bottom: 5),
-                          child: pw.Row(
-                            children: [
-                              _createText(
-                                'Note: ',
-                                arabicFont: arabicFont,
-                                fallbackFont: fallbackFont,
-                                style: pw.TextStyle(
-                                  fontSize: 8,
-                                  fontWeight: pw.FontWeight.bold,
-                                  color: PdfColors.blue900,
-                                ),
-                              ),
-                              pw.Expanded(
-                                child: _createText(
-                                  item.kitchenNote,
-                                  arabicFont: arabicFont,
-                                  fallbackFont: fallbackFont,
-                                  style: pw.TextStyle(
-                                    fontSize: 8,
-                                    fontStyle: pw.FontStyle.italic,
-                                    color: PdfColors.blue900,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                      // if (item.kitchenNote.isNotEmpty)
+                      //   pw.Padding(
+                      //     padding: const pw.EdgeInsets.only(left: 10, bottom: 5),
+                      //     child: pw.Row(
+                      //       children: [
+                      //         _createText(
+                      //           'Note: ',
+                      //           arabicFont: arabicFont,
+                      //           fallbackFont: fallbackFont,
+                      //           style: pw.TextStyle(
+                      //             fontSize: 8,
+                      //             fontWeight: pw.FontWeight.bold,
+                      //             color: PdfColors.blue900,
+                      //           ),
+                      //         ),
+                      //         pw.Expanded(
+                      //           child: _createText(
+                      //             item.kitchenNote,
+                      //             arabicFont: arabicFont,
+                      //             fallbackFont: fallbackFont,
+                      //             style: pw.TextStyle(
+                      //               fontSize: 8,
+                      //               fontStyle: pw.FontStyle.italic,
+                      //               color: PdfColors.blue900,
+                      //             ),
+                      //           ),
+                      //         ),
+                      //       ],
+                      //     ),
+                      //   ),
                     ],
                   );
                 }).toList(),
@@ -649,7 +648,6 @@ class BillService {
                       fallbackFont: fallbackFont,
                       style: pw.TextStyle(
                         fontSize: 16,
-                        fontWeight: pw.FontWeight.bold,
                       ),
                       textAlign: pw.TextAlign.center,
                     ),
@@ -661,7 +659,6 @@ class BillService {
                       fallbackFont: fallbackFont,
                       style: pw.TextStyle(
                         fontSize: 14,
-                        fontWeight: pw.FontWeight.bold,
                       ),
                       textAlign: pw.TextAlign.center,
                     ),
@@ -680,7 +677,6 @@ class BillService {
                       fallbackFont: fallbackFont,
                       style: pw.TextStyle(
                         fontSize: 12,
-                        fontWeight: pw.FontWeight.bold,
                       ),
                       textAlign: pw.TextAlign.center,
                     ),
@@ -702,7 +698,6 @@ class BillService {
                       fallbackFont: fallbackFont,
                       style: pw.TextStyle(
                         fontSize: 12,
-                        fontWeight: pw.FontWeight.bold,
                       ),
                     ),
                   ),
@@ -714,7 +709,6 @@ class BillService {
                       fallbackFont: fallbackFont,
                       style: pw.TextStyle(
                         fontSize: 12,
-                        fontWeight: pw.FontWeight.bold,
                       ),
                       textAlign: pw.TextAlign.right,
                     ),
@@ -770,7 +764,6 @@ class BillService {
                                 fallbackFont: fallbackFont,
                                 style: pw.TextStyle(
                                   fontSize: 10,
-                                  fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
                               pw.Expanded(
@@ -780,7 +773,6 @@ class BillService {
                                   fallbackFont: fallbackFont,
                                   style: pw.TextStyle(
                                     fontSize: 10,
-                                    fontWeight: pw.FontWeight.bold,
                                   ),
                                 ),
                               ),
@@ -798,25 +790,25 @@ class BillService {
               pw.Divider(thickness: 1),
               
               // Add Arabic header if any item contains Arabic
-              if (_containsArabic(serviceType) || 
-                  items.any((item) => _containsArabic(item.name) || _containsArabic(item.kitchenNote)))
-                pw.Center(
-                  child: pw.Column(
-                    children: [
-                      pw.SizedBox(height: 10),
-                      _createText(
-                        'طلب المطبخ',
-                        arabicFont: arabicFont,
-                        fallbackFont: fallbackFont,
-                        style: pw.TextStyle(
-                          fontSize: 14,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                        textAlign: pw.TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
+              // if (_containsArabic(serviceType) || 
+              //     items.any((item) => _containsArabic(item.name) || _containsArabic(item.kitchenNote)))
+              //   pw.Center(
+              //     child: pw.Column(
+              //       children: [
+              //         pw.SizedBox(height: 10),
+              //         _createText(
+              //           'طلب المطبخ',
+              //           arabicFont: arabicFont,
+              //           fallbackFont: fallbackFont,
+              //           style: pw.TextStyle(
+              //             fontSize: 14,
+              //             fontWeight: pw.FontWeight.bold,
+              //           ),
+              //           textAlign: pw.TextAlign.center,
+              //         ),
+              //       ],
+              //     ),
+              //  ),
             ],
           );
         },

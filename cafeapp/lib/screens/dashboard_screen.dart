@@ -19,7 +19,6 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   bool _isDemoExpired = false;
-  bool _isDemoMode = false;
 
   @override
   void initState() {
@@ -28,11 +27,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _checkDemoStatus() async {
-    final isDemoMode = await DemoService.isDemoMode();
     final isDemoExpired = await DemoService.isDemoExpired();
     
     setState(() {
-      _isDemoMode = isDemoMode;
       _isDemoExpired = isDemoExpired;
     });
 

@@ -18,6 +18,7 @@ import '../providers/order_provider.dart';
 import '../models/person.dart';
 import '../models/order.dart';
 import '../models/order_item.dart';
+import '../models/menu_item.dart';
 import '../repositories/local_order_repository.dart';
 import '../utils/app_localization.dart';
 import '../utils/service_type_utils.dart';
@@ -168,6 +169,174 @@ class _TenderScreenState extends State<TenderScreen> {
     });
   }
 
+
+Future<void> _reprintMainReceipt() async {
+  setState(() {
+    _isProcessing = true;
+  });
+  
+  try {
+    // Convert order items to MenuItem objects
+    final items = widget.order.items.map((item) => 
+      MenuItem(
+        id: item.id.toString(),
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        imageUrl: '',
+        category: '',
+        kitchenNote: item.kitchenNote,
+      )
+    ).toList();
+    
+    // Calculate totals
+    final subtotal = _calculateSubtotal(widget.order.items);
+    final tax = subtotal * (widget.taxRate / 100.0);
+    final discountAmount = _getCurrentDiscount();
+    final total = subtotal + tax - discountAmount;
+    
+    // Extract tableInfo if this is a dining order
+    String? tableInfo;
+    if (widget.order.serviceType.startsWith('Dining - Table')) {
+      tableInfo = widget.order.serviceType;
+    }
+    
+    // Generate PDF with original order number
+    final pdf = await BillService.generateBill(
+      items: items,
+      serviceType: widget.order.serviceType,
+      subtotal: subtotal,
+      tax: tax,
+      discount: discountAmount,
+      total: total,
+      personName: widget.customer?.name,
+      tableInfo: tableInfo,
+      isEdited: widget.isEdited,
+      orderNumber: widget.order.orderNumber, // Use original order number
+      taxRate: widget.taxRate,
+    );
+
+    // Try to print directly first
+    bool printed = false;
+    try {
+      printed = await BillService.printBill(
+        items: items,
+        serviceType: widget.order.serviceType,
+        subtotal: subtotal,
+        tax: tax,
+        discount: discountAmount,
+        total: total,
+        personName: widget.customer?.name,
+        tableInfo: tableInfo,
+        isEdited: widget.isEdited,
+        orderNumber: widget.order.orderNumber, // Use original order number
+        taxRate: widget.taxRate,
+      );
+    } catch (e) {
+      debugPrint('Direct printing failed: $e');
+    }
+
+    Map<String, dynamic> result;
+    if (printed) {
+      result = {
+        'success': true,
+        'message': 'Receipt reprinted successfully',
+        'printed': true,
+        'saved': false,
+      };
+    } else {
+      if (!mounted) return;
+      // If printing fails, offer to save as PDF
+      bool? saveAsPdf = await BillService.showSavePdfDialog(context);
+      if (saveAsPdf == true) {
+        final saved = await _saveWithCustomFileName(pdf, widget.order.orderNumber);
+        result = {
+          'success': saved,
+          'message': saved ? 'Receipt saved as PDF' : 'Failed to save PDF',
+          'printed': false,
+          'saved': saved,
+        };
+      } else {
+        result = {
+          'success': false,
+          'message': 'Printing failed and PDF save was cancelled',
+          'printed': false,
+          'saved': false,
+        };
+      }
+    }
+    
+    if (mounted) {
+      setState(() {
+        _isProcessing = false;
+      });
+      
+      // Show result message
+      if (result['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Receipt reprinted successfully'.tr()),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Failed to reprint  receipt'.tr()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  } catch (e) {
+    debugPrint('Error reprinting main receipt: $e');
+    if (mounted) {
+      setState(() {
+        _isProcessing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error reprinting receipt: ${e.toString()}'.tr()),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+}
+
+// Helper method to calculate subtotal (if not already present)
+double _calculateSubtotal(List<dynamic> items) {
+  return items.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
+}
+
+// Custom save method with original order number filename
+Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async {
+  try {
+    if (!Platform.isAndroid) {
+      debugPrint('This method only works on Android');
+      return false;
+    }
+    
+    final tempDir = await getTemporaryDirectory();
+    final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+    final tempFilename = 'temp_receipt_${orderNumber}_$timestamp.pdf';
+    final tempFile = File('${tempDir.path}/$tempFilename');
+    
+    await tempFile.writeAsBytes(await pdf.save());
+    
+    final result = await _channel.invokeMethod('createDocument', {
+      'path': tempFile.path,
+      'mimeType': 'application/pdf',
+      'fileName': 'SIMS_receipt_${orderNumber}_reprint.pdf', // Use original order number
+    });
+    
+    return result == true;
+  } catch (e) {
+    debugPrint('Error saving PDF with custom filename: $e');
+    return false;
+  }
+}
+
   Future<void> _showBillPreviewDialog() async {
     showDialog(
       context: context,
@@ -212,6 +381,21 @@ class _TenderScreenState extends State<TenderScreen> {
                       ),
                     ),
                     const Spacer(),
+                      // Add Reprint button next to Preview text
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.print, size: 16),
+                      label: Text('Reprint'.tr()),
+                      onPressed: () async {
+                        await _reprintMainReceipt(); // Call reprint method
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.blue.shade900,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        textStyle: const TextStyle(fontSize: 12),
+                        minimumSize: const Size(80, 32),
+                      ),
+                    ),
                   ],
                 ),
               ),
