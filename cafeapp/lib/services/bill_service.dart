@@ -919,6 +919,8 @@ class BillService {
     double? taxRate,
   }) async {
     try {
+      debugPrint('Printing bill using image-based approach');
+
       final effectiveTaxRate = taxRate ?? 0.0;
       
       // Use enhanced thermal printer service
@@ -951,6 +953,8 @@ class BillService {
     String? orderNumber,
   }) async {
     try {
+      debugPrint('Printing KOT using image-based approach');
+
       // Use enhanced thermal printer service
       final printed = await ThermalPrinterService.printKotReceipt(
         items: items,
@@ -1243,6 +1247,8 @@ class BillService {
     BuildContext? context,
   }) async {
     try {
+      debugPrint('Printing kitchen order receipt using image approach');
+
       final kotEnabled = await ThermalPrinterService.isKotPrinterEnabled();
       
       if (!kotEnabled) {

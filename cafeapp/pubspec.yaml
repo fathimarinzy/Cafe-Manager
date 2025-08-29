@@ -112,6 +112,8 @@ flutter:
     - family: Cairo
       fonts:
         - asset: assets/fonts/cairo-regular.ttf
+        - asset: assets/fonts/cairo-bold.ttf
+          weight: 700
         
     - family: NotoSansArabic  
       fonts:

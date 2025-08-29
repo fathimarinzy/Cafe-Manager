@@ -1,26 +1,35 @@
+
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image/image.dart' as img;
 import 'package:esc_pos_printer/esc_pos_printer.dart';
 import 'package:esc_pos_utils/esc_pos_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:typed_data';
-import 'dart:convert';
 import '../models/menu_item.dart';
 
 class ThermalPrinterService {
-  // Receipt Printer settings
+  // Printer settings constants
   static const String _defaultReceiptPrinterIp = '192.168.1.100';
   static const int _defaultReceiptPrinterPort = 9100;
   static const String _receiptPrinterIpKey = 'receipt_printer_ip';
   static const String _receiptPrinterPortKey = 'receipt_printer_port';
   
-  // KOT Printer settings
   static const String _defaultKotPrinterIp = '192.168.1.101';
   static const int _defaultKotPrinterPort = 9100;
   static const String _kotPrinterIpKey = 'kot_printer_ip';
   static const String _kotPrinterPortKey = 'kot_printer_port';
   static const String _kotPrinterEnabledKey = 'kot_printer_enabled';
 
-  // Receipt Printer methods
+  // Image generation constants - Fixed for proper 80mm thermal paper width
+  static const double _thermalPrinterWidth = 512.0; // Changed from 576.0
+  static const double _pixelRatio = 1.0; // Changed from 1.5 for cleaner printing
+  static const double _fontSize = 32.0; // Keep original
+  static const double _smallFontSize = 38.0; // Keep original
+  static const double _largeFontSize = 52.0; // Keep original
+  static const double _padding = 12.0; // Reduced from 16.0
+
+  // Receipt Printer Settings
   static Future<String> getPrinterIp() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_receiptPrinterIpKey) ?? _defaultReceiptPrinterIp;
@@ -41,7 +50,7 @@ class ThermalPrinterService {
     await prefs.setInt(_receiptPrinterPortKey, port);
   }
 
-  // KOT Printer methods
+  // KOT Printer Settings
   static Future<String> getKotPrinterIp() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_kotPrinterIpKey) ?? _defaultKotPrinterIp;
@@ -72,346 +81,17 @@ class ThermalPrinterService {
     await prefs.setBool(_kotPrinterEnabledKey, enabled);
   }
 
-  // Check if text contains Arabic characters
+  // Utility Methods
   static bool _containsArabic(String text) {
     return RegExp(r'[\u0600-\u06FF]').hasMatch(text);
   }
 
-  // Enhanced CP1256 conversion with better Arabic support
-  static Uint8List? _convertToCP1256(String text) {
-    try {
-      // Complete CP1256 (Windows-1256) character mapping
-      final Map<int, int> unicodeToCP1256 = {
-        // Basic Latin (0x00-0x7F) - unchanged
-        
-        // Arabic letters
-        0x0621: 0xC1, // ء Hamza
-        0x0622: 0xC2, // آ Alef with Madda above
-        0x0623: 0xC3, // أ Alef with Hamza above
-        0x0624: 0xC4, // ؤ Waw with Hamza above
-        0x0625: 0xC5, // إ Alef with Hamza below
-        0x0626: 0xC6, // ئ Yeh with Hamza above
-        0x0627: 0xC7, // ا Alef
-        0x0628: 0xC8, // ب Beh
-        0x0629: 0xC9, // ة Teh Marbuta
-        0x062A: 0xCA, // ت Teh
-        0x062B: 0xCB, // ث Theh
-        0x062C: 0xCC, // ج Jeem
-        0x062D: 0xCD, // ح Hah
-        0x062E: 0xCE, // خ Khah
-        0x062F: 0xCF, // د Dal
-        0x0630: 0xD0, // ذ Thal
-        0x0631: 0xD1, // ر Reh
-        0x0632: 0xD2, // ز Zain
-        0x0633: 0xD3, // س Seen
-        0x0634: 0xD4, // ش Sheen
-        0x0635: 0xD5, // ص Sad
-        0x0636: 0xD6, // ض Dad
-        0x0637: 0xD7, // ط Tah
-        0x0638: 0xD8, // ظ Zah
-        0x0639: 0xD9, // ع Ain
-        0x063A: 0xDA, // غ Ghain
-        0x0640: 0xE0, // ـ Arabic Tatweel
-        0x0641: 0xE1, // ف Feh
-        0x0642: 0xE2, // ق Qaf
-        0x0643: 0xE3, // ك Kaf
-        0x0644: 0xE4, // ل Lam
-        0x0645: 0xE5, // م Meem
-        0x0646: 0xE6, // ن Noon
-        0x0647: 0xE7, // ه Heh
-        0x0648: 0xE8, // و Waw
-        0x0649: 0xE9, // ى Alef Maksura
-        0x064A: 0xEA, // ي Yeh
-        
-        // Arabic diacritics (tashkeel)
-        0x064B: 0xEB, // ً Fathatan
-        0x064C: 0xEC, // ٌ Dammatan
-        0x064D: 0xED, // ٍ Kasratan
-        0x064E: 0xEE, // َ Fatha
-        0x064F: 0xEF, // ُ Damma
-        0x0650: 0xF0, // ِ Kasra
-        0x0651: 0xF1, // ّ Shadda
-        0x0652: 0xF2, // ْ Sukun
-        
-        // Arabic-Indic digits
-        0x0660: 0xF0, // ٠
-        0x0661: 0xF1, // ١
-        0x0662: 0xF2, // ٢
-        0x0663: 0xF3, // ٣
-        0x0664: 0xF4, // ٤
-        0x0665: 0xF5, // ٥
-        0x0666: 0xF6, // ٦
-        0x0667: 0xF7, // ٧
-        0x0668: 0xF8, // ٨
-        0x0669: 0xF9, // ٩
-        
-        // Additional CP1256 characters
-        0x060C: 0xA1, // ، Arabic comma
-        0x061B: 0xBA, // ؛ Arabic semicolon
-        0x061F: 0xBF, // ؟ Arabic question mark
-        0x0679: 0x8A, // ٹ Tteh
-        0x067E: 0x81, // پ Peh
-        0x0686: 0x8D, // چ Tcheh
-        0x0688: 0x8F, // ڈ Ddal
-        0x0691: 0x9A, // ڑ Rreh
-        0x0698: 0x8E, // ژ Jeh
-        0x06A9: 0x98, // ک Keheh
-        0x06AF: 0x90, // گ Gaf
-        0x06BA: 0x9F, // ں Noon Ghunna
-        0x06BE: 0xAA, // ہ Heh Doachashmee
-        0x06C1: 0xC0, // ہ Heh Goal
-        0x06D2: 0xFF, // ے Yeh Barree
-      };
-
-      List<int> bytes = [];
-      for (int codeUnit in text.runes) {
-        if (unicodeToCP1256.containsKey(codeUnit)) {
-          bytes.add(unicodeToCP1256[codeUnit]!);
-        } else if (codeUnit <= 0x7F) {
-          // ASCII characters (0-127) remain unchanged
-          bytes.add(codeUnit);
-        } else {
-          // For unknown characters, use a space
-          bytes.add(0x20); // Space
-        }
-      }
-      
-      return Uint8List.fromList(bytes);
-    } catch (e) {
-      debugPrint('Error converting to CP1256: $e');
-      return null;
-    }
+  static TextDirection _getTextDirection(String text) {
+    return _containsArabic(text) ? TextDirection.rtl : TextDirection.ltr;
   }
 
-  // Setup printer for Arabic support
-  static Future<bool> _setupArabicPrinter(NetworkPrinter printer) async {
-    try {
-      debugPrint('Setting up printer for Arabic support');
-      
-      // Initialize printer
-      printer.rawBytes(Uint8List.fromList([0x1B, 0x40])); // ESC @ - Initialize
-      await Future.delayed(const Duration(milliseconds: 200));
-      
-      // Set CP1256 codepage (Arabic)
-      printer.rawBytes(Uint8List.fromList([0x1B, 0x74, 32])); // ESC t 32 (CP1256)
-      await Future.delayed(const Duration(milliseconds: 100));
-      
-      // Set international character set to Arabic
-      printer.rawBytes(Uint8List.fromList([0x1B, 0x52, 0x0D])); // ESC R 13 (Arabic)
-      await Future.delayed(const Duration(milliseconds: 100));
-      
-      debugPrint('Arabic printer setup completed');
-      return true;
-    } catch (e) {
-      debugPrint('Arabic printer setup failed: $e');
-      return false;
-    }
-  }
-
-  // Print Arabic text directly using raw bytes
-  static Future<bool> _printArabicDirect(NetworkPrinter printer, String text, {PosStyles? styles}) async {
-    try {
-      debugPrint('Printing Arabic text directly: "$text"');
-      
-      // Apply text formatting
-      if (styles?.bold == true) {
-        printer.rawBytes(Uint8List.fromList([0x1B, 0x45, 0x01])); // Bold ON
-      }
-      
-      // Set alignment for Arabic (right-to-left)
-      if (_containsArabic(text)) {
-        printer.rawBytes(Uint8List.fromList([0x1B, 0x61, 0x02])); // Right align
-      } else if (styles?.align == PosAlign.center) {
-        printer.rawBytes(Uint8List.fromList([0x1B, 0x61, 0x01])); // Center
-      } else if (styles?.align == PosAlign.left) {
-        printer.rawBytes(Uint8List.fromList([0x1B, 0x61, 0x00])); // Left
-      }
-      
-      // Set text size
-      if (styles?.height == PosTextSize.size2) {
-        printer.rawBytes(Uint8List.fromList([0x1D, 0x21, 0x11])); // Double height and width
-      } else if (styles?.height == PosTextSize.size3) {
-        printer.rawBytes(Uint8List.fromList([0x1D, 0x21, 0x22])); // Triple height and width
-      }
-      
-      // Convert text to CP1256 and print
-      final arabicBytes = _convertToCP1256(text);
-      if (arabicBytes != null) {
-        printer.rawBytes(arabicBytes);
-        printer.rawBytes(Uint8List.fromList([0x0A])); // Line feed
-      } else {
-        // Fallback to UTF-8 if conversion fails
-        final utf8Bytes = utf8.encode(text);
-        printer.rawBytes(Uint8List.fromList(utf8Bytes));
-        printer.rawBytes(Uint8List.fromList([0x0A])); // Line feed
-      }
-      
-      // Reset formatting
-      printer.rawBytes(Uint8List.fromList([0x1D, 0x21, 0x00])); // Reset text size
-      if (styles?.bold == true) {
-        printer.rawBytes(Uint8List.fromList([0x1B, 0x45, 0x00])); // Bold OFF
-      }
-      printer.rawBytes(Uint8List.fromList([0x1B, 0x61, 0x00])); // Left align (reset)
-      
-      return true;
-    } catch (e) {
-      debugPrint('Arabic direct printing failed: $e');
-      return false;
-    }
-  }
-
-  // Safe text printing method that handles both Arabic and English
-  static Future<bool> _safePrintText(NetworkPrinter printer, String text, {PosStyles? styles}) async {
-    try {
-      // Check if text contains Arabic
-      if (_containsArabic(text)) {
-        debugPrint('Text contains Arabic, using direct printing: "$text"');
-        return await _printArabicDirect(printer, text, styles: styles);
-      }
-      
-      // For non-Arabic text, use normal library method
-      String cleanText = text.trim();
-      debugPrint('Printing non-Arabic text: "$cleanText"');
-      
-      try {
-        printer.text(cleanText, styles: styles ?? const PosStyles());
-        return true;
-      } catch (e) {
-        debugPrint('Library text printing failed, trying raw approach: $e');
-        
-        // Fallback: use raw bytes even for English
-        final bytes = utf8.encode(cleanText);
-        
-        // Apply styles if needed
-        if (styles?.bold == true) {
-          printer.rawBytes(Uint8List.fromList([0x1B, 0x45, 0x01])); // Bold ON
-        }
-        if (styles?.align == PosAlign.center) {
-          printer.rawBytes(Uint8List.fromList([0x1B, 0x61, 0x01])); // Center
-        } else if (styles?.align == PosAlign.right) {
-          printer.rawBytes(Uint8List.fromList([0x1B, 0x61, 0x02])); // Right
-        }
-        
-        printer.rawBytes(Uint8List.fromList(bytes));
-        printer.rawBytes(Uint8List.fromList([0x0A])); // Line feed
-        
-        // Reset styles
-        if (styles?.bold == true) {
-          printer.rawBytes(Uint8List.fromList([0x1B, 0x45, 0x00])); // Bold OFF
-        }
-        if (styles?.align != null) {
-          printer.rawBytes(Uint8List.fromList([0x1B, 0x61, 0x00])); // Left align
-        }
-        
-        return true;
-      }
-    } catch (e) {
-      debugPrint('All text printing methods failed: $e');
-      return false;
-    }
-  }
-
-  // Enhanced row printing with Arabic support
-  static Future<bool> _safePrintRow(NetworkPrinter printer, List<PosColumn> columns) async {
-    try {
-      // Check if any column contains Arabic
-      bool hasArabic = columns.any((col) => _containsArabic(col.text));
-      
-      if (hasArabic) {
-        debugPrint('Row contains Arabic, using manual spacing');
-        
-        // For mixed content rows, print each column separately
-        for (int i = 0; i < columns.length; i++) {
-          final column = columns[i];
-          
-          if (_containsArabic(column.text)) {
-            // Print Arabic text with proper alignment
-            await _printArabicDirect(printer, column.text, styles: column.styles);
-          } else {
-            // Print English text normally
-            await _safePrintText(printer, column.text, styles: column.styles);
-          }
-        }
-        
-        return true;
-      } else {
-        // No Arabic, try normal row printing first
-        try {
-          printer.row(columns);
-          return true;
-        } catch (e) {
-          debugPrint('Normal row printing failed, using fallback: $e');
-          
-          // Fallback to printing each column separately
-          for (final column in columns) {
-            await _safePrintText(printer, column.text, styles: column.styles);
-          }
-          
-          return true;
-        }
-      }
-    } catch (e) {
-      debugPrint('All row printing methods failed: $e');
-      return false;
-    }
-  }
-
-  // Test receipt printer connection
-  static Future<bool> testConnection() async {
-    final ip = await getPrinterIp();
-    final port = await getPrinterPort();
-    
-    try {
-      final profile = await CapabilityProfile.load();
-      final printer = NetworkPrinter(PaperSize.mm80, profile);
-      
-      debugPrint('Testing receipt printer connection at $ip:$port');
-      final PosPrintResult result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 3));
-      
-      if (result == PosPrintResult.success) {
-        await _setupArabicPrinter(printer);
-        await _safePrintText(printer, 'Receipt printer test successful', styles: const PosStyles(align: PosAlign.center, bold: true));
-        // await _safePrintText(printer, 'اختبار الطابعة نجح', styles: const PosStyles(align: PosAlign.center, bold: true));
-        printer.cut();
-        printer.disconnect();
-        return true;
-      } else {
-        debugPrint('Failed to connect to receipt printer: ${result.msg}');
-        return false;
-      }
-    } catch (e) {
-      debugPrint('Error connecting to receipt printer: $e');
-      return false;
-    }
-  }
-
-  // Test KOT printer connection
-  static Future<bool> testKotConnection() async {
-    final ip = await getKotPrinterIp();
-    final port = await getKotPrinterPort();
-    
-    try {
-      final profile = await CapabilityProfile.load();
-      final printer = NetworkPrinter(PaperSize.mm80, profile);
-      
-      debugPrint('Testing KOT printer connection at $ip:$port');
-      final PosPrintResult result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 3));
-      
-      if (result == PosPrintResult.success) {
-        await _setupArabicPrinter(printer);
-        await _safePrintText(printer, 'KOT printer test successful', styles: const PosStyles(align: PosAlign.center, bold: true));
-        // await _safePrintText(printer, 'اختبار طابعة المطبخ نجح', styles: const PosStyles(align: PosAlign.center, bold: true));
-        printer.cut();
-        printer.disconnect();
-        return true;
-      } else {
-        debugPrint('Failed to connect to KOT printer: ${result.msg}');
-        return false;
-      }
-    } catch (e) {
-      debugPrint('Error connecting to KOT printer: $e');
-      return false;
-    }
+  static String _getFontFamily(String text) {
+    return _containsArabic(text) ? 'Cairo' : 'OpenSans';
   }
 
   // Get business information
@@ -426,7 +106,891 @@ class ThermalPrinterService {
     };
   }
 
-  // Print order receipt to receipt printer with enhanced Arabic support
+
+  // Text Painter Creation - Fixed for proper width usage
+  static TextPainter _createTextPainter(
+    String text, {
+    double fontSize = _fontSize,
+    FontWeight fontWeight = FontWeight.normal,
+    Color color = Colors.black,
+    TextAlign textAlign = TextAlign.left,
+    double maxWidth = _thermalPrinterWidth,
+  }) {
+    final textDirection = _getTextDirection(text);
+    
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: fontSize,
+          fontWeight: fontWeight,
+          color: color,
+          fontFamily: _getFontFamily(text),
+        ),
+      ),
+      textDirection: textDirection,
+      textAlign: textAlign,
+      maxLines: null,
+    );
+    
+    // Use full width minus minimal padding
+    textPainter.layout(maxWidth: maxWidth - 32);
+    return textPainter;
+  }
+
+  // Drawing Helper Methods
+  static double _drawText(
+    Canvas canvas,
+    String text, {
+    required double x,
+    required double y,
+    double fontSize = _fontSize,
+    FontWeight fontWeight = FontWeight.normal,
+    TextAlign textAlign = TextAlign.left,
+    double maxWidth = _thermalPrinterWidth,
+  }) {
+    if (text.isEmpty) return y + fontSize;
+    
+    final textPainter = _createTextPainter(
+      text,
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      textAlign: textAlign,
+      maxWidth: maxWidth,
+    );
+    
+    double drawX = x;
+    if (textAlign == TextAlign.center) {
+      drawX = (maxWidth - textPainter.width) / 2;
+    } else if (textAlign == TextAlign.right) {
+      drawX = maxWidth - textPainter.width - _padding;
+    }
+    
+    textPainter.paint(canvas, Offset(drawX, y));
+    return y + textPainter.height + 8;
+  }
+
+  static double _drawLine(Canvas canvas, double y, {double thickness = 4.0}) {
+    final paint = Paint()
+      ..color = Colors.black
+      ..strokeWidth = thickness;
+    
+    canvas.drawLine(
+      Offset(_padding, y),
+      Offset(_thermalPrinterWidth - _padding, y),
+      paint,
+    );
+    
+    return y + thickness + 8;
+  }
+
+  static double _drawItemsHeader(Canvas canvas, double y) {
+    final headerY = y;
+    
+    // Optimized columns for 512px width
+    final itemX = _padding;
+    final qtyX = _thermalPrinterWidth * 0.40; 
+    final priceX = _thermalPrinterWidth * 0.60;
+    final totalX = _thermalPrinterWidth - 85;
+    
+    // Item
+    final itemPainter = _createTextPainter(
+      'Item',
+      fontSize: _fontSize-4,
+      fontWeight: FontWeight.bold,
+    );
+    itemPainter.paint(canvas, Offset(itemX, headerY));
+    
+    // Qty
+    final qtyPainter = _createTextPainter(
+      'Qty',
+      fontSize: _fontSize-4,
+      fontWeight: FontWeight.bold,
+    );
+    qtyPainter.paint(canvas, Offset(qtyX, headerY));
+    
+    // Price
+    final pricePainter = _createTextPainter(
+      'Price',
+      fontSize: _fontSize-4,
+      fontWeight: FontWeight.bold,
+    );
+    pricePainter.paint(canvas, Offset(priceX, headerY));
+    
+    // Total
+    final totalPainter = _createTextPainter(
+      'Total',
+      fontSize: _fontSize-4,
+      fontWeight: FontWeight.bold,
+    );
+    totalPainter.paint(canvas, Offset(totalX, headerY));
+    
+    return headerY + _fontSize - 4 + 10;
+  }
+
+  // FIXED: Item row layout for proper 80mm paper fit
+  static double _drawItemRow(Canvas canvas, MenuItem item, double y) {
+    final itemX = _padding;
+    final qtyX = _thermalPrinterWidth * 0.40;
+    final priceX = _thermalPrinterWidth * 0.60;
+    final totalX = _thermalPrinterWidth - 90;
+
+    // Item name with proper width
+    final itemPainter = _createTextPainter(
+      item.name,
+      fontSize: _fontSize - 4,
+      maxWidth: _thermalPrinterWidth * 0.40, // More width for item names
+    );
+    
+    itemPainter.paint(canvas, Offset(itemX, y));
+    final rowHeight = itemPainter.height.clamp(_fontSize - 4, double.infinity);
+    
+    // Qty - centered
+    final qtyPainter = _createTextPainter(
+      '${item.quantity}',
+      fontSize: _fontSize - 4,
+      fontWeight: FontWeight.bold,
+    );
+    final qtyXCentered = qtyX + ((_thermalPrinterWidth * 0.12 - qtyPainter.width) / 2);
+    qtyPainter.paint(canvas, Offset(qtyXCentered, y));
+    
+    // Price - right aligned
+    final pricePainter = _createTextPainter(
+      item.price.toStringAsFixed(3),
+      fontSize: _fontSize - 4,
+    );
+    final priceXAligned = priceX + (_thermalPrinterWidth * 0.20 - 30 - pricePainter.width);
+    pricePainter.paint(canvas, Offset(priceXAligned, y));
+    
+    // Total - right aligned
+    final totalPrice = item.price * item.quantity;
+    final totalPainter = _createTextPainter(
+      totalPrice.toStringAsFixed(3),
+      fontSize: _fontSize - 4,
+      fontWeight: FontWeight.bold,
+    ); 
+    totalPainter.paint(canvas, Offset(totalX, y));
+    
+    return y + rowHeight + 8;
+  }
+static double _drawTotalRow(Canvas canvas, String label, String value, double y, {bool isTotal = false}) {
+  final fontSize = isTotal ? _fontSize : _smallFontSize;
+  final fontWeight = isTotal ? FontWeight.bold : FontWeight.normal;
+  
+  // Reduce font size more for subtotal/tax, keep total size normal
+  final actualFontSize = isTotal ? fontSize - 2 : fontSize - 6; // Changed from -2 to -6
+  
+  // Label - positioned at 60% of width
+  final labelPainter = _createTextPainter(
+    label,
+    fontSize: actualFontSize,
+    fontWeight: fontWeight,
+  );
+  final labelX = _thermalPrinterWidth * 0.6 - labelPainter.width;
+  labelPainter.paint(canvas, Offset(labelX, y));
+  
+  // Value - right aligned with proper margin
+  final valuePainter = _createTextPainter(
+    value,
+    fontSize: actualFontSize,
+    fontWeight: fontWeight,
+  );
+  final valueX = _thermalPrinterWidth - _padding - valuePainter.width;
+  valuePainter.paint(canvas, Offset(valueX, y));
+  
+  return y + actualFontSize + 10;
+}
+
+  // Receipt Image Generation
+static Future<Uint8List?> _generateReceiptImage({
+  required List<MenuItem> items,
+  required String serviceType,
+  required double subtotal,
+  required double tax,
+  required double discount,
+  required double total,
+  String? personName,
+  String? tableInfo,
+  bool isEdited = false,
+  String? orderNumber,
+  double? taxRate,
+}) async {
+  try {
+    final businessInfo = await getBusinessInfo();
+    final effectiveTaxRate = taxRate ?? 0.0;
+    final now = DateTime.now();
+    final billNumber = orderNumber ?? '${now.millisecondsSinceEpoch % 10000}';
+    
+    // Check for Arabic content
+    bool hasArabicContent = _containsArabic(businessInfo['name']!) || 
+                           _containsArabic(businessInfo['second_name']!) ||
+                           _containsArabic(serviceType) ||
+                           (personName != null && _containsArabic(personName)) ||
+                           items.any((item) => _containsArabic(item.name) || _containsArabic(item.kitchenNote));
+    
+    // First pass: Calculate exact content height
+    double contentHeight = _padding; // Top padding
+    
+    // Header section
+    final receiptPainter = _createTextPainter(
+      'RECEIPT',
+      fontSize: _largeFontSize - 6,
+      fontWeight: FontWeight.bold,
+    );
+    contentHeight += receiptPainter.height + 2; // Title + spacing + extra
+    
+    final businessNamePainter = _createTextPainter(
+      businessInfo['name']!,
+      fontSize: _largeFontSize - 2,
+      fontWeight: FontWeight.bold,
+    );
+    contentHeight += businessNamePainter.height + 2;
+    
+    // Second business name
+    if (businessInfo['second_name']!.isNotEmpty) {
+      final secondNamePainter = _createTextPainter(
+        businessInfo['second_name']!,
+        fontSize: _smallFontSize + 2,
+        fontWeight: FontWeight.bold,
+      );
+      contentHeight += secondNamePainter.height + 2;
+    }
+    
+    // Address
+    if (businessInfo['address']!.isNotEmpty) {
+      final addressPainter = _createTextPainter(
+        businessInfo['address']!,
+        fontSize: _fontSize - 4,
+      );
+      contentHeight += addressPainter.height + 1;
+    }
+    
+    // Phone
+    if (businessInfo['phone']!.isNotEmpty) {
+      final phonePainter = _createTextPainter(
+        businessInfo['phone']!,
+        fontSize: _fontSize - 4,
+      );
+      contentHeight += phonePainter.height + 1;
+    }
+    
+    contentHeight += 1; // Space after business info
+    
+    // EDITED marker
+    if (isEdited) {
+      final editedPainter = _createTextPainter(
+        'EDITED',
+        fontSize: _fontSize - 4,
+        fontWeight: FontWeight.bold,
+      );
+      contentHeight += editedPainter.height + 6 + 2; // Text + border padding + spacing
+    }
+    
+    // Order details
+    final orderPainter = _createTextPainter(
+      'ORDER #$billNumber',
+      fontSize: _fontSize - 4,
+    );
+    contentHeight += orderPainter.height + 1;
+    
+    final dateTime = '${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year} at ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    final datePainter = _createTextPainter(
+      dateTime,
+      fontSize: _fontSize - 4,
+    );
+    contentHeight += datePainter.height + 2;
+
+    final servicePainter = _createTextPainter(
+      'Service: $serviceType',
+      fontSize: _fontSize - 4,
+      fontWeight: FontWeight.bold,
+    );
+    contentHeight += servicePainter.height + 4;
+    
+    // Customer name
+    if (personName != null && personName.isNotEmpty) {
+      final customerPainter = _createTextPainter(
+        'Customer: $personName',
+        fontSize: _fontSize - 4,
+      );
+      contentHeight += customerPainter.height + 4;
+    }
+    
+    contentHeight += 8; // Space before first line
+    contentHeight += 2 + 6; // First line + spacing
+    
+    // Items header
+    contentHeight += _smallFontSize + 10; // Header height
+    contentHeight += 2 + 6; // Second line + spacing
+
+    // Items
+    for (final item in items) {
+      final itemPainter = _createTextPainter(
+        item.name,
+        fontSize: _smallFontSize - 4,
+        maxWidth: _thermalPrinterWidth * 0.65,
+      );
+      final rowHeight = itemPainter.height.clamp(_smallFontSize - 4, double.infinity);
+      contentHeight += rowHeight + 8;
+    
+    } 
+    
+    contentHeight += 2 + 6; // Line after items
+    
+    // Totals section
+    contentHeight += _fontSize - 4 + 8; // Subtotal
+    contentHeight += _fontSize - 4 + 8; // Tax
+
+    if (discount > 0) {
+      contentHeight += _fontSize - 4 + 8; // Discount
+    }
+    
+    contentHeight += 2 + 6; // Line before total
+    contentHeight += _fontSize + 8; // Total
+    contentHeight += 2 + 6; // Line after total
+    contentHeight += 8; // Space before footer
+    
+    // Footer
+    final thankYouPainter = _createTextPainter(
+      'Thank you for your visit!',
+      fontSize: _smallFontSize - 8,
+    );
+    contentHeight += thankYouPainter.height + 4;
+    
+    final comeAgainPainter = _createTextPainter(
+      'Please come again',
+      fontSize: _smallFontSize - 8,
+    );
+    contentHeight += comeAgainPainter.height + 4;
+    
+    // Arabic footer
+    if (hasArabicContent) {
+      contentHeight += 4; // Extra spacing
+      
+      final arabicThanksPainter = _createTextPainter(
+        'شكراً لزيارتكم!',
+        fontSize: _smallFontSize - 8,
+      );
+      contentHeight += arabicThanksPainter.height + 4;
+      
+      final arabicComeAgainPainter = _createTextPainter(
+        'نتطلع لزيارتكم مرة أخرى',
+        fontSize: _smallFontSize - 8,
+      );
+      contentHeight += arabicComeAgainPainter.height ;
+    }
+    
+
+    contentHeight += _padding;
+
+    // Create recorder with exact calculated height
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, _thermalPrinterWidth, contentHeight));
+    
+    // White background
+    final backgroundPaint = Paint()..color = Colors.white;
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, _thermalPrinterWidth, contentHeight),
+      backgroundPaint,
+    );
+    
+    double currentY = _padding;
+    
+    // Header
+    currentY = _drawText(
+      canvas,
+      'RECEIPT',
+      x: _padding,
+      y: currentY,
+      fontSize: _largeFontSize - 6,
+      fontWeight: FontWeight.bold,
+      textAlign: TextAlign.center,
+    );
+    
+    currentY -= 5;
+    
+    // Business name
+    currentY = _drawText(
+      canvas,
+      businessInfo['name']!,
+      x: _padding,
+      y: currentY,
+      fontSize: _fontSize,
+      fontWeight: FontWeight.bold,
+      textAlign: TextAlign.center,
+    );
+      currentY -= 5; // Reduce space before phone by moving currentY up 5 pixels
+
+    // Second business name
+    if (businessInfo['second_name']!.isNotEmpty) {
+      currentY = _drawText(
+        canvas,
+        businessInfo['second_name']!,
+        x: _padding,
+        y: currentY,
+        fontSize: _smallFontSize,
+        fontWeight: FontWeight.bold,
+        textAlign: TextAlign.center,
+      );
+    }
+     currentY -= 5; // Reduce space before phone by moving currentY up 5 pixels
+
+    // Address
+    if (businessInfo['address']!.isNotEmpty) {
+      currentY = _drawText(
+        canvas,
+        businessInfo['address']!,
+        x: _padding,
+        y: currentY,
+        fontSize: _fontSize - 4,
+        textAlign: TextAlign.center,
+      );
+        currentY -= 6; // Reduce space before phone by moving currentY up 6 pixels
+    }
+    
+    // Phone
+    if (businessInfo['phone']!.isNotEmpty) {
+      currentY = _drawText(
+        canvas,
+        businessInfo['phone']!,
+        x: _padding,
+        y: currentY,
+        fontSize: _fontSize - 4,
+        textAlign: TextAlign.center,
+      );
+    }
+    
+    currentY += 6;
+    
+    // EDITED marker
+    if (isEdited) {
+      final editedPainter = _createTextPainter(
+        'EDITED',
+        fontSize: _fontSize - 4,
+        fontWeight: FontWeight.bold,
+      );
+      
+      final editedX = (_thermalPrinterWidth - editedPainter.width) / 2;
+      final borderRect = Rect.fromLTWH(
+        editedX - 10,
+        currentY - 5,
+        editedPainter.width + 20,
+        editedPainter.height + 10,
+      );
+      
+      final borderPaint = Paint()
+        ..color = Colors.red
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0;
+      
+      canvas.drawRect(borderRect, borderPaint);
+      
+      currentY = _drawText(
+        canvas,
+        'EDITED',
+        x: _padding,
+        y: currentY,
+        fontSize: _fontSize - 4,
+        fontWeight: FontWeight.bold,
+        textAlign: TextAlign.center,
+      );
+
+      currentY -= 6;
+    }
+    
+    // Order details
+    currentY = _drawText(
+      canvas,
+      'ORDER #$billNumber',
+      x: _padding,
+      y: currentY,
+      fontSize: _fontSize - 4,
+      textAlign: TextAlign.center,
+    );
+      currentY -= 6; // Reduce space before phone by moving currentY up 6 pixels
+
+    currentY = _drawText(
+      canvas,
+      dateTime,
+      x: _padding,
+      y: currentY,
+      fontSize: _fontSize - 4,
+      textAlign: TextAlign.center,
+    );
+      currentY -= 6; // Reduce space before phone by moving currentY up 6 pixels
+
+    currentY = _drawText(
+      canvas,
+      'Service: $serviceType',
+      x: _padding,
+      y: currentY,
+      fontSize: _fontSize - 4,
+      fontWeight: FontWeight.bold,
+      textAlign: TextAlign.center,
+    );
+    
+    if (personName != null && personName.isNotEmpty) {
+      currentY = _drawText(
+        canvas,
+        'Customer: $personName',
+        x: _padding,
+        y: currentY,
+        fontSize: _smallFontSize - 4,
+        textAlign: TextAlign.center,
+      );
+    }
+    
+    currentY += 10;
+    currentY = _drawLine(canvas, currentY);
+    
+    // Items
+    currentY = _drawItemsHeader(canvas, currentY);
+    currentY = _drawLine(canvas, currentY);
+    
+    for (final item in items) {
+      currentY = _drawItemRow(canvas, item, currentY);
+      
+      currentY += 5;
+    }
+    
+    currentY = _drawLine(canvas, currentY);
+    
+    // Totals
+    currentY = _drawTotalRow(canvas, 'Subtotal:', subtotal.toStringAsFixed(3), currentY);
+    currentY = _drawTotalRow(canvas, 'Tax (${effectiveTaxRate.toStringAsFixed(1)}%):', tax.toStringAsFixed(3), currentY);
+    
+    if (discount > 0) {
+      currentY = _drawTotalRow(canvas, 'Discount:', discount.toStringAsFixed(3), currentY);
+    }
+    
+    currentY = _drawLine(canvas, currentY);
+    currentY = _drawTotalRow(canvas, 'TOTAL:', total.toStringAsFixed(3), currentY, isTotal: true);
+    // currentY = _drawLine(canvas, currentY);
+    
+    currentY += 10;
+    
+    // Footer
+    currentY = _drawText(
+      canvas,
+      'Thank you for your visit!',
+      x: _padding,
+      y: currentY,
+      fontSize: _smallFontSize - 8,
+      textAlign: TextAlign.center,
+    );
+      currentY -= 5; // Reduce space before phone by moving currentY up 5 pixels
+
+    currentY = _drawText(
+      canvas,
+      'Please come again',
+      x: _padding,
+      y: currentY,
+      fontSize: _smallFontSize - 8,
+      textAlign: TextAlign.center,
+    );
+    
+    // Arabic footer if needed
+    if (hasArabicContent) {
+      currentY += 4;
+      currentY = _drawText(
+        canvas,
+        'شكراً لزيارتكم!',
+        x: _padding,
+        y: currentY,
+        fontSize: _smallFontSize - 8,
+        textAlign: TextAlign.center,
+      );
+      currentY -= 6; // Reduce space before phone by moving currentY up 6 pixels
+
+      currentY = _drawText(
+        canvas,
+        'نتطلع لزيارتكم مرة أخرى',
+        x: _padding,
+        y: currentY,
+        fontSize: _smallFontSize - 8,
+        textAlign: TextAlign.center,
+      );
+    }
+    
+    // Create final image with exact content height
+    final picture = recorder.endRecording();
+    final img = await picture.toImage(
+      (_thermalPrinterWidth * _pixelRatio).round(),
+      (contentHeight * _pixelRatio).round(), // Use pre-calculated exact height
+    );
+    
+    final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+    return byteData?.buffer.asUint8List();
+    
+  } catch (e) {
+    debugPrint('Error generating receipt image: $e');
+    return null;
+  }
+}
+
+  // KOT Image Generation
+static Future<Uint8List?> _generateKotImage({
+  required List<MenuItem> items,
+  required String serviceType,
+  String? tableInfo,
+  String? orderNumber,
+}) async {
+  try {
+    final now = DateTime.now();
+    final billNumber = orderNumber ?? '${now.millisecondsSinceEpoch % 10000}';
+    
+    // First pass: Calculate the exact content height
+    double contentHeight = _padding; // Start with top padding
+    
+    // Header content
+    final headerPainter1 = _createTextPainter(
+      'KITCHEN ORDER',
+      fontSize: _largeFontSize - 6,
+      fontWeight: FontWeight.bold,
+    );
+    contentHeight += headerPainter1.height + 8; // Title + spacing
+    
+    final headerPainter2 = _createTextPainter(
+      'ORDER #$billNumber',
+      fontSize: _fontSize,
+      fontWeight: FontWeight.bold,
+    );
+    contentHeight += headerPainter2.height + 8; // Order number + spacing
+    
+    final dateTime = '${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year} at ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    final headerPainter3 = _createTextPainter(
+      dateTime,
+      fontSize: _fontSize - 4,
+    );
+    contentHeight += headerPainter3.height + 8; // Date + spacing
+    
+    final headerPainter4 = _createTextPainter(
+      'Service: $serviceType',
+      fontSize: _fontSize,
+      fontWeight: FontWeight.bold,
+    );
+    contentHeight += headerPainter4.height + 8; // Service + spacing
+    
+    contentHeight += 10; // Space before first line
+    contentHeight += 4; // First line thickness
+    
+    // Items header
+    contentHeight += _smallFontSize + 8; // Item/Qty header + spacing
+    contentHeight += 4; // Second line thickness
+    
+    // Calculate items height precisely
+    for (final item in items) {
+      final itemNamePainter = _createTextPainter(
+        item.name,
+        fontSize: _smallFontSize,
+        maxWidth: _thermalPrinterWidth * 0.7,
+      );
+      contentHeight += itemNamePainter.height + 8; // Item name + spacing
+      
+      if (item.kitchenNote.isNotEmpty) {
+        final notePainter = _createTextPainter(
+          'NOTE: ${item.kitchenNote}',
+          fontSize: _smallFontSize - 2,
+          maxWidth: _thermalPrinterWidth * 0.8,
+        );
+        contentHeight += notePainter.height + 8; // Kitchen note + spacing
+      }
+      
+      contentHeight += 10; // Space between items
+    }
+    
+    contentHeight += 4; // Final line thickness only (no extra spacing)
+    
+    // Create the canvas with exact height
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, _thermalPrinterWidth, contentHeight));
+    
+    final backgroundPaint = Paint()..color = Colors.white;
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, _thermalPrinterWidth, contentHeight),
+      backgroundPaint,
+    );
+    
+    double currentY = _padding;
+    
+    // Header
+    currentY = _drawText(
+      canvas,
+      'KITCHEN ORDER',
+      x: _padding,
+      y: currentY,
+      fontSize: _largeFontSize - 6,
+      fontWeight: FontWeight.bold,
+      textAlign: TextAlign.center,
+    );
+    
+    currentY = _drawText(
+      canvas,
+      'ORDER #$billNumber',
+      x: _padding,
+      y: currentY,
+      fontSize: _fontSize,
+      fontWeight: FontWeight.bold,
+      textAlign: TextAlign.center,
+    );
+    
+    currentY = _drawText(
+      canvas,
+      dateTime,
+      x: _padding,
+      y: currentY,
+      fontSize: _fontSize - 4,
+      textAlign: TextAlign.center,
+    );
+    
+    currentY = _drawText(
+      canvas,
+      'Service: $serviceType',
+      x: _padding,
+      y: currentY,
+      fontSize: _fontSize,
+      fontWeight: FontWeight.bold,
+      textAlign: TextAlign.center,
+    );
+    
+    currentY += 10;
+    currentY = _drawLine(canvas, currentY);
+    
+    // KOT Items header
+    final itemPainter = _createTextPainter(
+      'Item',
+      fontSize: _smallFontSize,
+      fontWeight: FontWeight.bold,
+    );
+    itemPainter.paint(canvas, Offset(_padding, currentY));
+    
+    final qtyPainter = _createTextPainter(
+      'Qty',
+      fontSize: _smallFontSize,
+      fontWeight: FontWeight.bold,
+    );
+    qtyPainter.paint(canvas, Offset(_thermalPrinterWidth - _padding - qtyPainter.width, currentY));
+
+    currentY += _smallFontSize + 8;
+    currentY = _drawLine(canvas, currentY);
+    
+    // Items
+    for (final item in items) {
+      final itemNamePainter = _createTextPainter(
+        item.name,
+        fontSize: _smallFontSize,
+        maxWidth: _thermalPrinterWidth * 0.7,
+      );
+      itemNamePainter.paint(canvas, Offset(_padding, currentY));
+      
+      final qtyValuePainter = _createTextPainter(
+        '${item.quantity}',
+        fontSize: _smallFontSize,
+        fontWeight: FontWeight.bold,
+      );
+      qtyValuePainter.paint(canvas, Offset(_thermalPrinterWidth - _padding - qtyValuePainter.width, currentY));
+      
+      currentY += itemNamePainter.height + 8;
+      
+      if (item.kitchenNote.isNotEmpty) {
+        currentY = _drawText(
+          canvas,
+          'NOTE: ${item.kitchenNote}',
+          x: _padding * 1.5,
+          y: currentY,
+          fontSize: _smallFontSize - 2,
+          fontWeight: FontWeight.bold,
+          textAlign: TextAlign.left,
+        );
+      }
+      
+      currentY += 10;
+    }
+    
+    // Draw final line manually without extra spacing
+    final paint = Paint()
+      ..color = Colors.black
+      ..strokeWidth = 4.0;
+    
+    canvas.drawLine(
+      Offset(_padding, currentY),
+      Offset(_thermalPrinterWidth - _padding, currentY),
+      paint,
+    );
+    
+    // Don't add any extra spacing after the final line
+
+    // Create the final image with the exact calculated height
+    final picture = recorder.endRecording();
+    final img = await picture.toImage(
+      (_thermalPrinterWidth * _pixelRatio).round(),
+      (contentHeight * _pixelRatio).round(), // Use the pre-calculated height
+    );
+    
+    final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+    return byteData?.buffer.asUint8List();
+    
+  } catch (e) {
+    debugPrint('Error generating KOT image: $e');
+    return null;
+  }
+}
+
+  // Print Image to Printer - Fixed width handling
+  static Future<bool> _printImage(Uint8List imageBytes, {bool isKot = false}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      String ip;
+      int port;
+      
+      if (isKot) {
+        ip = prefs.getString(_kotPrinterIpKey) ?? _defaultKotPrinterIp;
+        port = prefs.getInt(_kotPrinterPortKey) ?? _defaultKotPrinterPort;
+      } else {
+        ip = prefs.getString(_receiptPrinterIpKey) ?? _defaultReceiptPrinterIp;
+        port = prefs.getInt(_receiptPrinterPortKey) ?? _defaultReceiptPrinterPort;
+      }
+      
+      final profile = await CapabilityProfile.load();
+      final printer = NetworkPrinter(PaperSize.mm80, profile);
+      
+      debugPrint('Connecting to ${isKot ? 'KOT' : 'receipt'} printer at $ip:$port');
+      final result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 5));
+      
+      if (result != PosPrintResult.success) {
+        debugPrint('Failed to connect to printer: ${result.msg}');
+        return false;
+      }
+
+      final image = img.decodeImage(imageBytes);
+      if (image == null) {
+        debugPrint('Failed to decode image');
+        printer.disconnect();
+        return false;
+      }
+
+      // Resize to proper thermal printer width (512 pixels for 80mm at 8 dots/mm)
+      final resized = img.copyResize(image, width: 512);
+      
+      // Convert to black and white for better contrast
+      final bw = img.grayscale(resized);
+      
+      printer.image(bw);
+      printer.cut();
+      
+      await Future.delayed(const Duration(milliseconds: 500));
+      printer.disconnect();
+      
+      debugPrint('${isKot ? 'KOT' : 'Receipt'} printed successfully');
+      return true;
+      
+    } catch (e) {
+      debugPrint('Error printing image: $e');
+      return false;
+    }
+  }
+
+  // Main Public Methods
   static Future<bool> printOrderReceipt({
     required String serviceType,
     required List<MenuItem> items,
@@ -440,159 +1004,30 @@ class ThermalPrinterService {
     String? orderNumber,
     double? taxRate,
   }) async {
-    final effectiveTaxRate = taxRate ?? 0.0;
-    final ip = await getPrinterIp();
-    final port = await getPrinterPort();
-    final businessInfo = await getBusinessInfo();
+    debugPrint('Printing order receipt as image');
     
-    try {
-      final profile = await CapabilityProfile.load();
-      final printer = NetworkPrinter(PaperSize.mm80, profile);
-      
-      debugPrint('Connecting to receipt printer at $ip:$port for receipt');
-      final PosPrintResult result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 5));
-      
-      if (result != PosPrintResult.success) {
-        debugPrint('Failed to connect to receipt printer: ${result.msg}');
-        return false;
-      }
-
-      // Setup printer for Arabic
-      await _setupArabicPrinter(printer);
-      
-      final billNumber = orderNumber ?? (DateTime.now().millisecondsSinceEpoch % 10000).toString();
-      
-      // Print receipt header
-      await _safePrintText(printer, 'RECEIPT', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
-      
-      // Business name
-      await _safePrintText(printer, businessInfo['name']!, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
-      
-      // Second business name (if exists)
-      if (businessInfo['second_name']!.isNotEmpty) {
-        await _safePrintText(printer, businessInfo['second_name']!, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size1));
-      }
-
-      await _safePrintText(printer, '');
-      
-      // Address (if exists)
-      if (businessInfo['address']!.isNotEmpty) {
-        await _safePrintText(printer, businessInfo['address']!, styles: const PosStyles(align: PosAlign.center));
-      }
-      
-      // Phone (if exists)
-      if (businessInfo['phone']!.isNotEmpty) {
-        await _safePrintText(printer, businessInfo['phone']!, styles: const PosStyles(align: PosAlign.center));
-      }
-
-      // EDITED indicator
-      if (isEdited) {
-        await _safePrintText(printer, ' EDITED ', styles: const PosStyles(align: PosAlign.center, bold: true));
-        await _safePrintText(printer, '');
-      }
-      
-      // Order number
-      await _safePrintText(printer, 'ORDER #$billNumber', styles: const PosStyles(align: PosAlign.center, bold: true));
-      
-      // Date and time
-      final now = DateTime.now();
-      final formattedDate = '${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year}';
-      final formattedTime = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-      await _safePrintText(printer, '$formattedDate at $formattedTime', styles: const PosStyles(align: PosAlign.center));
-      
-      // Service type
-      await _safePrintText(printer, 'Service: $serviceType', styles: const PosStyles(align: PosAlign.center, bold: true));
-      
-      // Customer name (if exists)
-      if (personName != null && personName.isNotEmpty) {
-        await _safePrintText(printer, 'Customer: $personName', styles: const PosStyles(align: PosAlign.center));
-      }
-      
-      // Separator
-      await _safePrintText(printer, '=' * 48, styles: const PosStyles(align: PosAlign.center));
-
-      // Item headers
-      await _safePrintRow(printer, [
-        PosColumn(text: 'Item', width: 5, styles: const PosStyles(bold: true)),
-        PosColumn(text: 'Qty', width: 2, styles: const PosStyles(bold: true, align: PosAlign.center)),
-        PosColumn(text: 'Price', width: 2, styles: const PosStyles(bold: true, align: PosAlign.right)),
-        PosColumn(text: 'Total', width: 3, styles: const PosStyles(bold: true, align: PosAlign.right)),
-      ]);
-
-      await _safePrintText(printer, '=' * 48, styles: const PosStyles(align: PosAlign.center));
-      
-      // Items - each item will be printed in its original language
-      for (var item in items) {
-        await _safePrintRow(printer, [
-          PosColumn(text: item.name, width: 5),
-          PosColumn(text: '${item.quantity}', width: 2, styles: const PosStyles(align: PosAlign.center)),
-          PosColumn(text: item.price.toStringAsFixed(3), width: 2, styles: const PosStyles(align: PosAlign.right)),
-          PosColumn(text: (item.price * item.quantity).toStringAsFixed(3), width: 3, styles: const PosStyles(align: PosAlign.right)),
-        ]);
-
-        // Kitchen note - will be printed in its original language
-        // if (item.kitchenNote.isNotEmpty) {
-        //   await _safePrintText(printer, 'Note: ${item.kitchenNote}', styles: const PosStyles(fontType: PosFontType.fontB));
-        // }
-      }
-      
-      await _safePrintText(printer, '=' * 48, styles: const PosStyles(align: PosAlign.center));
-
-      // Totals
-      await _safePrintRow(printer, [
-        PosColumn(text: 'Subtotal:', width: 8, styles: const PosStyles(align: PosAlign.right)),
-        PosColumn(text: subtotal.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right)),
-      ]);
-      await _safePrintRow(printer, [
-        PosColumn(text: 'Tax (${effectiveTaxRate.toStringAsFixed(1)}%):', width: 8, styles: const PosStyles(align: PosAlign.right)),
-        PosColumn(text: tax.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right)),
-      ]);
-      
-      if (discount > 0) {
-        await _safePrintRow(printer, [
-          PosColumn(text: 'Discount:', width: 8, styles: const PosStyles(align: PosAlign.right)),
-          PosColumn(text: discount.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right)),
-        ]);
-      }
-      
-      await _safePrintText(printer, '=' * 48, styles: const PosStyles(align: PosAlign.center));
-
-      await _safePrintRow(printer, [
-        PosColumn(text: 'TOTAL:', width: 8, styles: const PosStyles(align: PosAlign.right, bold: true)),
-        PosColumn(text: total.toStringAsFixed(3), width: 4, styles: const PosStyles(align: PosAlign.right, bold: true)),
-      ]);
-            
-      // Footer
-      await _safePrintText(printer, 'Thank you for your visit!', styles: const PosStyles(align: PosAlign.center));
-      await _safePrintText(printer, 'Please come again', styles: const PosStyles(align: PosAlign.center));
-      
-      // If there's Arabic content, also print Arabic footer
-      bool hasArabicContent = _containsArabic(businessInfo['name']!) || 
-                             _containsArabic(businessInfo['second_name']!) ||
-                             _containsArabic(serviceType) ||
-                             (personName != null && _containsArabic(personName)) ||
-                             items.any((item) => _containsArabic(item.name) || _containsArabic(item.kitchenNote));
-      
-      if (hasArabicContent) {
-        await _safePrintText(printer, 'شكراً لزيارتكم!', styles: const PosStyles(align: PosAlign.center));
-        await _safePrintText(printer, 'نتطلع لزيارتكم مرة أخرى', styles: const PosStyles(align: PosAlign.center));
-      }
-
-      // Cut paper
-      await Future.delayed(const Duration(milliseconds: 500));
-      printer.cut();
-      await Future.delayed(const Duration(milliseconds: 1000));
+    final imageBytes = await _generateReceiptImage(
+      items: items,
+      serviceType: serviceType,
+      subtotal: subtotal,
+      tax: tax,
+      discount: discount,
+      total: total,
+      personName: personName,
+      tableInfo: tableInfo,
+      isEdited: isEdited,
+      orderNumber: orderNumber,
+      taxRate: taxRate,
+    );
     
-      printer.disconnect();
-      
-      return true;
-    } catch (e) {
-      debugPrint('Error printing receipt: $e');
+    if (imageBytes == null) {
+      debugPrint('Failed to generate receipt image');
       return false;
     }
+    
+    return await _printImage(imageBytes, isKot: false);
   }
 
-  // Print KOT receipt to KOT printer with enhanced Arabic support
   static Future<bool> printKotReceipt({
     required String serviceType,
     required List<MenuItem> items,
@@ -602,89 +1037,24 @@ class ThermalPrinterService {
     final kotEnabled = await isKotPrinterEnabled();
     if (!kotEnabled) {
       debugPrint('KOT printer is disabled');
-      return true; // Return true to not block the process
-    }
-
-    final ip = await getKotPrinterIp();
-    final port = await getKotPrinterPort();
-    
-    try {
-      final profile = await CapabilityProfile.load();
-      final printer = NetworkPrinter(PaperSize.mm80, profile);
-      
-      debugPrint('Connecting to KOT printer at $ip:$port for KOT receipt');
-      final PosPrintResult result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 10));
-      
-      if (result != PosPrintResult.success) {
-        debugPrint('Failed to connect to KOT printer: ${result.msg}');
-        return false;
-      }
-
-      // Setup printer for Arabic
-      await _setupArabicPrinter(printer);
-      
-      final billNumber = orderNumber ?? (DateTime.now().millisecondsSinceEpoch % 10000).toString();
-      
-      // Print header
-      await _safePrintText(printer, 'KITCHEN ORDER', styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2));
-      await _safePrintText(printer, 'ORDER #$billNumber', styles: const PosStyles(align: PosAlign.center, bold: true));
-
-      // Date and time
-      final now = DateTime.now();
-      final formattedDate = '${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year}';
-      final formattedTime = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-      await _safePrintText(printer, '$formattedDate at $formattedTime', styles: const PosStyles(align: PosAlign.center));
-      
-      // Service type - will be printed in its original language
-      await _safePrintText(printer, 'Service: $serviceType', styles: const PosStyles(align: PosAlign.center, bold: true));
-      
-      await _safePrintText(printer, '=' * 48, styles: const PosStyles(align: PosAlign.center));
-
-      // Item headers
-      await _safePrintRow(printer, [
-        PosColumn(text: 'Item', width: 8, styles: const PosStyles(bold: true)),
-        PosColumn(text: 'Qty', width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-      ]);
-      
-      await _safePrintText(printer, '=' * 48, styles: const PosStyles(align: PosAlign.center));
-      
-      // Items - each item will be printed in its original language (Arabic or English)
-      for (var item in items) {
-        await _safePrintRow(printer, [
-          PosColumn(text: item.name, width: 8),
-          PosColumn(text: '${item.quantity}', width: 4, styles: const PosStyles(align: PosAlign.right)),
-        ]);
-        
-        // Kitchen note - will be printed in its original language
-        if (item.kitchenNote.isNotEmpty) {
-          await _safePrintText(printer, 'NOTE: ${item.kitchenNote}', styles: const PosStyles(fontType: PosFontType.fontB, bold: true));
-        }
-        
-        await _safePrintText(printer, '');
-      }
-      
-      await _safePrintText(printer, '=' * 48, styles: const PosStyles(align: PosAlign.center));
-      
-      // Add Arabic header if any item contains Arabic
-      bool hasArabicContent = _containsArabic(serviceType) || 
-                             items.any((item) => _containsArabic(item.name) || _containsArabic(item.kitchenNote));
-      
-      if (hasArabicContent) {
-        // await _safePrintText(printer, 'طلب المطبخ', styles: const PosStyles(align: PosAlign.center, bold: true));
-        await _safePrintText(printer, '');
-      }
-      
-      await Future.delayed(const Duration(milliseconds: 500));
-      printer.cut();
-      await Future.delayed(const Duration(milliseconds: 1000));
-      
-      printer.disconnect();
-      
       return true;
-    } catch (e) {
-      debugPrint('Error printing KOT receipt: $e');
+    }
+    
+    debugPrint('Printing KOT as image');
+    
+    final imageBytes = await _generateKotImage(
+      items: items,
+      serviceType: serviceType,
+      tableInfo: tableInfo,
+      orderNumber: orderNumber,
+    );
+    
+    if (imageBytes == null) {
+      debugPrint('Failed to generate KOT image');
       return false;
     }
+    
+    return await _printImage(imageBytes, isKot: true);
   }
 
   // Alias for backward compatibility
@@ -700,5 +1070,163 @@ class ThermalPrinterService {
       tableInfo: tableInfo,
       orderNumber: orderNumber,
     );
+  }
+
+  // Test Methods
+  static Future<bool> testConnection() async {
+    try {
+      final ip = await getPrinterIp();
+      final port = await getPrinterPort();
+      
+      final profile = await CapabilityProfile.load();
+      final printer = NetworkPrinter(PaperSize.mm80, profile);
+      
+      final result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 3));
+      
+      if (result == PosPrintResult.success) {
+        // Generate test image
+        final testImage = await _generateTestImage();
+        if (testImage != null) {
+          final image = img.decodeImage(testImage);
+          if (image != null) {
+            final resized = img.copyResize(image, width: 576);
+            printer.image(resized);
+            printer.cut();
+          }
+        }
+        printer.disconnect();
+        return true;
+      }
+      
+      return false;
+    } catch (e) {
+      debugPrint('Test connection error: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> testKotConnection() async {
+    try {
+      final ip = await getKotPrinterIp();
+      final port = await getKotPrinterPort();
+      
+      final profile = await CapabilityProfile.load();
+      final printer = NetworkPrinter(PaperSize.mm80, profile);
+      
+      final result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 3));
+      
+      if (result == PosPrintResult.success) {
+        final testImage = await _generateTestImage(isKot: true);
+        if (testImage != null) {
+          final image = img.decodeImage(testImage);
+          if (image != null) {
+            final resized = img.copyResize(image, width: 576);
+            printer.image(resized);
+            printer.cut();
+          }
+        }
+        printer.disconnect();
+        return true;
+      }
+      
+      return false;
+    } catch (e) {
+      debugPrint('KOT test connection error: $e');
+      return false;
+    }
+  }
+
+  // Generate test image
+  static Future<Uint8List?> _generateTestImage({bool isKot = false}) async {
+    try {
+      const double height = 300;
+      
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, _thermalPrinterWidth, height));
+      
+      final backgroundPaint = Paint()..color = Colors.white;
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, _thermalPrinterWidth, height),
+        backgroundPaint,
+      );
+      
+      double currentY = _padding;
+      
+      if (isKot) {
+        currentY = _drawText(
+          canvas,
+          'KOT PRINTER TEST',
+          x: _padding,
+          y: currentY,
+          fontSize: _largeFontSize,
+          fontWeight: FontWeight.bold,
+          textAlign: TextAlign.center,
+        );
+      } else {
+        currentY = _drawText(
+          canvas,
+          'RECEIPT PRINTER TEST',
+          x: _padding,
+          y: currentY,
+          fontSize: _largeFontSize,
+          fontWeight: FontWeight.bold,
+          textAlign: TextAlign.center,
+        );
+      }
+      
+      currentY += 20;
+      
+      currentY = _drawText(
+        canvas,
+        'Connection successful!',
+        x: _padding,
+        y: currentY,
+        fontSize: _fontSize,
+        textAlign: TextAlign.center,
+      );
+      
+      currentY = _drawText(
+        canvas,
+        'Arabic test: مرحبا',
+        x: _padding,
+        y: currentY,
+        fontSize: _fontSize,
+        textAlign: TextAlign.center,
+      );
+      
+      currentY = _drawText(
+        canvas,
+        'English test: Hello',
+        x: _padding,
+        y: currentY,
+        fontSize: _fontSize,
+        textAlign: TextAlign.center,
+      );
+      
+      final now = DateTime.now();
+      final dateTime = '${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+      
+      currentY = _drawText(
+        canvas,
+        dateTime,
+        x: _padding,
+        y: currentY,
+        fontSize: _smallFontSize,
+        textAlign: TextAlign.center,
+      );
+      
+      final picture = recorder.endRecording();
+      final img = await picture.toImage(
+        (_thermalPrinterWidth * _pixelRatio).round(),
+        (height * _pixelRatio).round(),
+      );
+      
+      final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+      return byteData?.buffer.asUint8List();
+      
+    } catch (e) {
+      debugPrint('Error generating test image: $e');
+      return null;
+    }
   }
 }
