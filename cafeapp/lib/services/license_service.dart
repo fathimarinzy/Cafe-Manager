@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
+import 'firebase_service.dart';
 
 class LicenseService {
   static const String _licenseStartDateKey = 'license_start_date';
@@ -102,5 +103,103 @@ class LicenseService {
       'hasValidLicense': hasValid,
       'totalDays': _licenseDurationDays,
     };
+  }
+   /// Renew license for another year
+  static Future<Map<String, dynamic>> renewLicense() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final isRegistered = prefs.getBool(_companyRegisteredKey) ?? false;
+      
+      if (!isRegistered) {
+        return {
+          'success': false,
+          'message': 'Company is not registered',
+        };
+      }
+
+      // Set new license start date to current time
+      final now = DateTime.now();
+      await prefs.setString(_licenseStartDateKey, now.toIso8601String());
+
+      debugPrint('✅ License renewed for another year');
+      
+      return {
+        'success': true,
+        'message': 'License renewed successfully',
+        'newStartDate': now.toIso8601String(),
+        'newExpiryDate': now.add(Duration(days: _licenseDurationDays)).toIso8601String(),
+      };
+    } catch (e) {
+      debugPrint('Error renewing license: $e');
+      return {
+        'success': false,
+        'message': 'Failed to renew license: $e',
+      };
+    }
+  }
+
+  /// Check if license can be renewed (user is registered)
+  static Future<bool> canRenewLicense() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_companyRegisteredKey) ?? false;
+  }
+
+  /// Get license renewal info
+  static Future<Map<String, dynamic>> getLicenseRenewalInfo() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isRegistered = prefs.getBool(_companyRegisteredKey) ?? false;
+    
+    if (!isRegistered) {
+      return {
+        'canRenew': false,
+        'message': 'Company not registered',
+      };
+    }
+
+    final startDateString = prefs.getString(_licenseStartDateKey);
+    if (startDateString == null) {
+      return {
+        'canRenew': false,
+        'message': 'No license start date found',
+      };
+    }
+
+    final startDate = DateTime.parse(startDateString);
+    final expiryDate = startDate.add(Duration(days: _licenseDurationDays));
+    final now = DateTime.now();
+    final isExpired = now.isAfter(expiryDate);
+    final remainingDays = isExpired ? 0 : expiryDate.difference(now).inDays;
+
+    return {
+      'canRenew': true,
+      'isExpired': isExpired,
+      'startDate': startDate.toIso8601String(),
+      'expiryDate': expiryDate.toIso8601String(),
+      'remainingDays': remainingDays,
+      'totalDays': _licenseDurationDays,
+    };
+  }
+
+  /// Get number of times license has been renewed (based on renewals in last 5 years)
+  static Future<int> getRenewalCount() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final deviceId = prefs.getString('device_id');
+      if (deviceId == null) return 0;
+
+      // Get renewal history from Firebase (implement this in FirebaseService if needed)
+      final renewalHistory = await FirebaseService.getRenewalHistory(deviceId);
+      if (renewalHistory['success']) {
+        final renewals = renewalHistory['renewals'] as List;
+        return renewals.where((renewal) => 
+          renewal['renewalType'] == 'RenewalType.license'
+        ).length;
+      }
+      
+      return 0;
+    } catch (e) {
+      debugPrint('Error getting renewal count: $e');
+      return 0;
+    }
   }
 }

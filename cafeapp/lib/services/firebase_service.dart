@@ -4,15 +4,19 @@ import 'package:flutter/foundation.dart';
 import '../firebase_options.dart';
 import 'dart:math';
 import 'dart:async';
+import '../screens/renewal_screen.dart';
 
 class FirebaseService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static const String _companiesCollection = 'registered_companies';
   static const String _pendingRegistrationsCollection = 'pending_registrations';
-  static const String _demoRegistrationsCollection = 'demo_registrations'; // NEW: Demo collection
+  static const String _demoRegistrationsCollection = 'demo_registrations';
+  static const String _offlineRegistrationsCollection = 'offline_registrations'; // NEW: Offline collection
   static bool _isInitialized = false;
   static bool _isOfflineMode = false;
   static Completer<void>? _initCompleter;
+  static const String _pendingRenewalsCollection = 'pending_renewals';
+  static const String _renewalHistoryCollection = 'renewal_history';
 
   // Quick initialization that doesn't block app startup
   static void initializeQuickly() {
@@ -100,6 +104,88 @@ class FirebaseService {
 
   // Check if Firebase is available
   static bool get isFirebaseAvailable => _isInitialized && !_isOfflineMode;
+  
+  // NEW: Store offline registration in Firebase
+  static Future<Map<String, dynamic>> storeOfflineRegistration({
+    required String businessName,
+    String? secondBusinessName,
+    required String businessAddress,
+    required String businessPhone,
+    required String deviceId,
+    required List<String> registrationKeys,
+  }) async {
+    await ensureInitialized();
+    
+    if (!isFirebaseAvailable) {
+      return {
+        'success': false,
+        'message': 'No internet connection. Data stored locally only.',
+        'isOffline': true,
+      };
+    }
+
+    try {
+      debugPrint('🔵 Storing offline registration in Firebase...');
+      
+      // Check if device already has an offline registration
+      final existingQuery = await _firestore
+          .collection(_offlineRegistrationsCollection)
+          .where('deviceId', isEqualTo: deviceId)
+          .limit(1)
+          .get();
+
+      final offlineData = {
+        'businessName': businessName,
+        'secondBusinessName': secondBusinessName ?? '',
+        'businessAddress': businessAddress,
+        'businessPhone': businessPhone,
+        'deviceId': deviceId,
+        'registrationKeys': registrationKeys,
+        'registrationType': 'offline',
+        'isActive': true,
+        'syncedAt': FieldValue.serverTimestamp(),
+      };
+
+      if (existingQuery.docs.isNotEmpty) {
+        // Update existing offline registration
+        final docId = existingQuery.docs.first.id;
+        await _firestore
+            .collection(_offlineRegistrationsCollection)
+            .doc(docId)
+            .update({
+          ...offlineData,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        debugPrint('✅ Offline registration updated with ID: $docId');
+        return {
+          'success': true,
+          'companyId': docId,
+          'message': 'Offline registration synced successfully',
+        };
+      } else {
+        // Create new offline registration
+        offlineData['createdAt'] = FieldValue.serverTimestamp();
+        
+        final docRef = await _firestore
+            .collection(_offlineRegistrationsCollection)
+            .add(offlineData);
+
+        debugPrint('✅ Offline registration stored with ID: ${docRef.id}');
+        return {
+          'success': true,
+          'companyId': docRef.id,
+          'message': 'Offline registration synced successfully',
+        };
+      }
+    } catch (e) {
+      debugPrint('❌ Error storing offline registration: $e');
+      return {
+        'success': false,
+        'message': 'Failed to sync offline registration: ${e.toString()}',
+      };
+    }
+  }
 
   // NEW: Store demo registration in Firebase
   static Future<Map<String, dynamic>> storeDemoRegistration({
@@ -269,6 +355,8 @@ class FirebaseService {
   static Future<Map<String, dynamic>> storePendingRegistration({
     required List<String> registrationKeys,
     required String deviceId,
+    String? businessName, // NEW: Add business name parameter
+
   }) async {
     await ensureInitialized();
     
@@ -286,6 +374,7 @@ class FirebaseService {
       final pendingData = {
         'registrationKeys': registrationKeys,
         'deviceId': deviceId,
+        'businessName': businessName ?? '', // NEW: Include business name
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
         'expiresAt': Timestamp.fromDate(
@@ -424,22 +513,22 @@ class FirebaseService {
           deviceId: deviceId,
           pendingId: pendingResult['pendingId'],
         ),
-        Future.delayed(const Duration(seconds: 8), () {
-          throw TimeoutException('Registration timed out', const Duration(seconds: 8));
-        }),
+        // Future.delayed(const Duration(seconds: 8), () {
+        //   throw TimeoutException('Registration timed out', const Duration(seconds: 8));
+        // }),
       ]);
 
       return result;
     } catch (e) {
       debugPrint('❌ Error registering company: $e');
       
-      if (e is TimeoutException) {
-        return {
-          'success': false,
-          'message': 'Registration timed out. Please check your internet connection and try again.',
-          'isTimeout': true,
-        };
-      }
+      // if (e is TimeoutException) {
+      //   return {
+      //     'success': false,
+      //     'message': 'Registration timed out. Please check your internet connection and try again.',
+      //     'isTimeout': true,
+      //   };
+      // }
       
       return {
         'success': false,
@@ -537,8 +626,85 @@ class FirebaseService {
       };
     }
   }
+   // NEW: Get offline registration details
+  static Future<Map<String, dynamic>> getOfflineRegistration(String deviceId) async {
+    await ensureInitialized();
+    
+    if (!isFirebaseAvailable) {
+      return {
+        'success': true,
+        'isRegistered': false,
+        'isOffline': true,
+        'message': 'Offline mode - Firebase not available',
+      };
+    }
 
-  // UPDATED: Check both full registration and demo registration
+    try {
+      debugPrint('🔵 Getting offline registration for device: $deviceId');
+      
+      final querySnapshot = await _firestore
+          .collection(_offlineRegistrationsCollection)
+          .where('deviceId', isEqualTo: deviceId)
+          .where('isActive', isEqualTo: true)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        final doc = querySnapshot.docs.first;
+        final data = doc.data();
+        
+        debugPrint('✅ Found offline registration for device: $deviceId');
+        
+        return {
+          'success': true,
+          'isRegistered': true,
+          'companyId': doc.id,
+          'businessName': data['businessName'] ?? '',
+          'secondBusinessName': data['secondBusinessName'] ?? '',
+          'businessAddress': data['businessAddress'] ?? '',
+          'businessPhone': data['businessPhone'] ?? '',
+          'registrationKeys': List<String>.from(data['registrationKeys'] ?? []),
+          'registrationType': 'offline',
+          'isActive': data['isActive'] ?? false,
+          'createdAt': data['createdAt'],
+          'syncedAt': data['syncedAt'],
+        };
+      } else {
+        debugPrint('⚠️ No offline registration found for device: $deviceId');
+        return {
+          'success': true,
+          'isRegistered': false,
+          'message': 'No offline registration found for this device',
+        };
+      }
+    } catch (e) {
+      debugPrint('❌ Error getting offline registration: $e');
+      return {
+        'success': false,
+        'message': 'Error retrieving offline registration: ${e.toString()}',
+      };
+    }
+  }
+
+  // NEW: Check if offline data needs to be synced
+  static Future<bool> hasUnsyncedOfflineData(String deviceId) async {
+    await ensureInitialized();
+    
+    if (!isFirebaseAvailable) {
+      return false; // Can't sync without Firebase
+    }
+
+    try {
+      final offlineReg = await getOfflineRegistration(deviceId);
+      // If no offline registration exists in Firebase, then local data needs sync
+      return !offlineReg['isRegistered'];
+    } catch (e) {
+      debugPrint('Error checking unsynced data: $e');
+      return false;
+    }
+  }
+
+  // Check full, demo, and offline registrations
   static Future<Map<String, dynamic>> _getCompanyDetailsFromFirestore(String deviceId) async {
     // First check for full registration
     final fullRegQuery = await _firestore
@@ -571,7 +737,7 @@ class FirebaseService {
       };
     }
 
-    // If no full registration found, check for demo registration
+    // Check for demo registration
     final demoQuery = await _firestore
         .collection(_demoRegistrationsCollection)
         .where('deviceId', isEqualTo: deviceId)
@@ -601,6 +767,36 @@ class FirebaseService {
       };
     }
 
+    // Check for offline registration
+    final offlineQuery = await _firestore
+        .collection(_offlineRegistrationsCollection)
+        .where('deviceId', isEqualTo: deviceId)
+        .where('isActive', isEqualTo: true)
+        .limit(1)
+        .get();
+
+    if (offlineQuery.docs.isNotEmpty) {
+      final doc = offlineQuery.docs.first;
+      final data = doc.data();
+      
+      debugPrint('✅ Found offline registration for device: $deviceId');
+      
+      return {
+        'success': true,
+        'isRegistered': true,
+        'companyId': doc.id,
+        'customerName': data['businessName'] ?? '',
+        'secondCustomerName': data['secondBusinessName'] ?? '',
+        'customerAddress': data['businessAddress'] ?? '',
+        'customerPhone': data['businessPhone'] ?? '',
+        'registrationKeys': List<String>.from(data['registrationKeys'] ?? []),
+        'registrationType': 'offline',
+        'isActive': data['isActive'] ?? false,
+        'registeredAt': data['createdAt'],
+        'syncedAt': data['syncedAt'],
+      };
+    }
+
     debugPrint('⚠️ No company found for device: $deviceId');
     return {
       'success': true,
@@ -608,7 +804,6 @@ class FirebaseService {
       'message': 'No company found for this device',
     };
   }
-
   // Update last login time (with offline handling)
   static Future<void> updateLastLogin(String companyId) async {
     if (!isFirebaseAvailable) {
@@ -664,4 +859,291 @@ class FirebaseService {
 
     return true;
   }
+  
+  // Store pending renewal keys in Firebase
+  static Future<Map<String, dynamic>> storePendingRenewal({
+    required List<String> renewalKeys,
+    required String deviceId,
+    required RenewalType renewalType,
+    String? businessName, // NEW: Add business name parameter
+
+  }) async {
+    await ensureInitialized();
+    
+    if (!isFirebaseAvailable) {
+      return {
+        'success': false,
+        'message': 'No internet connection. Please connect to the internet and try again.',
+        'isOffline': true,
+      };
+    }
+
+    try {
+      debugPrint('🔵 Storing pending renewal keys in Firebase...');
+      
+      // Check if device already has pending renewal keys
+      final existingQuery = await _firestore
+          .collection(_pendingRenewalsCollection)
+          .where('deviceId', isEqualTo: deviceId)
+          .where('renewalType', isEqualTo: renewalType.toString())
+          .where('status', isEqualTo: 'pending')
+          .limit(1)
+          .get();
+
+      if (existingQuery.docs.isNotEmpty) {
+        return {
+          'success': false,
+          'message': 'This device already has pending renewal keys. Please use those keys or contact support.',
+          'hasPendingKeys': true,
+        };
+      }
+      
+      final renewalData = {
+        'renewalKeys': renewalKeys,
+        'deviceId': deviceId,
+        'businessName': businessName ?? '', // NEW: Include business name
+        'renewalType': renewalType.toString(),
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+        'expiresAt': Timestamp.fromDate(
+          DateTime.now().add(const Duration(days: 7)),
+        ),
+      };
+
+      final docRef = await _firestore
+          .collection(_pendingRenewalsCollection)
+          .add(renewalData);
+
+      debugPrint('✅ Pending renewal stored with ID: ${docRef.id}');
+
+      return {
+        'success': true,
+        'renewalId': docRef.id,
+        'message': 'Renewal keys generated successfully',
+      };
+    } catch (e) {
+      debugPrint('❌ Error storing pending renewal: $e');
+      return {
+        'success': false,
+        'message': 'Failed to generate renewal keys: ${e.toString()}',
+      };
+    }
+  }
+  // Get pending renewal keys by device ID and renewal type
+  static Future<Map<String, dynamic>> getPendingRenewal(String deviceId, RenewalType renewalType) async {
+    await ensureInitialized();
+    
+    if (!isFirebaseAvailable) {
+      return {
+        'success': false,
+        'message': 'No internet connection. Please connect to the internet and try again.',
+        'isOffline': true,
+      };
+    }
+
+    try {
+      debugPrint('🔵 Getting pending renewal for device: $deviceId, type: $renewalType');
+      
+      final querySnapshot = await _firestore
+          .collection(_pendingRenewalsCollection)
+          .where('deviceId', isEqualTo: deviceId)
+          .where('renewalType', isEqualTo: renewalType.toString())
+          .where('status', isEqualTo: 'pending')
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        final doc = querySnapshot.docs.first;
+        final data = doc.data();
+        
+        final expiresAt = data['expiresAt'] as Timestamp?;
+        if (expiresAt != null && expiresAt.toDate().isBefore(DateTime.now())) {
+          debugPrint('⚠️ Pending renewal keys have expired');
+          return {
+            'success': false,
+            'message': 'Renewal keys have expired. Please generate new ones.',
+            'isExpired': true,
+          };
+        }
+        
+        debugPrint('✅ Found pending renewal for device: $deviceId');
+        
+        return {
+          'success': true,
+          'renewalId': doc.id,
+          'renewalKeys': List<String>.from(data['renewalKeys'] ?? []),
+          'createdAt': data['createdAt'],
+          'expiresAt': data['expiresAt'],
+        };
+      } else {
+        debugPrint('⚠️ No pending renewal found for device: $deviceId');
+        return {
+          'success': false,
+          'message': 'No pending renewal found. Please generate keys first.',
+          'notFound': true,
+        };
+      }
+    } catch (e) {
+      debugPrint('❌ Error getting pending renewal: $e');
+      return {
+        'success': false,
+        'message': 'Error retrieving renewal keys: ${e.toString()}',
+      };
+    }
+  }
+
+ // Process renewal with entered keys
+  static Future<Map<String, dynamic>> processRenewal({
+    required String deviceId,
+    required List<String> userEnteredKeys,
+    required RenewalType renewalType,
+  }) async {
+    await ensureInitialized();
+    
+    if (!isFirebaseAvailable) {
+      return {
+        'success': false,
+        'message': 'No internet connection. Please connect to the internet and try again.',
+        'isOffline': true,
+      };
+    }
+
+    try {
+      debugPrint('🔵 Processing renewal with Firebase...');
+      
+      final pendingResult = await getPendingRenewal(deviceId, renewalType);
+      if (!pendingResult['success']) {
+        return pendingResult;
+      }
+
+      final storedKeys = List<String>.from(pendingResult['renewalKeys'] ?? []);
+      if (!validateRegistrationKeys(storedKeys, userEnteredKeys)) {
+        return {
+          'success': false,
+          'message': 'Invalid renewal keys. Please check and try again.',
+          'isInvalidKeys': true,
+        };
+      }
+      
+      final result = await Future.any([
+        _performRenewal(
+          renewalKeys: storedKeys,
+          deviceId: deviceId,
+          renewalType: renewalType,
+          renewalId: pendingResult['renewalId'],
+        ),
+        // Future.delayed(const Duration(seconds: 8), () {
+        //   throw TimeoutException('Renewal timed out', const Duration(seconds: 8));
+        // }),
+      ]);
+
+      return result;
+    } catch (e) {
+      debugPrint('❌ Error processing renewal: $e');
+      
+      // if (e is TimeoutException) {
+      //   return {
+      //     'success': false,
+      //     'message': 'Renewal timed out. Please check your internet connection and try again.',
+      //     'isTimeout': true,
+      //   };
+      // }
+      
+      return {
+        'success': false,
+        'message': 'Renewal failed: ${e.toString()}',
+      };
+    }
+  }
+
+
+  // Perform the actual renewal process
+  static Future<Map<String, dynamic>> _performRenewal({
+    required List<String> renewalKeys,
+    required String deviceId,
+    required RenewalType renewalType,
+    required String renewalId,
+  }) async {
+    final renewalData = {
+      'renewalKeys': renewalKeys,
+      'deviceId': deviceId,
+      'renewalType': renewalType.toString(),
+      'renewedAt': FieldValue.serverTimestamp(),
+      'renewalPeriod': renewalType == RenewalType.demo ? 30 : 365, // days
+      'status': 'completed',
+    };
+
+    // Store renewal history
+    final docRef = await _firestore
+        .collection(_renewalHistoryCollection)
+        .add(renewalData);
+
+    // Mark pending renewal as used
+    await _firestore
+        .collection(_pendingRenewalsCollection)
+        .doc(renewalId)
+        .update({
+      'status': 'used',
+      'usedAt': FieldValue.serverTimestamp(),
+      'renewalHistoryId': docRef.id,
+    });
+
+    debugPrint('✅ Renewal processed with ID: ${docRef.id}');
+
+    return {
+      'success': true,
+      'renewalId': docRef.id,
+      'message': 'Renewal completed successfully',
+    };
+  }
+
+  // Get renewal history for a device
+  static Future<Map<String, dynamic>> getRenewalHistory(String deviceId) async {
+    await ensureInitialized();
+    
+    if (!isFirebaseAvailable) {
+      return {
+        'success': true,
+        'renewals': [],
+        'isOffline': true,
+      };
+    }
+
+    try {
+      debugPrint('🔵 Getting renewal history for device: $deviceId');
+      
+      final querySnapshot = await _firestore
+          .collection(_renewalHistoryCollection)
+          .where('deviceId', isEqualTo: deviceId)
+          .where('status', isEqualTo: 'completed')
+          .orderBy('renewedAt', descending: true)
+          .get();
+
+      final renewals = querySnapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'renewalType': data['renewalType'],
+          'renewedAt': data['renewedAt'],
+          'renewalPeriod': data['renewalPeriod'],
+        };
+      }).toList();
+
+      debugPrint('✅ Found ${renewals.length} renewals for device: $deviceId');
+      
+      return {
+        'success': true,
+        'renewals': renewals,
+      };
+    } catch (e) {
+      debugPrint('❌ Error getting renewal history: $e');
+      return {
+        'success': false,
+        'message': 'Error retrieving renewal history: ${e.toString()}',
+        'renewals': [],
+      };
+    }
+  }
+
 }

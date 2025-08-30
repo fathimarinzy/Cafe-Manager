@@ -138,6 +138,7 @@ import 'screens/printer_settings_screen.dart';
 import 'screens/expense_screen.dart';
 import 'screens/expense_history_screen.dart'; 
 import 'screens/report_screen.dart';
+import 'screens/renewal_screen.dart';
 
 import 'providers/table_provider.dart';
 import 'providers/auth_provider.dart';
@@ -150,7 +151,9 @@ import 'providers/order_history_provider.dart';
 import 'repositories/local_menu_repository.dart';
 import 'repositories/local_expense_repository.dart';
 import 'services/firebase_service.dart';
-import 'services/demo_service.dart'; // Add demo service import
+import 'services/demo_service.dart';
+import 'services/offline_sync_service.dart'; // NEW: Import sync service
+import 'services/connectivity_monitor.dart'; // NEW: Import connectivity monitor
 import 'dart:async';
 
 void main() async {
@@ -168,11 +171,11 @@ Future<void> quickInitialization() async {
     await Future.any([
       _performQuickInitialization(),
       Future.delayed(const Duration(seconds: 3), () {
-        debugPrint('⚠️ Quick initialization timed out - continuing anyway');
+        debugPrint('Warning: Quick initialization timed out - continuing anyway');
       }),
     ]);
   } catch (e) {
-    debugPrint('⚠️ Quick initialization error: $e');
+    debugPrint('Warning: Quick initialization error: $e');
     // Continue anyway - app should work in offline mode
   }
 }
@@ -184,7 +187,31 @@ Future<void> _performQuickInitialization() async {
   // Initialize Firebase without waiting for connection test
   FirebaseService.initializeQuickly(); // Don't await this
   
-  debugPrint('✅ Quick initialization completed');
+  // NEW: Start connectivity monitoring for offline sync
+  _startConnectivityMonitoring();
+  
+  debugPrint('Quick initialization completed');
+}
+
+// NEW: Start connectivity monitoring
+void _startConnectivityMonitoring() {
+  // Delay the start to avoid blocking app initialization
+  Timer(const Duration(seconds: 5), () async {
+    try {
+      // Check if there's pending offline data that needs syncing
+      final hasPendingData = await OfflineSyncService.hasPendingOfflineData();
+      
+      if (hasPendingData) {
+        debugPrint('Found pending offline data - starting connectivity monitoring');
+        ConnectivityMonitor.instance.startMonitoring();
+        
+        // Also start the auto-sync timer
+        OfflineSyncService.autoSync();
+      }
+    } catch (e) {
+      debugPrint('Error checking for pending sync data: $e');
+    }
+  });
 }
 
 Future<void> initializeLocalDatabase() async {
@@ -197,9 +224,9 @@ Future<void> initializeLocalDatabase() async {
     final localExpenseRepo = LocalExpenseRepository();
     await localExpenseRepo.database;
     
-    debugPrint('✅ Local databases initialized');
+    debugPrint('Local databases initialized');
   } catch (e) {
-    debugPrint('❌ Error initializing local databases: $e');
+    debugPrint('Error initializing local databases: $e');
     rethrow; // This is critical - app can't work without local DB
   }
 }
@@ -261,6 +288,8 @@ class MyApp extends StatelessWidget {
               AppRoutes.deviceRegistration: (ctx) => const DeviceRegistrationScreen(),
               AppRoutes.companyRegistration: (ctx) => const CompanyRegistrationScreen(),
               AppRoutes.onlineCompanyRegistration: (ctx) => const OnlineCompanyRegistrationScreen(),
+              AppRoutes.demoRenewal: (ctx) => const RenewalScreen(renewalType: RenewalType.demo),
+              AppRoutes.licenseRenewal: (ctx) => const RenewalScreen(renewalType: RenewalType.license),
               AppRoutes.settings: (ctx) => const SettingsScreen(),
               AppRoutes.printerConfig: (ctx) => const PrinterSettingsScreen(),
               AppRoutes.expense: (ctx) => const ExpenseScreen(),
@@ -301,12 +330,12 @@ class _AppInitializerState extends State<AppInitializer> {
       await Future.any([
         Future.wait(futures),
         Future.delayed(const Duration(seconds: 4), () {
-          debugPrint('⚠️ App initialization timed out - proceeding anyway');
+          debugPrint('Warning: App initialization timed out - proceeding anyway');
         }),
       ]);
       
     } catch (e) {
-      debugPrint('⚠️ App initialization error: $e');
+      debugPrint('Warning: App initialization error: $e');
     }
     
     // Always proceed to next screen quickly
@@ -333,14 +362,14 @@ class _AppInitializerState extends State<AppInitializer> {
         await Future.any([
           authProvider.tryAutoLogin(),
           Future.delayed(const Duration(seconds: 3), () {
-            debugPrint('⚠️ Auto-login timed out - proceeding to login screen');
+            debugPrint('Warning: Auto-login timed out - proceeding to login screen');
             return false;
           }),
         ]);
       }
       
     } catch (e) {
-      debugPrint('⚠️ Error during app initialization: $e');
+      debugPrint('Warning: Error during app initialization: $e');
     }
   }
 
@@ -443,6 +472,8 @@ class AppRoutes {
   static const String deviceRegistration = '/device-registration';
   static const String companyRegistration = '/company-registration';
   static const String onlineCompanyRegistration = '/online-company-registration';
+  static const String demoRenewal = '/demo-renewal';
+  static const String licenseRenewal = '/license-renewal';
   static const String settings = '/settings';
   static const String printerConfig = '/printer-settings';
   static const String expense = '/expense'; 

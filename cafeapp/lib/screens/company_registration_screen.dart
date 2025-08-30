@@ -6,7 +6,7 @@ import 'dashboard_screen.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/license_service.dart';
-
+import '../services/offline_sync_service.dart'; // NEW: Import sync service
 
 class CompanyRegistrationScreen extends StatefulWidget {
   const CompanyRegistrationScreen({super.key});
@@ -104,7 +104,7 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
     return true;
   }
 
-    Future<void> _registerCompany() async {
+  Future<void> _registerCompany() async {
     setState(() {
       _isLoading = true;
     });
@@ -119,21 +119,31 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
         return;
       }
 
-      // Save company registration
+      // Save company registration locally FIRST
       final prefs = await SharedPreferences.getInstance();
+      
+      // Ensure device ID exists
+      String? deviceId = prefs.getString('device_id');
+      if (deviceId == null || deviceId.isEmpty) {
+        // Generate device ID if missing
+        deviceId = 'device_${DateTime.now().millisecondsSinceEpoch}';
+        await prefs.setString('device_id', deviceId);
+        debugPrint('Generated new device ID: $deviceId');
+      }
+      
       await prefs.setBool('company_registered', true);
-      // Mark device as fully registered only after company registration
       await prefs.setBool('device_registered', true);
 
-      // Set license start date - ADD THIS LINE
+      // Set license start date
       await LicenseService.setLicenseStartDate();
 
+      // Save business information to SharedPreferences
       await prefs.setString('business_name', _businessNameController.text.trim());
       await prefs.setString('second_business_name', _secondBusinessNameController.text.trim());
       await prefs.setString('business_address', _businessAddressController.text.trim());
       await prefs.setString('business_phone', _businessPhoneController.text.trim());
 
-  // ADDED: Update SettingsProvider directly to ensure immediate sync
+      // Update SettingsProvider
       if (mounted) {
         final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
         await settingsProvider.saveAllSettings(
@@ -143,11 +153,21 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
           businessPhone: _businessPhoneController.text.trim(),
         );
       }
+
+      // IMPORTANT: Wait a moment to ensure all data is saved
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Mark offline registration data as pending sync
+      await OfflineSyncService.markOfflineDataPending();
+      
+      // Debug: Check what data is actually stored before attempting sync
+      await OfflineSyncService.debugStoredRegistrationData();
+      
       // Show success message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Registration successfull'.tr()),
+            content: Text('Registration successful'.tr()),
             backgroundColor: Colors.green,
           ),
         );
@@ -162,6 +182,10 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
           );
         }
       }
+      
+      // Attempt Firebase sync AFTER navigation (non-blocking)
+      _attemptFirebaseSyncDelayed();
+      
     } catch (e) {
       debugPrint('Error registering company: $e');
       _showErrorMessage('Registration failed. Please try again.');
@@ -171,6 +195,37 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  // NEW: Delayed Firebase sync attempt (after navigation completes)
+  void _attemptFirebaseSyncDelayed() async {
+    // Wait a bit more to ensure navigation is complete and data is fully saved
+    await Future.delayed(const Duration(seconds: 2));
+    
+    try {
+      debugPrint('Attempting delayed Firebase sync...');
+      
+      // Debug: Check stored data again before sync
+      await OfflineSyncService.debugStoredRegistrationData();
+      
+      final syncResult = await OfflineSyncService.checkAndSync();
+      
+      if (syncResult['success']) {
+        debugPrint('Delayed sync successful: ${syncResult['message']}');
+      } else if (syncResult['noConnection'] == true) {
+        debugPrint('No internet connection - will sync when available');
+        // Start auto-sync for when connection is restored
+        OfflineSyncService.autoSync();
+      } else {
+        debugPrint('Delayed sync failed: ${syncResult['message']}');
+        // Start auto-sync to retry later
+        OfflineSyncService.autoSync();
+      }
+    } catch (e) {
+      debugPrint('Error during delayed Firebase sync: $e');
+      // Start auto-sync to retry later
+      OfflineSyncService.autoSync();
     }
   }
 
@@ -227,7 +282,7 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '',
+                      'Offline Registration',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey[600],
@@ -327,14 +382,13 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Warning: Once you register, you won\'t be able to edit your buisness information again.'.tr(),
+                          'Warning: Once you register, you won\'t be able to edit your business information again.'.tr(),
                           style: TextStyle(
                             color: Colors.orange[700],
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-                      
                       ),
                     ],
                   ),
@@ -415,7 +469,6 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
                 ),
               ),
               
-              
               const SizedBox(height: 40),
               
               // Register Button
@@ -454,6 +507,41 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
               ),
               
               const SizedBox(height: 20),
+              
+              // NEW: Sync Status Info (optional, for debugging/user info)
+              FutureBuilder<Map<String, dynamic>>(
+                future: OfflineSyncService.getSyncStatus(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) return const SizedBox.shrink();
+                  
+                  final syncStatus = snapshot.data!;
+                  if (!syncStatus['hasPendingData']) return const SizedBox.shrink();
+                  
+                  return Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue[300]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.cloud_upload, color: Colors.blue[700], size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Data will be synced to cloud when internet is available'.tr(),
+                            style: TextStyle(
+                              color: Colors.blue[700],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ],
           ),
         ),

@@ -166,12 +166,19 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
         deviceId = FirebaseService.generateDeviceId();
         await prefs.setString('device_id', deviceId);
       }
+ // Get business name from current form input or saved preferences
+    String businessName = _businessNameController.text.trim();
+    if (businessName.isEmpty) {
+      businessName = prefs.getString('business_name') ?? 'Pending Registration';
+    }
 
       final generatedKeys = FirebaseService.generateRegistrationKeys();
       
       final result = await FirebaseService.storePendingRegistration(
         registrationKeys: generatedKeys,
         deviceId: deviceId,
+        businessName: businessName, // Pass business name
+
       );
 
       if (result['success']) {

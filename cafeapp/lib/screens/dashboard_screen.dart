@@ -9,6 +9,7 @@ import '../utils/app_localization.dart';
 import '../widgets/settings_password_dialog.dart';
 import '../providers/settings_provider.dart';
 import '../services/license_service.dart';
+import 'renewal_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -49,117 +50,138 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // Add this method (same as in settings screen)
   void _showLicenseExpiredDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.access_time, color: Colors.red[700]),
-              const SizedBox(width: 8),
-              Text(
-                'License Expired'.tr(),
-                style: TextStyle(
-                  color: Colors.red[700],
-                  fontWeight: FontWeight.bold,
-                ),
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.access_time, color: Colors.red[700]),
+            const SizedBox(width: 8),
+            Text(
+              'License Expired'.tr(),
+              style: TextStyle(
+                color: Colors.red[700],
+                fontWeight: FontWeight.bold,
               ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Your 1-year license has expired.\nTo continue using all features, please contact support for license renewal.'.tr(),
-                style: const TextStyle(fontSize: 16),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue[200]!),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Contact Support:'.tr(),
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue[800],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(Icons.phone, color: Colors.blue[700], size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          '+968 7184 0022',
-                          style: TextStyle(color: Colors.blue[700]),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        Icon(Icons.phone, color: Colors.blue[700], size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          '+968 9906 2181',
-                          style: TextStyle(color: Colors.blue[700]),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        Icon(Icons.phone, color: Colors.blue[700], size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          '+968 7989 5704',
-                          style: TextStyle(color: Colors.blue[700]),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(Icons.email, color: Colors.blue[700], size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          'AI@simsai.tech',
-                          style: TextStyle(color: Colors.blue[700]),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              style: TextButton.styleFrom(
-                backgroundColor: Colors.blue[700],
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: Text('OK'.tr()),
             ),
           ],
-        );
-      },
-    );
-  }
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+                'Your 1-year license has expired.\nTo continue using all features, please contact support for license renewal.'.tr(),
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 16),
+      
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Contact Support:'.tr(),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue[800],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.phone, color: Colors.blue[700], size: 16),
+                      const SizedBox(width: 4),
+                      Text(
+                        '+968 7184 0022',
+                        style: TextStyle(color: Colors.blue[700]),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Icon(Icons.phone, color: Colors.blue[700], size: 16),
+                      const SizedBox(width: 4),
+                      Text(
+                        '+968 9906 2181',
+                        style: TextStyle(color: Colors.blue[700]),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Icon(Icons.phone, color: Colors.blue[700], size: 16),
+                      const SizedBox(width: 4),
+                      Text(
+                        '+968 7989 5704',
+                        style: TextStyle(color: Colors.blue[700]),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.email, color: Colors.blue[700], size: 16),
+                      const SizedBox(width: 4),
+                      Text(
+                        'AI@simsai.tech',
+                        style: TextStyle(color: Colors.blue[700]),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // Navigate to license renewal screen
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const RenewalScreen(renewalType: RenewalType.license),
+                ),
+              );
+            },
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.blue[700],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text('Renew License'.tr()),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.grey[700],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text('Later'.tr()),
+          ),
+        ],
+      );
+    },
+  );
+}
 
   Future<void> _checkDemoStatus() async {
     final isDemoExpired = await DemoService.isDemoExpired();
@@ -177,117 +199,151 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _showDemoExpiredDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.access_time, color: Colors.red[700]),
-              const SizedBox(width: 8),
-              Text(
-                'Demo Expired'.tr(),
-                style: TextStyle(
-                  color: Colors.red[700],
-                  fontWeight: FontWeight.bold,
-                ),
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.access_time, color: Colors.red[700]),
+            const SizedBox(width: 8),
+            Text(
+              'Demo Expired'.tr(),
+              style: TextStyle(
+                color: Colors.red[700],
+                fontWeight: FontWeight.bold,
               ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Your 30-day demo period has expired.\n To continue using all features, please contact support for full registration.'.tr(),
-                style: const TextStyle(fontSize: 16),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue[200]!),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Contact Support:'.tr(),
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue[800],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(Icons.phone, color: Colors.blue[700], size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          '+968 7184 0022',
-                          style: TextStyle(color: Colors.blue[700]),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        Icon(Icons.phone, color: Colors.blue[700], size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          '+968 9906 2181',
-                          style: TextStyle(color: Colors.blue[700]),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        Icon(Icons.phone, color: Colors.blue[700], size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          '+968 7989 5704',
-                          style: TextStyle(color: Colors.blue[700]),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(Icons.email, color: Colors.blue[700], size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          'AI@simsai.tech',
-                          style: TextStyle(color: Colors.blue[700]),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              style: TextButton.styleFrom(
-                backgroundColor: Colors.blue[700],
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: Text('OK'.tr()),
             ),
           ],
-        );
-      },
-    );
-  }
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Your 30-day demo period has expired.'.tr(),
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'You can either:'.tr(),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '• Renew your demo for another 30 days'.tr(),
+              style: const TextStyle(fontSize: 14),
+            ),
+            Text(
+              '• Contact support for full registration'.tr(),
+              style: const TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Contact Support:'.tr(),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue[800],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.phone, color: Colors.blue[700], size: 16),
+                      const SizedBox(width: 4),
+                      Text(
+                        '+968 7184 0022',
+                        style: TextStyle(color: Colors.blue[700]),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Icon(Icons.phone, color: Colors.blue[700], size: 16),
+                      const SizedBox(width: 4),
+                      Text(
+                        '+968 9906 2181',
+                        style: TextStyle(color: Colors.blue[700]),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Icon(Icons.phone, color: Colors.blue[700], size: 16),
+                      const SizedBox(width: 4),
+                      Text(
+                        '+968 7989 5704',
+                        style: TextStyle(color: Colors.blue[700]),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.email, color: Colors.blue[700], size: 16),
+                      const SizedBox(width: 4),
+                      Text(
+                        'AI@simsai.tech',
+                        style: TextStyle(color: Colors.blue[700]),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // Navigate to demo renewal screen
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const RenewalScreen(renewalType: RenewalType.demo),
+                ),
+              );
+            },
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.green[700],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text('Renew Demo'.tr()),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.grey[700],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text('Later'.tr()),
+          ),
+        ],
+      );
+    },
+  );
+}
 
   @override
   Widget build(BuildContext context) {

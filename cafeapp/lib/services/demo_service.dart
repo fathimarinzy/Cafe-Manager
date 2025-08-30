@@ -119,4 +119,83 @@ class DemoService {
     if (startDateStr == null) return null;
     return DateTime.parse(startDateStr);
   }
+
+  // Renew demo for another 30 days
+  static Future<Map<String, dynamic>> renewDemo() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final isDemoMode = prefs.getBool(_isDemoModeKey) ?? false;
+      
+      if (!isDemoMode) {
+        return {
+          'success': false,
+          'message': 'Device is not in demo mode',
+        };
+      }
+
+      // Set new demo start date to current time
+      final now = DateTime.now();
+      await prefs.setString(_demoStartDateKey, now.toIso8601String());
+      
+      // Ensure demo mode is still active
+      await prefs.setBool(_isDemoModeKey, true);
+
+      debugPrint('✅ Demo renewed for another 30 days');
+      
+      return {
+        'success': true,
+        'message': 'Demo renewed successfully',
+        'newStartDate': now.toIso8601String(),
+        'newExpiryDate': now.add(Duration(days: _demoDaysLimit)).toIso8601String(),
+      };
+    } catch (e) {
+      debugPrint('Error renewing demo: $e');
+      return {
+        'success': false,
+        'message': 'Failed to renew demo: $e',
+      };
+    }
+  }
+
+  // Check if demo can be renewed (is in demo mode)
+  static Future<bool> canRenewDemo() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_isDemoModeKey) ?? false;
+  }
+
+  // Get demo renewal info
+  static Future<Map<String, dynamic>> getDemoRenewalInfo() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isDemoMode = prefs.getBool(_isDemoModeKey) ?? false;
+    
+    if (!isDemoMode) {
+      return {
+        'canRenew': false,
+        'message': 'Not in demo mode',
+      };
+    }
+
+    final startDateStr = prefs.getString(_demoStartDateKey);
+    if (startDateStr == null) {
+      return {
+        'canRenew': false,
+        'message': 'No demo start date found',
+      };
+    }
+
+    final startDate = DateTime.parse(startDateStr);
+    final expiryDate = startDate.add(Duration(days: _demoDaysLimit));
+    final now = DateTime.now();
+    final isExpired = now.isAfter(expiryDate);
+    final remainingDays = isExpired ? 0 : expiryDate.difference(now).inDays;
+
+    return {
+      'canRenew': true,
+      'isExpired': isExpired,
+      'startDate': startDate.toIso8601String(),
+      'expiryDate': expiryDate.toIso8601String(),
+      'remainingDays': remainingDays,
+      'totalDays': _demoDaysLimit,
+    };
+  }
 }

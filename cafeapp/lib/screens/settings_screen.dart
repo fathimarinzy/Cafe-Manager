@@ -16,6 +16,7 @@ import '../widgets/backup_manager_widget.dart';
 import '../utils/database_reset_service.dart';
 import 'package:flutter/services.dart';
 import '../services/license_service.dart';
+import 'renewal_screen.dart';
 
 
 class SettingsScreen extends StatefulWidget {
@@ -633,8 +634,8 @@ Future<void> _checkLicenseStatus() async {
                   _buildSectionHeader('Data & Backup'.tr()),
                   _buildDataBackupSection(),
                   const SizedBox(height: 16),
-                  const Divider(),
-                  
+                  const Divider(),    
+
                   _buildSectionHeader('Appearance'.tr()),
                   Card(
                     child: Column(
@@ -763,6 +764,29 @@ Future<void> _checkLicenseStatus() async {
                                         // _remainingLicenseDays <= 30 ? Colors.orange[700] : Colors.green[700],
                                 ),
                               ),
+                              // Add renewal button
+                              if (_isLicenseExpired || _remainingLicenseDays <= 30)
+                                ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) => const RenewalScreen(renewalType: RenewalType.license),
+                                      ),
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blue[700],
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Renew'.tr(),
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                ),
                               const SizedBox(height: 4),
                               Text(
                                 '+968 7184 0022',
@@ -837,6 +861,41 @@ Future<void> _checkLicenseStatus() async {
                                 ],
                               ),
                               const SizedBox(height: 12),
+                               Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      _remainingDemoDays <= 5 ? 
+                                      'Demo expiring soon. Renew demo or contact support:' :
+                                      'Contact support for full registration:',
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                  ),
+                                  // Add renewal button for demo
+                                  if (_remainingDemoDays <= 7) // Show renewal option in last week
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (context) => const RenewalScreen(renewalType: RenewalType.demo),
+                                          ),
+                                        );
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.green[700],
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        'Renew'.tr(),
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                 ],
+                               ),
                               Text(
                                 'Contact support for full registration:',
                                 style: TextStyle(
@@ -873,30 +932,53 @@ Future<void> _checkLicenseStatus() async {
                         ),
                       ] else if (_isDemoExpired) ...[
                         // Existing demo expired display code
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.red[50],
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.red[300]!),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(Icons.access_time, color: Colors.red[700], size: 20),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Demo Expired'.tr(),
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.red[700],
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.red[50],
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.red[300]!),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(Icons.access_time, color: Colors.red[700], size: 20),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Demo Expired'.tr(),
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.red[700],
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (context) => const RenewalScreen(renewalType: RenewalType.demo),
+                                          ),
+                                        );
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.green[700],
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        'Renew'.tr(),
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               const SizedBox(height: 8),
                               Text(
                                 'Contact support for full registration:',
