@@ -710,7 +710,7 @@ Future<void> _checkLicenseStatus() async {
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
+                                color: Colors.black.withAlpha(13),
                                 blurRadius: 8,
                                 offset: const Offset(0, 2),
                               ),
@@ -834,7 +834,7 @@ Future<void> _checkLicenseStatus() async {
                                             borderRadius: BorderRadius.circular(10),
                                           ),
                                           elevation: 2,
-                                          shadowColor: Colors.black.withOpacity(0.2),
+                                          shadowColor: Colors.black.withAlpha(51),
                                         ),
                                         child: Column(
                                           mainAxisSize: MainAxisSize.min,
