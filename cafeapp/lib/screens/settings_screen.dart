@@ -698,15 +698,23 @@ Future<void> _checkLicenseStatus() async {
                       // Show license info for regular users, demo info for demo users, or contact for others
                       if (_isRegularUser) ...[
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: _isLicenseExpired ? Colors.red[50] : 
                                   _remainingLicenseDays <= 30 ? Colors.blue[50] : Colors.blue[50],
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: _isLicenseExpired ? Colors.red[300]! : 
-                                    _remainingLicenseDays <= 30 ? Colors.blue[300]! : Colors.blue[300]!
+                                    _remainingLicenseDays <= 30 ? Colors.blue[300]! : Colors.blue[300]!,
+                              width: 1.5,
                             ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -732,18 +740,19 @@ Future<void> _checkLicenseStatus() async {
                                   const Spacer(),
                                   if (!_isLicenseExpired)
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                       decoration: BoxDecoration(
                                         color: _remainingLicenseDays <= 30 ? Colors.red[100] : Colors.green[100],
-                                        borderRadius: BorderRadius.circular(16),
+                                        borderRadius: BorderRadius.circular(20),
                                         border: Border.all(
                                           color: _remainingLicenseDays <= 30 ? Colors.red[300]! : Colors.green[300]!,
+                                          width: 1,
                                         ),
                                       ),
                                       child: Text(
                                         '$_remainingLicenseDays ${'days left'.tr()}',
                                         style: TextStyle(
-                                          fontSize: 14,
+                                          fontSize: 12,
                                           fontWeight: FontWeight.bold,
                                           color: _remainingLicenseDays <= 30 ? Colors.red[700] : Colors.green[700],
                                         ),
@@ -751,66 +760,100 @@ Future<void> _checkLicenseStatus() async {
                                     ),
                                 ],
                               ),
-                              const SizedBox(height: 12),
-                              Text(
-                                _isLicenseExpired ? 
-                                'Contact support for license renewal:' :
-                                _remainingLicenseDays <= 30 ?
-                                'License expiring soon. Contact support for renewal:' :
-                                'Contact support for assistance:',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  // color: _isLicenseExpired ? Colors.red[700] : 
-                                        // _remainingLicenseDays <= 30 ? Colors.orange[700] : Colors.green[700],
-                                ),
-                              ),
-                              // Add renewal button
-                              if (_isLicenseExpired || _remainingLicenseDays <= 30)
-                                ElevatedButton(
-                                  onPressed: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (context) => const RenewalScreen(renewalType: RenewalType.license),
-                                      ),
-                                    );
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blue[700],
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
+                              const SizedBox(height: 25),
+                              
+                              // Main content row with support info on left and button on right
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Support information column (left side)
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _isLicenseExpired ? 
+                                          'Contact support for license renewal:' :
+                                          _remainingLicenseDays <= 30 ?
+                                          'License expiring soon. Contact support for renewal:' :
+                                          'Contact support for assistance:',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.grey[700],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          '+968 7184 0022',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.blue[700],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        Text(
+                                          '+968 9906 2181',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.blue[700],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        Text(
+                                          '+968 7989 5704',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.blue[700],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  child: Text(
-                                    'Renew'.tr(),
-                                    style: const TextStyle(fontSize: 12),
-                                  ),
-                                ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '+968 7184 0022',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.blue[700],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              Text(
-                                '+968 9906 2181',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.blue[700],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              Text(
-                                '+968 7989 5704',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.blue[700],
-                                  fontWeight: FontWeight.w500,
-                                ),
+                                  
+                                  // Spacer between support info and button
+                                  const SizedBox(width: 16),
+                                  
+                                  // Renew button (right side)
+                                  if (_isLicenseExpired || _remainingLicenseDays <= 30)
+                                    Container(
+                                      alignment: Alignment.topCenter,
+                                      child: ElevatedButton(
+                                        onPressed: () {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (context) => const RenewalScreen(renewalType: RenewalType.license),
+                                            ),
+                                          );
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: _isLicenseExpired ? Colors.red[600] : Colors.blue[700],
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                          elevation: 2,
+                                          shadowColor: Colors.black.withOpacity(0.2),
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            // const Icon(Icons.autorenew, size: 20),
+                                            // const SizedBox(height: 4),
+                                            Text(
+                                              'Renew License'.tr(),
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ],
                           ),
