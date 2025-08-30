@@ -222,22 +222,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Your 30-day demo period has expired.'.tr(),
+              'Your 30-day demo period has expired.\nTo continue using all features, upgrade your plan.'.tr(),
               style: const TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'You can either:'.tr(),
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '• Renew your demo for another 30 days'.tr(),
-              style: const TextStyle(fontSize: 14),
-            ),
-            Text(
-              '• Contact support for full registration'.tr(),
-              style: const TextStyle(fontSize: 14),
             ),
             const SizedBox(height: 16),
             Container(
@@ -316,14 +302,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               );
             },
             style: TextButton.styleFrom(
-              backgroundColor: Colors.green[700],
+              backgroundColor: Colors.blue[700],
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            child: Text('Renew Demo'.tr()),
+            child: Text('Upgrade Now'.tr()),
           ),
           TextButton(
             onPressed: () {

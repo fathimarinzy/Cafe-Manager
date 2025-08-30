@@ -266,19 +266,19 @@ class _RenewalScreenState extends State<RenewalScreen> {
 
   String _getRenewalTypeTitle() {
     return widget.renewalType == RenewalType.demo 
-        ? 'Demo Renewal'.tr() 
-        : 'License Renewal'.tr();
+        ? '' 
+        : '';
   }
 
   String _getRenewalTypeDescription() {
     return widget.renewalType == RenewalType.demo 
-        ? 'Extend your demo period for another 30 days'
+        ? 'Upgrade Plan'
         : 'Renew your license for another year';
   }
 
   MaterialColor _getRenewalTypeColor() {
     return widget.renewalType == RenewalType.demo 
-        ? Colors.green 
+        ? Colors.blue 
         : Colors.blue;
   }
 
@@ -344,7 +344,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
                 ),
               ),
               
-              const SizedBox(height: 40),
+              const SizedBox(height: 50),
               
               // Generate Keys Section or Key Entry Section
               if (!_showContactInfo) ...[
@@ -418,7 +418,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
                           Icon(Icons.info_outline, color: renewalColor.shade700),
                           const SizedBox(width: 8),
                           Text(
-                            'Contact for Renewal Keys'.tr(),
+                            'Contact for Keys'.tr(),
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -559,7 +559,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
                           ),
                           decoration: InputDecoration(
                             counterText: '',
-                            hintText: 'KEY ${index + 1}',
+                            // hintText: 'KEY ${index + 1}',
                             hintStyle: TextStyle(
                               color: Colors.grey[400],
                               fontSize: 10,

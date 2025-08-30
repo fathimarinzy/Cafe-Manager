@@ -859,13 +859,23 @@ Future<void> _checkLicenseStatus() async {
                           ),
                         ),
                       ] else if (_isDemoMode && !_isDemoExpired) ...[
-                        // Existing demo mode display code
+                        // Demo mode active
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: Colors.blue[50],
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.blue[300]!),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.blue[300]!,
+                              width: 1.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withAlpha(13),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -884,18 +894,19 @@ Future<void> _checkLicenseStatus() async {
                                   ),
                                   const Spacer(),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                     decoration: BoxDecoration(
                                       color: _remainingDemoDays <= 5 ? Colors.red[100] : Colors.green[100],
-                                      borderRadius: BorderRadius.circular(16),
+                                      borderRadius: BorderRadius.circular(20),
                                       border: Border.all(
                                         color: _remainingDemoDays <= 5 ? Colors.red[300]! : Colors.green[300]!,
+                                        width: 1,
                                       ),
                                     ),
                                     child: Text(
                                       '$_remainingDemoDays ${'days left'.tr()}',
                                       style: TextStyle(
-                                        fontSize: 14,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.bold,
                                         color: _remainingDemoDays <= 5 ? Colors.red[700] : Colors.green[700],
                                       ),
@@ -903,103 +914,192 @@ Future<void> _checkLicenseStatus() async {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 12),
-                               Row(
+                              const SizedBox(height: 16),
+                              
+                              // Main content row with support info on left and button on right
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  // Support information column (left side)
                                   Expanded(
-                                    child: Text(
-                                      _remainingDemoDays <= 5 ? 
-                                      'Demo expiring soon. Renew demo or contact support:' :
-                                      'Contact support for full registration:',
-                                      style: const TextStyle(fontSize: 14),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _remainingDemoDays <= 5 ? 
+                                          'Demo expiring soon. Contact support for renewal:' :
+                                          'Contact support for full registration:',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.grey[700],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          '+968 7184 0022',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.blue[700],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        Text(
+                                          '+968 9906 2181',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.blue[700],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        Text(
+                                          '+968 7989 5704',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.blue[700],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  // Add renewal button for demo
-                                  if (_remainingDemoDays <= 7) // Show renewal option in last week
-                                    ElevatedButton(
-                                      onPressed: () {
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder: (context) => const RenewalScreen(renewalType: RenewalType.demo),
+                                  
+                                  // Spacer between support info and button
+                                  const SizedBox(width: 16),
+                                  
+                                  // Renew button (right side) - Show renewal option in last week
+                                  if (_remainingDemoDays <= 7)
+                                    Container(
+                                      alignment: Alignment.topCenter,
+                                      child: ElevatedButton(
+                                        onPressed: () {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (context) => const RenewalScreen(renewalType: RenewalType.demo),
+                                            ),
+                                          );
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: _remainingDemoDays <= 5 ? Colors.blue[700] : Colors.blue[700],
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(10),
                                           ),
-                                        );
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.green[700],
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(8),
+                                          elevation: 2,
+                                          shadowColor: Colors.black.withAlpha(51),
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.upgrade, size: 20),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Upgrade\nNow'.tr(),
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                      child: Text(
-                                        'Renew'.tr(),
-                                        style: const TextStyle(fontSize: 12),
-                                      ),
                                     ),
-                                 ],
-                               ),
-                              Text(
-                                'Contact support for full registration:',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '+968 7184 0022',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.blue[700],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              Text(
-                                '+968 9906 2181',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.blue[700],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              Text(
-                                '+968 7989 5704',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.blue[700],
-                                  fontWeight: FontWeight.w500,
-                                ),
+                                ],
                               ),
                             ],
                           ),
                         ),
                       ] else if (_isDemoExpired) ...[
-                        // Existing demo expired display code
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.red[50],
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.red[300]!),
+                        // Demo expired
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.red[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.red[300]!,
+                              width: 1.5,
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(Icons.access_time, color: Colors.red[700], size: 20),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        'Demo Expired'.tr(),
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.red[700],
-                                        ),
-                                      ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withAlpha(13),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.access_time, color: Colors.red[700], size: 20),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Demo Expired'.tr(),
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.red[700],
                                     ),
-                                    ElevatedButton(
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              
+                              // Main content row with support info on left and button on right
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Support information column (left side)
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Contact support for full registration:',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.grey[700],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          '+968 7184 0022',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.blue[700],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        Text(
+                                          '+968 9906 2181',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.blue[700],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        Text(
+                                          '+968 7989 5704',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.blue[700],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  
+                                  // Spacer between support info and button
+                                  const SizedBox(width: 16),
+                                  
+                                  // Renew button (right side)
+                                  Container(
+                                    alignment: Alignment.topCenter,
+                                    child: ElevatedButton(
                                       onPressed: () {
                                         Navigator.of(context).push(
                                           MaterialPageRoute(
@@ -1008,56 +1108,38 @@ Future<void> _checkLicenseStatus() async {
                                         );
                                       },
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.green[700],
+                                        backgroundColor: Colors.blue[700],
                                         foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(8),
+                                          borderRadius: BorderRadius.circular(10),
                                         ),
+                                        elevation: 2,
+                                        shadowColor: Colors.black.withAlpha(51),
                                       ),
-                                      child: Text(
-                                        'Renew'.tr(),
-                                        style: const TextStyle(fontSize: 12),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.autorenew, size: 20),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Upgrade\nNow'.tr(),
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ],
-                                ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Contact support for full registration:',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '+968 7184 0022',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.blue[700],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        Text(
-                          '+968 9906 2181',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.blue[700],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        Text(
-                          '+968 7989 5704',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.blue[700],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ] else ...[
+                      ]else ...[
                         // Default contact numbers for other cases
                         Text(
                           '+968 7184 0022',

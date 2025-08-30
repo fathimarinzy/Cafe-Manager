@@ -772,7 +772,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                               ),
                             )
                           : Text(
-                              'Demo Register'.tr(),
+                              'Register Demo'.tr(),
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
@@ -1002,7 +1002,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                           ),
                           decoration: InputDecoration(
                             counterText: '',
-                            hintText: 'KEY ${index + 1}',
+                            // hintText: 'KEY ${index + 1}',
                             hintStyle: TextStyle(
                               color: Colors.grey[400],
                               fontSize: 10,
