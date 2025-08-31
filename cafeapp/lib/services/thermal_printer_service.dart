@@ -1,10 +1,11 @@
 
-import 'dart:ui' as ui;
-import 'package:flutter/material.dart';
+import 'dart:ui' as ui show Canvas, ImageByteFormat, Paint, PaintingStyle, PictureRecorder, Rect, TextDirection;
+import 'package:flutter/material.dart' show TextAlign, TextPainter, TextSpan, TextStyle, FontWeight, Colors, debugPrint;
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:esc_pos_printer/esc_pos_printer.dart';
 import 'package:esc_pos_utils/esc_pos_utils.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/menu_item.dart';
 
@@ -86,10 +87,9 @@ class ThermalPrinterService {
     return RegExp(r'[\u0600-\u06FF]').hasMatch(text);
   }
 
-  static TextDirection _getTextDirection(String text) {
-    return _containsArabic(text) ? TextDirection.rtl : TextDirection.ltr;
-  }
-
+ static ui.TextDirection _getTextDirection(String text) {
+  return _containsArabic(text) ? ui.TextDirection.rtl : ui.TextDirection.ltr;
+}
   static String _getFontFamily(String text) {
     return _containsArabic(text) ? 'Cairo' : 'OpenSans';
   }
@@ -128,7 +128,7 @@ class ThermalPrinterService {
           fontFamily: _getFontFamily(text),
         ),
       ),
-      textDirection: textDirection,
+      textDirection: textDirection, // This should work now
       textAlign: textAlign,
       maxLines: null,
     );
@@ -140,7 +140,7 @@ class ThermalPrinterService {
 
   // Drawing Helper Methods
   static double _drawText(
-    Canvas canvas,
+    ui.Canvas canvas,
     String text, {
     required double x,
     required double y,
@@ -170,8 +170,8 @@ class ThermalPrinterService {
     return y + textPainter.height + 8;
   }
 
-  static double _drawLine(Canvas canvas, double y, {double thickness = 4.0}) {
-    final paint = Paint()
+  static double _drawLine(ui.Canvas canvas, double y, {double thickness = 4.0}) {
+    final paint = ui.Paint()
       ..color = Colors.black
       ..strokeWidth = thickness;
     
@@ -184,7 +184,7 @@ class ThermalPrinterService {
     return y + thickness + 8;
   }
 
-  static double _drawItemsHeader(Canvas canvas, double y) {
+  static double _drawItemsHeader(ui.Canvas canvas, double y) {
     final headerY = y;
     
     // Optimized columns for 512px width
@@ -229,7 +229,7 @@ class ThermalPrinterService {
   }
 
   // FIXED: Item row layout for proper 80mm paper fit
-  static double _drawItemRow(Canvas canvas, MenuItem item, double y) {
+  static double _drawItemRow(ui.Canvas canvas, MenuItem item, double y) {
     final itemX = _padding;
     final qtyX = _thermalPrinterWidth * 0.40;
     final priceX = _thermalPrinterWidth * 0.60;
@@ -273,7 +273,7 @@ class ThermalPrinterService {
     
     return y + rowHeight + 8;
   }
-static double _drawTotalRow(Canvas canvas, String label, String value, double y, {bool isTotal = false}) {
+static double _drawTotalRow(ui.Canvas canvas, String label, String value, double y, {bool isTotal = false}) {
   final fontSize = isTotal ? _fontSize : _smallFontSize;
   final fontWeight = isTotal ? FontWeight.bold : FontWeight.normal;
   
@@ -341,7 +341,7 @@ static Future<Uint8List?> _generateReceiptImage({
     
     final businessNamePainter = _createTextPainter(
       businessInfo['name']!,
-      fontSize: _largeFontSize - 2,
+      fontSize: _smallFontSize + 2,
       fontWeight: FontWeight.bold,
     );
     contentHeight += businessNamePainter.height + 2;
@@ -350,7 +350,7 @@ static Future<Uint8List?> _generateReceiptImage({
     if (businessInfo['second_name']!.isNotEmpty) {
       final secondNamePainter = _createTextPainter(
         businessInfo['second_name']!,
-        fontSize: _smallFontSize + 2,
+        fontSize: _largeFontSize - 2,
         fontWeight: FontWeight.bold,
       );
       contentHeight += secondNamePainter.height + 2;
@@ -485,12 +485,12 @@ static Future<Uint8List?> _generateReceiptImage({
 
     // Create recorder with exact calculated height
     final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, _thermalPrinterWidth, contentHeight));
-    
+    final canvas = ui.Canvas(recorder, ui.Rect.fromLTWH(0, 0, _thermalPrinterWidth, contentHeight));
+
     // White background
-    final backgroundPaint = Paint()..color = Colors.white;
+    final backgroundPaint = ui.Paint()..color = Colors.white;
     canvas.drawRect(
-      Rect.fromLTWH(0, 0, _thermalPrinterWidth, contentHeight),
+      ui.Rect.fromLTWH(0, 0, _thermalPrinterWidth, contentHeight),
       backgroundPaint,
     );
     
@@ -514,8 +514,8 @@ static Future<Uint8List?> _generateReceiptImage({
       canvas,
       businessInfo['name']!,
       x: _padding,
-      y: currentY,
-      fontSize: _fontSize,
+      y: currentY, 
+      fontSize: _smallFontSize,
       fontWeight: FontWeight.bold,
       textAlign: TextAlign.center,
     );
@@ -528,7 +528,7 @@ static Future<Uint8List?> _generateReceiptImage({
         businessInfo['second_name']!,
         x: _padding,
         y: currentY,
-        fontSize: _smallFontSize,
+        fontSize: _fontSize,
         fontWeight: FontWeight.bold,
         textAlign: TextAlign.center,
       );
@@ -577,10 +577,10 @@ static Future<Uint8List?> _generateReceiptImage({
         editedPainter.width + 20,
         editedPainter.height + 10,
       );
-      
-      final borderPaint = Paint()
+
+      final borderPaint = ui.Paint()
         ..color = Colors.red
-        ..style = PaintingStyle.stroke
+        ..style = ui.PaintingStyle.stroke
         ..strokeWidth = 2.0;
       
       canvas.drawRect(borderRect, borderPaint);
@@ -718,7 +718,7 @@ static Future<Uint8List?> _generateReceiptImage({
       (_thermalPrinterWidth * _pixelRatio).round(),
       (contentHeight * _pixelRatio).round(), // Use pre-calculated exact height
     );
-    
+
     final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
     return byteData?.buffer.asUint8List();
     
@@ -803,9 +803,9 @@ static Future<Uint8List?> _generateKotImage({
     
     // Create the canvas with exact height
     final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, _thermalPrinterWidth, contentHeight));
-    
-    final backgroundPaint = Paint()..color = Colors.white;
+    final canvas = ui.Canvas(recorder, ui.Rect.fromLTWH(0, 0, _thermalPrinterWidth, contentHeight));
+
+    final backgroundPaint = ui.Paint()..color = Colors.white;
     canvas.drawRect(
       Rect.fromLTWH(0, 0, _thermalPrinterWidth, contentHeight),
       backgroundPaint,
@@ -908,7 +908,7 @@ static Future<Uint8List?> _generateKotImage({
     }
     
     // Draw final line manually without extra spacing
-    final paint = Paint()
+    final paint = ui.Paint()
       ..color = Colors.black
       ..strokeWidth = 4.0;
     
@@ -926,7 +926,7 @@ static Future<Uint8List?> _generateKotImage({
       (_thermalPrinterWidth * _pixelRatio).round(),
       (contentHeight * _pixelRatio).round(), // Use the pre-calculated height
     );
-    
+
     final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
     return byteData?.buffer.asUint8List();
     
@@ -1142,9 +1142,9 @@ static Future<Uint8List?> _generateKotImage({
       const double height = 300;
       
       final recorder = ui.PictureRecorder();
-      final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, _thermalPrinterWidth, height));
-      
-      final backgroundPaint = Paint()..color = Colors.white;
+      final canvas = ui.Canvas(recorder, ui.Rect.fromLTWH(0, 0, _thermalPrinterWidth, height));
+
+      final backgroundPaint = ui.Paint()..color = Colors.white;
       canvas.drawRect(
         Rect.fromLTWH(0, 0, _thermalPrinterWidth, height),
         backgroundPaint,
@@ -1158,7 +1158,7 @@ static Future<Uint8List?> _generateKotImage({
           'KOT PRINTER TEST',
           x: _padding,
           y: currentY,
-          fontSize: _largeFontSize,
+          fontSize: _fontSize,
           fontWeight: FontWeight.bold,
           textAlign: TextAlign.center,
         );
@@ -1168,7 +1168,7 @@ static Future<Uint8List?> _generateKotImage({
           'RECEIPT PRINTER TEST',
           x: _padding,
           y: currentY,
-          fontSize: _largeFontSize,
+          fontSize: _fontSize,
           fontWeight: FontWeight.bold,
           textAlign: TextAlign.center,
         );
@@ -1211,7 +1211,7 @@ static Future<Uint8List?> _generateKotImage({
         dateTime,
         x: _padding,
         y: currentY,
-        fontSize: _smallFontSize,
+        fontSize: _fontSize - 4,
         textAlign: TextAlign.center,
       );
       
@@ -1229,4 +1229,466 @@ static Future<Uint8List?> _generateKotImage({
       return null;
     }
   }
+  // Generate Report Image for thermal printing
+  static Future<Uint8List?> _generateReportImage({
+    required Map<String, dynamic> reportData,
+    required String reportTitle,
+    required String dateRange,
+    required Map<String, String> businessInfo,
+  }) async {
+    try {
+      final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
+      final revenue = reportData['revenue'] ?? {};
+      final paymentTotals = reportData['paymentTotals'] as Map<String, dynamic>? ?? {};
+      final serviceTypeSales = reportData['serviceTypeSales'] as List? ?? [];
+      
+      // Check for Arabic content
+      bool hasArabicContent = _containsArabic(businessInfo['name']!) || 
+                            _containsArabic(businessInfo['second_name']!) ||
+                            _containsArabic(reportTitle) ||
+                            serviceTypeSales.any((service) => _containsArabic(service['serviceType']?.toString() ?? ''));
+
+        // Calculate exact content height with more padding
+        double contentHeight = _padding ; // Start with more top padding
+
+        // Business header
+        final businessNamePainter = _createTextPainter(
+          businessInfo['name']!,
+          fontSize: _largeFontSize - 4,
+          fontWeight: FontWeight.bold,
+        );
+        contentHeight += businessNamePainter.height + 8; // Increased spacing
+
+        if (businessInfo['second_name']!.isNotEmpty) {
+          final secondNamePainter = _createTextPainter(
+            businessInfo['second_name']!,
+            fontSize: _fontSize + 2,
+            fontWeight: FontWeight.bold,
+          );
+          contentHeight += secondNamePainter.height + 8; // Increased
+        }
+
+        contentHeight += 12; // More space after business info
+
+        // Report title
+        final titlePainter = _createTextPainter(
+          reportTitle,
+          fontSize: _fontSize ,
+          fontWeight: FontWeight.bold,
+        );
+        contentHeight += titlePainter.height + 8; // Increased
+
+        // Date range
+        final datePainter = _createTextPainter(
+          dateRange,
+          fontSize: _fontSize - 2,
+        );
+        contentHeight += datePainter.height + 12; // Increased
+
+        contentHeight += 2 + 12; // Line + more space
+
+        // Cash and Bank Sales Section
+        final cashBankHeaderPainter = _createTextPainter(
+          'Cash and Bank Sales',
+          fontSize: _fontSize,
+          fontWeight: FontWeight.bold,
+        );
+        contentHeight += cashBankHeaderPainter.height + 10; // Increased
+
+        contentHeight += 2 + 8; // Line + space
+
+        // Payment table header and all rows - be more generous
+        contentHeight += (_fontSize - 2) + 8; // Header row
+        contentHeight += 2 + 6; // Line + space
+        contentHeight += ((_fontSize - 2) + 10) * 4; // 4 payment rows with more space
+        contentHeight += 2 + 15; // Line + more space
+
+        // Total Sales Section
+        final totalSalesHeaderPainter = _createTextPainter(
+          'Total Sales',
+          fontSize: _fontSize,
+          fontWeight: FontWeight.bold,
+        );
+        contentHeight += totalSalesHeaderPainter.height + 10; // Increased
+
+        contentHeight += 2 + 8; // Line + space
+
+        // Service type header
+        contentHeight += (_fontSize - 2) + 8; // Header with more space
+        contentHeight += 2 + 6; // Line + space
+
+        // Service type rows - calculate with more generous spacing
+        if (serviceTypeSales.isNotEmpty) {
+          for (var service in serviceTypeSales) {
+            final serviceTypePainter = _createTextPainter(
+              service['serviceType']?.toString() ?? '',
+              fontSize: _fontSize - 4,
+              maxWidth: _thermalPrinterWidth * 0.5,
+            );
+            contentHeight += serviceTypePainter.height + 8; // More space per row
+          }
+        } else {
+          contentHeight += (_fontSize - 2) + 10; // "No sales data" message
+        }
+
+        contentHeight += 2 + 15; // Line + generous space
+
+        // Revenue Breakdown Section  
+        final revenueHeaderPainter = _createTextPainter(
+          'Revenue Breakdown',
+          fontSize: _fontSize,
+          fontWeight: FontWeight.bold,
+        );
+        contentHeight += revenueHeaderPainter.height + 10; // Increased
+
+        contentHeight += 2 + 8; // Line + space
+
+        // Revenue rows (Subtotal, Tax, Discounts, Total) - generous spacing
+        contentHeight += ((_fontSize - 2) + 8) * 4; // 4 revenue rows with more space
+
+        contentHeight += 2 + 12; // Line + space
+
+        // Footer - generous spacing
+        contentHeight += (_fontSize - 2) + 8; // "End of Report"
+        final generateTimePainter = _createTextPainter(
+          'Generated: ${DateFormat('dd MMM yyyy HH:mm').format(DateTime.now())}',
+          fontSize: _fontSize - 4,
+        );
+        contentHeight += generateTimePainter.height + 10;
+
+        // Arabic footer if needed
+        if (hasArabicContent) {
+          contentHeight += 12;
+          final arabicEndPainter = _createTextPainter(
+            'نهاية التقرير',
+            fontSize: _fontSize - 2,
+          );
+          contentHeight += arabicEndPainter.height + 10;
+        }
+
+        contentHeight += _padding * 12; // Much more bottom padding to ensure everything fits
+      // Create canvas
+      final recorder = ui.PictureRecorder();
+      final canvas = ui.Canvas(recorder, ui.Rect.fromLTWH(0, 0, _thermalPrinterWidth, contentHeight));
+
+      // White background
+      final backgroundPaint = ui.Paint()..color = Colors.white;
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, _thermalPrinterWidth, contentHeight),
+        backgroundPaint,
+      );
+      
+      double currentY = _padding;
+      
+      // Draw business header
+      currentY = _drawText(
+        canvas,
+        businessInfo['name']!,
+        x: _padding,
+        y: currentY,
+        fontSize: _largeFontSize - 4,
+        fontWeight: FontWeight.bold,
+        textAlign: TextAlign.center,
+      );
+      
+      if (businessInfo['second_name']!.isNotEmpty) {
+        currentY = _drawText(
+          canvas,
+          businessInfo['second_name']!,
+          x: _padding,
+          y: currentY,
+          fontSize: _fontSize + 2,
+          fontWeight: FontWeight.bold,
+          textAlign: TextAlign.center,
+        );
+      }
+      
+      currentY += 6;
+      
+      // Report title and date
+      currentY = _drawText(
+        canvas,
+        reportTitle,
+        x: _padding,
+        y: currentY,
+        fontSize: _fontSize,
+        fontWeight: FontWeight.bold,
+        textAlign: TextAlign.center,
+      );
+      
+      currentY = _drawText(
+        canvas,
+        dateRange,
+        x: _padding,
+        y: currentY,
+        fontSize: _fontSize - 2,
+        textAlign: TextAlign.center,
+      );
+      
+      currentY += 6;
+      currentY = _drawLine(canvas, currentY);
+      
+      // Cash and Bank Sales Section
+      currentY = _drawText(
+        canvas,
+        'Cash and Bank Sales',
+        x: _padding,
+        y: currentY,
+        fontSize: _fontSize,
+        fontWeight: FontWeight.bold,
+        textAlign: TextAlign.center,
+      );
+      
+      currentY = _drawLine(canvas, currentY);
+      
+      // Payment table header
+      currentY = _drawReportRow(canvas, [
+        {'text': 'Method', 'width': 0.33, 'bold': true},
+        {'text': 'Revenue', 'width': 0.33, 'bold': true, 'align': 'right'},
+        {'text': 'Expenses', 'width': 0.35, 'bold': true, 'align': 'right'},
+      ], currentY);
+      
+      currentY = _drawLine(canvas, currentY);
+      
+      // Payment rows
+      currentY = _drawReportRow(canvas, [
+        {'text': 'Cash Sales', 'width': 0.33},
+        {'text': currencyFormat.format(_getPaymentValue(paymentTotals, 'cash', 'sales')), 'width': 0.33, 'align': 'right'},
+        {'text': currencyFormat.format(_getPaymentValue(paymentTotals, 'cash', 'expenses')), 'width': 0.35, 'align': 'right'},
+      ], currentY);
+      
+      currentY = _drawReportRow(canvas, [
+        {'text': 'Bank Sales', 'width': 0.33},
+        {'text': currencyFormat.format(_getPaymentValue(paymentTotals, 'bank', 'sales')), 'width': 0.33, 'align': 'right'},
+        {'text': currencyFormat.format(_getPaymentValue(paymentTotals, 'bank', 'expenses')), 'width': 0.35, 'align': 'right'},
+      ], currentY);
+      
+      currentY = _drawLine(canvas, currentY);
+      
+      currentY = _drawReportRow(canvas, [
+        {'text': 'Total', 'width': 0.33, 'bold': true},
+        {'text': currencyFormat.format(_getPaymentValue(paymentTotals, 'total', 'sales')), 'width': 0.33, 'align': 'right', 'bold': true},
+        {'text': currencyFormat.format(_getPaymentValue(paymentTotals, 'total', 'expenses')), 'width': 0.35, 'align': 'right', 'bold': true},
+      ], currentY);
+      
+      // Balance
+      final totalRevenue = _getPaymentValue(paymentTotals, 'total', 'sales');
+      final totalExpenses = _getPaymentValue(paymentTotals, 'total', 'expenses');
+      final balance = totalRevenue - totalExpenses;
+      
+      currentY = _drawReportRow(canvas, [
+        {'text': 'Balance', 'width': 0.66, 'bold': true},
+        {'text': currencyFormat.format(balance), 'width': 0.34, 'align': 'right', 'bold': true},
+      ], currentY);
+      
+      currentY +=8;
+      
+      // Total Sales Section
+      currentY = _drawText(
+        canvas,
+        'Total Sales',
+        x: _padding,
+        y: currentY,
+        fontSize: _fontSize,
+        fontWeight: FontWeight.bold,
+        textAlign: TextAlign.center,
+      );
+      
+      currentY = _drawLine(canvas, currentY);
+      
+      if (serviceTypeSales.isNotEmpty) {
+        // Service type header
+        currentY = _drawReportRow(canvas, [
+          {'text': 'Service Type', 'width': 0.33, 'bold': true},
+          {'text': 'Orders', 'width': 0.33, 'bold': true, 'align': 'center'},
+          {'text': 'Revenue', 'width': 0.34, 'bold': true, 'align': 'right'},
+        ], currentY);
+        
+        currentY = _drawLine(canvas, currentY);
+        
+        for (var service in serviceTypeSales) {
+          final serviceType = service['serviceType']?.toString() ?? '';
+          final totalOrders = service['totalOrders'] as int? ?? 0;
+          final totalRevenue = service['totalRevenue'] as double? ?? 0.0;
+          
+          currentY = _drawReportRow(canvas, [
+            {'text': serviceType, 'width': 0.33},
+            {'text': '$totalOrders', 'width': 0.33, 'align': 'center'},
+            {'text': currencyFormat.format(totalRevenue), 'width': 0.34, 'align': 'right'},
+          ], currentY);
+        }
+      } else {
+        currentY = _drawText(
+          canvas,
+          'No sales data available',
+          x: _padding,
+          y: currentY,
+          fontSize: _fontSize - 2,
+          textAlign: TextAlign.center,
+        );
+      }
+      
+      currentY += 8;
+      
+      // Revenue Breakdown Section
+      currentY = _drawText(
+        canvas,
+        'Revenue Breakdown',
+        x: _padding,
+        y: currentY,
+        fontSize: _fontSize,
+        fontWeight: FontWeight.bold,
+        textAlign: TextAlign.center,
+      );
+      
+      currentY = _drawLine(canvas, currentY);
+      
+      // Revenue rows
+      currentY = _drawReportRow(canvas, [
+        {'text': 'Subtotal:', 'width': 0.66, 'align': 'right'},
+        {'text': currencyFormat.format(revenue['subtotal'] as double? ?? 0.0), 'width': 0.34, 'align': 'right'},
+      ], currentY);
+      
+      currentY = _drawReportRow(canvas, [
+        {'text': 'Tax:', 'width': 0.66, 'align': 'right'},
+        {'text': currencyFormat.format(revenue['tax'] as double? ?? 0.0), 'width': 0.34, 'align': 'right'},
+      ], currentY);
+      
+      currentY = _drawReportRow(canvas, [
+        {'text': 'Discounts:', 'width': 0.66, 'align': 'right'},
+        {'text': currencyFormat.format(revenue['discounts'] as double? ?? 0.0), 'width': 0.34, 'align': 'right'},
+      ], currentY);
+      
+      currentY = _drawLine(canvas, currentY);
+      
+      currentY = _drawReportRow(canvas, [
+        {'text': 'Total Revenue:', 'width': 0.66, 'align': 'right', 'bold': true},
+        {'text': currencyFormat.format(revenue['total'] as double? ?? 0.0), 'width': 0.34, 'align': 'right', 'bold': true},
+      ], currentY);
+      
+      // Footer
+      currentY += 8;
+      currentY = _drawLine(canvas, currentY);
+      
+      currentY = _drawText(
+        canvas,
+        'End of Report',
+        x: _padding,
+        y: currentY,
+        fontSize: _fontSize - 2,
+        textAlign: TextAlign.center,
+      );
+      
+      currentY = _drawText(
+        canvas,
+        'Generated: ${DateFormat('dd MMM yyyy HH:mm').format(DateTime.now())}',
+        x: _padding,
+        y: currentY,
+        fontSize: _fontSize - 4,
+        textAlign: TextAlign.center,
+      );
+      
+      // Arabic footer if needed
+      // if (hasArabicContent) {
+      //   currentY += 6;
+      //   currentY = _drawText(
+      //     canvas,
+      //     'نهاية التقرير',
+      //     x: _padding,
+      //     y: currentY,
+      //     fontSize: _fontSize - 2,
+      //     textAlign: TextAlign.center,
+      //   );
+      // }
+      
+      // Create final image
+      final picture = recorder.endRecording();
+      final img = await picture.toImage(
+        (_thermalPrinterWidth * _pixelRatio).round(),
+        (contentHeight * _pixelRatio).round(),
+      );
+
+      final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+      return byteData?.buffer.asUint8List();
+      
+    } catch (e) {
+      debugPrint('Error generating report image: $e');
+      return null;
+    }
+  }
+
+  // Helper method to draw report rows
+  static double _drawReportRow(ui.Canvas canvas, List<Map<String, dynamic>> columns, double y) {
+    double currentX = _padding;
+    double maxHeight = 0;
+    
+    for (var column in columns) {
+      final text = column['text'] as String;
+      final width = column['width'] as double;
+      final bold = column['bold'] as bool? ?? false;
+      final align = column['align'] as String? ?? 'left';
+      
+      final columnWidth = (_thermalPrinterWidth - (_padding * 2)) * width;
+      
+      final textPainter = _createTextPainter(
+        text,
+        fontSize: _fontSize - 2,
+        fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+        maxWidth: columnWidth,
+      );
+      
+      double drawX = currentX;
+      if (align == 'center') {
+        drawX = currentX + (columnWidth - textPainter.width) / 2;
+      } else if (align == 'right') {
+        drawX = currentX + columnWidth - textPainter.width;
+      }
+      
+      textPainter.paint(canvas, Offset(drawX, y));
+      
+      maxHeight = maxHeight > textPainter.height ? maxHeight : textPainter.height;
+      currentX += columnWidth;
+    }
+    
+    return y + maxHeight + 6;
+  }
+  // Helper method to get payment values (add this if not already present)
+  static double _getPaymentValue(Map<String, dynamic> paymentTotals, String method, String type) {
+    try {
+      return (paymentTotals[method] as Map<String, dynamic>?)?[type] as double? ?? 0.0;
+    } catch (e) {
+      return 0.0;
+    }
+  }
+  // Main report printing method
+  static Future<bool> printThermalReport({
+    required Map<String, dynamic> reportData,
+    required String reportTitle,
+    required String dateRange,
+  }) async {
+    try {
+      debugPrint('Printing thermal report as image');
+      
+      final businessInfo = await getBusinessInfo();
+      
+      final imageBytes = await _generateReportImage(
+        reportData: reportData,
+        reportTitle: reportTitle,
+        dateRange: dateRange,
+        businessInfo: businessInfo,
+      );
+      
+      if (imageBytes == null) {
+        debugPrint('Failed to generate report image');
+        return false;
+      }
+      
+      return await _printImage(imageBytes, isKot: false);
+      
+    } catch (e) {
+      debugPrint('Error printing thermal report: $e');
+      return false;
+    }
+  }
+
 }

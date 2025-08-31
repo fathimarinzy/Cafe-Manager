@@ -6,8 +6,8 @@ import '../repositories/local_order_repository.dart';
 import '../repositories/local_expense_repository.dart';
 import '../models/order.dart';
 import '../services/thermal_printer_service.dart';
-import 'package:esc_pos_printer/esc_pos_printer.dart';
-import 'package:esc_pos_utils/esc_pos_utils.dart';
+// import 'package:esc_pos_printer/esc_pos_printer.dart';
+// import 'package:esc_pos_utils/esc_pos_utils.dart';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -15,7 +15,7 @@ import '../utils/app_localization.dart';
 import '../utils/service_type_utils.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
-import 'dart:convert'; // For utf8 encoding
+// import 'dart:convert'; // For utf8 encoding
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
@@ -274,527 +274,37 @@ class _ReportScreenState extends State<ReportScreen> {
       },
     );
   }
-// Method 1: Direct raw bytes approach (bypasses library validation)
-Future<bool> _printArabicDirect(NetworkPrinter printer, String arabicText, {PosStyles? styles}) async {
-  try {
-    debugPrint('Printing Arabic text directly: "$arabicText"');
-    
-    // Set CP1256 codepage (your printer uses codepage 32 for CP1256)
-    final List<int> setCP1256 = [0x1B, 0x74, 32]; // ESC t 32
-    printer.rawBytes(Uint8List.fromList(setCP1256));
-    await Future.delayed(const Duration(milliseconds: 100));
-    
-    // Set right-to-left alignment for Arabic
-    if (_containsArabic(arabicText)) {
-      printer.rawBytes(Uint8List.fromList([0x1B, 0x61, 0x02])); // Right align
-    } else if (styles?.align == PosAlign.center) {
-      printer.rawBytes(Uint8List.fromList([0x1B, 0x61, 0x01])); // Center
-    }
-    
-    // Apply bold formatting if needed
-    if (styles?.bold == true) {
-      printer.rawBytes(Uint8List.fromList([0x1B, 0x45, 0x01])); // Bold ON
-    }
-    
-    // Convert Arabic text to CP1256 bytes
-    final arabicBytes = _convertToCP1256(arabicText);
-    if (arabicBytes != null) {
-      printer.rawBytes(arabicBytes);
-      printer.rawBytes(Uint8List.fromList([0x0A])); // Line feed
-      
-      // Reset formatting
-      if (styles?.bold == true) {
-        printer.rawBytes(Uint8List.fromList([0x1B, 0x45, 0x00])); // Bold OFF
-      }
-      printer.rawBytes(Uint8List.fromList([0x1B, 0x61, 0x00])); // Left align
-      
-      return true;
-    }
-    
-    return false;
-  } catch (e) {
-    debugPrint('Arabic direct printing failed: $e');
-    return false;
-  }
-}
 
-// Enhanced CP1256 conversion based on your printer's codepage support
-Uint8List? _convertToCP1256(String text) {
-  try {
-    // Complete CP1256 (Windows-1256) character mapping
-    final Map<int, int> unicodeToCP1256 = {
-      // Basic Latin (0x00-0x7F) - unchanged
-      // Arabic letters
-      0x0621: 0xC1, // ء Hamza
-      0x0622: 0xC2, // آ Alef with Madda above
-      0x0623: 0xC3, // أ Alef with Hamza above
-      0x0624: 0xC4, // ؤ Waw with Hamza above
-      0x0625: 0xC5, // إ Alef with Hamza below
-      0x0626: 0xC6, // ئ Yeh with Hamza above
-      0x0627: 0xC7, // ا Alef
-      0x0628: 0xC8, // ب Beh
-      0x0629: 0xC9, // ة Teh Marbuta
-      0x062A: 0xCA, // ت Teh
-      0x062B: 0xCB, // ث Theh
-      0x062C: 0xCC, // ج Jeem
-      0x062D: 0xCD, // ح Hah
-      0x062E: 0xCE, // خ Khah
-      0x062F: 0xCF, // د Dal
-      0x0630: 0xD0, // ذ Thal
-      0x0631: 0xD1, // ر Reh
-      0x0632: 0xD2, // ز Zain
-      0x0633: 0xD3, // س Seen
-      0x0634: 0xD4, // ش Sheen
-      0x0635: 0xD5, // ص Sad
-      0x0636: 0xD6, // ض Dad
-      0x0637: 0xD7, // ط Tah
-      0x0638: 0xD8, // ظ Zah
-      0x0639: 0xD9, // ع Ain
-      0x063A: 0xDA, // غ Ghain
-      0x0640: 0xE0, // ـ Arabic Tatweel
-      0x0641: 0xE1, // ف Feh
-      0x0642: 0xE2, // ق Qaf
-      0x0643: 0xE3, // ك Kaf
-      0x0644: 0xE4, // ل Lam
-      0x0645: 0xE5, // م Meem
-      0x0646: 0xE6, // ن Noon
-      0x0647: 0xE7, // ه Heh
-      0x0648: 0xE8, // و Waw
-      0x0649: 0xE9, // ى Alef Maksura
-      0x064A: 0xEA, // ي Yeh
-      
-      // Arabic diacritics (tashkeel)
-      0x064B: 0xEB, // ً Fathatan
-      0x064C: 0xEC, // ٌ Dammatan
-      0x064D: 0xED, // ٍ Kasratan
-      0x064E: 0xEE, // َ Fatha
-      0x064F: 0xEF, // ُ Damma
-      0x0650: 0xF0, // ِ Kasra
-      0x0651: 0xF1, // ّ Shadda
-      0x0652: 0xF2, // ْ Sukun
-      
-      // Arabic-Indic digits
-      0x0660: 0xF0, // ٠
-      0x0661: 0xF1, // ١
-      0x0662: 0xF2, // ٢
-      0x0663: 0xF3, // ٣
-      0x0664: 0xF4, // ٤
-      0x0665: 0xF5, // ٥
-      0x0666: 0xF6, // ٦
-      0x0667: 0xF7, // ٧
-      0x0668: 0xF8, // ٨
-      0x0669: 0xF9, // ٩
-      
-      // Additional CP1256 characters
-      0x060C: 0xA1, // ، Arabic comma
-      0x061B: 0xBA, // ؛ Arabic semicolon
-      0x061F: 0xBF, // ؟ Arabic question mark
-      0x0679: 0x8A, // ٹ Tteh
-      0x067E: 0x81, // پ Peh
-      0x0686: 0x8D, // چ Tcheh
-      0x0688: 0x8F, // ڈ Ddal
-      0x0691: 0x9A, // ڑ Rreh
-      0x0698: 0x8E, // ژ Jeh
-      0x06A9: 0x98, // ک Keheh
-      0x06AF: 0x90, // گ Gaf
-      0x06BA: 0x9F, // ں Noon Ghunna
-      0x06BE: 0xAA, // ہ Heh Doachashmee
-      0x06C1: 0xC0, // ہ Heh Goal
-      0x06D2: 0xFF, // ے Yeh Barree
-    };
-
-    List<int> bytes = [];
-    for (int codeUnit in text.runes) {
-      if (unicodeToCP1256.containsKey(codeUnit)) {
-        bytes.add(unicodeToCP1256[codeUnit]!);
-      } else if (codeUnit <= 0x7F) {
-        // ASCII characters (0-127) remain unchanged
-        bytes.add(codeUnit);
-      } else {
-        // For unknown characters, use a space or question mark
-        bytes.add(0x20); // Space
-      }
-    }
-    
-    return Uint8List.fromList(bytes);
-  } catch (e) {
-    debugPrint('Error converting to CP1256: $e');
-    return null;
-  }
-}
-
-// Safe text printing method that bypasses library validation
-Future<bool> _safePrintText(NetworkPrinter printer, String text, {PosStyles? styles}) async {
-  try {
-    // Check if text contains Arabic
-    if (_containsArabic(text)) {
-      debugPrint('Text contains Arabic, using direct printing: "$text"');
-      return await _printArabicDirect(printer, text, styles: styles);
-    }
-    
-    // For non-Arabic text, use normal library method
-    String cleanText = _cleanTextForPrinting(text);
-    debugPrint('Printing non-Arabic text: "$cleanText"');
-    
-    try {
-      printer.text(cleanText, styles: styles ?? const PosStyles());
-      return true;
-    } catch (e) {
-      debugPrint('Library text printing failed, trying raw approach: $e');
-      
-      // Fallback: use raw bytes even for English
-      final bytes = utf8.encode(cleanText);
-      
-      // Apply styles if needed
-      if (styles?.bold == true) {
-        printer.rawBytes(Uint8List.fromList([0x1B, 0x45, 0x01])); // Bold ON
-      }
-      if (styles?.align == PosAlign.center) {
-        printer.rawBytes(Uint8List.fromList([0x1B, 0x61, 0x01])); // Center
-      } else if (styles?.align == PosAlign.right) {
-        printer.rawBytes(Uint8List.fromList([0x1B, 0x61, 0x02])); // Right
-      }
-      
-      printer.rawBytes(Uint8List.fromList(bytes));
-      printer.rawBytes(Uint8List.fromList([0x0A])); // Line feed
-      
-      // Reset styles
-      if (styles?.bold == true) {
-        printer.rawBytes(Uint8List.fromList([0x1B, 0x45, 0x00])); // Bold OFF
-      }
-      if (styles?.align != null) {
-        printer.rawBytes(Uint8List.fromList([0x1B, 0x61, 0x00])); // Left align
-      }
-      
-      return true;
-    }
-  } catch (e) {
-    debugPrint('All text printing methods failed: $e');
-    return false;
-  }
-}
-
-// Enhanced row printing with raw bytes fallback
-Future<bool> _safePrintRow(NetworkPrinter printer, List<PosColumn> columns) async {
-  try {
-    // Check if any column contains Arabic
-    bool hasArabic = columns.any((col) => _containsArabic(col.text));
-    
-    if (hasArabic) {
-      debugPrint('Row contains Arabic, using manual spacing');
-      
-      // Calculate total width (assuming 48 characters for 80mm paper)
-      const int totalWidth = 48;
-      String rowText = '';
-      
-      for (int i = 0; i < columns.length; i++) {
-        final column = columns[i];
-        final columnWidth = (column.width * totalWidth / 12).round(); // Convert to actual characters
-        
-        String text = _cleanTextForPrinting(column.text);
-        
-        // Handle Arabic text alignment
-        if (_containsArabic(text)) {
-          // For Arabic, we'll print it separately with right alignment
-          if (rowText.isNotEmpty) {
-            await _safePrintText(printer, rowText.trimRight());
-            rowText = '';
-          }
-          
-          // Print Arabic text with proper alignment
-          await _printArabicDirect(printer, text, styles: column.styles);
-          continue;
-        } else {
-          // For English text, add to row with spacing
-          if (column.styles.align == PosAlign.right) {
-            text = text.padLeft(columnWidth);
-          } else if (column.styles.align == PosAlign.center) {
-            final padding = (columnWidth - text.length) ~/ 2;
-            text = text.padLeft(text.length + padding).padRight(columnWidth);
-          } else {
-            text = text.padRight(columnWidth);
-          }
-          
-          rowText += text;
-        }
-      }
-      
-      // Print any remaining English text
-      if (rowText.isNotEmpty) {
-        await _safePrintText(printer, rowText.trimRight());
-      }
-      
-      return true;
-    } else {
-      // No Arabic, try normal row printing first
-      try {
-        List<PosColumn> cleanColumns = columns.map((col) {
-          return PosColumn(
-            text: _cleanTextForPrinting(col.text),
-            width: col.width,
-            styles: col.styles,
-          );
-        }).toList();
-        
-        printer.row(cleanColumns);
-        return true;
-      } catch (e) {
-        debugPrint('Normal row printing failed, using fallback: $e');
-        
-        // Fallback to manual spacing
-        String rowText = '';
-        const int totalWidth = 48;
-        
-        for (final column in columns) {
-          final columnWidth = (column.width * totalWidth / 12).round();
-          String text = _cleanTextForPrinting(column.text);
-          
-          if (column.styles.align == PosAlign.right) {
-            text = text.padLeft(columnWidth);
-          } else if (column.styles.align == PosAlign.center) {
-            final padding = (columnWidth - text.length) ~/ 2;
-            text = text.padLeft(text.length + padding).padRight(columnWidth);
-          } else {
-            text = text.padRight(columnWidth);
-          }
-          
-          rowText += text;
-        }
-        
-        await _safePrintText(printer, rowText.trimRight());
-        return true;
-      }
-    }
-  } catch (e) {
-    debugPrint('All row printing methods failed: $e');
-    return false;
-  }
-}
-
-// Enhanced printer setup for EVERYCOM
-Future<bool> _setupArabicPrinter(NetworkPrinter printer) async {
-  try {
-    debugPrint('Setting up EVERYCOM printer for Arabic support');
-    
-    // Initialize printer
-    printer.rawBytes(Uint8List.fromList([0x1B, 0x40])); // ESC @ - Initialize
-    await Future.delayed(const Duration(milliseconds: 200));
-    
-    // Set CP1256 codepage (your printer supports this as codepage 32)
-    printer.rawBytes(Uint8List.fromList([0x1B, 0x74, 32])); // ESC t 32 (CP1256)
-    await Future.delayed(const Duration(milliseconds: 100));
-    
-    // Set international character set to Arabic
-    printer.rawBytes(Uint8List.fromList([0x1B, 0x52, 0x0D])); // ESC R 13 (Arabic)
-    await Future.delayed(const Duration(milliseconds: 100));
-    
-    debugPrint('EVERYCOM printer setup completed for Arabic');
-    return true;
-  } catch (e) {
-    debugPrint('Arabic printer setup failed: $e');
-    return false;
-  }
-}
  // Replace the _printThermalReport method in your ReportScreen class
- Future<bool> _printThermalReport() async {
-  try {
-    final ip = await ThermalPrinterService.getPrinterIp();
-    final port = await ThermalPrinterService.getPrinterPort();
-    final businessInfo = await ThermalPrinterService.getBusinessInfo();
-    
-    // Initialize printer
-    final profile = await CapabilityProfile.load();
-    final printer = NetworkPrinter(PaperSize.mm80, profile);
-    
-    debugPrint('Connecting to  printer at $ip:$port for report');
-    final PosPrintResult result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 5));
-    
-    if (result != PosPrintResult.success) {
-      debugPrint('Failed to connect to printer: ${result.msg}');
+  Future<bool> _printThermalReport() async {
+    try {
+      String reportTitle;
+      String dateRangeText;
+      
+      if (_selectedReportType == 'daily') {
+        reportTitle = 'Daily Report';
+        dateRangeText = DateFormat('dd MMM yyyy').format(_selectedDate);
+      } else if (_selectedReportType == 'monthly') {
+        reportTitle = 'Monthly Report';
+        dateRangeText = DateFormat('MMMM yyyy').format(_startDate);
+      } else {
+        reportTitle = 'Custom Report';
+        dateRangeText = '${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}';
+      }
+      
+      // Use the new image-based printing
+      final printed = await ThermalPrinterService.printThermalReport(
+        reportData: _reportData!,
+        reportTitle: reportTitle,
+        dateRange: dateRangeText,
+      );
+      
+      return printed;
+    } catch (e) {
+      debugPrint('Error printing thermal report: $e');
       return false;
     }
-
-    // Setup printer for Arabic
-    await _setupArabicPrinter(printer);
-    
-    // Print business header
-    await _safePrintText(printer, businessInfo['name']!, styles: PosStyles(
-      align: _containsArabic(businessInfo['name']!) ? PosAlign.right : PosAlign.center,
-      bold: true, 
-      height: PosTextSize.size2
-    ));
-    
-    if (businessInfo['second_name']!.isNotEmpty) {
-      await _safePrintText(printer, businessInfo['second_name']!, styles: PosStyles(
-        align: _containsArabic(businessInfo['second_name']!) ? PosAlign.right : PosAlign.center,
-        bold: true, 
-        height: PosTextSize.size1
-      ));
-    }
-    
-    await _safePrintText(printer, '');
-    
-    // Get report data
-    String reportTitle;
-    String dateRangeText;
-    
-    if (_selectedReportType == 'daily') {
-      reportTitle = 'Daily Report'.tr();
-      dateRangeText = DateFormat('dd MMM yyyy').format(_selectedDate);
-    } else if (_selectedReportType == 'monthly') {
-      reportTitle = 'Monthly Report'.tr();
-      dateRangeText = DateFormat('MMMM yyyy').format(_startDate);
-    } else {
-      reportTitle = 'Monthly Report'.tr();
-      dateRangeText = '${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}';
-    }
-    
-    final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
-    final revenue = _reportData!['revenue'] ?? {};
-    final paymentTotals = _reportData!['paymentTotals'] as Map<String, dynamic>? ?? {};
-    final serviceTypeSales = _reportData!['serviceTypeSales'] as List? ?? [];
-    
-    // Print report title and date
-    await _safePrintText(printer, reportTitle, styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size1));
-    await _safePrintText(printer, dateRangeText, styles: const PosStyles(align: PosAlign.center));
-    
-    // Print separator
-    printer.rawBytes(Uint8List.fromList(List.filled(32, '='.codeUnitAt(0)) + [0x0A]));
-    
-    // Cash and Bank Sales Section
-    await _safePrintText(printer, 'Cash and Bank Sales'.tr(), styles: const PosStyles(align: PosAlign.center, bold: true));
-    printer.rawBytes(Uint8List.fromList(List.filled(32, '='.codeUnitAt(0)) + [0x0A]));
-
-    // Table headers
-    await _safePrintRow(printer, [
-      PosColumn(text: 'Method'.tr(), width: 4, styles: const PosStyles(bold: true)),
-      PosColumn(text: 'Revenue'.tr(), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-      PosColumn(text: 'Expenses'.tr(), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-    ]);
-    
-    printer.rawBytes(Uint8List.fromList(List.filled(32, '='.codeUnitAt(0)) + [0x0A]));
-
-    // Cash row
-    await _safePrintRow(printer, [
-      PosColumn(text: 'Cash Sales'.tr(), width: 4),
-      PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'cash', 'sales')), width: 4, styles: const PosStyles(align: PosAlign.right)),
-      PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'cash', 'expenses')), width: 4, styles: const PosStyles(align: PosAlign.right)),
-    ]);
-    
-    // Bank row
-    await _safePrintRow(printer, [
-      PosColumn(text: 'Bank Sales'.tr(), width: 4),
-      PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'bank', 'sales')), width: 4, styles: const PosStyles(align: PosAlign.right)),
-      PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'bank', 'expenses')), width: 4, styles: const PosStyles(align: PosAlign.right)),
-    ]);
-    
-    printer.rawBytes(Uint8List.fromList(List.filled(32, '='.codeUnitAt(0)) + [0x0A]));
-    
-    // Total row
-    await _safePrintRow(printer, [
-      PosColumn(text: 'Total'.tr(), width: 4, styles: const PosStyles(bold: true)),
-      PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'total', 'sales')), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-      PosColumn(text: currencyFormat.format(_getPaymentValue(paymentTotals, 'total', 'expenses')), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-    ]);
-    
-    // Balance row
-    final totalRevenue = _getPaymentValue(paymentTotals, 'total', 'sales');
-    final totalExpenses = _getPaymentValue(paymentTotals, 'total', 'expenses');
-    final balance = totalRevenue - totalExpenses;
-    
-    await _safePrintRow(printer, [
-      PosColumn(text: 'Balance'.tr(), width: 8, styles: const PosStyles(bold: true)),
-      PosColumn(text: currencyFormat.format(balance), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-    ]);
-    
-    await _safePrintText(printer, '');
-    
-    // Service Type Sales Section
-    await _safePrintText(printer, 'Total Sales'.tr(), styles: const PosStyles(align: PosAlign.center, bold: true));
-    printer.rawBytes(Uint8List.fromList(List.filled(32, '='.codeUnitAt(0)) + [0x0A]));
-    
-    if (serviceTypeSales.isNotEmpty) {
-      // Service type headers
-      await _safePrintRow(printer, [
-        PosColumn(text: 'Service Type'.tr(), width: 6, styles: const PosStyles(bold: true)),
-        PosColumn(text: 'Orders'.tr(), width: 3, styles: const PosStyles(bold: true, align: PosAlign.center)),
-        PosColumn(text: 'Revenue'.tr(), width: 3, styles: const PosStyles(bold: true, align: PosAlign.right)),
-      ]);
-      
-      printer.rawBytes(Uint8List.fromList(List.filled(32, '='.codeUnitAt(0)) + [0x0A]));
-
-      for (var service in serviceTypeSales) {
-        final serviceType = service['serviceType']?.toString() ?? '';
-        final totalOrders = service['totalOrders'] as int? ?? 0;
-        final totalRevenue = service['totalRevenue'] as double? ?? 0.0;
-        
-        final translatedServiceType = _getTranslatedServiceType(serviceType);
-        
-        await _safePrintRow(printer, [
-          PosColumn(
-            text: translatedServiceType, 
-            width: 6, 
-            styles: PosStyles(
-              align: _containsArabic(translatedServiceType) ? PosAlign.right : PosAlign.left
-            )
-          ),
-          PosColumn(text: '$totalOrders', width: 3, styles: const PosStyles(align: PosAlign.center)),
-          PosColumn(text: currencyFormat.format(totalRevenue), width: 3, styles: const PosStyles(align: PosAlign.right)),
-        ]);
-      }
-    } else {
-      await _safePrintText(printer, 'No sales data available'.tr(), styles: const PosStyles(align: PosAlign.center));
-    }
-    
-    await _safePrintText(printer, '');
-    
-    // Revenue Breakdown Section
-    await _safePrintText(printer, 'Revenue Breakdown'.tr(), styles: const PosStyles(align: PosAlign.center, bold: true));
-    printer.rawBytes(Uint8List.fromList(List.filled(32, '='.codeUnitAt(0)) + [0x0A]));
-    
-    // Revenue breakdown rows
-    await _safePrintRow(printer, [
-      PosColumn(text: 'Subtotal:'.tr(), width: 8, styles: const PosStyles(align: PosAlign.right)),
-      PosColumn(text: currencyFormat.format(revenue['subtotal'] as double? ?? 0.0), width: 4, styles: const PosStyles(align: PosAlign.right)),
-    ]);
-    
-    await _safePrintRow(printer, [
-      PosColumn(text: 'Tax:'.tr(), width: 8, styles: const PosStyles(align: PosAlign.right)),
-      PosColumn(text: currencyFormat.format(revenue['tax'] as double? ?? 0.0), width: 4, styles: const PosStyles(align: PosAlign.right)),
-    ]);
-    
-    await _safePrintRow(printer, [
-      PosColumn(text: 'Discounts:'.tr(), width: 8, styles: const PosStyles(align: PosAlign.right)),
-      PosColumn(text: currencyFormat.format(revenue['discounts'] as double? ?? 0.0), width: 4, styles: const PosStyles(align: PosAlign.right)),
-    ]);
-    
-    printer.rawBytes(Uint8List.fromList(List.filled(32, '='.codeUnitAt(0)) + [0x0A]));
-    
-    await _safePrintRow(printer, [
-      PosColumn(text: 'Total Revenue:'.tr(), width: 8, styles: const PosStyles(align: PosAlign.right, bold: true)),
-      PosColumn(text: currencyFormat.format(revenue['total'] as double? ?? 0.0), width: 4, styles: const PosStyles(align: PosAlign.right, bold: true)),
-    ]);
-    
-    // Footer
-    await _safePrintText(printer, '');
-    printer.rawBytes(Uint8List.fromList(List.filled(32, '='.codeUnitAt(0)) + [0x0A]));
-    
-    await _safePrintText(printer, 'End of Report', styles: const PosStyles(align: PosAlign.center));
-    await _safePrintText(printer, 'Generated: ${DateFormat('dd MMM yyyy HH:mm').format(DateTime.now())}', styles: const PosStyles(align: PosAlign.center));
-
-    // Cut paper
-    await Future.delayed(const Duration(milliseconds: 800));
-    printer.cut();
-    await Future.delayed(const Duration(milliseconds: 1500));
-    
-    printer.disconnect();
-    
-    return true;
-  } catch (e) {
-    debugPrint('Error printing thermal report: $e');
-    return false;
   }
-}
 
 // Also update the PDF generation method
 Future<pw.Document> _generateReportPdf() async {
@@ -1410,12 +920,6 @@ pw.Widget _buildPdfBalanceRow(Map<String, dynamic> paymentTotals, NumberFormat f
     } catch (e) {
       return 0.0;
     }
-  }
-
-  // Helper method to clean text for printing (removes unsupported characters, trims, etc.)
-  String _cleanTextForPrinting(String text) {
-    // Remove control characters and trim whitespace
-    return text.replaceAll(RegExp(r'[\x00-\x1F\x7F]'), '').trim();
   }
 
   // All remaining methods (UI building, data loading, etc.) remain exactly the same...
