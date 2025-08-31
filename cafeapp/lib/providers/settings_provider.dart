@@ -27,6 +27,8 @@ class SettingsProvider with ChangeNotifier {
   String _secondBusinessName = ''; // Add second business name field
   String _businessAddress = '';
   String _businessPhone = '';
+  String _businessEmail = '';
+
   
   // Receipt settings
   String _receiptFooter = 'Thank you for your visit! Please come again.';
@@ -62,6 +64,8 @@ String get languageCode {
   String get secondBusinessName => _secondBusinessName; // Add getter for second business name
   String get businessAddress => _businessAddress;
   String get businessPhone => _businessPhone;
+  String get businessEmail => _businessEmail;
+
   String get receiptFooter => _receiptFooter;
   bool get isLoading => _isLoading;
   bool get isInitialized => _isInitialized;
@@ -166,7 +170,8 @@ void initializeLanguage() {
       _secondBusinessName = prefs.getString('second_business_name') ?? _secondBusinessName; // Load second business name
       _businessAddress = prefs.getString('business_address') ?? _businessAddress;
       _businessPhone = prefs.getString('business_phone') ?? _businessPhone;
-      
+      _businessEmail = prefs.getString('business_email') ?? _businessEmail;
+
       // Load receipt settings
       _receiptFooter = prefs.getString('receipt_footer') ?? _receiptFooter;
       
@@ -269,6 +274,12 @@ void initializeLanguage() {
             await prefs.setString(key, value);
           }
           break;
+        case 'business_email':
+          if (value is String) {
+            _businessEmail = value;
+            await prefs.setString(key, value);
+          }
+          break;
         case 'receipt_footer':
           if (value is String) {
             _receiptFooter = value;
@@ -309,9 +320,10 @@ void initializeLanguage() {
     int? tableRows,
     int? tableColumns,
     String? businessName,
-    String? secondBusinessName, // Add second business name parameter
+    String? secondBusinessName, 
     String? businessAddress,
     String? businessPhone,
+    String? businessEmail, 
     String? receiptFooter,
     ThemeMode? themeMode,
   }) async {
@@ -399,6 +411,11 @@ void initializeLanguage() {
         _businessPhone = businessPhone;
         await prefs.setString('business_phone', businessPhone);
       }
+
+      if (businessEmail != null) {
+        _businessEmail = businessEmail;
+        await prefs.setString('business_email', businessEmail);
+      }
       
       // Update receipt settings
       if (receiptFooter != null) {
@@ -443,8 +460,10 @@ void initializeLanguage() {
       
       // Reset business info
       _businessName = 'SIMS CAFE';
+      _secondBusinessName = ''; 
       _businessAddress = '';
       _businessPhone = '';
+      _businessEmail = '';
       
       // Reset receipt settings
       _receiptFooter = 'Thank you for your visit! Please come again.';
@@ -467,6 +486,7 @@ void initializeLanguage() {
         secondBusinessName: _secondBusinessName, // Include second business name in rese
         businessAddress: _businessAddress,
         businessPhone: _businessPhone,
+        businessEmail: _businessEmail, // Include business email in reset
         receiptFooter: _receiptFooter,
         themeMode: _themeMode,
       );

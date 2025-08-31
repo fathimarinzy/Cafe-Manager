@@ -25,12 +25,14 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
   final TextEditingController _secondBusinessNameController = TextEditingController();
   final TextEditingController _businessAddressController = TextEditingController();
   final TextEditingController _businessPhoneController = TextEditingController();
+  final TextEditingController _businessEmailController = TextEditingController(); // NEW: Email controller
 
   // Focus nodes for business info
   final FocusNode _businessNameFocus = FocusNode();
   final FocusNode _secondBusinessNameFocus = FocusNode();
   final FocusNode _businessAddressFocus = FocusNode();
   final FocusNode _businessPhoneFocus = FocusNode();
+  final FocusNode _businessEmailFocus = FocusNode(); // NEW: Email focus node
   
   bool _isLoading = false;
   bool _showWarning = false;
@@ -47,6 +49,7 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
     _secondBusinessNameController.addListener(_onBusinessInfoChanged);
     _businessAddressController.addListener(_onBusinessInfoChanged);
     _businessPhoneController.addListener(_onBusinessInfoChanged);
+    _businessEmailController.addListener(_onBusinessInfoChanged); // NEW: Add email listener
   }
 
   @override
@@ -63,11 +66,13 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
     _secondBusinessNameController.dispose();
     _businessAddressController.dispose();
     _businessPhoneController.dispose();
+    _businessEmailController.dispose(); // NEW: Dispose email controller
 
     _businessNameFocus.dispose();
     _secondBusinessNameFocus.dispose();
     _businessAddressFocus.dispose();
     _businessPhoneFocus.dispose();
+    _businessEmailFocus.dispose(); // NEW: Dispose email focus node
 
     super.dispose();
   }
@@ -76,7 +81,8 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
     if (!_showWarning && (_businessNameController.text.isNotEmpty || 
         _secondBusinessNameController.text.isNotEmpty ||
         _businessAddressController.text.isNotEmpty || 
-        _businessPhoneController.text.isNotEmpty)) {
+        _businessPhoneController.text.isNotEmpty ||
+        _businessEmailController.text.isNotEmpty)) { // NEW: Include email check
       setState(() {
         _showWarning = true;
       });
@@ -142,6 +148,7 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
       await prefs.setString('second_business_name', _secondBusinessNameController.text.trim());
       await prefs.setString('business_address', _businessAddressController.text.trim());
       await prefs.setString('business_phone', _businessPhoneController.text.trim());
+      await prefs.setString('business_email', _businessEmailController.text.trim()); // NEW: Save email
 
       // Update SettingsProvider
       if (mounted) {
@@ -151,6 +158,7 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
           secondBusinessName: _secondBusinessNameController.text.trim(),
           businessAddress: _businessAddressController.text.trim(),
           businessPhone: _businessPhoneController.text.trim(),
+          businessEmail: _businessEmailController.text.trim(), // NEW: Pass email to settings
         );
       }
 
@@ -205,7 +213,7 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
     
     try {
       debugPrint('Attempting delayed Firebase sync...');
-      
+       
       // Debug: Check stored data again before sync
       await OfflineSyncService.debugStoredRegistrationData();
       
@@ -466,6 +474,26 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
                     borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
                   ),
                   prefixIcon: const Icon(Icons.phone),
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // NEW: Business Email
+              TextField(
+                controller: _businessEmailController,
+                focusNode: _businessEmailFocus,
+                keyboardType: TextInputType.emailAddress,
+                decoration: InputDecoration(
+                  labelText: 'Email Address'.tr(),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
+                  ),
+                  prefixIcon: const Icon(Icons.email),
                 ),
               ),
               

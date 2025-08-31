@@ -96,6 +96,7 @@ class OfflineSyncService {
       final secondBusinessName = prefs.getString('second_business_name') ?? '';
       final businessAddress = prefs.getString('business_address') ?? '';
       final businessPhone = prefs.getString('business_phone') ?? '';
+      final businessEmail = prefs.getString('business_email') ?? ''; // NEW: Get email
       final deviceId = prefs.getString('device_id') ?? '';
       
       // Debug: Print the retrieved data
@@ -104,6 +105,7 @@ class OfflineSyncService {
       debugPrint('  secondBusinessName: "$secondBusinessName"');
       debugPrint('  businessAddress: "$businessAddress"');
       debugPrint('  businessPhone: "$businessPhone"');
+      debugPrint('  businessEmail: "$businessEmail"'); // NEW: Debug email
       debugPrint('  deviceId: "$deviceId"');
       
       // Get registration keys (for offline registration)
@@ -164,6 +166,7 @@ class OfflineSyncService {
         secondBusinessName: secondBusinessName,
         businessAddress: businessAddress,
         businessPhone: businessPhone,
+        businessEmail: businessEmail,
         deviceId: deviceId,
         registrationKeys: registrationKeys,
       );
@@ -260,6 +263,7 @@ class OfflineSyncService {
       final secondBusinessName = prefs.getString('second_business_name') ?? '';
       final businessAddress = prefs.getString('business_address') ?? '';
       final businessPhone = prefs.getString('business_phone') ?? '';
+      final businessEmail = prefs.getString('business_email') ?? ''; // NEW: Get email
       final deviceId = prefs.getString('device_id') ?? '';
       
       // Debug: Print the retrieved data for force sync
@@ -268,6 +272,7 @@ class OfflineSyncService {
       debugPrint('  secondBusinessName: "$secondBusinessName"');
       debugPrint('  businessAddress: "$businessAddress"');
       debugPrint('  businessPhone: "$businessPhone"');
+      debugPrint('  businessEmail: "$businessEmail"'); // NEW: Debug email
       debugPrint('  deviceId: "$deviceId"');
       
       // Get registration keys (for offline registration)
@@ -328,6 +333,7 @@ class OfflineSyncService {
         secondBusinessName: secondBusinessName,
         businessAddress: businessAddress,
         businessPhone: businessPhone,
+        businessEmail: businessEmail,
         deviceId: deviceId,
         registrationKeys: registrationKeys,
       );
@@ -393,30 +399,30 @@ class OfflineSyncService {
     await prefs.remove(_syncInProgressKey);
     debugPrint('🧹 Sync data cleared');
   }
-  // Add this debug method to your OfflineSyncService class:
 
-/// Debug method to check what registration data is actually stored
-static Future<Map<String, dynamic>> debugStoredRegistrationData() async {
-  final prefs = await SharedPreferences.getInstance();
-  
-  final data = {
-    'business_name': prefs.getString('business_name'),
-    'second_business_name': prefs.getString('second_business_name'),
-    'business_address': prefs.getString('business_address'),
-    'business_phone': prefs.getString('business_phone'),
-    'device_id': prefs.getString('device_id'),
-    'company_registered': prefs.getBool('company_registered'),
-    'device_registered': prefs.getBool('device_registered'),
-    'device_mode': prefs.getString('device_mode'),
-    'pending_offline_sync': prefs.getBool(_pendingSyncKey),
-  };
-  
-  debugPrint('=== STORED REGISTRATION DATA DEBUG ===');
-  data.forEach((key, value) {
-    debugPrint('$key: $value');
-  });
-  debugPrint('=== END DEBUG ===');
-  
-  return data;
-}
+  /// Debug method to check what registration data is actually stored
+  static Future<Map<String, dynamic>> debugStoredRegistrationData() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    final data = {
+      'business_name': prefs.getString('business_name'),
+      'second_business_name': prefs.getString('second_business_name'),
+      'business_address': prefs.getString('business_address'),
+      'business_phone': prefs.getString('business_phone'),
+      'business_email': prefs.getString('business_email'), // NEW: Include email in debug
+      'device_id': prefs.getString('device_id'),
+      'company_registered': prefs.getBool('company_registered'),
+      'device_registered': prefs.getBool('device_registered'),
+      'device_mode': prefs.getString('device_mode'),
+      'pending_offline_sync': prefs.getBool(_pendingSyncKey),
+    };
+    
+    debugPrint('=== STORED REGISTRATION DATA DEBUG ===');
+    data.forEach((key, value) {
+      debugPrint('$key: $value');
+    });
+    debugPrint('=== END DEBUG ===');
+    
+    return data;
+  }
 }

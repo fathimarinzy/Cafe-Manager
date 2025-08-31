@@ -111,6 +111,7 @@ class FirebaseService {
     String? secondBusinessName,
     required String businessAddress,
     required String businessPhone,
+    String? businessEmail,
     required String deviceId,
     required List<String> registrationKeys,
   }) async {
@@ -139,6 +140,7 @@ class FirebaseService {
         'secondBusinessName': secondBusinessName ?? '',
         'businessAddress': businessAddress,
         'businessPhone': businessPhone,
+        'businessEmail': businessEmail ?? '',
         'deviceId': deviceId,
         'registrationKeys': registrationKeys,
         'registrationType': 'offline',
@@ -356,6 +358,7 @@ class FirebaseService {
     required List<String> registrationKeys,
     required String deviceId,
     String? businessName, // NEW: Add business name parameter
+    String? businessEmail,
 
   }) async {
     await ensureInitialized();
@@ -374,7 +377,8 @@ class FirebaseService {
       final pendingData = {
         'registrationKeys': registrationKeys,
         'deviceId': deviceId,
-        'businessName': businessName ?? '', // NEW: Include business name
+        'businessName': businessName ?? '',
+        'businessEmail': businessEmail ?? '',
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
         'expiresAt': Timestamp.fromDate(
@@ -444,6 +448,8 @@ class FirebaseService {
         return {
           'success': true,
           'pendingId': doc.id,
+          'businessEmail': data['businessEmail'] ?? '',
+          'businessName': data['businessName'] ?? '',
           'registrationKeys': List<String>.from(data['registrationKeys'] ?? []),
           'createdAt': data['createdAt'],
           'expiresAt': data['expiresAt'],
@@ -663,6 +669,7 @@ class FirebaseService {
           'secondBusinessName': data['secondBusinessName'] ?? '',
           'businessAddress': data['businessAddress'] ?? '',
           'businessPhone': data['businessPhone'] ?? '',
+          'businessEmail': data['businessEmail'] ?? '', 
           'registrationKeys': List<String>.from(data['registrationKeys'] ?? []),
           'registrationType': 'offline',
           'isActive': data['isActive'] ?? false,
@@ -788,6 +795,7 @@ class FirebaseService {
         'customerName': data['businessName'] ?? '',
         'secondCustomerName': data['secondBusinessName'] ?? '',
         'customerAddress': data['businessAddress'] ?? '',
+        'customerEmail': data['businessEmail'] ?? '',
         'customerPhone': data['businessPhone'] ?? '',
         'registrationKeys': List<String>.from(data['registrationKeys'] ?? []),
         'registrationType': 'offline',
@@ -866,6 +874,7 @@ class FirebaseService {
     required String deviceId,
     required RenewalType renewalType,
     String? businessName, // NEW: Add business name parameter
+    String? businessEmail,
 
   }) async {
     await ensureInitialized();
@@ -901,7 +910,8 @@ class FirebaseService {
       final renewalData = {
         'renewalKeys': renewalKeys,
         'deviceId': deviceId,
-        'businessName': businessName ?? '', // NEW: Include business name
+        'businessName': businessName ?? '',
+        'businessEmail': businessEmail ?? '',
         'renewalType': renewalType.toString(),
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
@@ -1124,6 +1134,8 @@ class FirebaseService {
         final data = doc.data();
         return {
           'id': doc.id,
+          'businessName': data['businessName'] ?? '',
+          'businessEmail': data['businessEmail'] ?? '',
           'renewalType': data['renewalType'],
           'renewedAt': data['renewedAt'],
           'renewalPeriod': data['renewalPeriod'],
