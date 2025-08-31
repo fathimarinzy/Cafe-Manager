@@ -556,15 +556,15 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
                       children: [
                         Icon(Icons.cloud_upload, color: Colors.blue[700], size: 20),
                         const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Data will be synced to cloud when internet is available'.tr(),
-                            style: TextStyle(
-                              color: Colors.blue[700],
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
+                        // Expanded(
+                        //   child: Text(
+                        //     'Data will be synced to cloud when internet is available'.tr(),
+                        //     style: TextStyle(
+                        //       color: Colors.blue[700],
+                        //       fontSize: 12,
+                        //     ),
+                        //   ),
+                        // ),
                       ],
                     ),
                   );

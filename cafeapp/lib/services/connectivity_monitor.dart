@@ -1,4 +1,3 @@
-// lib/services/connectivity_monitor.dart
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'firebase_service.dart';
@@ -62,8 +61,12 @@ class ConnectivityMonitor {
           
           if (syncResult['success']) {
             debugPrint('✅ Auto-sync successful after connectivity restore');
+            
+            // NEW: Update any UI that might be listening for sync completion
+            _notifySyncCompletion(true, 'Business information synced to cloud successfully');
           } else {
             debugPrint('⚠️ Auto-sync failed: ${syncResult['message']}');
+            _notifySyncCompletion(false, syncResult['message']);
           }
         }
       }
@@ -72,6 +75,17 @@ class ConnectivityMonitor {
       
     } catch (e) {
       debugPrint('⚠️ Error in connectivity check: $e');
+    }
+  }
+  
+  /// NEW: Notify about sync completion (can be used to update UI)
+  void _notifySyncCompletion(bool success, String message) {
+    // This could be expanded to use a stream controller or callback
+    // For now, just log the completion
+    if (success) {
+      debugPrint('✅ Sync notification: $message');
+    } else {
+      debugPrint('❌ Sync notification: $message');
     }
   }
   

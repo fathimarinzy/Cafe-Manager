@@ -17,6 +17,8 @@ import '../utils/database_reset_service.dart';
 import 'package:flutter/services.dart';
 import '../services/license_service.dart';
 import 'renewal_screen.dart';
+import '../services/offline_sync_service.dart';
+import '../services/connectivity_monitor.dart';
 
 
 class SettingsScreen extends StatefulWidget {
@@ -46,6 +48,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _secondBusinessNameController = TextEditingController();
   final _addressController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _emailController = TextEditingController(); // NEW: Email controller
+
   
   // Printer Settings
   bool _autoPrintReceipts = true;
@@ -107,6 +111,7 @@ Future<void> _checkLicenseStatus() async {
     _secondBusinessNameController.dispose();
     _addressController.dispose();
     _phoneController.dispose();
+    _emailController.dispose();
     _taxRateController.dispose();
     _receiptFooterController.dispose();
     _serverUrlController.dispose();
@@ -131,6 +136,7 @@ Future<void> _checkLicenseStatus() async {
       _secondBusinessNameController.text = settingsProvider.secondBusinessName;
       _addressController.text = settingsProvider.businessAddress;
       _phoneController.text = settingsProvider.businessPhone;
+      _emailController.text = settingsProvider.businessEmail; // NEW: Load email
       
       _autoPrintReceipts = settingsProvider.autoPrintReceipts;
       _autoPrintKitchenOrders = settingsProvider.autoPrintKitchenOrders;
@@ -161,6 +167,113 @@ Future<void> _checkLicenseStatus() async {
           _isLoading = false;
         });
       }
+    }
+  }
+  // NEW: Method to update business info and sync to Firestore
+  Future<void> _updateBusinessInfoAndSync({
+    required String businessName,
+    required String secondBusinessName,
+    required String address,
+    required String phone,
+    required String email,
+  }) async {
+    try {
+      // Save to local storage first
+      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+      await settingsProvider.saveAllSettings(
+        businessName: businessName,
+        secondBusinessName: secondBusinessName,
+        businessAddress: address,
+        businessPhone: phone,
+        businessEmail: email,
+      );
+
+      // Save to SharedPreferences as well
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('business_name', businessName);
+      await prefs.setString('second_business_name', secondBusinessName);
+      await prefs.setString('business_address', address);
+      await prefs.setString('business_phone', phone);
+      await prefs.setString('business_email', email);
+
+      debugPrint('Business info updated locally, marking for sync...');
+
+      // Mark as needing sync
+      await OfflineSyncService.markOfflineDataPending();
+
+      // Attempt immediate sync (non-blocking)
+      _attemptBusinessInfoSync();
+
+    } catch (e) {
+      debugPrint('Error updating business info: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating business information: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // NEW: Attempt to sync business info to Firestore
+  void _attemptBusinessInfoSync() async {
+    try {
+      // Wait a moment to ensure data is saved
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      debugPrint('Attempting to sync updated business info to Firestore...');
+
+      final syncResult = await OfflineSyncService.checkAndSync();
+
+      if (syncResult['success']) {
+        debugPrint('Business info synced to Firestore successfully');
+        
+        if (mounted) {
+          // ScaffoldMessenger.of(context).showSnackBar(
+          //   SnackBar(
+          //     content: Text('Business information synced to cloud'.tr()),
+          //     backgroundColor: Colors.green,
+          //     duration: const Duration(seconds: 2),
+          //   ),
+          // );
+        }
+      } else if (syncResult['noConnection'] == true) {
+        debugPrint('No internet connection - business info will sync when available');
+        
+        // Start connectivity monitoring for auto-sync when connection is restored
+        ConnectivityMonitor.instance.startMonitoring();
+        
+        if (mounted) {
+          // ScaffoldMessenger.of(context).showSnackBar(
+          //   SnackBar(
+          //     content: Text('Changes saved locally. Will sync when internet is available.'.tr()),
+          //     backgroundColor: Colors.orange,
+          //     duration: const Duration(seconds: 3),
+          //   ),
+          // );
+        }
+      } else {
+        debugPrint('Failed to sync business info: ${syncResult['message']}');
+        
+        // Start connectivity monitoring to retry later
+        ConnectivityMonitor.instance.startMonitoring();
+        
+        if (mounted) {
+          // ScaffoldMessenger.of(context).showSnackBar(
+          //   SnackBar(
+          //     content: Text('Changes saved locally. Sync will retry automatically.'.tr()),
+          //     backgroundColor: Colors.blue,
+          //     duration: const Duration(seconds: 2),
+          //   ),
+          // );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error during business info sync: $e');
+      // Start connectivity monitoring to retry later
+      ConnectivityMonitor.instance.startMonitoring();
     }
   }
   
@@ -1378,7 +1491,8 @@ Future<void> _checkLicenseStatus() async {
     final secondBusinessNameController = TextEditingController(text: _secondBusinessNameController.text);
     final addressController = TextEditingController(text: _addressController.text);
     final phoneController = TextEditingController(text: _phoneController.text);
-    
+    final emailController = TextEditingController(text: _emailController.text); // NEW: Email controller
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -1432,6 +1546,17 @@ Future<void> _checkLicenseStatus() async {
                     ),
                     keyboardType: TextInputType.phone,
                   ),
+                  const SizedBox(height: 16),
+                  // NEW: Email field
+                  TextFormField(
+                    controller: emailController,
+                    decoration: InputDecoration(
+                      labelText: 'Email Address'.tr(),
+                      border: const OutlineInputBorder(),
+                      hintText: 'Enter your email address'.tr(),
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                  ),
                 ],
               ),
             ),
@@ -1442,16 +1567,26 @@ Future<void> _checkLicenseStatus() async {
               child: Text('Cancel'.tr()),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async{
                 setState(() {
                   _businessNameController.text = businessNameController.text;
                   _secondBusinessNameController.text = secondBusinessNameController.text;
                   _addressController.text = addressController.text;
                   _phoneController.text = phoneController.text;
+                  _emailController.text = emailController.text; // NEW: Update email
+
                 });
                 
                 Navigator.pop(context);
-                
+                 // NEW: Trigger sync when business info is updated
+                await _updateBusinessInfoAndSync(
+                  businessName: businessNameController.text,
+                  secondBusinessName: secondBusinessNameController.text,
+                  address: addressController.text,
+                  phone: phoneController.text,
+                  email: emailController.text, // Pass email
+                );
+
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Business information updated (not saved yet)'.tr())),
                 );
