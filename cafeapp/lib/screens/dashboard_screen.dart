@@ -291,15 +291,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
         actions: [
+          // TextButton(
+          //   onPressed: () {
+          //     Navigator.of(context).pop();
+          //     // Navigate to demo renewal screen
+          //     Navigator.of(context).push(
+          //       MaterialPageRoute(
+          //         builder: (context) => const RenewalScreen(renewalType: RenewalType.demo),
+          //       ),
+          //     );
+          //   },
+          //   style: TextButton.styleFrom(
+          //     backgroundColor: Colors.blue[700],
+          //     foregroundColor: Colors.white,
+          //     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          //     shape: RoundedRectangleBorder(
+          //       borderRadius: BorderRadius.circular(8),
+          //     ),
+          //   ),
+          //   child: Text('Upgrade Now'.tr()),
+          // ),
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
-              // Navigate to demo renewal screen
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const RenewalScreen(renewalType: RenewalType.demo),
-                ),
-              );
             },
             style: TextButton.styleFrom(
               backgroundColor: Colors.blue[700],
@@ -309,21 +323,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            child: Text('Upgrade Now'.tr()),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-            style: TextButton.styleFrom(
-              backgroundColor: Colors.grey[700],
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: Text('Later'.tr()),
+            child: Text('OK'.tr()),
           ),
         ],
       );
