@@ -886,10 +886,10 @@ Future<void> _checkLicenseStatus() async {
                                       children: [
                                         Text(
                                           _isLicenseExpired ? 
-                                          'Contact support for license renewal:' :
+                                          'Contact support for license renewal:'.tr() :
                                           _remainingLicenseDays <= 30 ?
-                                          'License expiring soon. Contact support for renewal:' :
-                                          'Contact support for assistance:',
+                                          'License expiring soon. Contact support for renewal:'.tr() :
+                                          'Contact support for assistance:'.tr(),
                                           style: TextStyle(
                                             fontSize: 14,
                                             color: Colors.grey[700],
@@ -1040,8 +1040,8 @@ Future<void> _checkLicenseStatus() async {
                                       children: [
                                         Text(
                                           _remainingDemoDays <= 5 ? 
-                                          'Demo expiring soon. Contact support for full registration:' :
-                                          'Contact support for full registration:',
+                                          'Demo expiring soon. Contact support for full registration:'.tr() :
+                                          'Contact support for full registration:'.tr(),
                                           style: TextStyle(
                                             fontSize: 14,
                                             color: Colors.grey[700],
@@ -1171,7 +1171,7 @@ Future<void> _checkLicenseStatus() async {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          'Contact support for full registration:',
+                                          'Contact support for full registration:'.tr(),
                                           style: TextStyle(
                                             fontSize: 14,
                                             color: Colors.grey[700],
