@@ -48,6 +48,16 @@ class AppLocalization {
       'driveThrough': 'السيارة',
       'catering': 'تموين',
       'orderList': 'قائمة الطلبات',
+      'Demo expired. Please contact support to continue using this feature.': 'انتهت صلاحية العرض التجريبي. يرجى الاتصال بالدعم لمواصلة استخدام هذه الميزة.',
+      'License expired. Please contact support to renew your license.': 'انتهت صلاحية الترخيص. يرجى الاتصال بالدعم لتجديد ترخيصك.',
+      'Feature not available.': 'الميزة غير متاحة.',
+      'Your 30-day demo period has expired.\\nTo continue using all features, upgrade your plan.': 'انتهت فترة العرض التجريبي لمدة 30 يومًا.\\nلمواصلة استخدام جميع الميزات، قم بترقية خطتك.',
+      'Your 1-year license has expired.\\nTo continue using all features, please contact support for license renewal.': 'انتهت صلاحية ترخيصك لمدة عام واحد.\\nلمواصلة استخدام جميع الميزات، يرجى الاتصال بالدعم لتجديد الترخيص.',
+      'Contact Support:': 'اتصل بالدعم:',
+      'Renew License': 'تجديد الترخيص',
+      'Later': 'لاحقاً',
+      'Upgrade Now': 'الترقية الآن',
+      'settings': 'الإعدادات',
         
       // Login screen
       'Login': 'تسجيل الدخول',
@@ -271,6 +281,7 @@ class AppLocalization {
       'TOTAL:': 'المجموع الكلي:',
       'Payment': 'الدفع',
       'Tender Payment': 'دفع الفاتورة',
+      'Reprint KOT': 'إعادة طباعة KOT',
       'Order not found': 'الطلب غير موجود',
       'Go Back': 'العودة',
       'Edit Order Items': 'تعديل عناصر الطلب',
@@ -290,6 +301,7 @@ class AppLocalization {
       'Delivery': 'توصيل',
       'Drive Through': 'السيارة',
       'Catering': 'تموين',
+
 
       // Order List Screen
      'All Orders': 'جميع الطلبات',
@@ -404,6 +416,14 @@ class AppLocalization {
     'Would you like to save kitchen receipt as PDF?': 'هل تريد حفظ إيصال المطبخ كملف PDF؟',
     'KOT printer connection is disabled': 'اتصال طابعة المطبخ معطل',
     '5. You can use the same printer for both purposes with different IP addresses or disable KOT printing': '5. يمكنك استخدام نفس الطابعة لكلا الغرضين مع عناوين IP مختلفة أو تعطيل طباعة KOT.',
+    'Make sure printers are connected to the same network': 'تأكد من أن الطابعات متصلة بنفس الشبكة',
+    'Select a printer to configure:': 'حدد طابعة لتكوينها:',
+    'Network Printer': 'طابعة الشبكة',
+    'Set as Receipt Printer': 'تعيين كطابعة إيصالات',
+    'Set as KOT Printer': 'تعيين كطابعة KOT',
+    'Receipt printer configured with {ip}': 'تم تكوين طابعة الإيصالات مع {ip}',
+    'KOT printer configured with {ip}': 'تم تكوين طابعة KOT مع {ip}',
+    'Close': 'إغلاق',
 
 
 
@@ -510,6 +530,24 @@ class AppLocalization {
     'Language changed successfully': 'تم تغيير اللغة بنجاح',
     'Are you sure you want to logout?': 'هل أنت متأكد أنك تريد تسجيل الخروج؟',
     'Logout':'تسجيل الخروج',
+    'License Active': 'ترخيص نشط',
+    'License Expired': 'انتهت صلاحية الترخيص',
+    'License will expire in {days} days': 'ستنتهي صلاحية الترخيص في {days} يومًا',
+    'Contact support for assistance': 'اتصل بالدعم للمساعدة',
+    'License expiring soon. Contact support for renewal:': 'ترخيصك على وشك الانتهاء. اتصل بالدعم لتجديده:',
+    'Contact support for license renewal:': 'اتصل بالدعم لتجديد الترخيص:',
+    'Demo Expired': 'انتهت صلاحية العرض التجريبي',
+    'days left': 'أيام متبقية',
+    'Demo Mode Active': 'وضع العرض التجريبي نشط',
+    'Contact support for full registration:': 'اتصل بالدعم للتسجيل الكامل:',
+    'Demo expiring soon. Contact support for full registration:': 'العرض التجريبي على وشك الانتهاء. اتصل بالدعم للتسجيل الكامل:',
+    'Demo expired. Settings cannot be modified.': 'انتهت صلاحية العرض التجريبي. لا يمكن تعديل الإعدادات.',
+    'Changes saved locally. Will sync when internet is available.': 'تم حفظ التغييرات محلياً. ستتم المزامنة عند توفر الإنترنت.',
+    'Changes saved locally. Sync will retry automatically.': 'تم حفظ التغييرات محلياً. ستحاول المزامنة مرة أخرى تلقائياً.',
+    'Business information synced to cloud': 'تم مزامنة معلومات العمل مع السحابة',
+    'Email Address': 'عنوان البريد الإلكتروني',
+    'Enter your email address': 'أدخل عنوان بريدك الإلكتروني',
+
 
     // Settings Password Dialog
     'Enter Password': 'أدخل كلمة المرور',
@@ -674,6 +712,8 @@ class AppLocalization {
     'No printer was found. Would you like to save the receipt as a PDF?': 'لم يتم العثور على طابعة. هل تريد حفظ الإيصال كملف PDF؟',
     'Save PDF': 'حفظ PDF',
     'View Bill': 'عرض الفاتورة',
+    'Reprint': 'إعادة طباعة',
+    'Printing failed and PDF save was cancelled': 'فشل الطباعة وتم إلغاء حفظ PDF',
 
 
     //bill Service
@@ -684,9 +724,36 @@ class AppLocalization {
     'Failed to save the bill':"فشل في حفظ الفاتورة",
     'Could not print kitchen receipt. Would you like to save it as a PDF?':'تعذر طباعة إيصال المطبخ. هل ترغب في حفظه كملف PDF؟',
     'Kitchen receipt saved as PDF':'إيصال المطبخ محفوظ بصيغة PDF',
-    'Failed to print or save kitchen receipt':'فشل في طباعة أو حفظ إيصال المطبخ'
+    'Failed to print or save kitchen receipt':'فشل في طباعة أو حفظ إيصال المطبخ',
+    'KOT printer is disabled. Would you like to save kitchen receipt as PDF?':'تم تعطيل طابعة KOT. هل ترغب في حفظ إيصال المطبخ كملف PDF؟',
 
-
+     // Renewal Screen translations
+      'Demo Renewal': 'تجديد العرض التجريبي',
+      'License Renewal': 'تجديد الترخيص',
+      'Upgrade Plan': 'ترقية الخطة',
+      'Renew your license for another year': 'جدد ترخيصك لعام آخر',
+      'Generate Renewal Keys': 'توليد مفاتيح التجديد',
+      'Click the button below to generate your unique renewal keys': 'انقر على الزر أدناه لتوليد مفاتيح التجديد الفريدة الخاصة بك',
+      'Generate': 'توليد',
+      'Contact for Keys': 'اتصل للحصول على المفاتيح',
+      'Renewal keys have been generated for your device. Please contact support to get your keys:': 'تم توليد مفاتيح التجديد لجهازك. يرجى الاتصال بالدعم للحصول على مفاتيحك:',
+      'Keys are valid for 7 days. Please complete renewal within this time.': 'المفاتيح صالحة لمدة 7 أيام. يرجى إكمال التجديد خلال هذا الوقت.',
+      'Enter Your Renewal Keys:': 'أدخل مفاتيح التجديد الخاصة بك:',
+      'Renew': 'تجديد',
+      'Renewal keys generated successfully! Contact support to get your keys.': 'تم توليد مفاتيح التجديد بنجاح! اتصل بالدعم للحصول على مفاتيحك.',
+      'Please fill all renewal key fields': 'يرجى ملء جميع حقول مفاتيح التجديد',
+      'Renewal successful!': 'تم التجديد بنجاح!',
+      'These renewal keys have already been used. Please contact support for new keys.': 'تم استخدام مفاتيح التجديد هذه بالفعل. يرجى الاتصال بالدعم للحصول على مفاتيح جديدة.',
+      'These renewal keys were just used. Please contact support for new keys.': 'تم استخدام مفاتيح التجديد هذه للتو. يرجى الاتصال بالدعم للحصول على مفاتيح جديدة.',
+      'Invalid renewal keys. Please check and try again.': 'مفاتيح تجديد غير صالحة. يرجى التحقق والمحاولة مرة أخرى.',
+      'No pending renewal found. Please generate keys first.': 'لم يتم العثور على تجديد معلق. يرجى توليد المفاتيح أولاً.',
+      'Renewal keys have expired. Please generate new ones.': 'انتهت صلاحية مفاتيح التجديد. يرجى توليد مفاتيح جديدة.',
+      'You already have pending renewal keys. Please use those keys to complete renewal.': 'لديك بالفعل مفاتيح تجديد معلقة. يرجى استخدام تلك المفاتيح لإكمال التجديد.',
+      'Your previous renewal keys have expired. You can generate new ones.': 'انتهت صلاحية مفاتيح التجديد السابقة. يمكنك توليد مفاتيح جديدة.',
+      'Failed to generate renewal keys': 'فشل في توليد مفاتيح التجديد',
+      'Failed to generate keys. Please check your internet connection and try again.': 'فشل في توليد المفاتيح. يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.',
+      'This device already has pending renewal keys. Please use those keys or contact support.': 'هذا الجهاز لديه بالفعل مفاتيح تجديد معلقة. يرجى استخدام تلك المفاتيح أو الاتصال بالدعم.',
+      'Renewal failed. Please check your internet connection and try again.': 'فشل التجديد. يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.',
 
 
 
