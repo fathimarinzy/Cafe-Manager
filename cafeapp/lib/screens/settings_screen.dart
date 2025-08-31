@@ -1576,7 +1576,8 @@ Future<void> _checkLicenseStatus() async {
                   _emailController.text = emailController.text; // NEW: Update email
 
                 });
-                
+                final messenger = ScaffoldMessenger.of(context);
+
                 Navigator.pop(context);
                  // NEW: Trigger sync when business info is updated
                 await _updateBusinessInfoAndSync(
@@ -1586,8 +1587,8 @@ Future<void> _checkLicenseStatus() async {
                   phone: phoneController.text,
                   email: emailController.text, // Pass email
                 );
-
-                ScaffoldMessenger.of(context).showSnackBar(
+      
+                messenger.showSnackBar(
                   SnackBar(content: Text('Business information updated (not saved yet)'.tr())),
                 );
               },
