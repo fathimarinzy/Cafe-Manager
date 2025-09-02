@@ -1531,7 +1531,7 @@ Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async 
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          padding: const EdgeInsets.symmetric(vertical: 15),
+          padding: const EdgeInsets.symmetric(vertical: 20),
         ),
         child: isBackspace 
           ? const Icon(Icons.backspace, size: 22)
@@ -2073,7 +2073,7 @@ Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async 
         margin: const EdgeInsets.all(4),
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16),
+            padding: const EdgeInsets.symmetric(vertical: 20),
             backgroundColor: text == 'Add'.tr() ? Colors.blue.shade700 : Colors.blue.shade100,
             foregroundColor: text == 'Add'.tr() ? Colors.white : Colors.blue.shade800,
           ),
