@@ -1157,5 +1157,99 @@ class FirebaseService {
       };
     }
   }
+  // NEW: Update online registration business information
+  static Future<Map<String, dynamic>> updateOnlineRegistrationInfo({
+    required String companyId,
+    required String businessName,
+    String? secondBusinessName,
+    required String businessAddress,
+    required String businessPhone,
+    required String businessEmail,
+  }) async {
+    await ensureInitialized();
+    
+    if (!isFirebaseAvailable) {
+      return {
+        'success': false,
+        'message': 'No internet connection. Changes saved locally only.',
+        'isOffline': true,
+      };
+    }
 
+    try {
+      debugPrint('🔵 Updating online registration business info in Firebase...');
+      
+      await _firestore
+          .collection(_companiesCollection)
+          .doc(companyId)
+          .update({
+        'businessName': businessName,
+        'secondBusinessName': secondBusinessName ?? '',
+        'businessAddress': businessAddress,
+        'businessPhone': businessPhone,
+        'businessEmail': businessEmail,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      debugPrint('✅ Online registration business info updated successfully');
+      return {
+        'success': true,
+        'message': 'Business information updated successfully',
+      };
+    } catch (e) {
+      debugPrint('❌ Error updating online registration business info: $e');
+      return {
+        'success': false,
+        'message': 'Failed to update business information: ${e.toString()}',
+      };
+    }
+  }
+
+  // NEW: Update demo registration business information
+  static Future<Map<String, dynamic>> updateDemoRegistrationInfo({
+    required String companyId,
+    required String businessName,
+    String? secondBusinessName,
+    required String businessAddress,
+    required String businessPhone,
+    required String businessEmail,
+  }) async {
+    await ensureInitialized();
+    
+    if (!isFirebaseAvailable) {
+      return {
+        'success': false,
+        'message': 'No internet connection. Changes saved locally only.',
+        'isOffline': true,
+      };
+    }
+
+    try {
+      debugPrint('🔵 Updating demo registration business info in Firebase...');
+      
+      await _firestore
+          .collection(_demoRegistrationsCollection)
+          .doc(companyId)
+          .update({
+        'businessName': businessName,
+        'secondBusinessName': secondBusinessName ?? '',
+        'businessAddress': businessAddress,
+        'businessPhone': businessPhone,
+        'businessEmail': businessEmail,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      debugPrint('✅ Demo registration business info updated successfully');
+      return {
+        'success': true,
+        'message': 'Demo business information updated successfully',
+      };
+    } catch (e) {
+      debugPrint('❌ Error updating demo registration business info: $e');
+      return {
+        'success': false,
+        'message': 'Failed to update demo business information: ${e.toString()}',
+      };
+    }
+  }
 }

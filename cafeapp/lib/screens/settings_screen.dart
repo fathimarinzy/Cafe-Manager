@@ -19,6 +19,7 @@ import '../services/license_service.dart';
 import 'renewal_screen.dart';
 import '../services/offline_sync_service.dart';
 import '../services/connectivity_monitor.dart';
+import '../services/online_sync_service.dart';
 
 
 class SettingsScreen extends StatefulWidget {
@@ -46,9 +47,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // Business Information
   final _businessNameController = TextEditingController();
   final _secondBusinessNameController = TextEditingController();
-  final _addressController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _emailController = TextEditingController(); // NEW: Email controller
+  final _businessAddressController = TextEditingController();
+  final _businessPhoneController = TextEditingController();
+  final _businessEmailController = TextEditingController(); // NEW: Email controller
 
   
   // Printer Settings
@@ -109,9 +110,9 @@ Future<void> _checkLicenseStatus() async {
   void dispose() {
     _businessNameController.dispose();
     _secondBusinessNameController.dispose();
-    _addressController.dispose();
-    _phoneController.dispose();
-    _emailController.dispose();
+    _businessAddressController.dispose();
+    _businessPhoneController.dispose();
+    _businessEmailController.dispose();
     _taxRateController.dispose();
     _receiptFooterController.dispose();
     _serverUrlController.dispose();
@@ -134,9 +135,9 @@ Future<void> _checkLicenseStatus() async {
       
       _businessNameController.text = settingsProvider.businessName;
       _secondBusinessNameController.text = settingsProvider.secondBusinessName;
-      _addressController.text = settingsProvider.businessAddress;
-      _phoneController.text = settingsProvider.businessPhone;
-      _emailController.text = settingsProvider.businessEmail; // NEW: Load email
+      _businessAddressController.text = settingsProvider.businessAddress;
+      _businessPhoneController.text = settingsProvider.businessPhone;
+      _businessEmailController.text = settingsProvider.businessEmail; // NEW: Load email
       
       _autoPrintReceipts = settingsProvider.autoPrintReceipts;
       _autoPrintKitchenOrders = settingsProvider.autoPrintKitchenOrders;
@@ -173,9 +174,9 @@ Future<void> _checkLicenseStatus() async {
   Future<void> _updateBusinessInfoAndSync({
     required String businessName,
     required String secondBusinessName,
-    required String address,
-    required String phone,
-    required String email,
+    required String businessAddress,
+    required String businessPhone,
+    required String businessEmail,
   }) async {
     try {
       // Save to local storage first
@@ -183,18 +184,18 @@ Future<void> _checkLicenseStatus() async {
       await settingsProvider.saveAllSettings(
         businessName: businessName,
         secondBusinessName: secondBusinessName,
-        businessAddress: address,
-        businessPhone: phone,
-        businessEmail: email,
+        businessAddress: businessAddress,
+        businessPhone: businessPhone,
+        businessEmail: businessEmail,
       );
 
       // Save to SharedPreferences as well
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('business_name', businessName);
       await prefs.setString('second_business_name', secondBusinessName);
-      await prefs.setString('business_address', address);
-      await prefs.setString('business_phone', phone);
-      await prefs.setString('business_email', email);
+      await prefs.setString('business_address', businessAddress);
+      await prefs.setString('business_phone', businessPhone);
+      await prefs.setString('business_email', businessEmail);
 
       debugPrint('Business info updated locally, marking for sync...');
 
@@ -202,7 +203,13 @@ Future<void> _checkLicenseStatus() async {
       await OfflineSyncService.markOfflineDataPending();
 
       // Attempt immediate sync (non-blocking)
-      _attemptBusinessInfoSync();
+      _attemptBusinessInfoSync(
+        businessName: businessName,
+        secondBusinessName: secondBusinessName,
+        businessAddress: businessAddress,
+        businessPhone: businessPhone,
+        businessEmail: businessEmail,
+      );
 
     } catch (e) {
       debugPrint('Error updating business info: $e');
@@ -218,14 +225,27 @@ Future<void> _checkLicenseStatus() async {
   }
 
   // NEW: Attempt to sync business info to Firestore
-  void _attemptBusinessInfoSync() async {
+  void _attemptBusinessInfoSync({
+    required String businessName,
+    required String secondBusinessName,
+    required String businessAddress,
+    required String businessPhone,
+    required String businessEmail,
+  }) async {
     try {
       // Wait a moment to ensure data is saved
       await Future.delayed(const Duration(milliseconds: 500));
 
       debugPrint('Attempting to sync updated business info to Firestore...');
-
-      final syncResult = await OfflineSyncService.checkAndSync();
+      // Use the online sync service
+      final syncResult = await OnlineSyncService.syncBusinessInfo(
+        businessName: businessName,
+        secondBusinessName: secondBusinessName,
+        businessAddress: businessAddress,
+        businessPhone: businessPhone,
+        businessEmail: businessEmail,
+      );
+      // final syncResult = await OfflineSyncService.checkAndSync();
 
       if (syncResult['success']) {
         debugPrint('Business info synced to Firestore successfully');
@@ -314,8 +334,9 @@ Future<void> _checkLicenseStatus() async {
         await settingsProvider.saveAllSettings(
           businessName: _businessNameController.text,
           secondBusinessName: _secondBusinessNameController.text,
-          businessAddress: _addressController.text,
-          businessPhone: _phoneController.text,
+          businessAddress: _businessAddressController.text,
+          businessPhone: _businessPhoneController.text,
+          businessEmail: _businessEmailController.text,
           taxRate: taxRate,
           tableRows: _tableRows,
           tableColumns: _tableColumns,
@@ -1489,9 +1510,9 @@ Future<void> _checkLicenseStatus() async {
   void _showBusinessInfoDialog() {
     final businessNameController = TextEditingController(text: _businessNameController.text);
     final secondBusinessNameController = TextEditingController(text: _secondBusinessNameController.text);
-    final addressController = TextEditingController(text: _addressController.text);
-    final phoneController = TextEditingController(text: _phoneController.text);
-    final emailController = TextEditingController(text: _emailController.text); // NEW: Email controller
+    final businessAddressController = TextEditingController(text: _businessAddressController.text);
+    final businessPhoneController = TextEditingController(text: _businessPhoneController.text);
+    final businessEmailController = TextEditingController(text: _businessEmailController.text); // NEW: Email controller
 
     showDialog(
       context: context,
@@ -1528,7 +1549,7 @@ Future<void> _checkLicenseStatus() async {
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
-                    controller: addressController,
+                    controller: businessAddressController,
                     decoration: InputDecoration(
                       labelText: 'Address'.tr(),
                       border: const OutlineInputBorder(),
@@ -1538,7 +1559,7 @@ Future<void> _checkLicenseStatus() async {
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
-                    controller: phoneController,
+                    controller: businessPhoneController,
                     decoration: InputDecoration(
                       labelText: 'Phone Number'.tr(),
                       border: const OutlineInputBorder(),
@@ -1549,7 +1570,7 @@ Future<void> _checkLicenseStatus() async {
                   const SizedBox(height: 16),
                   // NEW: Email field
                   TextFormField(
-                    controller: emailController,
+                    controller: businessEmailController,
                     decoration: InputDecoration(
                       labelText: 'Email Address'.tr(),
                       border: const OutlineInputBorder(),
@@ -1571,9 +1592,9 @@ Future<void> _checkLicenseStatus() async {
                 setState(() {
                   _businessNameController.text = businessNameController.text;
                   _secondBusinessNameController.text = secondBusinessNameController.text;
-                  _addressController.text = addressController.text;
-                  _phoneController.text = phoneController.text;
-                  _emailController.text = emailController.text; // NEW: Update email
+                  _businessAddressController.text = businessAddressController.text;
+                  _businessPhoneController.text = businessPhoneController.text;
+                  _businessEmailController.text = businessEmailController.text; // NEW: Update email
 
                 });
                 final messenger = ScaffoldMessenger.of(context);
@@ -1583,9 +1604,9 @@ Future<void> _checkLicenseStatus() async {
                 await _updateBusinessInfoAndSync(
                   businessName: businessNameController.text,
                   secondBusinessName: secondBusinessNameController.text,
-                  address: addressController.text,
-                  phone: phoneController.text,
-                  email: emailController.text, // Pass email
+                  businessAddress: businessAddressController.text,
+                  businessPhone: businessPhoneController.text,
+                  businessEmail: businessEmailController.text, // Pass email
                 );
       
                 messenger.showSnackBar(

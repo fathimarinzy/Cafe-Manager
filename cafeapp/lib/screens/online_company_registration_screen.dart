@@ -253,6 +253,12 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
       );
 
       if (result['success']) {
+        
+        // IMPORTANT: Store the company ID from the demo registration result
+        if (result['companyId'] != null) {
+          await prefs.setString('company_id', result['companyId']);
+          debugPrint('✅ Demo company ID stored in prefs: ${result['companyId']}');
+        }
         // Save business information to SharedPreferences
         await prefs.setString('business_name', _businessNameController.text.trim());
         await prefs.setString('second_business_name', _secondBusinessNameController.text.trim());
@@ -268,6 +274,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
             secondBusinessName: _secondBusinessNameController.text.trim(),
             businessAddress: _businessAddressController.text.trim(),
             businessPhone: _businessPhoneController.text.trim(),
+            businessEmail: _businessEmailController.text.trim(),
           );
         }
 
@@ -378,6 +385,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
             secondBusinessName: _secondBusinessNameController.text.trim(),
             businessAddress: _businessAddressController.text.trim(),
             businessPhone: _businessPhoneController.text.trim(),
+            businessEmail: _businessEmailController.text.trim(),
           );
         }
 

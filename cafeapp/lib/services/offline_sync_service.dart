@@ -10,7 +10,7 @@ class OfflineSyncService {
   static const String _syncInProgressKey = 'sync_in_progress';
   
   // Minimum time between sync attempts (to avoid spam)
-  static const Duration _minSyncInterval = Duration(minutes: 5);
+  static const Duration _minSyncInterval = Duration(seconds: 30);
   
   /// Check if there's offline registration data that needs syncing
   static Future<bool> hasPendingOfflineData() async {

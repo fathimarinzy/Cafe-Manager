@@ -22,7 +22,7 @@ class DemoService {
     required String deviceId,
   }) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      
       final now = DateTime.now();
       
       // Store demo info in Firebase
@@ -34,6 +34,13 @@ class DemoService {
         businessEmail: businessEmail,
         deviceId: deviceId,
       );
+        final prefs = await SharedPreferences.getInstance();
+    
+       // Store demo status locally
+        await prefs.setBool('demo_mode', true);
+        await prefs.setString('demo_start_date', DateTime.now().toIso8601String());
+        await prefs.setString('demo_expiry_date', 
+        DateTime.now().add(const Duration(days: 30)).toIso8601String());
 
       if (firebaseResult['success']) {
         // Store local demo data
