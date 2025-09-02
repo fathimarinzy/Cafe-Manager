@@ -1349,12 +1349,12 @@ static Future<Uint8List?> _generateKotImage({
         contentHeight += 2 + 12; // Line + space
 
         // Footer - generous spacing
-        contentHeight += (_fontSize - 2) + 8; // "End of Report"
-        final generateTimePainter = _createTextPainter(
-          'Generated: ${DateFormat('dd MMM yyyy HH:mm').format(DateTime.now())}',
-          fontSize: _fontSize - 4,
-        );
-        contentHeight += generateTimePainter.height + 10;
+        // contentHeight += (_fontSize - 2) + 8; // "End of Report"
+        // final generateTimePainter = _createTextPainter(
+        //   'Generated: ${DateFormat('dd MMM yyyy HH:mm').format(DateTime.now())}',
+        //   fontSize: _fontSize - 4,
+        // );
+        // contentHeight += generateTimePainter.height + 10;
 
         // Arabic footer if needed
         if (hasArabicContent) {
@@ -1579,14 +1579,14 @@ static Future<Uint8List?> _generateKotImage({
         textAlign: TextAlign.center,
       );
       
-      currentY = _drawText(
-        canvas,
-        'Generated: ${DateFormat('dd MMM yyyy HH:mm').format(DateTime.now())}',
-        x: _padding,
-        y: currentY,
-        fontSize: _fontSize - 4,
-        textAlign: TextAlign.center,
-      );
+      // currentY = _drawText(
+      //   canvas,
+      //   'Generated: ${DateFormat('dd MMM yyyy HH:mm').format(DateTime.now())}',
+      //   x: _padding,
+      //   y: currentY,
+      //   fontSize: _fontSize - 4,
+      //   textAlign: TextAlign.center,
+      // );
       
       // Arabic footer if needed
       // if (hasArabicContent) {

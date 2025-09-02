@@ -288,7 +288,7 @@ class _ReportScreenState extends State<ReportScreen> {
         reportTitle = 'Monthly Report';
         dateRangeText = DateFormat('MMMM yyyy').format(_startDate);
       } else {
-        reportTitle = 'Custom Report';
+        reportTitle = 'Monthly Report';
         dateRangeText = '${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}';
       }
       
