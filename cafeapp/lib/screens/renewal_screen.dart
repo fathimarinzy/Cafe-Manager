@@ -118,12 +118,19 @@ class _RenewalScreenState extends State<RenewalScreen> {
         await prefs.setString('device_id', deviceId);
       }
         // NEW: Get business name from saved preferences
-    String? businessName = prefs.getString('business_name');
-    if (businessName == null || businessName.isEmpty) {
-      businessName = widget.renewalType == RenewalType.demo 
-          ? '' 
-          : '';
-    }
+      String? businessName = prefs.getString('business_name');
+      String? businessEmail = prefs.getString('business_email');
+
+      if (businessName == null || businessName.isEmpty ) {
+        businessName = widget.renewalType == RenewalType.demo 
+            ? '' 
+            : '';
+      }
+      if (businessEmail == null || businessEmail.isEmpty) {
+        businessEmail = widget.renewalType == RenewalType.demo
+            ? ''
+            : '';
+      }
       final generatedKeys = FirebaseService.generateRegistrationKeys();
       
       final result = await FirebaseService.storePendingRenewal(
@@ -131,6 +138,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
         deviceId: deviceId,
         renewalType: widget.renewalType,
         businessName: businessName, // Pass business name
+        businessEmail: businessEmail, // Pass business email
 
       );
 
