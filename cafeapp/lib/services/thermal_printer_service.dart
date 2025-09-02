@@ -332,12 +332,12 @@ static Future<Uint8List?> _generateReceiptImage({
     double contentHeight = _padding; // Top padding
     
     // Header section
-    final receiptPainter = _createTextPainter(
-      'RECEIPT',
-      fontSize: _largeFontSize - 6,
-      fontWeight: FontWeight.bold,
-    );
-    contentHeight += receiptPainter.height + 2; // Title + spacing + extra
+    // final receiptPainter = _createTextPainter(
+    //   'RECEIPT',
+    //   fontSize: _largeFontSize - 6,
+    //   fontWeight: FontWeight.bold,
+    // );
+    // contentHeight += receiptPainter.height + 2; // Title + spacing + extra
     
     final businessNamePainter = _createTextPainter(
       businessInfo['name']!,
@@ -497,17 +497,17 @@ static Future<Uint8List?> _generateReceiptImage({
     double currentY = _padding;
     
     // Header
-    currentY = _drawText(
-      canvas,
-      'RECEIPT',
-      x: _padding,
-      y: currentY,
-      fontSize: _largeFontSize - 6,
-      fontWeight: FontWeight.bold,
-      textAlign: TextAlign.center,
-    );
+    // currentY = _drawText(
+    //   canvas,
+    //   'RECEIPT',
+    //   x: _padding,
+    //   y: currentY,
+    //   fontSize: _largeFontSize - 6,
+    //   fontWeight: FontWeight.bold,
+    //   textAlign: TextAlign.center,
+    // );
     
-    currentY -= 5;
+    // currentY -= 5;
     
     // Business name
     currentY = _drawText(
@@ -1290,7 +1290,7 @@ static Future<Uint8List?> _generateKotImage({
         // Cash and Bank Sales Section
         final cashBankHeaderPainter = _createTextPainter(
           'Cash and Bank Sales',
-          fontSize: _fontSize,
+          fontSize: _fontSize - 2,
           fontWeight: FontWeight.bold,
         );
         contentHeight += cashBankHeaderPainter.height + 10; // Increased
@@ -1306,7 +1306,7 @@ static Future<Uint8List?> _generateKotImage({
         // Total Sales Section
         final totalSalesHeaderPainter = _createTextPainter(
           'Total Sales',
-          fontSize: _fontSize,
+          fontSize: _fontSize - 2,
           fontWeight: FontWeight.bold,
         );
         contentHeight += totalSalesHeaderPainter.height + 10; // Increased
@@ -1336,7 +1336,7 @@ static Future<Uint8List?> _generateKotImage({
         // Revenue Breakdown Section  
         final revenueHeaderPainter = _createTextPainter(
           'Revenue Breakdown',
-          fontSize: _fontSize,
+          fontSize: _fontSize - 2,
           fontWeight: FontWeight.bold,
         );
         contentHeight += revenueHeaderPainter.height + 10; // Increased
@@ -1434,7 +1434,7 @@ static Future<Uint8List?> _generateKotImage({
         'Cash and Bank Sales',
         x: _padding,
         y: currentY,
-        fontSize: _fontSize,
+        fontSize: _fontSize - 2,
         fontWeight: FontWeight.bold,
         textAlign: TextAlign.center,
       );
@@ -1489,7 +1489,7 @@ static Future<Uint8List?> _generateKotImage({
         'Total Sales',
         x: _padding,
         y: currentY,
-        fontSize: _fontSize,
+        fontSize: _fontSize - 2,
         fontWeight: FontWeight.bold,
         textAlign: TextAlign.center,
       );
@@ -1536,7 +1536,7 @@ static Future<Uint8List?> _generateKotImage({
         'Revenue Breakdown',
         x: _padding,
         y: currentY,
-        fontSize: _fontSize,
+        fontSize: _fontSize - 2,
         fontWeight: FontWeight.bold,
         textAlign: TextAlign.center,
       );
