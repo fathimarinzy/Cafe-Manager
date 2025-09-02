@@ -163,7 +163,7 @@ class BillService {
                       arabicFont: arabicFont,
                       fallbackFont: fallbackFont,
                       style: pw.TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: pw.FontWeight.bold,
                       ),
                       textAlign: pw.TextAlign.center,
