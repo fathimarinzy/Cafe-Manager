@@ -8,7 +8,7 @@ import '../screens/renewal_screen.dart';
 
 class FirebaseService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  static const String _companiesCollection = 'registered_companies';
+  static const String _companiesCollection = 'online_registrations';
   static const String _pendingRegistrationsCollection = 'pending_registrations';
   static const String _demoRegistrationsCollection = 'demo_registrations';
   static const String _offlineRegistrationsCollection = 'offline_registrations'; // NEW: Offline collection
@@ -473,11 +473,11 @@ class FirebaseService {
 
   // UPDATED: Register company with email field
   static Future<Map<String, dynamic>> registerCompany({
-    required String customerName,
-    String? secondCustomerName,
-    required String customerAddress,
-    required String customerPhone,
-    required String customerEmail, // NEW: Email field
+    required String businessName,
+    String? secondBusinessName,
+    required String businessAddress,
+    required String businessPhone,
+    required String businessEmail, // NEW: Email field
     required String deviceId,
     required List<String> userEnteredKeys,
   }) async {
@@ -511,11 +511,11 @@ class FirebaseService {
       final result = await Future.any([
         _performRegistration(
           registrationKeys: storedKeys,
-          customerName: customerName,
-          secondCustomerName: secondCustomerName,
-          customerAddress: customerAddress,
-          customerPhone: customerPhone,
-          customerEmail: customerEmail, // Pass email
+          businessName: businessName,
+          secondBusinessName: secondBusinessName,
+          businessAddress: businessAddress,
+          businessPhone: businessPhone,
+          businessEmail: businessEmail, // Pass email
           deviceId: deviceId,
           pendingId: pendingResult['pendingId'],
         ),
@@ -546,23 +546,23 @@ class FirebaseService {
   // UPDATED: Add email to registration
   static Future<Map<String, dynamic>> _performRegistration({
     required List<String> registrationKeys,
-    required String customerName,
-    String? secondCustomerName,
-    required String customerAddress,
-    required String customerPhone,
-    required String customerEmail, // NEW: Email field
+    required String businessName,
+    String? secondBusinessName,
+    required String businessAddress,
+    required String businessPhone,
+    required String businessEmail, // NEW: Email field
     required String deviceId,
     required String pendingId,
   }) async {
     final companyData = {
       'registrationKeys': registrationKeys,
-      'customerName': customerName,
-      'secondCustomerName': secondCustomerName ?? '',
-      'customerAddress': customerAddress,
-      'customerPhone': customerPhone,
-      'customerEmail': customerEmail, // NEW: Store email
+      'businessName': businessName,
+      'secondBusinessName': secondBusinessName ?? '',
+      'businessAddress': businessAddress,
+      'businessPhone': businessPhone,
+      'businessEmail': businessEmail, // NEW: Store email
       'deviceId': deviceId,
-      'registrationType': 'full', // Distinguish from demo
+      'registrationType': 'online', // Distinguish from demo
       'isActive': true,
       'registeredAt': FieldValue.serverTimestamp(),
       'lastLoginAt': FieldValue.serverTimestamp(),
@@ -731,13 +731,13 @@ class FirebaseService {
         'success': true,
         'isRegistered': true,
         'companyId': doc.id,
-        'customerName': data['customerName'] ?? '',
-        'secondCustomerName': data['secondCustomerName'] ?? '',
-        'customerAddress': data['customerAddress'] ?? '',
-        'customerPhone': data['customerPhone'] ?? '',
-        'customerEmail': data['customerEmail'] ?? '',
+        'businessName': data['businessName'] ?? '',
+        'secondBusinessName': data['secondBusinessName'] ?? '',
+        'businessAddress': data['businessAddress'] ?? '',
+        'businessPhone': data['businessPhone'] ?? '',
+        'businessEmail': data['businessEmail'] ?? '',
         'registrationKeys': List<String>.from(data['registrationKeys'] ?? []),
-        'registrationType': data['registrationType'] ?? 'full',
+        'registrationType': data['registrationType'] ?? 'online',
         'isActive': data['isActive'] ?? false,
         'registeredAt': data['registeredAt'],
         'lastLoginAt': data['lastLoginAt'],
@@ -762,11 +762,11 @@ class FirebaseService {
         'success': true,
         'isRegistered': true,
         'companyId': doc.id,
-        'customerName': data['businessName'] ?? '',
-        'secondCustomerName': data['secondBusinessName'] ?? '',
-        'customerAddress': data['businessAddress'] ?? '',
-        'customerPhone': data['businessPhone'] ?? '',
-        'customerEmail': data['businessEmail'] ?? '',
+        'businessName': data['businessName'] ?? '',
+        'secondBusinessName': data['secondBusinessName'] ?? '',
+        'businessAddress': data['businessAddress'] ?? '',
+        'businessPhone': data['businessPhone'] ?? '',
+        'businessEmail': data['businessEmail'] ?? '',
         'registrationType': 'demo',
         'isActive': data['isActive'] ?? false,
         'registeredAt': data['createdAt'],
@@ -792,11 +792,11 @@ class FirebaseService {
         'success': true,
         'isRegistered': true,
         'companyId': doc.id,
-        'customerName': data['businessName'] ?? '',
-        'secondCustomerName': data['secondBusinessName'] ?? '',
-        'customerAddress': data['businessAddress'] ?? '',
-        'customerEmail': data['businessEmail'] ?? '',
-        'customerPhone': data['businessPhone'] ?? '',
+        'businessName': data['businessName'] ?? '',
+        'secondBusinessName': data['secondBusinessName'] ?? '',
+        'businessAddress': data['businessAddress'] ?? '',
+        'businessEmail': data['businessEmail'] ?? '',
+        'businessPhone': data['businessPhone'] ?? '',
         'registrationKeys': List<String>.from(data['registrationKeys'] ?? []),
         'registrationType': 'offline',
         'isActive': data['isActive'] ?? false,

@@ -169,7 +169,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
  // Get business name from current form input or saved preferences
     String businessName = _businessNameController.text.trim();
     if (businessName.isEmpty) {
-      businessName = prefs.getString('business_name') ?? 'Pending Registration';
+      businessName = prefs.getString('business_name') ?? '';
     }
 
       final generatedKeys = FirebaseService.generateRegistrationKeys();
@@ -347,11 +347,11 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
       final userEnteredKeys = _keyControllers.map((controller) => controller.text.trim()).toList();
 
       final result = await FirebaseService.registerCompany(
-        customerName: _businessNameController.text.trim(),
-        secondCustomerName: _secondBusinessNameController.text.trim(),
-        customerAddress: _businessAddressController.text.trim(),
-        customerPhone: _businessPhoneController.text.trim(),
-        customerEmail: _businessEmailController.text.trim(), // NEW: Pass email
+        businessName: _businessNameController.text.trim(),
+        secondBusinessName: _secondBusinessNameController.text.trim(),
+        businessAddress: _businessAddressController.text.trim(),
+        businessPhone: _businessPhoneController.text.trim(),
+        businessEmail: _businessEmailController.text.trim(), // NEW: Pass email
         deviceId: deviceId,
         userEnteredKeys: userEnteredKeys,
       );
