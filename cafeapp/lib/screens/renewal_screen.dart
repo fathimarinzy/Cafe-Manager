@@ -121,8 +121,8 @@ class _RenewalScreenState extends State<RenewalScreen> {
     String? businessName = prefs.getString('business_name');
     if (businessName == null || businessName.isEmpty) {
       businessName = widget.renewalType == RenewalType.demo 
-          ? 'Demo Renewal' 
-          : 'License Renewal';
+          ? '' 
+          : '';
     }
       final generatedKeys = FirebaseService.generateRegistrationKeys();
       
