@@ -1257,13 +1257,24 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
                                 ),
                                 IconButton(
                                   icon: Icon(Icons.search, color: widget.serviceColor ),
-                                  onPressed: () {
-                                    Navigator.push(
+                                  onPressed: () async {
+                                    final selectedPerson = await Navigator.push<Person>(
                                       context,
                                       MaterialPageRoute(
                                         builder: (context) => const SearchPersonScreen(),
                                       ),
                                     );
+                                    if (selectedPerson != null) {
+                                      orderProvider.setSelectedPerson(selectedPerson);
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('Customer selected: ${selectedPerson.name}'),
+                                          duration: const Duration(milliseconds: 100),
+                                          ),
+                                        );
+                                      }
+                                    }
+                                    return;
                                   },
                                 ),
                               ],
