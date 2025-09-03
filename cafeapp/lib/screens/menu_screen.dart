@@ -1399,7 +1399,7 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
         }
         
         // For Credit button - just navigate to SearchPersonScreen
-        if (text == "Credit".tr()) {
+        if (text == "Credit".tr() ) {
           final selectedPerson = await Navigator.push<Person>(
             context,
             MaterialPageRoute(
@@ -1411,7 +1411,9 @@ Widget _buildOrderPanel(OrderProvider orderProvider) {
             orderProvider.setSelectedPerson(selectedPerson);
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Customer selected: ${selectedPerson.name}')),
+                SnackBar(content: Text('Customer selected: ${selectedPerson.name}'),
+                duration: const Duration(milliseconds: 100),
+                ),
               );
             }
           }
