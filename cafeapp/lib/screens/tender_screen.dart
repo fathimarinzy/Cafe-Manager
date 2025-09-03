@@ -1663,7 +1663,7 @@ Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('${'Payment of'.tr()} ${NumberFormat.currency(symbol: '', decimalDigits: 3).format(amount)} ${'accepted. Return change'.tr()}: ${NumberFormat.currency(symbol: '', decimalDigits: 3).format(change)}'),
-              duration: const Duration(seconds: 3),
+              duration: const Duration(seconds: 1),
             ),
           );
         }
@@ -1672,7 +1672,7 @@ Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('${'Payment of'.tr()} ${NumberFormat.currency(symbol: '', decimalDigits: 3).format(amount)} ${'accepted'.tr()}.'),
-              duration: const Duration(seconds: 2),
+              duration: const Duration(seconds: 1),
             ),
           );
         }
@@ -1684,18 +1684,42 @@ Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async 
         } else {
           _processPayment(amount);
         }
-      } else if (_balanceAmount <= 0) {
+      } else if (result == 'no' && _balanceAmount <= 0) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Payment complete!'.tr()),
-              duration: const Duration(seconds: 3),
+              duration: const Duration(seconds: 1),
             ),
           );
         }
+
+        await _updateOrderStatus('completed');
+          
+        // Clear cart and customer selection
+        if (mounted) {
+          final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+          orderProvider.clearSelectedPerson(); 
+          orderProvider.clearCart();
+        }
         
-        _updateOrderStatus('completed');
+        // Update table status 
+        if (widget.order.serviceType.contains('Dining - Table')) {
+          final tableNumberStr = widget.order.serviceType.split('Table ').last;
+          final tableNumber = int.tryParse(tableNumberStr);
+          
+          if (tableNumber != null && mounted) {
+            final tableProvider = Provider.of<TableProvider>(context, listen: false);
+            await tableProvider.setTableStatus(tableNumber, false);
+            debugPrint('Table $tableNumber status set to available after no-print payment');
+          }
+        }
         
+        // Refresh order history
+        if (mounted) {
+          Provider.of<OrderHistoryProvider>(context, listen: false).refreshOrdersAndConnectivity();
+        }
+
         if (change > 0) {
           _showBalanceMessageDialog(change);
         } else {
