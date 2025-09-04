@@ -137,7 +137,8 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
     if (!_showWarning && (_businessNameController.text.isNotEmpty || 
         _secondBusinessNameController.text.isNotEmpty || 
         _businessAddressController.text.isNotEmpty || 
-        _businessPhoneController.text.isNotEmpty)) {
+        _businessPhoneController.text.isNotEmpty ||
+        _businessEmailController.text.isNotEmpty)) {
       setState(() {
         _showWarning = true;
       });
@@ -253,7 +254,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
       );
 
       if (result['success']) {
-        
+
         // IMPORTANT: Store the company ID from the demo registration result
         if (result['companyId'] != null) {
           await prefs.setString('company_id', result['companyId']);

@@ -59,6 +59,8 @@ dependencies:
   path: ^1.8.3 
   crypto: ^3.0.3
   cross_file: ^0.3.3 
+  flutter_dotenv: ^5.1.0
+
   
   googleapis: ^14.0.0
   google_sign_in: ^6.1.4
@@ -95,6 +97,8 @@ flutter:
 
   assets:
    - assets/fonts/
+   - .env 
+
 
   fonts:
     - family: OpenSans

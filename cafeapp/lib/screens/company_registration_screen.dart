@@ -6,7 +6,8 @@ import 'dashboard_screen.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/license_service.dart';
-import '../services/offline_sync_service.dart'; // NEW: Import sync service
+import '../services/offline_sync_service.dart'; 
+import 'package:flutter_dotenv/flutter_dotenv.dart'; 
 
 class CompanyRegistrationScreen extends StatefulWidget {
   const CompanyRegistrationScreen({super.key});
@@ -37,13 +38,39 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
   bool _isLoading = false;
   bool _showWarning = false;
   
-  // The correct keys
-  final List<String> _correctKeys = ['M2P016', 'A2L018', 'A2Z023', 'B2CAFE', 'M1U985'];
+// SECURE: Get keys from environment variables with fallbacks
+  List<String> get _correctKeys {
+    try {
+      return [
+        dotenv.env['REGISTRATION_KEY_1'] ?? _getFallbackKey(0),
+        dotenv.env['REGISTRATION_KEY_2'] ?? _getFallbackKey(1),
+        dotenv.env['REGISTRATION_KEY_3'] ?? _getFallbackKey(2),
+        dotenv.env['REGISTRATION_KEY_4'] ?? _getFallbackKey(3),
+        dotenv.env['REGISTRATION_KEY_5'] ?? _getFallbackKey(4),
+      ];
+    } catch (e) {
+      debugPrint('Error loading registration keys from environment: $e');
+      // Fallback to build-time environment variables if .env fails
+      return [
+        const String.fromEnvironment('REGISTRATION_KEY_1', defaultValue: ''),
+        const String.fromEnvironment('REGISTRATION_KEY_2', defaultValue: ''),
+        const String.fromEnvironment('REGISTRATION_KEY_3', defaultValue: ''),
+        const String.fromEnvironment('REGISTRATION_KEY_4', defaultValue: ''),
+        const String.fromEnvironment('REGISTRATION_KEY_5', defaultValue: ''),
+      ].where((key) => key.isNotEmpty).toList();
+    }
+  }
+
+  // Fallback method (should not contain real keys in production)
+  String _getFallbackKey(int index) {
+    debugPrint('WARNING: Using fallback key for index $index. Check environment variables.');
+    // Return empty string to force proper environment setup
+    return '';
+  }
 
   @override
   void initState() {
     super.initState();
-
      // Add listeners to business info fields to show warning
     _businessNameController.addListener(_onBusinessInfoChanged);
     _secondBusinessNameController.addListener(_onBusinessInfoChanged);
@@ -111,6 +138,21 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
   }
 
   Future<void> _registerCompany() async {
+     // Validate that all key fields are filled
+    for (int i = 0; i < 5; i++) {
+      if (_keyControllers[i].text.trim().isEmpty) {
+        _showErrorMessage('Please fill all registration key fields');
+        return;
+      }
+    }
+     // Validate that business information is filled
+    if (_businessNameController.text.trim().isEmpty ||
+        _businessAddressController.text.trim().isEmpty ||
+        _businessPhoneController.text.trim().isEmpty 
+       ) {
+      _showErrorMessage('Please fill all business information fields');
+      return;
+    }
     setState(() {
       _isLoading = true;
     });
@@ -556,15 +598,6 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
                       children: [
                         Icon(Icons.cloud_upload, color: Colors.blue[700], size: 20),
                         const SizedBox(width: 8),
-                        // Expanded(
-                        //   child: Text(
-                        //     'Data will be synced to cloud when internet is available'.tr(),
-                        //     style: TextStyle(
-                        //       color: Colors.blue[700],
-                        //       fontSize: 12,
-                        //     ),
-                        //   ),
-                        // ),
                       ],
                     ),
                   );

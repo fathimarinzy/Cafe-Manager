@@ -125,6 +125,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'screens/login_screen.dart';
 import 'screens/person_form_screen.dart';
@@ -161,6 +162,14 @@ void main() async {
   
   // Quick initialization - only critical components
   await quickInitialization();
+  
+   // Load environment variables
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint('Error loading .env file: $e');
+    // Handle the error appropriately for your app
+  }
 
   runApp(const MyApp());
 }
