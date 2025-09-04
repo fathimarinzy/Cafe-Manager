@@ -258,7 +258,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
       case OrderTimeFilter.yearly:
         return 'This Year'.tr();
       case OrderTimeFilter.all:
-        return 'All Time'.tr();
+        return 'All Orders'.tr();
     }
   }
 
