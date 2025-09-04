@@ -212,6 +212,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       historyProvider.loadOrders();
     }
     
+    // ignore: unnecessary_null_comparison
     return updatedOrder != null;
   } catch (e) {
     debugPrint('Error saving order changes: $e');
