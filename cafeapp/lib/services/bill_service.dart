@@ -1366,16 +1366,18 @@ class BillService {
               'message': 'Kitchen receipt saved as PDF'.tr(),
               'printed': false,
               'saved': true,
+              'duration': '300 ms',
             };
           }
         }
       }
       
-      return {
+      return { 
         'success': false,
         'message': 'Failed to print or save kitchen receipt'.tr(),
         'printed': false,
         'saved': false,
+        'duration': '300 ms',
       };
     } catch (e) {
       debugPrint('Error with kitchen receipt: $e');

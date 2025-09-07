@@ -1366,7 +1366,7 @@ static Future<Uint8List?> _generateKotImage({
           contentHeight += arabicEndPainter.height + 10;
         }
 
-        contentHeight += _padding * 12; // Much more bottom padding to ensure everything fits
+        contentHeight += _padding * 26; // Much more bottom padding to ensure everything fits
       // Create canvas
       final recorder = ui.PictureRecorder();
       final canvas = ui.Canvas(recorder, ui.Rect.fromLTWH(0, 0, _thermalPrinterWidth, contentHeight));
