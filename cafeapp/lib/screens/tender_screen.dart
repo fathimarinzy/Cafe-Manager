@@ -772,53 +772,53 @@ Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async 
                                 const SizedBox(height: 20),
                                 const SizedBox(height: 12),
                                 
-                                Container(
-                                  width: double.infinity,
-                                  alignment: Alignment.center,
-                                  child: SingleChildScrollView(
-                                    scrollDirection: Axis.horizontal,
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        _buildQuickAmountButton('5', () {
-                                          setState(() {
-                                            discountInput = '5.000';
-                                          });
-                                        }),
-                                        const SizedBox(width: 8),
-                                        _buildQuickAmountButton('10', () {
-                                          setState(() {
-                                            discountInput = '10.000';
-                                          });
-                                        }),
-                                        const SizedBox(width: 8),
-                                        _buildQuickAmountButton('15', () {
-                                          setState(() {
-                                            discountInput = '15.000';
-                                          });
-                                        }),
-                                         const SizedBox(width: 8),
-                                        _buildQuickAmountButton('25', () {
-                                          setState(() {
-                                            discountInput = '25.000';
-                                          });
-                                        }),
-                                        const SizedBox(width: 8),
-                                        _buildQuickAmountButton('50', () {
-                                          setState(() {
-                                            discountInput = '50.000';
-                                          });
-                                        }),
-                                        const SizedBox(width: 8),
-                                        _buildQuickAmountButton('100', () {
-                                          setState(() {
-                                            discountInput = '100.000';
-                                          });
-                                        }),
-                                      ],
-                                    ),
-                                  ),
-                                ),
+                                // Container(
+                                //   width: double.infinity,
+                                //   alignment: Alignment.center,
+                                //   child: SingleChildScrollView(
+                                //     scrollDirection: Axis.horizontal,
+                                //     child: Row(
+                                //       mainAxisAlignment: MainAxisAlignment.center,
+                                //       children: [
+                                //         _buildQuickAmountButton('5', () {
+                                //           setState(() {
+                                //             discountInput = '5.000';
+                                //           });
+                                //         }),
+                                //         const SizedBox(width: 8),
+                                //         _buildQuickAmountButton('10', () {
+                                //           setState(() {
+                                //             discountInput = '10.000';
+                                //           });
+                                //         }),
+                                //         const SizedBox(width: 8),
+                                //         _buildQuickAmountButton('15', () {
+                                //           setState(() {
+                                //             discountInput = '15.000';
+                                //           });
+                                //         }),
+                                //          const SizedBox(width: 8),
+                                //         _buildQuickAmountButton('25', () {
+                                //           setState(() {
+                                //             discountInput = '25.000';
+                                //           });
+                                //         }),
+                                //         const SizedBox(width: 8),
+                                //         _buildQuickAmountButton('50', () {
+                                //           setState(() {
+                                //             discountInput = '50.000';
+                                //           });
+                                //         }),
+                                //         const SizedBox(width: 8),
+                                //         _buildQuickAmountButton('100', () {
+                                //           setState(() {
+                                //             discountInput = '100.000';
+                                //           });
+                                //         }),
+                                //       ],
+                                //     ),
+                                //   ),
+                                // ),
                                                             
                                 const SizedBox(height: 20),
                                 
@@ -966,7 +966,16 @@ Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async 
                                                 discountInput = '0.000';
                                               });
                                             }, backgroundColor: Colors.red.shade50, textColor: Colors.red.shade800),
-                                           
+
+                                            _buildDiscountNumpadButton('.', () {
+                                              setState(() {
+                                                if (discountInput == '0.000'|| discountInput == '0') {
+                                                  discountInput = '0.';
+                                                } else {
+                                                  discountInput += '.';
+                                                }
+                                              });
+                                            }),
                                             _buildDiscountNumpadButton('0', () {
                                               setState(() {
                                                 if (discountInput == '0.000') {
@@ -1081,28 +1090,28 @@ Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async 
     );
   }
 
-  Widget _buildQuickAmountButton(String amount, VoidCallback onTap) {
-    return ElevatedButton(
-      onPressed: onTap,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.purple.shade50,
-        foregroundColor: Colors.purple.shade800,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: Colors.purple.shade200),
-        ),
-        elevation: 1,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      ),
-      child: Text(
-        amount,
-        style: const TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 16,
-        ),
-      ),
-    );
-  }
+  // Widget _buildQuickAmountButton(String amount, VoidCallback onTap) {
+  //   return ElevatedButton(
+  //     onPressed: onTap,
+  //     style: ElevatedButton.styleFrom(
+  //       backgroundColor: Colors.purple.shade50,
+  //       foregroundColor: Colors.purple.shade800,
+  //       shape: RoundedRectangleBorder(
+  //         borderRadius: BorderRadius.circular(20),
+  //         side: BorderSide(color: Colors.purple.shade200),
+  //       ),
+  //       elevation: 1,
+  //       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+  //     ),
+  //     child: Text(
+  //       amount,
+  //       style: const TextStyle(
+  //         fontWeight: FontWeight.bold,
+  //         fontSize: 16,
+  //       ),
+  //     ),
+  //   );
+  // }
 
   Future<void> _cancelOrder() async {
     final bool confirm = await showDialog(
