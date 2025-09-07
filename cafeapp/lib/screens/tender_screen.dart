@@ -1174,330 +1174,724 @@ Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async 
     }
   }
   
-  void _showBankPaymentDialog() {
-    _lastFourDigitsController.clear();
-    _approvalCodeController.clear();
-    
-    final discountedTotal = _getDiscountedTotal();
-    _receivedAmountController.text = discountedTotal.toStringAsFixed(3);
-    _selectedCardType = 'VISA';
-    
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return Dialog(
-              insetPadding: const EdgeInsets.all(20),
-              child: Container(
-                width: MediaQuery.of(context).size.width * 0.8,
-                height: MediaQuery.of(context).size.height * 0.7,
-                padding: const EdgeInsets.all(16),
-                child: Column(
+void _showBankPaymentDialog() {
+  _lastFourDigitsController.clear();
+  _approvalCodeController.clear();
+  
+  final discountedTotal = _getDiscountedTotal();
+  _receivedAmountController.text = discountedTotal.toStringAsFixed(3);
+  _selectedCardType = 'VISA';
+  
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (BuildContext context) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          // Check if device is in portrait mode
+          final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
+          final screenWidth = MediaQuery.of(context).size.width;
+          final screenHeight = MediaQuery.of(context).size.height;
+          
+          return Dialog(
+            insetPadding: EdgeInsets.all(isPortrait ? 10 : 20),
+            child: Container(
+              width: isPortrait ? screenWidth * 0.95 : screenWidth * 0.8,
+              height: isPortrait ? screenHeight * 0.9 : screenHeight * 0.7,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  // Header
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        iconSize: 24,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Terminal credit card'.tr(),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue.shade900,
+                        ),
+                      ),
+                      Expanded(child: Container()),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Content - Different layout for portrait vs landscape
+                  Expanded(
+                    child: isPortrait 
+                      ? _buildPortraitLayout(setState, discountedTotal)
+                      : _buildLandscapeLayout(setState, discountedTotal),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
+  return SingleChildScrollView(
+    child: Column(
+      children: [
+        // Input fields section
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Column(
+            children: [
+              // Balance amount
+              Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      'Balance amount'.tr(),
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 4,
+                    child: Text(
+                      NumberFormat.currency(symbol: '', decimalDigits: 3).format(discountedTotal),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              
+              // Received amount
+              Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      'Received'.tr(),
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 4,
+                    child: TextField(
+                      controller: _receivedAmountController,
+                      focusNode: _receivedFocusNode,
+                      readOnly: true,
+                      decoration: InputDecoration(
+                        enabledBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.blue.shade100, width: 2),
+                        ),
+                        focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.blue.shade700, width: 2),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              
+              // Last 4 digits
+              Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      'Last 4 digit'.tr(),
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 4,
+                    child: TextField(
+                      controller: _lastFourDigitsController,
+                      focusNode: _lastFourFocusNode,
+                      readOnly: true,
+                      decoration: const InputDecoration(
+                        enabledBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.grey, width: 1),
+                        ),
+                        focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.blue, width: 2),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(vertical: 8),
+                      ),
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              
+              // Approval code
+              Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      'Approval code'.tr(),
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 4,
+                    child: TextField(
+                      controller: _approvalCodeController,
+                      focusNode: _approvalFocusNode,
+                      readOnly: true,
+                      decoration: const InputDecoration(
+                        enabledBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.grey, width: 1),
+                        ),
+                        focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.blue, width: 2),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(vertical: 8),
+                      ),
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        
+        const SizedBox(height: 20),
+        
+        // Card types section
+        Container(
+          height: 230,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Select Card Type'.tr(),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4,
+                    childAspectRatio: 2.2,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                  ),
+                  itemCount: _cardTypes.length,
+                  itemBuilder: (context, index) {
+                    final card = _cardTypes[index];
+                    final bool isSelected = _selectedCardType == card['name'];
+                    
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedCardType = card['name'];
+                          
+                          for (var i = 0; i < _cardTypes.length; i++) {
+                            if (i == index) {
+                              _cardTypes[i]['color'] = Colors.blue.shade100;
+                            } else {
+                              _cardTypes[i]['color'] = Colors.grey.shade200;
+                            }
+                          }
+                        });
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: card['color'],
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: isSelected ? Colors.blue.shade400 : Colors.grey.shade300,
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          card['name'],
+                          style: TextStyle(
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            color: isSelected ? Colors.blue.shade800 : Colors.black87,
+                            fontSize: 10,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        const SizedBox(height: 20),
+        
+        // Number pad section
+        SizedBox(
+          height: 280,
+          child: Column(
+            children: [
+              // Row 1: 7, 8, 9
+              Expanded(
+                child: Row(
                   children: [
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.arrow_back),
+                    Expanded(child: _buildPortraitNumberPadButton('7', setState)),
+                    Expanded(child: _buildPortraitNumberPadButton('8', setState)),
+                    Expanded(child: _buildPortraitNumberPadButton('9', setState)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              
+              // Row 2: 4, 5, 6
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(child: _buildPortraitNumberPadButton('4', setState)),
+                    Expanded(child: _buildPortraitNumberPadButton('5', setState)),
+                    Expanded(child: _buildPortraitNumberPadButton('6', setState)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              
+              // Row 3: 1, 2, 3
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(child: _buildPortraitNumberPadButton('1', setState)),
+                    Expanded(child: _buildPortraitNumberPadButton('2', setState)),
+                    Expanded(child: _buildPortraitNumberPadButton('3', setState)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              
+              // Row 4: 000, 0, backspace
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(child: _buildPortraitNumberPadButton('000', setState)),
+                    Expanded(child: _buildPortraitNumberPadButton('0', setState)),
+                    Expanded(child: _buildPortraitNumberPadButton('⌫', setState, isBackspace: true)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              
+              // Row 5: C, OK
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(child: _buildPortraitNumberPadButton('C', setState)),
+                    Expanded(
+                      child: Container(
+                        margin: const EdgeInsets.all(4),
+                        child: ElevatedButton(
                           onPressed: () {
                             Navigator.of(context).pop();
+                            String receivedAmount = _receivedAmountController.text.trim();
+                            double amount = double.tryParse(receivedAmount) ?? 0.0;
+                            if (amount > 0) {
+                              _showPaymentConfirmationDialog(amount);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Please enter a valid amount'.tr())),
+                              );
+                            }
                           },
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          iconSize: 24,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Terminal credit card'.tr(),
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue.shade900,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            minimumSize: const Size(60, 50),
+
                           ),
-                        ),
-                        Expanded(child: Container()),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Expanded(
-                            flex: 2,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      flex: 4,
-                                      child: Text(
-                                        'Balance amount'.tr(),
-                                        style: const TextStyle(fontSize: 16),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      flex: 6,
-                                      child: Text(
-                                        NumberFormat.currency(symbol: '', decimalDigits: 3).format(discountedTotal),
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      flex: 4,
-                                      child: Text(
-                                        'Received'.tr(),
-                                        style: const TextStyle(fontSize: 16),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      flex: 6,
-                                      child: TextField(
-                                        controller: _receivedAmountController,
-                                        focusNode: _receivedFocusNode,
-                                        readOnly: true,
-                                        decoration: InputDecoration(
-                                          enabledBorder: UnderlineInputBorder(
-                                            borderSide: BorderSide(color: Colors.blue.shade100, width: 2),
-                                          ),
-                                          focusedBorder: UnderlineInputBorder(
-                                            borderSide: BorderSide(color: Colors.blue.shade700, width: 2),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      flex: 4,
-                                      child: Text(
-                                        'Last 4 digit'.tr(),
-                                        style: const TextStyle(fontSize: 16),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      flex: 6,
-                                      child: TextField(
-                                        controller: _lastFourDigitsController,
-                                        focusNode: _lastFourFocusNode,
-                                        readOnly: true,
-                                        decoration: const InputDecoration(
-                                          enabledBorder: UnderlineInputBorder(
-                                            borderSide: BorderSide(color: Colors.grey, width: 1),
-                                          ),
-                                          focusedBorder: UnderlineInputBorder(
-                                            borderSide: BorderSide(color: Colors.blue, width: 2),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      flex: 4,
-                                      child: Text(
-                                        'Approval code'.tr(),
-                                        style: const TextStyle(fontSize: 16),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      flex: 6,
-                                      child: TextField(
-                                        controller: _approvalCodeController,
-                                        focusNode: _approvalFocusNode,
-                                        readOnly: true,
-                                        decoration: const InputDecoration(
-                                          enabledBorder: UnderlineInputBorder(
-                                            borderSide: BorderSide(color: Colors.grey, width: 1),
-                                          ),
-                                          focusedBorder: UnderlineInputBorder(
-                                            borderSide: BorderSide(color: Colors.blue, width: 2),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 24),
-                                
-                                Expanded(
-                                  child: GridView.builder(
-                                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: 3,
-                                      childAspectRatio: 2.5,
-                                      crossAxisSpacing: 10,
-                                      mainAxisSpacing: 10,
-                                    ),
-                                    itemCount: _cardTypes.length,
-                                    itemBuilder: (context, index) {
-                                      final card = _cardTypes[index];
-                                      final bool isSelected = _selectedCardType == card['name'];
-                                      
-                                      return GestureDetector(
-                                        onTap: () {
-                                          setState(() {
-                                            _selectedCardType = card['name'];
-                                            
-                                            for (var i = 0; i < _cardTypes.length; i++) {
-                                              if (i == index) {
-                                                _cardTypes[i]['color'] = Colors.blue.shade100;
-                                              } else {
-                                                _cardTypes[i]['color'] = Colors.grey.shade200;
-                                              }
-                                            }
-                                          });
-                                        },
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            color: card['color'],
-                                            borderRadius: BorderRadius.circular(6),
-                                            border: Border.all(
-                                              color: isSelected ? Colors.blue.shade400 : Colors.grey.shade300,
-                                              width: isSelected ? 2 : 1,
-                                            ),
-                                          ),
-                                          alignment: Alignment.center,
-                                          child: Text(
-                                            card['name'],
-                                            style: TextStyle(
-                                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                              color: isSelected ? Colors.blue.shade800 : Colors.black87,
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ],
+                          child: Text(
+                            'OK'.tr(),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                          
-                          Expanded(
-                            flex: 1,
-                            child: Container(
-                              padding: const EdgeInsets.only(left: 16),
-                              child: Column(
-                                children: [
-                                  Expanded(
-                                    child: Row(
-                                      children: [
-                                        Expanded(child: _buildNumberPadDialogButton('7', setState)),
-                                        Expanded(child: _buildNumberPadDialogButton('8', setState)),
-                                        Expanded(child: _buildNumberPadDialogButton('9', setState)),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  
-                                  Expanded(
-                                    child: Row(
-                                      children: [
-                                        Expanded(child: _buildNumberPadDialogButton('4', setState)),
-                                        Expanded(child: _buildNumberPadDialogButton('5', setState)),
-                                        Expanded(child: _buildNumberPadDialogButton('6', setState)),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  
-                                  Expanded(
-                                    child: Row(
-                                      children: [
-                                        Expanded(child: _buildNumberPadDialogButton('1', setState)),
-                                        Expanded(child: _buildNumberPadDialogButton('2', setState)),
-                                        Expanded(child: _buildNumberPadDialogButton('3', setState)),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  
-                                  Expanded(
-                                    child: Row(
-                                      children: [
-                                        Expanded(child: _buildNumberPadDialogButton('000', setState)),
-                                        Expanded(child: _buildNumberPadDialogButton('0', setState)),
-                                        Expanded(
-                                          child: _buildNumberPadDialogButton('⌫', setState, isBackspace: true),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  
-                                  Expanded(
-                                    child: Row(
-                                      children: [
-                                        Expanded(child: _buildNumberPadDialogButton('C', setState)),
-                                        Expanded(
-                                          child: ElevatedButton(
-                                            onPressed: () {
-                                              Navigator.of(context).pop();
-                                              String receivedAmount = _receivedAmountController.text.trim();
-                                              double amount = double.tryParse(receivedAmount) ?? 0.0;
-                                              if (amount > 0) {
-                                                _showPaymentConfirmationDialog(amount);
-                                              } else {
-                                                ScaffoldMessenger.of(context).showSnackBar(
-                                                  SnackBar(content: Text('Please enter a valid amount'.tr())),
-                                                );
-                                              }
-                                            },
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.blue,
-                                              foregroundColor: Colors.white,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              padding: const EdgeInsets.symmetric(vertical: 16),
-                                            ),
-                                            child: Text(
-                                              'OK'.tr(),
-                                              style: const TextStyle(
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-            );
-          },
-        );
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _buildLandscapeLayout(StateSetter setState, double discountedTotal) {
+  // Your existing landscape layout code
+  return Row(
+    children: [
+      Expanded(
+        flex: 2,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: Text(
+                    'Balance amount'.tr(),
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+                Expanded(
+                  flex: 6,
+                  child: Text(
+                    NumberFormat.currency(symbol: '', decimalDigits: 3).format(discountedTotal),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            Row(
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: Text(
+                    'Received'.tr(),
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+                Expanded(
+                  flex: 6,
+                  child: TextField(
+                    controller: _receivedAmountController,
+                    focusNode: _receivedFocusNode,
+                    readOnly: true,
+                    decoration: InputDecoration(
+                      enabledBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: Colors.blue.shade100, width: 2),
+                      ),
+                      focusedBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: Colors.blue.shade700, width: 2),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            Row(
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: Text(
+                    'Last 4 digit'.tr(),
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+                Expanded(
+                  flex: 6,
+                  child: TextField(
+                    controller: _lastFourDigitsController,
+                    focusNode: _lastFourFocusNode,
+                    readOnly: true,
+                    decoration: const InputDecoration(
+                      enabledBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: Colors.grey, width: 1),
+                      ),
+                      focusedBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: Colors.blue, width: 2),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            Row(
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: Text(
+                    'Approval code'.tr(),
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+                Expanded(
+                  flex: 6,
+                  child: TextField(
+                    controller: _approvalCodeController,
+                    focusNode: _approvalFocusNode,
+                    readOnly: true,
+                    decoration: const InputDecoration(
+                      enabledBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: Colors.grey, width: 1),
+                      ),
+                      focusedBorder: UnderlineInputBorder(
+                        borderSide: BorderSide(color: Colors.blue, width: 2),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            
+            Expanded(
+              child: GridView.builder(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  childAspectRatio: 2.5,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                ),
+                itemCount: _cardTypes.length,
+                itemBuilder: (context, index) {
+                  final card = _cardTypes[index];
+                  final bool isSelected = _selectedCardType == card['name'];
+                  
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedCardType = card['name'];
+                        
+                        for (var i = 0; i < _cardTypes.length; i++) {
+                          if (i == index) {
+                            _cardTypes[i]['color'] = Colors.blue.shade100;
+                          } else {
+                            _cardTypes[i]['color'] = Colors.grey.shade200;
+                          }
+                        }
+                      });
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: card['color'],
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: isSelected ? Colors.blue.shade400 : Colors.grey.shade300,
+                          width: isSelected ? 2 : 1,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        card['name'],
+                        style: TextStyle(
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          color: isSelected ? Colors.blue.shade800 : Colors.black87,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      
+      Expanded(
+        flex: 1,
+        child: Container(
+          padding: const EdgeInsets.only(left: 16),
+          child: Column(
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(child: _buildNumberPadDialogButton('7', setState)),
+                    Expanded(child: _buildNumberPadDialogButton('8', setState)),
+                    Expanded(child: _buildNumberPadDialogButton('9', setState)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(child: _buildNumberPadDialogButton('4', setState)),
+                    Expanded(child: _buildNumberPadDialogButton('5', setState)),
+                    Expanded(child: _buildNumberPadDialogButton('6', setState)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(child: _buildNumberPadDialogButton('1', setState)),
+                    Expanded(child: _buildNumberPadDialogButton('2', setState)),
+                    Expanded(child: _buildNumberPadDialogButton('3', setState)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(child: _buildNumberPadDialogButton('000', setState)),
+                    Expanded(child: _buildNumberPadDialogButton('0', setState)),
+                    Expanded(
+                      child: _buildNumberPadDialogButton('⌫', setState, isBackspace: true),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(child: _buildNumberPadDialogButton('C', setState)),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          String receivedAmount = _receivedAmountController.text.trim();
+                          double amount = double.tryParse(receivedAmount) ?? 0.0;
+                          if (amount > 0) {
+                            _showPaymentConfirmationDialog(amount);
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Please enter a valid amount'.tr())),
+                            );
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: Text(
+                          'OK'.tr(),
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool isBackspace = false}) {
+  return Container(
+    margin: const EdgeInsets.all(4),
+    child: ElevatedButton(
+      onPressed: () {
+        TextEditingController controller;
+        if (_lastFourFocusNode.hasFocus) {
+          controller = _lastFourDigitsController;
+        } else if (_approvalFocusNode.hasFocus) {
+          controller = _approvalCodeController;
+        } else if (_receivedFocusNode.hasFocus) {
+          controller = _receivedAmountController;
+        } else {
+          controller = _receivedAmountController;
+          FocusScope.of(context).requestFocus(_receivedFocusNode);
+        }
+        
+        if (text == 'C') {
+          setState(() {
+            controller.clear();
+          });
+        } else if (text == '⌫') {
+          if (controller.text.isNotEmpty) {
+            setState(() {
+              controller.text = controller.text
+                .substring(0, controller.text.length - 1);
+            });
+          }
+        } else {
+          setState(() {
+            controller.text = controller.text + text;
+          });
+        }
       },
-    );
-  }
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isBackspace ? Colors.grey.shade200 : Colors.white,
+        foregroundColor: isBackspace ? Colors.black87 : Colors.black87,
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        minimumSize: const Size(60, 50),
+
+      ),
+      child: isBackspace 
+        ? const Icon(Icons.backspace, size: 20)
+        : Text(
+            text,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+    ),
+  );
+}
 
   Widget _buildNumberPadDialogButton(String text, StateSetter setState, {bool isBackspace = false}) {
     return Container(
@@ -1540,14 +1934,14 @@ Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async 
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          padding: const EdgeInsets.symmetric(vertical: 20),
+          padding: const EdgeInsets.symmetric(vertical: 16),
         ),
         child: isBackspace 
-          ? const Icon(Icons.backspace, size: 22)
+          ? const Icon(Icons.backspace, size: 20)
           : Text(
               text,
               style: const TextStyle(
-                fontSize: 22,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -2106,7 +2500,7 @@ Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async 
         margin: const EdgeInsets.all(4),
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 20),
+            padding: const EdgeInsets.symmetric(vertical: 14),
             backgroundColor: text == 'Add'.tr() ? Colors.blue.shade700 : Colors.blue.shade100,
             foregroundColor: text == 'Add'.tr() ? Colors.white : Colors.blue.shade800,
           ),
