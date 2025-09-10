@@ -10,6 +10,8 @@ import '../widgets/settings_password_dialog.dart';
 import '../providers/settings_provider.dart';
 import '../services/license_service.dart';
 import 'renewal_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Add this import
+
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -56,7 +58,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       parent: _animationController,
       curve: Curves.easeOutCubic,
     ));
-
+    
+    _loadUIPreference(); // Load UI preference first
     _checkDemoStatus();
     _checkLicenseStatus();
     _animationController.forward();
@@ -69,6 +72,33 @@ class _DashboardScreenState extends State<DashboardScreen>
     _fabAnimationController.dispose();
     super.dispose();
   }
+    // Add method to load UI preference from SharedPreferences
+  Future<void> _loadUIPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedUIMode = prefs.getBool('is_modern_ui') ?? true; // Default to modern UI if not set
+      
+      if (mounted) {
+        setState(() {
+          _isModernUI = savedUIMode;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading UI preference: $e');
+      // Keep default value if there's an error
+    }
+  }
+
+  // Add method to save UI preference to SharedPreferences
+  Future<void> _saveUIPreference(bool isModern) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is_modern_ui', isModern);
+    } catch (e) {
+      debugPrint('Error saving UI preference: $e');
+    }
+  }
+
 
   Future<void> _checkLicenseStatus() async {
     final licenseStatus = await LicenseService.getLicenseStatus();
@@ -316,9 +346,13 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   void _toggleUIMode() {
+      final newUIMode = !_isModernUI;
+
     setState(() {
-      _isModernUI = !_isModernUI;
+      _isModernUI = newUIMode;
     });
+    // Save the preference
+    _saveUIPreference(newUIMode);
     // Restart animation when switching UI modes
     _animationController.reset();
     _animationController.forward();

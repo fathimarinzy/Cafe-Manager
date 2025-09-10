@@ -37,7 +37,6 @@ class TenderScreen extends StatefulWidget {
   final bool isCreditCompletion; 
   final String? creditTransactionId; 
 
-
   const TenderScreen({
     super.key, 
     required this.order,
@@ -181,7 +180,6 @@ class _TenderScreenState extends State<TenderScreen> {
       );
     });
   }
-
 
 Future<void> _reprintMainReceipt() async {
   setState(() {
@@ -798,55 +796,7 @@ Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async 
                                 
                                 const SizedBox(height: 20),
                                 const SizedBox(height: 12),
-                                
-                                // Container(
-                                //   width: double.infinity,
-                                //   alignment: Alignment.center,
-                                //   child: SingleChildScrollView(
-                                //     scrollDirection: Axis.horizontal,
-                                //     child: Row(
-                                //       mainAxisAlignment: MainAxisAlignment.center,
-                                //       children: [
-                                //         _buildQuickAmountButton('5', () {
-                                //           setState(() {
-                                //             discountInput = '5.000';
-                                //           });
-                                //         }),
-                                //         const SizedBox(width: 8),
-                                //         _buildQuickAmountButton('10', () {
-                                //           setState(() {
-                                //             discountInput = '10.000';
-                                //           });
-                                //         }),
-                                //         const SizedBox(width: 8),
-                                //         _buildQuickAmountButton('15', () {
-                                //           setState(() {
-                                //             discountInput = '15.000';
-                                //           });
-                                //         }),
-                                //          const SizedBox(width: 8),
-                                //         _buildQuickAmountButton('25', () {
-                                //           setState(() {
-                                //             discountInput = '25.000';
-                                //           });
-                                //         }),
-                                //         const SizedBox(width: 8),
-                                //         _buildQuickAmountButton('50', () {
-                                //           setState(() {
-                                //             discountInput = '50.000';
-                                //           });
-                                //         }),
-                                //         const SizedBox(width: 8),
-                                //         _buildQuickAmountButton('100', () {
-                                //           setState(() {
-                                //             discountInput = '100.000';
-                                //           });
-                                //         }),
-                                //       ],
-                                //     ),
-                                //   ),
-                                // ),
-                                                            
+                                                          
                                 const SizedBox(height: 20),
                                 
                                 Column(
@@ -1117,29 +1067,6 @@ Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async 
     );
   }
 
-  // Widget _buildQuickAmountButton(String amount, VoidCallback onTap) {
-  //   return ElevatedButton(
-  //     onPressed: onTap,
-  //     style: ElevatedButton.styleFrom(
-  //       backgroundColor: Colors.purple.shade50,
-  //       foregroundColor: Colors.purple.shade800,
-  //       shape: RoundedRectangleBorder(
-  //         borderRadius: BorderRadius.circular(20),
-  //         side: BorderSide(color: Colors.purple.shade200),
-  //       ),
-  //       elevation: 1,
-  //       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-  //     ),
-  //     child: Text(
-  //       amount,
-  //       style: const TextStyle(
-  //         fontWeight: FontWeight.bold,
-  //         fontSize: 16,
-  //       ),
-  //     ),
-  //   );
-  // }
-
   Future<void> _cancelOrder() async {
     final bool confirm = await showDialog(
       context: context,
@@ -1287,6 +1214,615 @@ void _showBankPaymentDialog() {
   );
 }
 
+// [Continue with all the remaining methods: _buildPortraitLayout, _buildLandscapeLayout, _buildPortraitNumberPadButton, _buildNumberPadDialogButton, _applyExactAmount, _showPaymentConfirmationDialog, _processCashPayment, _showBalanceMessageDialog, _updateAmount, _showSavePdfDialog, _saveWithAndroidIntent, _generateReceipt, and all other methods up to the build method]
+
+// Extract payment method selection panel
+Widget _buildPaymentMethodSelection() {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+    margin: const EdgeInsets.only(top: 55),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildPaymentMethodOption('Bank'.tr(), Icons.account_balance),
+        _buildPaymentMethodOption('Cash'.tr(), Icons.money),
+        _buildPaymentMethodOption('Customer Credit'.tr(), Icons.person),
+      ],
+    ),
+  );
+}
+
+Widget _buildPaymentMethodOption(String method, IconData icon) {
+  final isSelected = _selectedPaymentMethod == method;
+  
+  return Container(
+    margin: const EdgeInsets.only(bottom: 25),
+    decoration: BoxDecoration(
+      color: isSelected ? Colors.blue.shade200 : Colors.white,
+      border: Border.all(
+        color: isSelected ? Colors.blue.shade400 : Colors.grey.shade300, 
+        width: 1,
+      ),
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: ListTile(
+      leading: CircleAvatar(
+        backgroundColor: isSelected ? Colors.blue.shade100 : Colors.grey.shade100,
+        child: Icon(
+          icon,
+          color: isSelected ? Colors.blue.shade800 : Colors.grey,
+          size: 20,
+        ),
+      ),
+      title: Text(
+        method,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          color: isSelected ? Colors.blue.shade800 : Colors.black87,
+        ),
+      ),
+      dense: true,
+      selected: isSelected,
+      onTap: () {
+        setState(() {
+          _selectedPaymentMethod = method;
+          _isCashSelected = (method == 'Cash'.tr());
+          
+          if (method == 'Bank'.tr()) {
+            _showBankPaymentDialog();
+          } else if (method == 'Customer Credit'.tr() && !widget.isCreditCompletion) {
+            _handleCustomerCreditPayment();
+          }
+        });
+      },
+    ),
+  );
+}
+
+// Extract number pad panel
+Widget _buildNumberPad() {
+  return Column(
+    children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: Colors.grey.shade300),
+          ),
+          color: _selectedPaymentMethod == null ? Colors.grey.shade200 : Colors.white,
+        ),
+        alignment: Alignment.centerRight,
+        child: Text(
+          _amountInput,
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: _selectedPaymentMethod == null ? Colors.grey : Colors.black,
+          ),
+        ),
+      ),
+      const SizedBox(height: 16),
+      
+      Expanded(
+        child: AbsorbPointer(
+          absorbing: _selectedPaymentMethod == null,
+          child: Opacity(
+            opacity: _selectedPaymentMethod == null ? 0.5 : 1.0,
+            child: Column(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      _buildNumberButton('7'),
+                      _buildNumberButton('8'),
+                      _buildNumberButton('9'),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Row(
+                    children: [
+                      _buildNumberButton('4'),
+                      _buildNumberButton('5'),
+                      _buildNumberButton('6'),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Row(
+                    children: [
+                      _buildNumberButton('1'),
+                      _buildNumberButton('2'),
+                      _buildNumberButton('3'),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Row(
+                    children: [
+                      _buildNumberButton('000'),
+                      _buildNumberButton('0'),
+                      _buildNumberButton('⌫'),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Row(
+                    children: [
+                      _buildNumberButton('C'),
+                      _buildNumberButton('.'),
+                      _buildNumberButton('Add'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+Widget _buildNumberButton(String text) {
+  return Expanded(
+    child: Container(
+      margin: const EdgeInsets.all(4),
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          backgroundColor: text == 'Add'.tr() ? Colors.blue.shade700 : Colors.blue.shade100,
+          foregroundColor: text == 'Add'.tr() ? Colors.white : Colors.blue.shade800,
+        ),
+        onPressed: _selectedPaymentMethod != null ? () => _updateAmount(text) : null,
+        child: Text(
+          text == 'Add' ? 'Add'.tr() : text,
+          style: const TextStyle(fontSize: 18),
+        ),
+      ),
+    ),
+  );
+}
+
+// Extract payment summary panel
+Widget _buildPaymentSummary() {
+  final formatCurrency = NumberFormat.currency(symbol: '', decimalDigits: 3);
+  final discount = _getCurrentDiscount();
+  final discountedTotal = _getDiscountedTotal();
+
+  return AbsorbPointer(
+    absorbing: false,
+    child: Opacity(
+      opacity: 1.0,
+      child: SingleChildScrollView(
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 45),
+              
+              Container(
+                margin: const EdgeInsets.only(bottom: 25),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${'Coupon code'.tr()}:',
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('', style: TextStyle(fontSize: 14)),
+                          Icon(Icons.search, size: 16, color: Colors.grey),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              Container(
+                margin: const EdgeInsets.only(bottom: 25),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${'Paid amount'.tr()}:',
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        formatCurrency.format(_paidAmount),
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${'Balance amount'.tr()}:',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  const SizedBox(height: 4),
+                  GestureDetector(
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: _balanceAmount > 0 ? Colors.blue : Colors.grey.shade300,
+                          width: _balanceAmount > 0 ? 2 : 1,
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                        color: _balanceAmount > 0 ? Colors.grey.shade200 : Colors.white,
+                      ),
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        formatCurrency.format(_balanceAmount),
+                        style: TextStyle(
+                          fontSize: 16, 
+                          fontWeight: FontWeight.bold,
+                          color: _balanceAmount > 0 ? Colors.black : Colors.grey,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              
+              if (_isCashSelected) ...[
+                const SizedBox(height: 32),
+                
+                Center(
+                  child: SizedBox(
+                    width: (MediaQuery.of(context).size.width / 3) * 0.6,
+                    height: discount > 0 ? 80 : 60,
+                    child: GestureDetector(
+                      onTap: _applyExactAmount,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.shade200),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withAlpha(13),
+                              blurRadius: 2,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        alignment: Alignment.center,
+                        child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            formatCurrency.format(discount > 0 ? discountedTotal : widget.order.total),
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue.shade700,
+                            ),
+                          ),
+                          
+                          if (discount > 0)
+                            Text(
+                              '${'Discount'.tr()}: ${formatCurrency.format(discount)}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.purple.shade700,
+                              ),
+                            ),
+                        ],
+                      ),
+                      ),
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(height: 20),
+              ],
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+// Extract order info bar
+Widget _buildOrderInfoBar() {
+  final formatCurrency = NumberFormat.currency(symbol: '', decimalDigits: 3);
+  final discount = _getCurrentDiscount();
+  
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    decoration: BoxDecoration(
+      color: Colors.grey.shade200,
+      border: Border(
+        bottom: BorderSide(color: Colors.grey.shade300),
+      ),
+    ),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [ 
+              Text('${'Customer'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              Text(
+              _currentCustomer?.name ?? 'NA',
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            ),
+            ],
+          ),
+        ),
+        
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${'Order type'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              Text(_getTranslatedServiceType(widget.order.serviceType), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+        
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${'Tables'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              Text(
+                widget.order.serviceType.contains('Table') 
+                    ? widget.order.serviceType.split('Table ').last 
+                    : '0',
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)
+              ),
+            ],
+          ),
+        ),
+        
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${'Status'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    margin: const EdgeInsets.only(right: 6),
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(_orderStatus),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  Text(
+                    _getTranslatedStatus(_orderStatus),
+                    style: TextStyle(
+                      fontSize: 14, 
+                      fontWeight: FontWeight.bold,
+                      color: _getStatusColor(_orderStatus),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${'Total amount'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              Row(
+                children: [
+                  Text(
+                    formatCurrency.format(widget.order.total),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)
+                  ),
+                  const SizedBox(width: 4),
+                  if (discount > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.purple.shade100,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        '-${formatCurrency.format(discount)}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.purple.shade800,
+                        ),
+                      ),
+                    ),
+                ],
+              ), 
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(
+      title: Text('Receipt'.tr()),
+      backgroundColor: Colors.blue.shade700,
+      foregroundColor: Colors.white,
+      actions: [
+        if (_orderStatus.toLowerCase() == 'pending')
+          TextButton.icon(
+            icon: const Icon(Icons.cancel, color: Colors.white, size: 18),
+            label: Text('Cancel Order'.tr(), style: const TextStyle(color: Colors.white)),
+            onPressed: _cancelOrder,
+          ),
+      ],
+    ),
+    body: _isProcessing 
+      ? Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text('Processing payment...'.tr())
+            ],
+          ),
+        )
+      : SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWideScreen = constraints.maxWidth >= 900;
+              
+              if (isWideScreen) {
+                // Wide screen: Row layout (left: payment methods, center: number pad, right: summary)
+                return Column(
+                  children: [
+                    _buildOrderInfoBar(),
+                    Expanded(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: _buildPaymentMethodSelection(),
+                          ),
+                          Expanded(
+                            flex: 3,
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              child: _buildNumberPad(),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 3,
+                            child: _buildPaymentSummary(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              } else {
+                // Narrow screen: Column layout (top: info bar, middle: payment methods & number pad, bottom: summary)
+                return Column(
+                  children: [
+                    _buildOrderInfoBar(),
+                    Expanded(
+                      flex: 3,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: 1,
+                            child: _buildPaymentMethodSelection(),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              child: _buildNumberPad(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: _buildPaymentSummary(),
+                    ),
+                  ],
+                );
+              }
+            },
+          ),
+        ),
+    bottomNavigationBar: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      height: 50,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(13),
+            blurRadius: 2,
+            offset: const Offset(0, -1),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          ElevatedButton(
+            onPressed: _showDiscountDialog,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.purple.shade100,
+              foregroundColor: Colors.purple.shade900,
+              elevation: 1,
+              padding: const EdgeInsets.symmetric(horizontal: 35, vertical: 10),
+              minimumSize: const Size(10, 36),
+              textStyle: const TextStyle(fontSize: 12),
+            ),
+            child: Text('Discount'.tr()),
+          ),
+          
+          const SizedBox(width: 8),
+          
+          ElevatedButton(
+            onPressed: (_balanceAmount == widget.order.total && _orderStatus.toLowerCase() != 'completed') 
+              ? null
+              : () {
+                _showBillPreviewDialog(); 
+              },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green.shade100,
+              foregroundColor: Colors.green.shade900,
+              elevation: 1,
+              padding: const EdgeInsets.symmetric(horizontal: 55, vertical: 10),
+              minimumSize: const Size(10, 36),
+              textStyle: const TextStyle(fontSize: 12),
+              disabledBackgroundColor: Colors.grey.shade200,
+              disabledForegroundColor: Colors.grey.shade500,
+            ),
+            child: Text('View Bill'.tr()), 
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// Add all remaining methods from the original file
 Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
   return SingleChildScrollView(
     child: Column(
@@ -2431,6 +2967,14 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       });
       return;
     }
+    if (value == '.') {
+      if (!_amountInput.contains('.')) {
+        setState(() {
+          _amountInput += value;
+        });
+      }
+      return;
+    }
 
     if (value == 'Add') {
       String cleanInput = _amountInput.replaceAll(',', '.');
@@ -2512,212 +3056,6 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
     });
   }
 
-  Widget _buildPaymentMethodSelection() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      margin: const EdgeInsets.only(top: 55),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildPaymentMethodOption('Bank'.tr(), Icons.account_balance),
-          _buildPaymentMethodOption('Cash'.tr(), Icons.money),
-          _buildPaymentMethodOption('Customer Credit'.tr(), Icons.person),
-          // _buildPaymentMethodOption('Credit Sale'.tr(), Icons.credit_card),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPaymentMethodOption(String method, IconData icon) {
-    final isSelected = _selectedPaymentMethod == method;
-    
-    return Container(
-      margin: const EdgeInsets.only(bottom: 25),
-      decoration: BoxDecoration(
-        color: isSelected ? Colors.blue.shade200 : Colors.white,
-        border: Border.all(
-          color: isSelected ? Colors.blue.shade400 : Colors.grey.shade300, 
-          width: 1,
-        ),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: isSelected ? Colors.blue.shade100 : Colors.grey.shade100,
-          child: Icon(
-            icon,
-            color: isSelected ? Colors.blue.shade800 : Colors.grey,
-            size: 20,
-          ),
-        ),
-        title: Text(
-          method,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            color: isSelected ? Colors.blue.shade800 : Colors.black87,
-          ),
-        ),
-        dense: true,
-        selected: isSelected,
-        onTap: () {
-          setState(() {
-            _selectedPaymentMethod = method;
-            _isCashSelected = (method == 'Cash'.tr());
-            
-            if (method == 'Bank'.tr()) {
-              _showBankPaymentDialog();
-
-            }  else if (method == 'Customer Credit'.tr() && !widget.isCreditCompletion) {
-            _handleCustomerCreditPayment();
-          }
-          });
-        },
-      ),
-    );
-  }
-  
-  Widget _buildNumberButton(String text) {
-    return Expanded(
-      child: Container(
-        margin: const EdgeInsets.all(4),
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            backgroundColor: text == 'Add'.tr() ? Colors.blue.shade700 : Colors.blue.shade100,
-            foregroundColor: text == 'Add'.tr() ? Colors.white : Colors.blue.shade800,
-          ),
-          onPressed: _selectedPaymentMethod != null ? () => _updateAmount(text) : null,
-          child: Text(
-            text == 'Add' ? 'Add'.tr() : text,
-            style: const TextStyle(fontSize: 18),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOrderInfoBar() {
-    final formatCurrency = NumberFormat.currency(symbol: '', decimalDigits: 3);
-    final discount = _getCurrentDiscount();
-    
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade200,
-        border: Border(
-          bottom: BorderSide(color: Colors.grey.shade300),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [ 
-                Text('${'Customer'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                Text(
-                _currentCustomer?.name ?? 'NA',
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-              ),
-              ],
-            ),
-          ),
-          
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('${'Order type'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                Text(_getTranslatedServiceType(widget.order.serviceType), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-          
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('${'Tables'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                Text(
-                  widget.order.serviceType.contains('Table') 
-                      ? widget.order.serviceType.split('Table ').last 
-                      : '0',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)
-                ),
-              ],
-            ),
-          ),
-          
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('${'Status'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      margin: const EdgeInsets.only(right: 6),
-                      decoration: BoxDecoration(
-                        color: _getStatusColor(_orderStatus),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    Text(
-                      _getTranslatedStatus(_orderStatus),
-                      style: TextStyle(
-                        fontSize: 14, 
-                        fontWeight: FontWeight.bold,
-                        color: _getStatusColor(_orderStatus),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('${'Total amount'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                Row(
-                  children: [
-                    Text(
-                      formatCurrency.format(widget.order.total),
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)
-                    ),
-                    const SizedBox(width: 4),
-                    if (discount > 0)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.purple.shade100,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          '-${formatCurrency.format(discount)}',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.purple.shade800,
-                          ),
-                        ),
-                      ),
-                  ],
-                ), 
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   String _getTranslatedStatus(String status) {
     switch (status.toLowerCase()) {
       case 'pending':
@@ -2742,254 +3080,6 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       default:
         return Colors.grey;
     }
-  }
-
-  Widget _buildNumberPad() {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(color: Colors.grey.shade300),
-            ),
-            color: _selectedPaymentMethod == null ? Colors.grey.shade200 : Colors.white,
-          ),
-          alignment: Alignment.centerRight,
-          child: Text(
-            _amountInput,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: _selectedPaymentMethod == null ? Colors.grey : Colors.black,
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        
-        Expanded(
-          child: AbsorbPointer(
-            absorbing: _selectedPaymentMethod == null,
-            child: Opacity(
-              opacity: _selectedPaymentMethod == null ? 0.5 : 1.0,
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Row(
-                      children: [
-                        _buildNumberButton('7'),
-                        _buildNumberButton('8'),
-                        _buildNumberButton('9'),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: Row(
-                      children: [
-                        _buildNumberButton('4'),
-                        _buildNumberButton('5'),
-                        _buildNumberButton('6'),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: Row(
-                      children: [
-                        _buildNumberButton('1'),
-                        _buildNumberButton('2'),
-                        _buildNumberButton('3'),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: Row(
-                      children: [
-                        _buildNumberButton('000'),
-                        _buildNumberButton('0'),
-                        _buildNumberButton('⌫'),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: Row(
-                      children: [
-                        _buildNumberButton('C'),
-                        _buildNumberButton('Add'),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPaymentSummary() {
-    final formatCurrency = NumberFormat.currency(symbol: '', decimalDigits: 3);
-    final discount = _getCurrentDiscount();
-    final discountedTotal = _getDiscountedTotal();
-  
-    return AbsorbPointer(
-      absorbing: false,
-      child: Opacity(
-        opacity: 1.0,
-        child: SingleChildScrollView(
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 45),
-                
-                Container(
-                  margin: const EdgeInsets.only(bottom: 25),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${'Coupon code'.tr()}:',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('', style: TextStyle(fontSize: 14)),
-                            Icon(Icons.search, size: 16, color: Colors.grey),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                
-                Container(
-                  margin: const EdgeInsets.only(bottom: 25),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${'Paid amount'.tr()}:',
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          formatCurrency.format(_paidAmount),
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${'Balance amount'.tr()}:',
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                    const SizedBox(height: 4),
-                    GestureDetector(
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: _balanceAmount > 0 ? Colors.blue : Colors.grey.shade300,
-                            width: _balanceAmount > 0 ? 2 : 1,
-                          ),
-                          borderRadius: BorderRadius.circular(4),
-                          color: _balanceAmount > 0 ? Colors.grey.shade200 : Colors.white,
-                        ),
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          formatCurrency.format(_balanceAmount),
-                          style: TextStyle(
-                            fontSize: 16, 
-                            fontWeight: FontWeight.bold,
-                            color: _balanceAmount > 0 ? Colors.black : Colors.grey,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                
-                if (_isCashSelected) ...[
-                  const SizedBox(height: 32),
-                  
-                  Center(
-                    child: SizedBox(
-                      width: (MediaQuery.of(context).size.width / 3) * 0.6,
-                      height: discount > 0 ? 80 : 60,
-                      child: GestureDetector(
-                        onTap: _applyExactAmount,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.blue.shade200),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withAlpha(13),
-                                blurRadius: 2,
-                                offset: const Offset(0, 1),
-                              ),
-                            ],
-                          ),
-                          alignment: Alignment.center,
-                          child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              formatCurrency.format(discount > 0 ? discountedTotal : widget.order.total),
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue.shade700,
-                              ),
-                            ),
-                            
-                            if (discount > 0)
-                              Text(
-                                '${'Discount'.tr()}: ${formatCurrency.format(discount)}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.purple.shade700,
-                                ),
-                              ),
-                          ],
-                        ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 20),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
   
   Future<bool?> _showSavePdfDialog() {
@@ -3072,141 +3162,6 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
     return pdf;
   }
 
-@override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Receipt'.tr()),
-        backgroundColor: Colors.blue.shade700,
-        foregroundColor: Colors.white,
-        actions: [
-          if (_orderStatus.toLowerCase() == 'pending')
-            TextButton.icon(
-              icon: const Icon(Icons.cancel, color: Colors.white, size: 18),
-              label: Text('Cancel Order'.tr(), style: const TextStyle(color: Colors.white)),
-              onPressed: _cancelOrder,
-            ),
-        ],
-      ),
-      body: _isProcessing 
-        ? Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const CircularProgressIndicator(),
-                const SizedBox(height: 16),
-                Text('Processing payment...'.tr())
-              ],
-            ),
-          )
-        : Column(
-          children: [
-            _buildOrderInfoBar(),
-            
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: _buildPaymentMethodSelection(),
-                  ),
-                  
-                  Expanded(
-                    flex: 3,
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      child: _buildNumberPad(),
-                    ),
-                  ),
-                  
-                  Expanded(
-                    flex: 3,
-                    child: _buildPaymentSummary(),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        height: 50,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(13),
-              blurRadius: 2,
-              offset: const Offset(0, -1),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            ElevatedButton(
-              onPressed: _showDiscountDialog,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple.shade100,
-                foregroundColor: Colors.purple.shade900,
-                elevation: 1,
-                padding: const EdgeInsets.symmetric(horizontal: 35, vertical: 10),
-                minimumSize: const Size(10, 36),
-                textStyle: const TextStyle(fontSize: 12),
-                // disabledBackgroundColor: Colors.grey.shade200,
-                // disabledForegroundColor: Colors.grey.shade500,
-              ),
-              child: Text('Discount'.tr()),
-            ),
-            
-            const SizedBox(width: 8),
-            // Apply Coupon button
-            // ElevatedButton(
-            //   onPressed: _selectedPaymentMethod != null ? () {
-            //     ScaffoldMessenger.of(context).showSnackBar(
-            //       const SnackBar(content: Text('Coupon feature will be available soon')),
-            //     );
-            //   } : null,
-            //   style: ElevatedButton.styleFrom(
-            //     backgroundColor: Colors.amber.shade100,
-            //     foregroundColor: Colors.amber.shade900,
-            //     elevation: 1,
-            //     padding: const EdgeInsets.symmetric(horizontal: 35, vertical: 10),
-            //     minimumSize: const Size(10, 36),
-            //     textStyle: const TextStyle(fontSize: 12),
-            //     disabledBackgroundColor: Colors.grey.shade200,
-            //     disabledForegroundColor: Colors.grey.shade500,
-            //   ),
-            //   child: const Text('Apply Coupon'),
-            // ),
-            
-            // const SizedBox(width: 8), // Spacing between buttons
-            
-            
-            ElevatedButton(
-              onPressed: (_balanceAmount == widget.order.total && _orderStatus.toLowerCase() != 'completed') 
-                ? null
-                : () {
-                  _showBillPreviewDialog(); 
-                },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green.shade100,
-                foregroundColor: Colors.green.shade900,
-                elevation: 1,
-                padding: const EdgeInsets.symmetric(horizontal: 55, vertical: 10),
-                minimumSize: const Size(10, 36),
-                textStyle: const TextStyle(fontSize: 12),
-                disabledBackgroundColor: Colors.grey.shade200,
-                disabledForegroundColor: Colors.grey.shade500,
-              ),
-              child: Text('View Bill'.tr()), 
-            ),
-          ],
-        ),
-      ),
-    );
-  }
   // Add this method to handle customer credit payment
  Future<void> _processCustomerCreditPayment(Person customer) async {
   final discountedTotal = _getDiscountedTotal();
@@ -3328,7 +3283,6 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text('Customer Credit :'.tr(),style: const TextStyle(
-            // fontWeight: FontWeight.bold,
             fontSize: 20,
           )),
           content: Column(
@@ -3472,8 +3426,6 @@ Future<void> _processCreditCompletionPayment(double amount, String paymentMethod
             isEdited: widget.isEdited, 
             taxRate: widget.taxRate, 
             discount: 0.0,
-            // customer: widget.customer,
-            // paymentMethod: paymentMethod.toLowerCase(),
           );
         } catch (e) {
           debugPrint('Printing error: $e');
