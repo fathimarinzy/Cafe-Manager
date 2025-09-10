@@ -10,6 +10,7 @@ import '../models/menu_item.dart';
 import './thermal_printer_service.dart';
 import '../models/order_history.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/order_item.dart';
 
 class BillService {
   // Get business information from shared preferences
@@ -614,10 +615,12 @@ class BillService {
     required String serviceType,
     String? tableInfo,
     String? orderNumber,
+    bool isEdited = false,
+    List<OrderItem>? originalItems,
   }) async {
     final pdf = pw.Document();
     
-    // Load fonts
+      // Load fonts
     final arabicFont = await _loadArabicFont();
     final fallbackFont = await _loadFallbackFont();
     
@@ -646,11 +649,33 @@ class BillService {
                       'KITCHEN ORDER',
                       arabicFont: arabicFont,
                       fallbackFont: fallbackFont,
-                      style: pw.TextStyle(
+                      style: pw.TextStyle( 
                         fontSize: 16,
                       ),
                       textAlign: pw.TextAlign.center,
                     ),
+                    pw.SizedBox(height: 5),
+                    
+                    // Add EDITED marker if order was edited
+                    if (isEdited)
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: pw.BoxDecoration(
+                          border: pw.Border.all( width: 1),
+                          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                        ),
+                        child: _createText(
+                          'EDITED',
+                          arabicFont: arabicFont,
+                          fallbackFont: fallbackFont,
+                          style: pw.TextStyle(
+                            fontSize: 10,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                          textAlign: pw.TextAlign.center,
+                        ),
+                      ),
+                    
                     pw.SizedBox(height: 5),
                     
                     _createText(
@@ -718,7 +743,106 @@ class BillService {
               
               pw.Divider(thickness: 1),
               
-              // Items - each item displays in its original language
+              // Show cancelled items if edited
+              if (isEdited && originalItems != null) ...[
+                // Find cancelled items
+                ...() {
+                  final cancelledItems = originalItems.where((original) {
+                    return !items.any((current) => 
+                      current.id == original.id.toString() && 
+                      current.quantity >= original.quantity
+                    );
+                  }).toList();
+                  
+                  if (cancelledItems.isEmpty) return <pw.Widget>[];
+                  
+                  return [
+                    pw.SizedBox(height: 5),
+                    _createText(
+                      'CANCELLED:',
+                      arabicFont: arabicFont,
+                      fallbackFont: fallbackFont,
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+          
+                      ),
+                    ),
+                    pw.SizedBox(height: 5),
+                    
+                    // Cancelled items
+                    ...cancelledItems.map((item) => pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Container(
+                          padding: const pw.EdgeInsets.all(5),
+                          decoration: pw.BoxDecoration(
+                            border: pw.Border.all( width: 1),
+                            borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
+                          ),
+                          child: pw.Row(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              pw.Expanded(
+                                flex: 6,
+                                child: pw.Stack(
+                                  children: [
+                                    _createText(
+                                      item.name,
+                                      arabicFont: arabicFont,
+                                      fallbackFont: fallbackFont,
+                                      style: pw.TextStyle(
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    // Strikethrough line
+                                    // pw.Positioned(
+                                    //   top: 6,
+                                    //   left: 0,
+                                    //   right: 0,
+                                    //   child: pw.Container(
+                                    //     height: 1,
+                                    //     color: PdfColors.red,
+                                    //   ),
+                                    // ),
+                                  ],
+                                ),
+                              ),
+                              pw.Expanded(
+                                flex: 2,
+                                child: _createText(
+                                  '${item.quantity}',
+                                  arabicFont: arabicFont,
+                                  fallbackFont: fallbackFont,
+                                  style: pw.TextStyle(
+                                    fontSize: 12,
+                                  ),
+                                  textAlign: pw.TextAlign.right,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        pw.SizedBox(height: 5),
+                      ],
+                    )),
+                    
+                    pw.SizedBox(height: 10),
+                    _createText(
+                      'NEW ITEMS:',
+                      arabicFont: arabicFont,
+                      fallbackFont: fallbackFont,
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.SizedBox(height: 5),
+                  ];
+                }(),
+              ],
+              
+              // Current items - each item displays in its original language
               pw.Column(
                 children: items.map((item) {
                   return pw.Column(
@@ -735,7 +859,11 @@ class BillService {
                                 item.name,
                                 arabicFont: arabicFont,
                                 fallbackFont: fallbackFont,
-                                style: pw.TextStyle(fontSize: 12),
+                                style: pw.TextStyle(
+                                  fontSize: 12,
+                                  color: isEdited ? PdfColors.black : PdfColors.black,
+                                  fontWeight: isEdited ? pw.FontWeight.normal : pw.FontWeight.normal,
+                                ),
                               ),
                             ),
                             pw.Expanded(
@@ -744,7 +872,11 @@ class BillService {
                                 '${item.quantity}',
                                 arabicFont: arabicFont,
                                 fallbackFont: fallbackFont,
-                                style: pw.TextStyle(fontSize: 12),
+                                style: pw.TextStyle(
+                                  fontSize: 12,
+                                  color: isEdited ? PdfColors.black : PdfColors.black,
+                                  fontWeight: isEdited ? pw.FontWeight.normal : pw.FontWeight.normal,
+                                ),
                                 textAlign: pw.TextAlign.right,
                               ),
                             ),
@@ -764,6 +896,7 @@ class BillService {
                                 fallbackFont: fallbackFont,
                                 style: pw.TextStyle(
                                   fontSize: 10,
+                                  color: isEdited ? PdfColors.black : PdfColors.black,
                                 ),
                               ),
                               pw.Expanded(
@@ -773,6 +906,7 @@ class BillService {
                                   fallbackFont: fallbackFont,
                                   style: pw.TextStyle(
                                     fontSize: 10,
+                                    color: isEdited ? PdfColors.black : PdfColors.black,
                                   ),
                                 ),
                               ),
@@ -788,27 +922,6 @@ class BillService {
               ),
               
               pw.Divider(thickness: 1),
-              
-              // Add Arabic header if any item contains Arabic
-              // if (_containsArabic(serviceType) || 
-              //     items.any((item) => _containsArabic(item.name) || _containsArabic(item.kitchenNote)))
-              //   pw.Center(
-              //     child: pw.Column(
-              //       children: [
-              //         pw.SizedBox(height: 10),
-              //         _createText(
-              //           'طلب المطبخ',
-              //           arabicFont: arabicFont,
-              //           fallbackFont: fallbackFont,
-              //           style: pw.TextStyle(
-              //             fontSize: 14,
-              //             fontWeight: pw.FontWeight.bold,
-              //           ),
-              //           textAlign: pw.TextAlign.center,
-              //         ),
-              //       ],
-              //     ),
-              //  ),
             ],
           );
         },
@@ -1245,6 +1358,8 @@ class BillService {
     String? tableInfo,
     String? orderNumber,
     BuildContext? context,
+    bool isEdited = false, // Add this parameter
+    List<OrderItem>? originalItems,
   }) async {
     try {
       debugPrint('Printing kitchen order receipt using image approach');
@@ -1284,6 +1399,8 @@ class BillService {
               serviceType: serviceType,
               tableInfo: tableInfo,
               orderNumber: orderNumber,
+              isEdited: isEdited,
+              originalItems: originalItems,
             );
             
             final saved = await saveWithAndroidIntent(pdf);
@@ -1313,6 +1430,8 @@ class BillService {
         serviceType: serviceType,
         tableInfo: tableInfo,
         orderNumber: orderNumber,
+        isEdited: isEdited,
+        originalItems: originalItems,
       );
       
       if (printed) {
@@ -1329,6 +1448,8 @@ class BillService {
         serviceType: serviceType,
         tableInfo: tableInfo,
         orderNumber: orderNumber,
+        isEdited: isEdited,
+        originalItems: originalItems,
       );
 
       if (context != null && context.mounted) {

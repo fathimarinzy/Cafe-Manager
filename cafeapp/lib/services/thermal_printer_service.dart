@@ -8,6 +8,7 @@ import 'package:esc_pos_utils/esc_pos_utils.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/menu_item.dart';
+import '../models/order_item.dart';
 
 class ThermalPrinterService {
   // Printer settings constants
@@ -377,14 +378,14 @@ static Future<Uint8List?> _generateReceiptImage({
     contentHeight += 1; // Space after business info
     
     // EDITED marker
-    if (isEdited) {
-      final editedPainter = _createTextPainter(
-        'EDITED',
-        fontSize: _fontSize - 4,
-        fontWeight: FontWeight.bold,
-      );
-      contentHeight += editedPainter.height + 6 + 2; // Text + border padding + spacing
-    }
+    // if (isEdited) {
+    //   final editedPainter = _createTextPainter(
+    //     'EDITED',
+    //     fontSize: _fontSize - 4,
+    //     fontWeight: FontWeight.bold,
+    //   );
+    //   contentHeight += editedPainter.height + 6 + 2; // Text + border padding + spacing
+    // }
     
     // Order details
     final orderPainter = _createTextPainter(
@@ -563,40 +564,40 @@ static Future<Uint8List?> _generateReceiptImage({
     currentY += 6;
     
     // EDITED marker
-    if (isEdited) {
-      final editedPainter = _createTextPainter(
-        'EDITED',
-        fontSize: _fontSize - 4,
-        fontWeight: FontWeight.bold,
-      );
+    // if (isEdited) {
+    //   final editedPainter = _createTextPainter(
+    //     'EDITED',
+    //     fontSize: _fontSize - 4,
+    //     fontWeight: FontWeight.bold,
+    //   );
       
-      final editedX = (_thermalPrinterWidth - editedPainter.width) / 2;
-      final borderRect = Rect.fromLTWH(
-        editedX - 10,
-        currentY - 5,
-        editedPainter.width + 20,
-        editedPainter.height + 10,
-      );
+    //   final editedX = (_thermalPrinterWidth - editedPainter.width) / 2;
+    //   final borderRect = Rect.fromLTWH(
+    //     editedX - 10,
+    //     currentY - 5,
+    //     editedPainter.width + 20,
+    //     editedPainter.height + 10,
+    //   );
 
-      final borderPaint = ui.Paint()
-        ..color = Colors.red
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = 2.0;
+    //   final borderPaint = ui.Paint()
+    //     ..color = Colors.black
+    //     ..style = ui.PaintingStyle.stroke
+    //     ..strokeWidth = 2.0;
       
-      canvas.drawRect(borderRect, borderPaint);
+    //   canvas.drawRect(borderRect, borderPaint);
       
-      currentY = _drawText(
-        canvas,
-        'EDITED',
-        x: _padding,
-        y: currentY,
-        fontSize: _fontSize - 4,
-        fontWeight: FontWeight.bold,
-        textAlign: TextAlign.center,
-      );
+    //   currentY = _drawText(
+    //     canvas,
+    //     'EDITED',
+    //     x: _padding,
+    //     y: currentY,
+    //     fontSize: _fontSize - 4,
+    //     fontWeight: FontWeight.bold,
+    //     textAlign: TextAlign.center,
+    //   );
 
-      currentY -= 6;
-    }
+    //   currentY -= 6;
+    // }
     
     // Order details
     currentY = _drawText(
@@ -734,6 +735,8 @@ static Future<Uint8List?> _generateKotImage({
   required String serviceType,
   String? tableInfo,
   String? orderNumber,
+  bool isEdited = false,
+  List<OrderItem>? originalItems,
 }) async {
   try {
     final now = DateTime.now();
@@ -749,6 +752,16 @@ static Future<Uint8List?> _generateKotImage({
       fontWeight: FontWeight.bold,
     );
     contentHeight += headerPainter1.height + 8; // Title + spacing
+
+    // EDITED marker if order was edited
+    if (isEdited) {
+      final editedPainter = _createTextPainter(
+        'EDITED',
+        fontSize: _fontSize - 2,
+        fontWeight: FontWeight.bold,
+      );
+      contentHeight += editedPainter.height + 16; // Extra space for border
+    }
     
     final headerPainter2 = _createTextPainter(
       'ORDER #$billNumber',
@@ -771,13 +784,48 @@ static Future<Uint8List?> _generateKotImage({
     );
     contentHeight += headerPainter4.height + 8; // Service + spacing
     
-    contentHeight += 10; // Space before first line
-    contentHeight += 4; // First line thickness
-    
+    contentHeight += 10 + 4; // Space + line
+
     // Items header
     contentHeight += _smallFontSize + 8; // Item/Qty header + spacing
     contentHeight += 4; // Second line thickness
-    
+    // If edited, show cancelled items first
+    if (isEdited && originalItems != null) {
+      // Find cancelled items
+      final cancelledItems = originalItems.where((original) {
+        return !items.any((current) => 
+          current.id == original.id.toString() && 
+          current.quantity >= original.quantity
+        );
+      }).toList();
+      
+      if (cancelledItems.isNotEmpty) {
+        final cancelledHeaderPainter = _createTextPainter(
+          'CANCELLED:',
+          fontSize: _fontSize - 2,
+          fontWeight: FontWeight.bold,
+        );
+        contentHeight += cancelledHeaderPainter.height + 8;
+        
+        for (final item in cancelledItems) {
+          final itemPainter = _createTextPainter(
+            item.name,
+            fontSize: _smallFontSize,
+            maxWidth: _thermalPrinterWidth * 0.7,
+          );
+          contentHeight += itemPainter.height + 20; // Extra space for box
+        }
+        
+        contentHeight += 10; // Space after cancelled items
+        
+        final newItemsHeaderPainter = _createTextPainter(
+          'NEW ITEMS:',
+          fontSize: _fontSize - 2,
+          fontWeight: FontWeight.bold,
+        );
+        contentHeight += newItemsHeaderPainter.height + 8;
+      }
+    }
     // Calculate items height precisely
     for (final item in items) {
       final itemNamePainter = _createTextPainter(
@@ -823,6 +871,38 @@ static Future<Uint8List?> _generateKotImage({
       fontWeight: FontWeight.bold,
       textAlign: TextAlign.center,
     );
+        // EDITED marker
+    if (isEdited) {
+      final editedPainter = _createTextPainter(
+        'EDITED',
+        fontSize: _fontSize - 2,
+        fontWeight: FontWeight.bold,
+      );
+      final editedX = (_thermalPrinterWidth - editedPainter.width) / 2;
+      final borderRect = Rect.fromLTWH(
+        editedX - 10,
+        currentY - 5,
+        editedPainter.width + 20,
+        editedPainter.height + 10,
+      );
+
+      final borderPaint = ui.Paint()
+        ..color = Colors.black
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = 1.0;
+      
+      canvas.drawRect(borderRect, borderPaint);
+      
+      currentY = _drawText(
+        canvas,
+        'EDITED',
+        x: _padding,
+        y: currentY,
+        fontSize: _fontSize - 2,
+        fontWeight: FontWeight.bold,
+        textAlign: TextAlign.center,
+      );
+    }
     
     currentY = _drawText(
       canvas,
@@ -873,6 +953,86 @@ static Future<Uint8List?> _generateKotImage({
 
     currentY += _smallFontSize + 8;
     currentY = _drawLine(canvas, currentY);
+
+    // Show cancelled items if edited
+    if (isEdited && originalItems != null) {
+      final cancelledItems = originalItems.where((original) {
+        return !items.any((current) => 
+          current.id == original.id.toString() && 
+          current.quantity >= original.quantity
+        );
+      }).toList();
+      
+      if (cancelledItems.isNotEmpty) {
+        currentY = _drawText(
+          canvas,
+          'CANCELLED:',
+          x: _padding,
+          y: currentY,
+          fontSize: _fontSize - 2,
+          fontWeight: FontWeight.bold,
+          textAlign: TextAlign.left,
+        );
+        
+        for (final item in cancelledItems) {
+          // Draw cancelled item in a box
+          final itemNamePainter = _createTextPainter(
+            item.name,
+            fontSize: _smallFontSize,
+            maxWidth: _thermalPrinterWidth * 0.7,
+          );
+          
+          // Draw box around cancelled item
+          final boxRect = Rect.fromLTWH(
+            _padding - 5,
+            currentY - 3,
+            _thermalPrinterWidth - (_padding * 2) + 10,
+            itemNamePainter.height + 6,
+          );
+          
+          final boxPaint = ui.Paint()
+            ..color = Colors.black
+            ..style = ui.PaintingStyle.stroke
+            ..strokeWidth = 1.0;
+          
+          canvas.drawRect(boxRect, boxPaint);
+          
+          // // Draw strikethrough
+          // final strikePaint = ui.Paint()
+          //   ..color = Colors.red
+          //   ..strokeWidth = 1.5;
+          
+          // canvas.drawLine(
+          //   Offset(_padding, currentY + (itemNamePainter.height / 2)),
+          //   Offset(_thermalPrinterWidth - _padding, currentY + (itemNamePainter.height / 2)),
+          //   strikePaint,
+          // );
+          
+          itemNamePainter.paint(canvas, Offset(_padding, currentY));
+          
+          final qtyValuePainter = _createTextPainter(
+            '${item.quantity}',
+            fontSize: _smallFontSize,
+            fontWeight: FontWeight.bold,
+          );
+          qtyValuePainter.paint(canvas, Offset(_thermalPrinterWidth - _padding - qtyValuePainter.width, currentY));
+          
+          currentY += itemNamePainter.height + 12;
+        }
+        
+        currentY += 10;
+        
+        currentY = _drawText(
+          canvas,
+          'NEW ITEMS:',
+          x: _padding,
+          y: currentY,
+          fontSize: _fontSize - 2,
+          fontWeight: FontWeight.bold,
+          textAlign: TextAlign.left,
+        );
+      }
+    }
     
     // Items
     for (final item in items) {
@@ -918,8 +1078,6 @@ static Future<Uint8List?> _generateKotImage({
       paint,
     );
     
-    // Don't add any extra spacing after the final line
-
     // Create the final image with the exact calculated height
     final picture = recorder.endRecording();
     final img = await picture.toImage(
@@ -1033,6 +1191,8 @@ static Future<Uint8List?> _generateKotImage({
     required List<MenuItem> items,
     String? tableInfo,
     String? orderNumber,
+    bool isEdited = false,
+    List<OrderItem>? originalItems,
   }) async {
     final kotEnabled = await isKotPrinterEnabled();
     if (!kotEnabled) {
@@ -1047,6 +1207,8 @@ static Future<Uint8List?> _generateKotImage({
       serviceType: serviceType,
       tableInfo: tableInfo,
       orderNumber: orderNumber,
+      isEdited: isEdited,
+      originalItems: originalItems,
     );
     
     if (imageBytes == null) {
@@ -1063,12 +1225,16 @@ static Future<Uint8List?> _generateKotImage({
     required List<MenuItem> items,
     String? tableInfo,
     String? orderNumber,
+    bool isEdited = false,
+    List<OrderItem>? originalItems,
   }) async {
     return await printKotReceipt(
       serviceType: serviceType,
       items: items,
       tableInfo: tableInfo,
       orderNumber: orderNumber,
+      isEdited: isEdited,
+      originalItems: originalItems,
     );
   }
 

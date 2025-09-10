@@ -677,17 +677,377 @@ class _ModifierScreenState extends State<ModifierScreen> {
     );
   }
 
+  // Extract items list panel
+  Widget _buildItemsList() {
+    final menuProvider = Provider.of<MenuProvider>(context);
+    
+    List<MenuItem> displayedItems = [];
+    if (_selectedCategory.isNotEmpty && menuProvider.categories.contains(_selectedCategory)) {
+      displayedItems = menuProvider.getItemsByCategory(_selectedCategory);
+    }
+
+    return Card(
+      margin: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Category dropdown for the list panel
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: DropdownButtonFormField<String>(
+              decoration: InputDecoration(
+                labelText: 'Category'.tr(),
+                border: OutlineInputBorder(),
+              ),
+              value: menuProvider.categories.contains(_selectedCategory) ? _selectedCategory : null,
+              items: menuProvider.categories.map((category) {
+                return DropdownMenuItem(
+                  value: category,
+                  child: Text(category),
+                );
+              }).toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    _selectedCategory = value;
+                  });     
+                }
+              },
+              hint: Text('Select a category'.tr()),
+            ),
+          ),
+
+          // Items list
+          Expanded(
+            child: _selectedCategory.isEmpty || !menuProvider.categories.contains(_selectedCategory) ? 
+               Center(child: Text('No category selected'.tr())) :
+               displayedItems.isEmpty ?
+              Center(child: Text('No items in this category'.tr())) :
+              ListView.builder(
+                key: _listKey,
+                itemCount: displayedItems.length,
+                itemBuilder: (ctx, index) {
+                  final item = displayedItems[index];
+                  
+                  return ListTile(
+                    key: ValueKey('item_${item.id}'),
+                    leading: Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8.0),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(7.0),
+                        child: _buildImageForListItem(item),
+                      ),
+                    ),
+                    title: Text(
+                      item.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(item.price.toStringAsFixed(2)),
+                        Text(
+                          item.isAvailable ? 'Available'.tr() : 'Out of stock'.tr(),
+                          style: TextStyle(
+                            color: item.isAvailable ? Colors.green : Colors.red,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.blue),
+                          onPressed: () => _prepareForEdit(item),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => _showDeleteConfirmation(item),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Extract form panel
+  Widget _buildForm() {
+    final menuProvider = Provider.of<MenuProvider>(context);
+    
+    return Card(
+      margin: const EdgeInsets.all(16),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        // Make the form scrollable to handle keyboard
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _editingItem == null ? 'Add New Item'.tr() : 'Edit Item'.tr(),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Name field
+                TextFormField(
+                  controller: _nameController,
+                  decoration: InputDecoration(
+                    labelText: 'Name'.tr(),
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter a name'.tr();
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Price field
+                TextFormField(
+                  controller: _priceController,
+                  decoration:  InputDecoration(
+                    labelText: 'Price'.tr(),
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter a price'.tr();
+                    }
+                    try {
+                      double.parse(value);
+                    } catch (e) {
+                      return 'Please enter a valid number'.tr();
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Category field - either dropdown or text input based on state
+                _isAddingNewCategory
+                  ? Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _categoryController,
+                            decoration:  InputDecoration(
+                              labelText: 'New Category'.tr(),
+                              border: OutlineInputBorder(),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter a category name'.tr();
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => _toggleCategoryInput(false),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            decoration:  InputDecoration(
+                              labelText: 'Category'.tr(),
+                              border: OutlineInputBorder(),
+                            ),
+                            value: menuProvider.categories.contains(_selectedCategory) ? _selectedCategory : null,
+                            items: menuProvider.categories.map((category) {
+                              return DropdownMenuItem<String>(
+                                value: category,
+                                child: Text(category),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() {
+                                  _selectedCategory = value;
+                                });
+                              }
+                            },
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please select a category'.tr();
+                              }
+                              return null;
+                            },
+                            hint: Text('Select a category'.tr()),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add),
+                          onPressed: () => _toggleCategoryInput(true),
+                          tooltip: 'Add new category'.tr(),
+                        ),
+                      ],
+                    ),
+
+                const SizedBox(height: 16),
+
+                // Image section with upload buttons only
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                     children: [
+                     Text(
+                      'Item Image (Optional)'.tr(),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                     if (_selectedImage != null || _base64Image != null)
+                        TextButton.icon(
+                          icon: const Icon(Icons.delete, size: 16, color: Colors.red),
+                          label: Text('Remove Image'.tr(), style: TextStyle(color: Colors.red)),
+                          onPressed: () {
+                            setState(() {
+                              _selectedImage = null;
+                              _base64Image = null;
+                            });
+                          },
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                    
+                    // Image upload buttons
+                    Row(
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: _pickImage,
+                          icon: const Icon(Icons.photo_library),
+                          label:  Text('Gallery'.tr()),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue[700],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton.icon(
+                          onPressed: _takePhoto,
+                          icon: const Icon(Icons.camera_alt),
+                          label:  Text('Camera'.tr()),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    // Image preview - DECREASED HEIGHT
+                    const SizedBox(height: 12),
+                    Container(
+                      height: 120, // Decreased size
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: _isImageLoading ? 
+                        const Center(child: CircularProgressIndicator()) :
+                         ((_selectedImage == null && _base64Image == null && (_editingItem?.imageUrl.isEmpty ?? true)) ?
+                        Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.image_outlined, size: 40, color: Colors.grey[400]),
+                              const SizedBox(height: 4),
+                              Text(
+                                'No image selected'.tr(),
+                                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '(Images are optional)'.tr(),
+                                style: TextStyle(color: Colors.grey[500], fontSize: 11, fontStyle: FontStyle.italic),
+                              ),
+                            ],
+                          ),
+                        ) : 
+                        _buildImagePreview()),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                // Availability switch
+                Row(
+                  children: [
+                    Text('Available'.tr()),
+                    Switch(
+                      value: _isAvailable,
+                      onChanged: (value) {
+                        setState(() {
+                          _isAvailable = value;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 32), // Add extra space at bottom
+
+                // Form buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: _resetForm,
+                      child:  Text('Cancel'.tr()),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: _saveItemToDatabase,
+                      child: Text(_editingItem == null ? 'Add Item'.tr() : 'Update Item'.tr()),
+                    ),
+                  ],
+                ),
+                // Add extra padding at the bottom to ensure enough space for keyboard
+                SizedBox(height: MediaQuery.of(context).viewInsets.bottom > 0 ? 320 : 16),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final menuProvider = Provider.of<MenuProvider>(context);
     
     if (_selectedCategory.isEmpty && menuProvider.categories.isNotEmpty) {
       _selectedCategory = menuProvider.categories.first;
-    }
-
-    List<MenuItem> displayedItems = [];
-    if (_selectedCategory.isNotEmpty && menuProvider.categories.contains(_selectedCategory)) {
-      displayedItems = menuProvider.getItemsByCategory(_selectedCategory);
     }
 
     return Scaffold(
@@ -700,368 +1060,46 @@ class _ModifierScreenState extends State<ModifierScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      // Make the body a SingleChildScrollView that adjusts for keyboard
+      // Make the body responsive with LayoutBuilder
       body: SafeArea(
-        child: Row(
-          children: [
-            // Menu items list (left side)
-            Expanded(
-              flex: 2,
-              child: Card(
-                margin: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Category dropdown for the left panel
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: DropdownButtonFormField<String>(
-                        decoration:  InputDecoration(
-                          labelText: 'Category'.tr(),
-                          border: OutlineInputBorder(),
-                        ),
-                        value: menuProvider.categories.contains(_selectedCategory) ? _selectedCategory : null,
-                        items: menuProvider.categories.map((category) {
-                          return DropdownMenuItem(
-                            value: category,
-                            child: Text(category),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          if (value != null) {
-                            setState(() {
-                              _selectedCategory = value;
-                            });     
-                          }
-                        },
-                        hint:  Text('Select a category'.tr()),
-                      ),
-                    ),
-
-                    // Items list - Improved version
-                    Expanded(
-                      child: _selectedCategory.isEmpty || !menuProvider.categories.contains(_selectedCategory) ? 
-                         Center(child: Text('No category selected'.tr())) :
-                         displayedItems.isEmpty ?
-                        Center(child: Text('No items in this category'.tr())) :
-                        ListView.builder(
-                          key: _listKey,
-                          itemCount: displayedItems.length,
-                          itemBuilder: (ctx, index) {
-                            final item = displayedItems[index];
-                            
-                            return ListTile(
-                              key: ValueKey('item_${item.id}'),
-                              leading: Container(
-                                width: 50,
-                                height: 50,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(8.0),
-                                  border: Border.all(color: Colors.grey.shade300),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(7.0),
-                                  child: _buildImageForListItem(item),
-                                ),
-                              ),
-                              title: Text(
-                                item.name,
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(item.price.toStringAsFixed(2)),
-                                  Text(
-                                    item.isAvailable ? 'Available'.tr() : 'Out of stock'.tr(),
-                                    style: TextStyle(
-                                      color: item.isAvailable ? Colors.green : Colors.red,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.edit, color: Colors.blue),
-                                    onPressed: () => _prepareForEdit(item),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.delete, color: Colors.red),
-                                    onPressed: () => _showDeleteConfirmation(item),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Form for adding/editing (right side)
-            Expanded(
-              flex: 3,
-              child: Card(
-                margin: const EdgeInsets.all(16),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  // Make the form scrollable to handle keyboard
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _editingItem == null ? 'Add New Item'.tr() : 'Edit Item'.tr(),
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-
-                          // Name field
-                          TextFormField(
-                            controller: _nameController,
-                            decoration: InputDecoration(
-                              labelText: 'Name'.tr(),
-                              border: OutlineInputBorder(),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter a name'.tr();
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Price field
-                          TextFormField(
-                            controller: _priceController,
-                            decoration:  InputDecoration(
-                              labelText: 'Price'.tr(),
-                              border: OutlineInputBorder(),
-                            ),
-                            keyboardType: TextInputType.number,
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter a price'.tr();
-                              }
-                              try {
-                                double.parse(value);
-                              } catch (e) {
-                                return 'Please enter a valid number'.tr();
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Category field - either dropdown or text input based on state
-                          _isAddingNewCategory
-                            ? Row(
-                                children: [
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: _categoryController,
-                                      decoration:  InputDecoration(
-                                        labelText: 'New Category'.tr(),
-                                        border: OutlineInputBorder(),
-                                      ),
-                                      validator: (value) {
-                                        if (value == null || value.isEmpty) {
-                                          return 'Please enter a category name'.tr();
-                                        }
-                                        return null;
-                                      },
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.close),
-                                    onPressed: () => _toggleCategoryInput(false),
-                                  ),
-                                ],
-                              )
-                            : Row(
-                                children: [
-                                  Expanded(
-                                    child: DropdownButtonFormField<String>(
-                                      decoration:  InputDecoration(
-                                        labelText: 'Category'.tr(),
-                                        border: OutlineInputBorder(),
-                                      ),
-                                      value: menuProvider.categories.contains(_selectedCategory) ? _selectedCategory : null,
-                                      items: menuProvider.categories.map((category) {
-                                        return DropdownMenuItem<String>(
-                                          value: category,
-                                          child: Text(category),
-                                        );
-                                      }).toList(),
-                                      onChanged: (value) {
-                                        if (value != null) {
-                                          setState(() {
-                                            _selectedCategory = value;
-                                          });
-                                        }
-                                      },
-                                      validator: (value) {
-                                        if (value == null || value.isEmpty) {
-                                          return 'Please select a category'.tr();
-                                        }
-                                        return null;
-                                      },
-                                      hint: Text('Select a category'.tr()),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.add),
-                                    onPressed: () => _toggleCategoryInput(true),
-                                    tooltip: 'Add new category'.tr(),
-                                  ),
-                                ],
-                              ),
-
-                          const SizedBox(height: 16),
-
-                          // Image section with upload buttons only
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                               children: [
-                               Text(
-                                'Item Image (Optional)'.tr(),
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                               if (_selectedImage != null || _base64Image != null)
-                                  TextButton.icon(
-                                    icon: const Icon(Icons.delete, size: 16, color: Colors.red),
-                                    label: Text('Remove Image'.tr(), style: TextStyle(color: Colors.red)),
-                                    onPressed: () {
-                                      setState(() {
-                                        _selectedImage = null;
-                                        _base64Image = null;
-                                      });
-                                    },
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                              
-                              // Image upload buttons
-                              Row(
-                                children: [
-                                  ElevatedButton.icon(
-                                    onPressed: _pickImage,
-                                    icon: const Icon(Icons.photo_library),
-                                    label:  Text('Gallery'.tr()),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.blue[700],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  ElevatedButton.icon(
-                                    onPressed: _takePhoto,
-                                    icon: const Icon(Icons.camera_alt),
-                                    label:  Text('Camera'.tr()),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.green[700],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              
-                              // Image preview - DECREASED HEIGHT
-                              const SizedBox(height: 12),
-                              Container(
-                                height: 120, // Decreased size
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.grey.shade300),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: _isImageLoading ? 
-                                  const Center(child: CircularProgressIndicator()) :
-                                   ((_selectedImage == null && _base64Image == null && (_editingItem?.imageUrl.isEmpty ?? true)) ?
-                                  Center(
-                                    child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.image_outlined, size: 40, color: Colors.grey[400]),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'No image selected'.tr(),
-                                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          '(Images are optional)'.tr(),
-                                          style: TextStyle(color: Colors.grey[500], fontSize: 11, fontStyle: FontStyle.italic),
-                                        ),
-                                      ],
-                                    ),
-                                  ) : 
-                                  _buildImagePreview()),
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 16),
-
-                          // Availability switch
-                          Row(
-                            children: [
-                              Text('Available'.tr()),
-                              Switch(
-                                value: _isAvailable,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _isAvailable = value;
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 32), // Add extra space at bottom
-
-                          // Form buttons
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              TextButton(
-                                onPressed: _resetForm,
-                                child:  Text('Cancel'.tr()),
-                              ),
-                              const SizedBox(width: 8),
-                              ElevatedButton(
-                                onPressed: _saveItemToDatabase,
-                                child: Text(_editingItem == null ? 'Add Item'.tr() : 'Update Item'.tr()),
-                              ),
-                            ],
-                          ),
-                          // Add extra padding at the bottom to ensure enough space for keyboard
-                          SizedBox(height: MediaQuery.of(context).viewInsets.bottom > 0 ? 320 : 16),
-                        ],
-                      ),
-                    ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWideScreen = constraints.maxWidth >= 900;
+            
+            if (isWideScreen) {
+              // Wide screen: Row layout (left list + right form)
+              return Row(
+                children: [
+                  // Menu items list (left side)
+                  Expanded(
+                    flex: 2,
+                    child: _buildItemsList(),
                   ),
-                ),
-              ),
-            ),
-          ],
+                  // Form for adding/editing (right side)
+                  Expanded(
+                    flex: 3,
+                    child: _buildForm(),
+                  ),
+                ],
+              );
+            } else {
+              // Narrow screen: Column layout (list on top, form below)
+              return Column(
+                children: [
+                  // Menu items list (top)
+                  Expanded(
+                    flex: 2,
+                    child: _buildItemsList(),
+                  ),
+                  // Form for adding/editing (bottom)
+                  Expanded(
+                    flex: 3,
+                    child: _buildForm(),
+                  ),
+                ],
+              );
+            }
+          },
         ),
       ),
       // Add resizeToAvoidBottomInset to make sure the keyboard doesn't overlap content
@@ -1069,4 +1107,3 @@ class _ModifierScreenState extends State<ModifierScreen> {
     );
   }
 }
-                                   

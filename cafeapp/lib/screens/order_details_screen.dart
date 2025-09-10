@@ -15,6 +15,8 @@ import '../utils/app_localization.dart';
 import '../utils/service_type_utils.dart';
 import '../repositories/local_person_repository.dart';
 import '../models/person.dart';
+// import '../providers/person_provider.dart';
+import 'search_person_screen.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
   final int orderId;
@@ -47,6 +49,17 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         setState(() {
           _taxRate = settingsProvider.taxRate;
         });
+      }
+    });
+  }
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    
+    // Check if we're coming back from another screen and reload if needed
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadOrderDetails();
       }
     });
   }
@@ -262,6 +275,8 @@ Future<void> _printKitchenReceipt() async {
       serviceType: _order!.serviceType,
       tableInfo: tableInfo,
       orderNumber: _order!.orderNumber,
+      isEdited: _wasEdited, // Add this parameter
+      originalItems: _originalItems, 
       context: mounted ? context : null, // Add mounted check before using context
     );
     
@@ -845,6 +860,14 @@ void _showEditOrderItemsDialog() {
             onPressed: () => Navigator.of(context).pop(),
           ),
           actions: [
+               TextButton.icon(
+                icon: const Icon(Icons.receipt),
+                label: Text('Receipt'.tr()),
+                onPressed: _navigateToPersonSearchForReceipt,
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.green[800],
+                ),
+              ),
             if (_order != null)
               TextButton.icon(
                 icon: const Icon(Icons.payment),
@@ -1221,4 +1244,20 @@ IconData _getServiceTypeIcon(String serviceType) {
 String _getTranslatedServiceType(String serviceType) {
   return ServiceTypeUtils.getTranslated(serviceType);
 }
+
+// Add this method to OrderDetailsScreen
+Future<void> _navigateToPersonSearchForReceipt() async {
+  final selectedPerson = await Navigator.push<Person>(
+    context,
+    MaterialPageRoute(
+      builder: (context) => const SearchPersonScreen(isForCreditReceipt: true),
+    ),
+  );
+  
+  if (selectedPerson != null) {
+    // Handle the selected person if needed
+    debugPrint('Selected person for credit receipt: ${selectedPerson.name}');
+  }
+}
+
 }

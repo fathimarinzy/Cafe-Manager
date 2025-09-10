@@ -1082,14 +1082,21 @@ pw.Widget _buildPdfBalanceRow(Map<String, dynamic> paymentTotals, NumberFormat f
     
     for (final order in orders) {
       final paymentMethod = (order.paymentMethod ?? 'cash').toLowerCase();
-      if (paymentMethod == 'cash') {
+      if (paymentMethod == 'customer_credit') {
+         continue;
+        // paymentTotals['cash']!['sales'] = (paymentTotals['cash']!['sales'] ?? 0.0) + order.total;
+      } else if (paymentMethod == 'cash') {
         paymentTotals['cash']!['sales'] = (paymentTotals['cash']!['sales'] ?? 0.0) + order.total;
       } else if (paymentMethod == 'bank') {
         paymentTotals['bank']!['sales'] = (paymentTotals['bank']!['sales'] ?? 0.0) + order.total;
       } else {
         paymentTotals['other']!['sales'] = (paymentTotals['other']!['sales'] ?? 0.0) + order.total;
       }
-      paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + order.total;
+      // paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + order.total;
+      // Only add to total sales if it's not customer_credit
+      if (paymentMethod != 'customer_credit') {
+        paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + order.total;
+      }
     }
     
     for (final expense in expenses) {

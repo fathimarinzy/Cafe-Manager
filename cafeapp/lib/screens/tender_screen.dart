@@ -22,6 +22,10 @@ import '../models/menu_item.dart';
 import '../repositories/local_order_repository.dart';
 import '../utils/app_localization.dart';
 import '../utils/service_type_utils.dart';
+import '../providers/person_provider.dart';
+import '../screens/search_person_screen.dart';
+import '../repositories/credit_transaction_repository.dart';
+import '../models/credit_transaction.dart';
 
 class TenderScreen extends StatefulWidget {
   final OrderHistory order;
@@ -30,6 +34,9 @@ class TenderScreen extends StatefulWidget {
   final String? preselectedPaymentMethod; 
   final bool showBankDialogOnLoad; 
   final Person? customer;
+  final bool isCreditCompletion; 
+  final String? creditTransactionId; 
+
 
   const TenderScreen({
     super.key, 
@@ -39,6 +46,8 @@ class TenderScreen extends StatefulWidget {
     this.preselectedPaymentMethod,
     this.showBankDialogOnLoad = false,
     this.customer,
+    this.isCreditCompletion = false,
+    this.creditTransactionId,
   });
 
   @override
@@ -52,6 +61,8 @@ class _TenderScreenState extends State<TenderScreen> {
   double _paidAmount = 0.0;
   bool _isProcessing = false;
   bool _isCashSelected = false;
+  Person? _currentCustomer;
+
   final Map<String, Map<String, double>> _serviceTotals = {};
   final String _currentServiceType = '';
 
@@ -81,6 +92,8 @@ class _TenderScreenState extends State<TenderScreen> {
   @override
   void initState() {
     super.initState();
+    // Initialize current customer from widget
+    _currentCustomer = widget.customer;
     
     _orderStatus = widget.order.status;
     
@@ -502,6 +515,13 @@ Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async 
       _isProcessing = true;
     });
 
+    try {
+    // Handle credit completion case
+    if (widget.isCreditCompletion) {
+      await _processCreditCompletionPayment(amount, _selectedPaymentMethod!.toLowerCase());
+      return;
+    }
+
     final discountedTotal = _getDiscountedTotal();
     
     double change = 0.0;
@@ -509,7 +529,7 @@ Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async 
       change = amount - discountedTotal;
     }
 
-    try {
+  
       final paymentMethod = _selectedPaymentMethod!.toLowerCase();
       Order? savedOrder;
       
@@ -524,7 +544,14 @@ Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async 
         
         if (orderIndex >= 0) {
           final existingOrder = orders[orderIndex];
-          
+           // Get current discount
+            double discountAmount = 0.0;
+            if (_serviceTotals.containsKey(_currentServiceType)) {
+              discountAmount = _serviceTotals[_currentServiceType]!['discount'] ?? 0.0;
+            }
+            // Calculate final total after discount
+            final finalTotal = widget.order.total - discountAmount;
+
           savedOrder = Order(
             id: existingOrder.id,
             serviceType: existingOrder.serviceType,
@@ -532,7 +559,7 @@ Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async 
             subtotal: widget.order.total - (widget.order.total * (widget.taxRate / 100)),
             tax: widget.order.total * (widget.taxRate / 100),
             discount: discountAmount,
-            total: widget.order.total- discountAmount,
+            total: finalTotal,
             status: 'completed',
             createdAt: existingOrder.createdAt,
             customerId: widget.customer?.id ?? existingOrder.customerId,
@@ -1188,6 +1215,9 @@ void _showBankPaymentDialog() {
     builder: (BuildContext context) {
       return StatefulBuilder(
         builder: (context, setState) {
+          // Recalculate discounted total in case discount was applied
+          final currentDiscountedTotal = _getDiscountedTotal();
+          
           // Check if device is in portrait mode
           final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
           final screenWidth = MediaQuery.of(context).size.width;
@@ -1201,7 +1231,7 @@ void _showBankPaymentDialog() {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  // Header
+                  // Header with discount button
                   Row(
                     children: [
                       IconButton(
@@ -1223,15 +1253,29 @@ void _showBankPaymentDialog() {
                         ),
                       ),
                       Expanded(child: Container()),
+                      // Add discount button in header
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.discount, size: 16),
+                        label: Text('Discount'.tr()),
+                        onPressed: () {
+                          _showDiscountDialog(); // Show discount dialog
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple.shade100,
+                          foregroundColor: Colors.purple.shade900,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          textStyle: const TextStyle(fontSize: 12),
+                          minimumSize: const Size(80, 32),
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
-                  
                   // Content - Different layout for portrait vs landscape
                   Expanded(
                     child: isPortrait 
-                      ? _buildPortraitLayout(setState, discountedTotal)
-                      : _buildLandscapeLayout(setState, discountedTotal),
+                      ? _buildPortraitLayout(setState, currentDiscountedTotal)
+                      : _buildLandscapeLayout(setState, currentDiscountedTotal),
                   ),
                 ],
               ),
@@ -1384,7 +1428,7 @@ Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
         
         // Card types section
         Container(
-          height: 230,
+          height: 190,
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Colors.grey.shade50,
@@ -1518,6 +1562,7 @@ Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
                 child: Row(
                   children: [
                     Expanded(child: _buildPortraitNumberPadButton('C', setState)),
+                    Expanded(child: _buildPortraitNumberPadButton('.', setState)),
                     Expanded(
                       child: Container(
                         margin: const EdgeInsets.all(4),
@@ -1793,6 +1838,7 @@ Widget _buildLandscapeLayout(StateSetter setState, double discountedTotal) {
                 child: Row(
                   children: [
                     Expanded(child: _buildNumberPadDialogButton('C', setState)),
+                    Expanded(child: _buildNumberPadDialogButton('.', setState)),
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () {
@@ -1856,6 +1902,12 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
           setState(() {
             controller.clear();
           });
+        } else if (text == '.') {
+          if (!controller.text.contains('.')) {
+            setState(() {
+              controller.text = controller.text + text;
+            });
+          }
         } else if (text == '⌫') {
           if (controller.text.isNotEmpty) {
             setState(() {
@@ -1914,6 +1966,12 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
             setState(() {
               controller.clear();
             });
+          } else if (text == '.') {
+            if (!controller.text.contains('.')) {
+              setState(() {
+                controller.text = controller.text + text;
+              });
+            }
           } else if (text == '⌫') {
             if (controller.text.isNotEmpty) {
               setState(() {
@@ -1979,7 +2037,7 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       return;
     }
 
-    if (_balanceAmount <= 0) {
+    if (!widget.isCreditCompletion && _balanceAmount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No remaining balance to pay'.tr())),
       );
@@ -1987,6 +2045,12 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
     }
     
     double change = 0.0;
+    // Calculate change differently for credit completion
+  if (widget.isCreditCompletion) {
+    if (amount > widget.order.total) {
+      change = amount - widget.order.total;
+    }
+  } else {
     if (_selectedPaymentMethod == 'Bank') {
       if (amount > widget.order.total) {
         change = amount - widget.order.total;
@@ -1996,6 +2060,7 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
         change = amount - _balanceAmount;
       }
     }
+  }
     
     if (!mounted) return;
     
@@ -2025,7 +2090,7 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
               onPressed: () {
                 Navigator.of(dialogContext).pop('no');
               },
-            ),
+             ),
             TextButton(
               child: Text('Yes'.tr()),
               onPressed: () {
@@ -2044,6 +2109,15 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
     }
 
     if (result == 'yes' || result == 'no') {
+      // For credit completion, always process the payment
+    if (widget.isCreditCompletion) {
+      if (_selectedPaymentMethod == 'Cash') {
+        _processCashPayment(amount, change);
+      } else {
+        _processPayment(amount);
+      }
+      return;
+    }
       setState(() {
         if (_selectedPaymentMethod == 'Cash') {
           double amountToDeduct = _balanceAmount < amount ? _balanceAmount : amount;
@@ -2138,6 +2212,12 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
     });
 
     try {
+       // Handle credit completion case
+    if (widget.isCreditCompletion) {
+      await _processCreditCompletionPayment(amount, 'Cash');
+      return;
+    }
+
       Order? savedOrder;
         
       double discountAmount = 0.0;
@@ -2442,7 +2522,7 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
           _buildPaymentMethodOption('Bank'.tr(), Icons.account_balance),
           _buildPaymentMethodOption('Cash'.tr(), Icons.money),
           _buildPaymentMethodOption('Customer Credit'.tr(), Icons.person),
-          _buildPaymentMethodOption('Credit Sale'.tr(), Icons.credit_card),
+          // _buildPaymentMethodOption('Credit Sale'.tr(), Icons.credit_card),
         ],
       ),
     );
@@ -2487,7 +2567,10 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
             
             if (method == 'Bank'.tr()) {
               _showBankPaymentDialog();
-            }
+
+            }  else if (method == 'Customer Credit'.tr() && !widget.isCreditCompletion) {
+            _handleCustomerCreditPayment();
+          }
           });
         },
       ),
@@ -2534,8 +2617,8 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [ 
                 Text('${'Customer'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                 Text(
-                widget.customer?.name ?? 'NA',
+                Text(
+                _currentCustomer?.name ?? 'NA',
                 style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
               ),
               ],
@@ -2750,9 +2833,9 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
     final discountedTotal = _getDiscountedTotal();
   
     return AbsorbPointer(
-      absorbing: _selectedPaymentMethod == null,
+      absorbing: false,
       child: Opacity(
-        opacity: _selectedPaymentMethod == null ? 0.5 : 1.0,
+        opacity: 1.0,
         child: SingleChildScrollView(
           child: Container(
             padding: const EdgeInsets.all(12),
@@ -3063,7 +3146,7 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             ElevatedButton(
-              onPressed: _selectedPaymentMethod != null ? _showDiscountDialog : null,
+              onPressed: _showDiscountDialog,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.purple.shade100,
                 foregroundColor: Colors.purple.shade900,
@@ -3071,8 +3154,8 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
                 padding: const EdgeInsets.symmetric(horizontal: 35, vertical: 10),
                 minimumSize: const Size(10, 36),
                 textStyle: const TextStyle(fontSize: 12),
-                disabledBackgroundColor: Colors.grey.shade200,
-                disabledForegroundColor: Colors.grey.shade500,
+                // disabledBackgroundColor: Colors.grey.shade200,
+                // disabledForegroundColor: Colors.grey.shade500,
               ),
               child: Text('Discount'.tr()),
             ),
@@ -3124,8 +3207,436 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       ),
     );
   }
+  // Add this method to handle customer credit payment
+ Future<void> _processCustomerCreditPayment(Person customer) async {
+  final discountedTotal = _getDiscountedTotal();
+  
+  // Show confirmation dialog
+  final confirmed = await _showCustomerCreditDialog(customer, discountedTotal);
+  
+  if (confirmed == true) {
+    setState(() {
+      _isProcessing = true;
+    });
+
+    try {
+      if (!mounted) return;
+      // Add credit to customer
+      final personProvider = Provider.of<PersonProvider>(context, listen: false);
+      final success = await personProvider.updateCustomerCredit(
+        customer.id!,
+        discountedTotal,
+      );
+
+      if (success) {
+         // Save credit transaction
+        final creditRepo = CreditTransactionRepository();
+        final transaction = CreditTransaction(
+          id: 'credit_${DateTime.now().millisecondsSinceEpoch}',
+          customerId: customer.id!,
+          customerName: customer.name,
+          orderNumber: widget.order.orderNumber,
+          amount: discountedTotal,
+          createdAt: DateTime.now(),
+          serviceType: widget.order.serviceType,
+          isCompleted: false,
+        );
+        
+        await creditRepo.saveCreditTransaction(transaction);
+         // Update the original order with customer_credit payment method
+        await _updateOrderPaymentMethodForCredit(widget.order.id, 'customer_credit', _getCurrentDiscount());
+
+        // Update order status to completed (without cash payment processing)
+        await _updateOrderStatus('completed');
+        
+        // Update table status if needed
+        if (widget.order.serviceType.contains('Dining - Table')) {
+          final tableNumberStr = widget.order.serviceType.split('Table ').last;
+          final tableNumber = int.tryParse(tableNumberStr);
+          
+          if (tableNumber != null && mounted) {
+            final tableProvider = Provider.of<TableProvider>(context, listen: false);
+            await tableProvider.setTableStatus(tableNumber, false);
+          }
+        }
+        
+        // Clear cart and customer selection
+        if (mounted) {
+          final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+          orderProvider.clearSelectedPerson();
+          orderProvider.clearCart();
+        }
+        
+        if (mounted) {
+          Provider.of<OrderHistoryProvider>(context, listen: false).refreshOrdersAndConnectivity();
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Credit of ${discountedTotal.toStringAsFixed(3)} added to ${customer.name}${_getCurrentDiscount() > 0 ? ' (after discount of ${_getCurrentDiscount().toStringAsFixed(3)})' : ''}'.tr()),
+              backgroundColor: Colors.green,
+            ),
+          );
+          
+          // Navigate back to order list
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const DashboardScreen()),
+            (route) => false,
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to add credit to customer'.tr()),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error processing customer credit: ${e.toString()}'.tr()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
+  } else {
+    // User cancelled, reset payment method
+    setState(() {
+      _selectedPaymentMethod = null;
+    });
+  }
+}
+  // Add dialog to confirm customer credit
+  Future<bool?> _showCustomerCreditDialog(Person customer, double amount) async {
+    final originalTotal = widget.order.total;
+    final discount = _getCurrentDiscount();
+
+    return showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Customer Credit :'.tr(),style: const TextStyle(
+            // fontWeight: FontWeight.bold,
+            fontSize: 20,
+          )),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Add credit to customer : ${customer.name}'.tr(),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 8),
+            
+              const SizedBox(height: 16),
+              // Show original amount if there's a discount
+            if (discount > 0) ...[
+              Text('Original Amount: ${originalTotal.toStringAsFixed(3)}'),
+              Text('Discount: ${discount.toStringAsFixed(3)}', 
+                   style: TextStyle(color: Colors.red.shade700)),
+              const Divider(),
+            ],
+
+              Text('Credit Amount : ${amount.toStringAsFixed(3)}'),
+              const SizedBox(height: 8),
+              Text(
+                'Current credit balance : ${customer.credit.toStringAsFixed(3)}',
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text('Cancel'.tr()),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue.shade700,
+                foregroundColor: Colors.white,
+              ),
+              child: Text('Add Credit'.tr()),
+            ),
+          ],
+        );
+      },
+    );
+  }
+  // Add this method to handle customer credit
+Future<void> _handleCustomerCreditPayment() async {
+  // Check if customer is selected
+  if (_currentCustomer  == null) {
+    // Navigate to search person screen
+    final selectedPerson = await Navigator.push<Person>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SearchPersonScreen(),
+      ),
+    );
+    if (!mounted) return;
+    if (selectedPerson != null) {
+      // Update the order provider with selected customer
+      final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+      orderProvider.setSelectedPerson(selectedPerson);
+
+      // IMPORTANT: Update the order in the database with customer info
+      await _updateOrderWithCustomer(selectedPerson);
+     // Update local state to reflect the customer selection
+      setState(() {
+         _currentCustomer = selectedPerson;
+
+      });
+      
+      // Process the credit payment with the selected customer
+      await _processCustomerCreditPayment(selectedPerson);
+    } else {
+      // User cancelled customer selection, reset payment method
+      setState(() {
+        _selectedPaymentMethod = null;
+      });
+    }
+  } else {
+    // Customer already selected, proceed with credit payment
+    await _processCustomerCreditPayment(_currentCustomer!);
+  }
+}
 
   String _getTranslatedServiceType(String serviceType) {
-  return ServiceTypeUtils.getTranslated(serviceType);
+    return ServiceTypeUtils.getTranslated(serviceType);
+  }
+
+// Add this method to TenderScreen
+Future<void> _processCreditCompletionPayment(double amount, String paymentMethod) async {
+  if (widget.creditTransactionId == null || widget.customer == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Invalid credit transaction'.tr())),
+    );
+    return;
+  }
+
+  try {
+   // Get the credit transaction details
+    final creditRepo = CreditTransactionRepository();
+    final creditTransaction = await creditRepo.getCreditTransactionById(widget.creditTransactionId!);
+    
+    if (creditTransaction == null) {
+      throw Exception('Credit transaction not found');
+    }
+    // Mark credit transaction as completed
+    final transactionCompleted = await creditRepo.markCreditTransactionCompleted(widget.creditTransactionId!);
+
+
+    if (!mounted) return;
+    if (transactionCompleted) {
+      // Update customer credit balance (deduct the amount)
+      final personProvider = Provider.of<PersonProvider>(context, listen: false);
+      final success = await personProvider.updateCustomerCredit(
+        widget.customer!.id!,
+        -widget.order.total, // Negative to deduct from credit
+      );
+
+      if (success) {
+        // IMPORTANT: Update the original order's payment method
+        await _updateOriginalOrderPaymentMethod(
+          creditTransaction.orderNumber, 
+          paymentMethod.toLowerCase()
+        );
+
+        // Use the regular receipt printing process
+        final pdf = await _generateReceipt();
+        
+        bool printed = false;
+        try {
+          // Use the same thermal printing as regular orders
+          printed = await BillService.printThermalBill(
+            widget.order, 
+            isEdited: widget.isEdited, 
+            taxRate: widget.taxRate, 
+            discount: 0.0,
+            // customer: widget.customer,
+            // paymentMethod: paymentMethod.toLowerCase(),
+          );
+        } catch (e) {
+          debugPrint('Printing error: $e');
+        }
+        
+        bool? saveAsPdf = false;
+        if (!printed) {
+          if (mounted) {
+            saveAsPdf = await _showSavePdfDialog();
+          }
+          
+          if (saveAsPdf == true) {
+            try {
+              await _saveWithAndroidIntent(pdf);
+            } catch (e) {
+              debugPrint('Error saving PDF: $e');
+            }
+          }
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Credit payment completed via $paymentMethod'.tr()),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          // Show balance message (like normal payments)
+          await _showBalanceMessageDialog();
+        }
+      } else {
+        throw Exception('Failed to update customer credit balance');
+      }
+    } else {
+      throw Exception('Failed to mark transaction as completed');
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error completing credit payment: ${e.toString()}'.tr()),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+    rethrow;
+  }
 }
+// Add this new method to update the original order's payment method
+Future<void> _updateOriginalOrderPaymentMethod(String orderNumber, String paymentMethod) async {
+  try {
+    final localOrderRepo = LocalOrderRepository();
+    final allOrders = await localOrderRepo.getAllOrders();
+    
+    // Find the order by order number (the order number is the ID formatted)
+    final orderId = int.tryParse(orderNumber);
+    if (orderId == null) return;
+    
+    final orderIndex = allOrders.indexWhere((order) => order.id == orderId);
+    
+    if (orderIndex >= 0) {
+      final existingOrder = allOrders[orderIndex];
+      
+      // Create updated order with new payment method
+      final updatedOrder = Order(
+        id: existingOrder.id,
+        serviceType: existingOrder.serviceType,
+        items: existingOrder.items,
+        subtotal: existingOrder.subtotal,
+        tax: existingOrder.tax,
+        discount: existingOrder.discount,
+        total: existingOrder.total,
+        status: existingOrder.status,
+        createdAt: existingOrder.createdAt,
+        customerId: existingOrder.customerId,
+        paymentMethod: paymentMethod, // Update the payment method
+      );
+      
+      // Save the updated order
+      await localOrderRepo.saveOrder(updatedOrder);
+      debugPrint('Updated order #$orderNumber payment method to: $paymentMethod');
+    } else {
+      debugPrint('Order #$orderNumber not found for payment method update');
+    }
+  } catch (e) {
+    debugPrint('Error updating original order payment method: $e');
+  }
+}
+// Add this method to update order payment method for initial credit
+Future<void> _updateOrderPaymentMethodForCredit(int orderId, String paymentMethod,double discount) async {
+  try {
+    final localOrderRepo = LocalOrderRepository();
+    final allOrders = await localOrderRepo.getAllOrders();
+    
+    final orderIndex = allOrders.indexWhere((order) => order.id == orderId);
+    
+    if (orderIndex >= 0) {
+      final existingOrder = allOrders[orderIndex];
+      // Calculate the new total after discount
+      final discountedTotal = existingOrder.total - discount;
+      
+      // Create updated order with customer_credit payment method
+      final updatedOrder = Order(
+        id: existingOrder.id,
+        serviceType: existingOrder.serviceType,
+        items: existingOrder.items,
+        subtotal: existingOrder.subtotal,
+        tax: existingOrder.tax,
+        discount: discount,
+        total: discountedTotal,
+        status: existingOrder.status,
+        createdAt: existingOrder.createdAt,
+        customerId: existingOrder.customerId,
+        paymentMethod: paymentMethod, // Set as customer_credit initially
+      );
+      
+      // Save the updated order
+      await localOrderRepo.saveOrder(updatedOrder);
+      debugPrint('Updated order #$orderId with payment method: $paymentMethod and discount: $discount');
+    }
+  } catch (e) {
+    debugPrint('Error updating order payment method for credit: $e');
+  }
+}
+// Add this new method to update order with customer information
+Future<void> _updateOrderWithCustomer(Person customer) async {
+  try {
+    final localOrderRepo = LocalOrderRepository();
+    final allOrders = await localOrderRepo.getAllOrders();
+    
+    final orderIndex = allOrders.indexWhere((order) => order.id == widget.order.id);
+    
+    if (orderIndex >= 0) {
+      final existingOrder = allOrders[orderIndex];
+      
+      // Create updated order with customer ID
+      final updatedOrder = Order(
+        id: existingOrder.id,
+        serviceType: existingOrder.serviceType,
+        items: existingOrder.items,
+        subtotal: existingOrder.subtotal,
+        tax: existingOrder.tax,
+        discount: existingOrder.discount,
+        total: existingOrder.total,
+        status: existingOrder.status,
+        createdAt: existingOrder.createdAt,
+        customerId: customer.id, // Update with customer ID
+        paymentMethod: existingOrder.paymentMethod,
+      );
+      
+      // Save the updated order
+      await localOrderRepo.saveOrder(updatedOrder);
+      debugPrint('Updated order #${widget.order.id} with customer: ${customer.name}');
+      
+      // Update the OrderHistoryProvider to refresh the data
+      if (mounted) {
+        Provider.of<OrderHistoryProvider>(context, listen: false).loadOrders();
+      }
+    }
+  } catch (e) {
+    debugPrint('Error updating order with customer: $e');
+  }
+}
+ 
 }

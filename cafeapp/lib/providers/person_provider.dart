@@ -136,4 +136,46 @@ class PersonProvider with ChangeNotifier {
       return false;
     }
   }
+  // Add method to update customer credit
+Future<bool> updateCustomerCredit(String personId, double creditAmount) async {
+  try {
+    final success = await _localPersonRepo.addCreditToCustomer(personId, creditAmount);
+    if (success) {
+      // Update local lists
+      final personIndex = _persons.indexWhere((p) => p.id == personId);
+      if (personIndex >= 0) {
+        final updatedPerson = _persons[personIndex].copyWith(
+          credit: _persons[personIndex].credit + creditAmount
+        );
+        _persons[personIndex] = updatedPerson;
+      }
+      
+      final searchIndex = _searchResults.indexWhere((p) => p.id == personId);
+      if (searchIndex >= 0) {
+        final updatedPerson = _searchResults[searchIndex].copyWith(
+          credit: _searchResults[searchIndex].credit + creditAmount
+        );
+        _searchResults[searchIndex] = updatedPerson;
+      }
+      
+      notifyListeners();
+    }
+    return success;
+  } catch (e) {
+    debugPrint('Error updating customer credit: $e');
+    return false;
+  }
+}
+
+// Add method to get customer by ID
+Future<Person?> getPersonById(String personId) async {
+  try {
+    return await _localPersonRepo.getPersonById(personId);
+  } catch (e) {
+    debugPrint('Error getting person by ID: $e');
+    return null;
+  }
+}
+
+
 }

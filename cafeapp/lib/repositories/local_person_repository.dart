@@ -21,7 +21,7 @@ class LocalPersonRepository {
     
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         // Create persons table with simplified schema
         await db.execute('''
@@ -30,9 +30,16 @@ class LocalPersonRepository {
             name TEXT NOT NULL,
             phoneNumber TEXT NOT NULL,
             place TEXT NOT NULL,
-            dateVisited TEXT NOT NULL
+            dateVisited TEXT NOT NULL,
+            credit REAL DEFAULT 0.0
           )
         ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          // Add credit column to existing table
+          await db.execute('ALTER TABLE persons ADD COLUMN credit REAL DEFAULT 0.0');
+        }
       },
     );
   }
@@ -51,6 +58,7 @@ class LocalPersonRepository {
       phoneNumber: person.phoneNumber,
       place: person.place,
       dateVisited: person.dateVisited,
+      credit: person.credit,
     );
     
     try {
@@ -70,6 +78,7 @@ class LocalPersonRepository {
             'phoneNumber': newPerson.phoneNumber,
             'place': newPerson.place,
             'dateVisited': newPerson.dateVisited,
+            'credit': newPerson.credit,
           },
           where: 'id = ?',
           whereArgs: [personId],
@@ -84,6 +93,7 @@ class LocalPersonRepository {
             'phoneNumber': newPerson.phoneNumber,
             'place': newPerson.place,
             'dateVisited': newPerson.dateVisited,
+            'credit': newPerson.credit,
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
@@ -112,12 +122,47 @@ class LocalPersonRepository {
         phoneNumber: map['phoneNumber'] as String,
         place: map['place'] as String,
         dateVisited: map['dateVisited'] as String,
+        credit: (map['credit'] ?? 0.0) as double,
       )).toList();
     } catch (e) {
       debugPrint('Error getting all persons: $e');
       return []; // Return empty list on error
     }
   }
+  // Add method to add credit to existing balance
+Future<bool> addCreditToCustomer(String personId, double creditToAdd) async {
+  try {
+    final db = await database;
+    
+    // Get current credit
+    final result = await db.query(
+      'persons',
+      columns: ['credit'],
+      where: 'id = ?',
+      whereArgs: [personId],
+    );
+    
+    if (result.isNotEmpty) {
+      final currentCredit = (result.first['credit'] ?? 0.0) as double;
+      final newCredit = currentCredit + creditToAdd;
+      
+      final count = await db.update(
+        'persons',
+        {'credit': newCredit},
+        where: 'id = ?',
+        whereArgs: [personId],
+      );
+      
+      return count > 0;
+    }
+    
+    return false;
+  } catch (e) {
+    debugPrint('Error adding credit to customer: $e');
+    return false;
+  }
+}
+
   
   // Delete a person by ID
   Future<bool> deletePerson(String id) async {
@@ -182,6 +227,7 @@ Future<Person?> getPersonById(String id) async {
         phoneNumber: maps.first['phoneNumber'] as String,
         place: maps.first['place'] as String,
         dateVisited: maps.first['dateVisited'] as String,
+        credit: (maps.first['credit'] ?? 0.0) as double,
       );
     }
     
