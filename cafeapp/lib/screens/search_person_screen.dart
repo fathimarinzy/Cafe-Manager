@@ -40,7 +40,7 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
     if (transactions.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('No pending credit transactions for ${person.name}'.tr()),
+          content: Text('${'No pending credit transactions for'.tr()} ${person.name}'.tr()),
           backgroundColor: Colors.orange,
         ),
       );
@@ -51,7 +51,7 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Credit Transactions - ${person.name}'.tr()),
+          title: Text('${'Credit Transactions -'.tr()} ${person.name}'.tr()),
           content: SizedBox(
             width: MediaQuery.of(context).size.width * 0.8,
             height: MediaQuery.of(context).size.height * 0.6,
@@ -98,13 +98,13 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
                               size: 20,
                             ),
                           ),
-                          title: Text('Order #${transaction.orderNumber}'),
+                          title: Text('${'Order #'.tr()}${transaction.orderNumber}'),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Amount: ${transaction.amount.toStringAsFixed(3)}'),
+                              Text('${'Amount:'.tr()} ${transaction.amount.toStringAsFixed(3)}'),
                               Text(
-                                'Date: ${DateFormat('dd-MM-yyyy HH:mm').format(transaction.createdAt)}',
+                                '${'Date:'.tr()} ${DateFormat('dd-MM-yyyy HH:mm').format(transaction.createdAt)}',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey.shade600,
@@ -150,7 +150,7 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
       id: int.tryParse(transaction.orderNumber) ?? 0, // Use 0 to indicate this is a credit completion, not a real order
       serviceType: transaction.serviceType,
       total: transaction.amount,
-      status: 'credit_completion',
+      status: 'credit_completion'.tr(),
       createdAt: transaction.createdAt,
       items: [], // Empty items since this is just for credit completion
       customerId: person.id,
@@ -268,14 +268,14 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
                           Text('📞 ${person.phoneNumber}'),
                           Text('📍 ${person.place}'),
                           Text(
-                            'Credit: ${person.credit.toStringAsFixed(3)}',
+                            '${'Credit:'.tr()} ${person.credit.toStringAsFixed(3)}',
                             style: TextStyle(
                               color: person.credit > 0 ? Colors.green.shade700 : Colors.grey.shade600,
                               fontWeight: person.credit > 0 ? FontWeight.w500 : FontWeight.normal,
                             ),
                           ),
                           Text(
-                            'Visited On : ${DateTime.parse(person.dateVisited).toString().substring(0, 10)}',
+                            '${'Visited On :'.tr()} ${DateTime.parse(person.dateVisited).toString().substring(0, 10)}',
                             style: const TextStyle(fontSize: 12, color: Colors.grey),
                           ),
                         ],

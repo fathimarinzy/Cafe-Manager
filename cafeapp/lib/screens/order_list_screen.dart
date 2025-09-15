@@ -8,6 +8,8 @@ import '../screens/dashboard_screen.dart';
 import 'dart:async';
 import '../utils/app_localization.dart';
 import '../utils/service_type_utils.dart';
+import 'search_person_screen.dart';
+import '../models/person.dart';
 
 
 class OrderListScreen extends StatefulWidget {
@@ -107,6 +109,14 @@ class _OrderListScreenState extends State<OrderListScreen> {
             },
           ),
           actions: [
+            TextButton.icon(
+                icon: const Icon(Icons.receipt),
+                label: Text('Receipt'.tr()),
+                onPressed: _navigateToPersonSearchForReceipt,
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.green[800],
+                ),
+              ),
             // Time display
             Padding(
               padding: const EdgeInsets.only(right: 16.0),
@@ -578,6 +588,19 @@ Widget _buildOrderCard(OrderHistory order) {
       ),
     );
   }
+  Future<void> _navigateToPersonSearchForReceipt() async {
+  final selectedPerson = await Navigator.push<Person>(
+    context,
+    MaterialPageRoute(
+      builder: (context) => const SearchPersonScreen(isForCreditReceipt: true),
+    ),
+  );
+  
+  if (selectedPerson != null) {
+    // Handle the selected person if needed
+    debugPrint('Selected person for credit receipt: ${selectedPerson.name}');
+  }
+}
 
  // Helper method to translate service type for display
   String _getTranslatedServiceType(String serviceType) {

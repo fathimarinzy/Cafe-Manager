@@ -2697,50 +2697,224 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
         } else {
           _processPayment(amount);
         }
-      } else if (result == 'no' && _balanceAmount <= 0) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Payment complete!'.tr()),
-              duration: const Duration(seconds: 1),
-            ),
-          );
-        }
-
-        await _updateOrderStatus('completed');
-          
-        // Clear cart and customer selection
-        if (mounted) {
-          final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-          orderProvider.clearSelectedPerson(); 
-          orderProvider.clearCart();
-        }
+      } else if (result == 'no' ) {
         
-        // Update table status 
-        if (widget.order.serviceType.contains('Dining - Table')) {
-          final tableNumberStr = widget.order.serviceType.split('Table ').last;
-          final tableNumber = int.tryParse(tableNumberStr);
-          
-          if (tableNumber != null && mounted) {
-            final tableProvider = Provider.of<TableProvider>(context, listen: false);
-            await tableProvider.setTableStatus(tableNumber, false);
-            debugPrint('Table $tableNumber status set to available after no-print payment');
-          }
-        }
-        
-        // Refresh order history
-        if (mounted) {
-          Provider.of<OrderHistoryProvider>(context, listen: false).refreshOrdersAndConnectivity();
-        }
-
-        if (change > 0) {
-          _showBalanceMessageDialog(change);
-        } else {
-          _showBalanceMessageDialog();
-        }
+         _processPaymentWithoutPrinting(amount, change);
+         
       }
     }
   }
+  Future<void> _processPaymentWithoutPrinting(double amount, double change) async {
+  setState(() {
+    _isProcessing = true;
+  });
+
+  try {
+    // Handle credit completion case
+    if (widget.isCreditCompletion) {
+      await _processCreditCompletionPaymentWithoutPrinting(amount, _selectedPaymentMethod!.toLowerCase());
+      return;
+    }
+
+    final discountedTotal = _getDiscountedTotal();
+    final paymentMethod = _selectedPaymentMethod!.toLowerCase();
+    Order? savedOrder;
+    
+    double discountAmount = 0.0;
+    if (_serviceTotals.containsKey(_currentServiceType)) {
+      discountAmount = _serviceTotals[_currentServiceType]!['discount'] ?? 0.0;
+    }
+    
+    if (widget.order.id != 0) {
+      final orders = await _localOrderRepo.getAllOrders();
+      final orderIndex = orders.indexWhere((o) => o.id == widget.order.id);
+      
+      if (orderIndex >= 0) {
+        final existingOrder = orders[orderIndex];
+        final finalTotal = widget.order.total - discountAmount;
+
+        savedOrder = Order(
+          id: existingOrder.id,
+          serviceType: existingOrder.serviceType,
+          items: existingOrder.items,
+          subtotal: widget.order.total - (widget.order.total * (widget.taxRate / 100)),
+          tax: widget.order.total * (widget.taxRate / 100),
+          discount: discountAmount,
+          total: finalTotal,
+          status: 'completed',
+          createdAt: existingOrder.createdAt,
+          customerId: widget.customer?.id ?? existingOrder.customerId,
+          paymentMethod: paymentMethod
+        );
+        
+        savedOrder = await _localOrderRepo.saveOrder(savedOrder);
+      }
+    } else {
+      debugPrint('Creating new order in TenderScreen - unusual case');
+      
+      final orderItems = widget.order.items.map((item) => 
+        OrderItem(
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          kitchenNote: item.kitchenNote,
+        )
+      ).toList();
+      
+      savedOrder = Order(
+        serviceType: widget.order.serviceType,
+        items: orderItems,
+        subtotal: widget.order.total - (widget.order.total * (widget.taxRate / 100)),
+        tax: widget.order.total * (widget.taxRate / 100),
+        discount: discountAmount,
+        total: discountedTotal, // Use discountedTotal here too
+        status: 'completed',
+        createdAt: DateTime.now().toIso8601String(),
+        customerId: widget.customer?.id,
+        paymentMethod: paymentMethod,
+      );
+      
+      savedOrder = await _localOrderRepo.saveOrder(savedOrder);
+    }
+    
+    if (savedOrder == null) {
+      throw Exception('Failed to process order in the system');
+    }
+    
+    if (widget.order.id == 0) {
+      widget.order.id = savedOrder.id ?? 0;
+    }
+    
+    final statusUpdated = await _updateOrderStatus('completed');
+    
+    if (!statusUpdated) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update order status, but continuing with payment processing'.tr())),
+        );
+      }
+    }
+    
+    // SKIP PRINTING LOGIC ENTIRELY - this is the key difference
+    debugPrint('Payment processed without printing');
+    
+    // Update table status if needed
+    if (widget.order.serviceType.contains('Dining - Table')) {
+      final tableNumberStr = widget.order.serviceType.split('Table ').last;
+      final tableNumber = int.tryParse(tableNumberStr);
+      
+      if (tableNumber != null && mounted) {
+        final tableProvider = Provider.of<TableProvider>(context, listen: false);
+        await tableProvider.setTableStatus(tableNumber, false);
+        debugPrint('Table $tableNumber status set to available after payment');
+      }
+    }
+    
+    // Clear cart and customer selection
+    if (mounted) {
+      final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+      orderProvider.clearSelectedPerson(); 
+      orderProvider.clearCart();
+    }
+    
+    // Refresh order history
+    if (mounted) {
+      Provider.of<OrderHistoryProvider>(context, listen: false).refreshOrdersAndConnectivity();
+    }
+    
+    // Show balance message
+    if (mounted) {
+      if (change > 0) {
+        await _showBalanceMessageDialog(change);
+      } else {
+        await _showBalanceMessageDialog();
+      }
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${'Error processing payment'.tr()}: $e')),
+      );
+    }
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isProcessing = false;
+      });
+    }
+  }
+}
+
+// Add this helper method for credit completion without printing
+Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, String paymentMethod) async {
+  if (widget.creditTransactionId == null || widget.customer == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Invalid credit transaction'.tr())),
+    );
+    return;
+  }
+
+  try {
+    // Get the credit transaction details
+    final creditRepo = CreditTransactionRepository();
+    final creditTransaction = await creditRepo.getCreditTransactionById(widget.creditTransactionId!);
+    
+    if (creditTransaction == null) {
+      throw Exception('Credit transaction not found');
+    }
+    
+    // Mark credit transaction as completed
+    final transactionCompleted = await creditRepo.markCreditTransactionCompleted(widget.creditTransactionId!);
+
+    if (!mounted) return;
+    if (transactionCompleted) {
+      // Update customer credit balance (deduct the amount)
+      final personProvider = Provider.of<PersonProvider>(context, listen: false);
+      final success = await personProvider.updateCustomerCredit(
+        widget.customer!.id!,
+        -widget.order.total, // Negative to deduct from credit
+      );
+
+      if (success) {
+        // Update the original order's payment method
+        await _updateOriginalOrderPaymentMethod(
+          creditTransaction.orderNumber, 
+          paymentMethod.toLowerCase()
+        );
+
+        // SKIP PRINTING - just show success message
+        debugPrint('Credit payment completed without printing');
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${'Credit payment completed via'.tr()} $paymentMethod'.tr()),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          // Show balance message (like normal payments)
+          await _showBalanceMessageDialog();
+        }
+      } else {
+        throw Exception('Failed to update customer credit balance');
+      }
+    } else {
+      throw Exception('Failed to mark transaction as completed');
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error completing credit payment: ${e.toString()}'.tr()),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+    rethrow;
+  }
+}
 
   Future<void> _processCashPayment(double amount, double change) async {
     setState(() {
@@ -3181,7 +3355,7 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       final success = await personProvider.updateCustomerCredit(
         customer.id!,
         discountedTotal,
-      );
+      );  
 
       if (success) {
          // Save credit transaction
@@ -3227,9 +3401,9 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
         }
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Credit of ${discountedTotal.toStringAsFixed(3)} added to ${customer.name}${_getCurrentDiscount() > 0 ? ' (after discount of ${_getCurrentDiscount().toStringAsFixed(3)})' : ''}'.tr()),
+              content: Text('${'Credit of'.tr()} ${discountedTotal.toStringAsFixed(3)} ${'added to'.tr()} ${customer.name}${_getCurrentDiscount() > 0 ? ' (${'after discount of'.tr()} ${_getCurrentDiscount().toStringAsFixed(3)})' : ''}'),
               backgroundColor: Colors.green,
             ),
           );
@@ -3289,7 +3463,7 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Add credit to customer : ${customer.name}'.tr(),
+             Text('${'Add credit to customer'.tr()} : ${customer.name}',
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
@@ -3300,16 +3474,16 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
               const SizedBox(height: 16),
               // Show original amount if there's a discount
             if (discount > 0) ...[
-              Text('Original Amount: ${originalTotal.toStringAsFixed(3)}'),
-              Text('Discount: ${discount.toStringAsFixed(3)}', 
+              Text('${'Original Amount:'.tr()} ${originalTotal.toStringAsFixed(3)}'),
+              Text('${'Discount:'.tr()} ${discount.toStringAsFixed(3)}',
                    style: TextStyle(color: Colors.red.shade700)),
               const Divider(),
             ],
 
-              Text('Credit Amount : ${amount.toStringAsFixed(3)}'),
+              Text('${'Credit Amount:'.tr()} ${amount.toStringAsFixed(3)}'),
               const SizedBox(height: 8),
               Text(
-                'Current credit balance : ${customer.credit.toStringAsFixed(3)}',
+                '${'Current credit balance:'.tr()} ${customer.credit.toStringAsFixed(3)}',
                 style: TextStyle(
                   color: Colors.grey.shade600,
                   fontSize: 12,
@@ -3449,7 +3623,7 @@ Future<void> _processCreditCompletionPayment(double amount, String paymentMethod
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Credit payment completed via $paymentMethod'.tr()),
+              content: Text('${'Credit payment completed via'.tr()} $paymentMethod'.tr()),
               backgroundColor: Colors.green,
             ),
           );

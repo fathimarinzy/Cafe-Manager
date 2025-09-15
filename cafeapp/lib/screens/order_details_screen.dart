@@ -16,7 +16,7 @@ import '../utils/service_type_utils.dart';
 import '../repositories/local_person_repository.dart';
 import '../models/person.dart';
 // import '../providers/person_provider.dart';
-import 'search_person_screen.dart';
+// import 'search_person_screen.dart'; 
 
 class OrderDetailsScreen extends StatefulWidget {
   final int orderId;
@@ -860,14 +860,14 @@ void _showEditOrderItemsDialog() {
             onPressed: () => Navigator.of(context).pop(),
           ),
           actions: [
-               TextButton.icon(
-                icon: const Icon(Icons.receipt),
-                label: Text('Receipt'.tr()),
-                onPressed: _navigateToPersonSearchForReceipt,
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.green[800],
-                ),
-              ),
+              //  TextButton.icon(
+              //   icon: const Icon(Icons.receipt),
+              //   label: Text('Receipt'.tr()),
+              //   onPressed: _navigateToPersonSearchForReceipt,
+              //   style: TextButton.styleFrom(
+              //     foregroundColor: Colors.green[800],
+              //   ),
+              // ),
             if (_order != null)
               TextButton.icon(
                 icon: const Icon(Icons.payment),
@@ -1246,18 +1246,18 @@ String _getTranslatedServiceType(String serviceType) {
 }
 
 // Add this method to OrderDetailsScreen
-Future<void> _navigateToPersonSearchForReceipt() async {
-  final selectedPerson = await Navigator.push<Person>(
-    context,
-    MaterialPageRoute(
-      builder: (context) => const SearchPersonScreen(isForCreditReceipt: true),
-    ),
-  );
+// Future<void> _navigateToPersonSearchForReceipt() async {
+//   final selectedPerson = await Navigator.push<Person>(
+//     context,
+//     MaterialPageRoute(
+//       builder: (context) => const SearchPersonScreen(isForCreditReceipt: true),
+//     ),
+//   );
   
-  if (selectedPerson != null) {
-    // Handle the selected person if needed
-    debugPrint('Selected person for credit receipt: ${selectedPerson.name}');
-  }
-}
+//   if (selectedPerson != null) {
+//     // Handle the selected person if needed
+//     debugPrint('Selected person for credit receipt: ${selectedPerson.name}');
+//   }
+// }
 
 }

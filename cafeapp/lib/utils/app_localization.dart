@@ -374,7 +374,7 @@ class AppLocalization {
     'Discover Printers': 'اكتشاف الطابعات',
     'Discovering...': 'جاري الاكتشاف...',
     'Printer Setup Help': 'مساعدة إعداد الطابعة',
-    '1. Make sure your printer is connected to the same WiFi network as this tablet': '1. تأكد من أن الطابعة متصلة بنفس شبكة الواي فاي مثل هذا الجهاز',
+    '1. Make sure your printers are connected to the same WiFi network as this tablet': '1. تأكد من أن الطابعات متصلة بنفس شبكة الواي فاي مثل هذا الجهاز',
     '2. Enter the printer\'s IP address (check your printer settings or router)': '2. أدخل عنوان IP للطابعة (تحقق من إعدادات الطابعة أو الراوتر)',
     '3. Port 9100 is the standard port for most network printers': '3. المنفذ 9100 هو المنفذ القياسي لمعظم طابعات الشبكة',
     '4. Click "Test Connection" to verify the printer is working': '4. انقر على "اختبار الاتصال" للتحقق من عمل الطابعة',
@@ -424,7 +424,7 @@ class AppLocalization {
     'Receipt printer configured with {ip}': 'تم تكوين طابعة الإيصالات مع {ip}',
     'KOT printer configured with {ip}': 'تم تكوين طابعة KOT مع {ip}',
     'Close': 'إغلاق',
-
+    'Enter the IP address of your printer': 'أدخل عنوان IP للطابعة الخاصة بك',
 
 
     // Report Screen
@@ -547,7 +547,7 @@ class AppLocalization {
     'Business information synced to cloud': 'تم مزامنة معلومات العمل مع السحابة',
     'Email Address': 'عنوان البريد الإلكتروني',
     'Enter your email address': 'أدخل عنوان بريدك الإلكتروني',
-
+    'Contact support for assistance:': 'اتصل بالدعم للمساعدة:',
 
     // Settings Password Dialog
     'Enter Password': 'أدخل كلمة المرور',
@@ -714,7 +714,28 @@ class AppLocalization {
     'View Bill': 'عرض الفاتورة',
     'Reprint': 'إعادة طباعة',
     'Printing failed and PDF save was cancelled': 'فشل الطباعة وتم إلغاء حفظ PDF',
-
+    'Customer Credit :': 'ائتمان العميل :',
+    'Add credit to customer': 'إضافة ائتمان للعميل',
+    'Credit Amount:': 'مبلغ الائتمان:',
+    'Current credit balance:': 'رصيد الائتمان الحالي:',
+    'Credit of': 'ائتمان بقيمة',
+    'added to': 'تم إضافته إلى',
+    'after discount of': 'بعد خصم قدره',
+    'Error processing customer credit': 'خطأ في معالجة ائتمان العميل',
+    'Error completing credit payment': 'خطأ في إكمال دفع الائتمان',
+    'Credit payment completed via': 'تم إكمال دفع الائتمان عبر',
+    'Error reprinting receipt': 'خطأ في إعادة طباعة الإيصال',
+    'no receipt printed': 'لم تتم طباعة الإيصال',
+    'Add Credit':' إضافة ائتمان',
+    'Credit:':'ائتمان:',
+    'Visited On :':'تمت الزيارة في :',
+    'Credit Transactions -':'معاملات الائتمان -',
+    'No credit transactions found':'لم يتم العثور على معاملات ائتمان',
+    'No pending credit transactions for':'لا توجد معاملات ائتمان معلقة لـ',
+    'Customer has no credit balance':'العميل ليس لديه رصيد ائتماني',
+    'Total Credit Balance:':'إجمالي رصيد الائتمان:',
+    'Amount:':'المبلغ:',
+   'credit_completion':'إكمال الائتمان',
 
     //bill Service
     'Could not connect to the thermal printer. Would you like to save the bill as a PDF?':'تعذر الاتصال بالطابعة الحرارية. هل ترغب في حفظ الفاتورة بصيغة PDF؟',
