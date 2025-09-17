@@ -681,134 +681,171 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
     );
   }
 
-  // Updated product grid with configurable columns
-   Widget _buildProductGrid(List<MenuItem> items, OrderProvider orderProvider, {required int crossAxisCount}) {
+  Widget _buildProductGrid(List<MenuItem> items, OrderProvider orderProvider, {required int crossAxisCount}) {
   return Container(
     color: Colors.grey.shade100,
     child: Padding(
-      padding: const EdgeInsets.all(8.0), // Reduced padding
+      padding: const EdgeInsets.all(8.0),
       child: items.isEmpty 
           ? Center(child: Text('No items found in this category'.tr()))
-          : GridView.builder(
-        padding: EdgeInsets.zero,
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: crossAxisCount,
-          childAspectRatio: 0.7, // Reduced aspect ratio
-          crossAxisSpacing: 8, // Reduced spacing
-          mainAxisSpacing: 8, // Reduced spacing
-        ),
-        itemCount: items.length,
-        itemBuilder: (ctx, index) {
-          final item = items[index];
-          final isSelected = _selectedItem?.id == item.id;
-          
-          return Card(
-            key: ValueKey('card_${item.id}'),
-            elevation: 1, // Reduced elevation
-            shape: RoundedRectangleBorder(
-              borderRadius: const BorderRadius.all(Radius.circular(6)), // Smaller radius
-              side: isSelected 
-                  ? BorderSide(color: Colors.blue.shade700, width: 1.5) // Thinner border
-                  : BorderSide.none,
-            ),
-            child: InkWell(
-              onTap: () {
-                setState(() {
-                  if (_selectedItem?.id == item.id) {
-                    _selectedItem = null;
-                  } else {
-                    _selectedItem = item;
-                  }
-                });
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                // Calculate responsive dimensions based on available space
+                final availableWidth = constraints.maxWidth;
+                final itemWidth = (availableWidth - (8.0 * (crossAxisCount + 1))) / crossAxisCount;
                 
-                orderProvider.addToCart(item);
+                // Calculate responsive heights - maintain good proportions
+                final imageHeight = itemWidth * 0.6; // 60% of item width for image
+                final contentHeight = itemWidth * 0.4; // 40% of item width for content
+                final totalItemHeight = imageHeight + contentHeight + 16; // Add padding
                 
-                if (!item.isAvailable) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('"${item.name}" is out of stock but has been added to your order'.tr()),
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                }
-              },
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Image section - reduced height
-                  SizedBox(
-                    height: 100, // Fixed height for images
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        ClipRRect(
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
-                          child: _buildItemImage(item),
-                        ),  
-                        if (!item.isAvailable)
-                          Container(
-                            decoration: const BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.vertical(top: Radius.circular(6)),
-                            ),
-                            child: Center(
-                              child: Text(
-                                'Out of stock'.tr(),
-                                style: TextStyle(color: Colors.white, fontSize: 12), // Smaller font
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
+                // Calculate aspect ratio dynamically
+                final aspectRatio = itemWidth / totalItemHeight;
+                
+                return GridView.builder(
+                  padding: EdgeInsets.zero,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    childAspectRatio: aspectRatio, // Dynamic aspect ratio
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
                   ),
-                  // Content section - reduced padding
-                  Padding(
-                    padding: const EdgeInsets.all(6.0), // Reduced padding
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.name,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), // Smaller font
-                          maxLines: 2, // Allow 2 lines for longer names
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2), // Reduced spacing
-                        Text(
-                          item.price.toStringAsFixed(3), // Added currency
-                          style: TextStyle(
-                            color: Colors.grey.shade800,
-                            fontSize: 11, // Smaller font
-                          ),
-                        ),
-                        const SizedBox(height: 2), // Reduced spacing
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  itemCount: items.length,
+                  itemBuilder: (ctx, index) {
+                    final item = items[index];
+                    final isSelected = _selectedItem?.id == item.id;
+                    
+                    return Card(
+                      key: ValueKey('card_${item.id}'),
+                      elevation: 1,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: const BorderRadius.all(Radius.circular(6)),
+                        side: isSelected 
+                            ? BorderSide(color: Colors.blue.shade700, width: 1.5)
+                            : BorderSide.none,
+                      ),
+                      child: InkWell(
+                        onTap: () {
+                          setState(() {
+                            if (_selectedItem?.id == item.id) {
+                              _selectedItem = null;
+                            } else {
+                              _selectedItem = item;
+                            }
+                          });
+                          
+                          orderProvider.addToCart(item);
+                          
+                          if (!item.isAvailable) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('"${item.name}" is out of stock but has been added to your order'.tr()),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          }
+                        },
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Text(
-                              item.isAvailable ? 'Available'.tr() : 'Out of stock'.tr(),
-                              style: TextStyle(
-                                color: item.isAvailable ? Colors.green : Colors.red,
-                                fontSize: 11, // Smaller font
+                            // Image section - responsive height
+                            SizedBox(
+                              height: imageHeight,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                                    child: _buildItemImage(item),
+                                  ),  
+                                  if (!item.isAvailable)
+                                    Container(
+                                      decoration: const BoxDecoration(
+                                        color: Colors.black54,
+                                        borderRadius: BorderRadius.vertical(top: Radius.circular(6)),
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          'Out of stock'.tr(),
+                                          style: TextStyle(
+                                            color: Colors.white, 
+                                            fontSize: (itemWidth * 0.08).clamp(10.0, 16.0), // Responsive font size
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
-                            if (item.kitchenNote.isNotEmpty)
-                              Icon(
-                                Icons.note_alt_outlined,
-                                size: 10, // Smaller icon
-                                color: Colors.blue.shade700,
+                            // Content section - responsive height with equal padding
+                            Expanded(
+                              child: Padding(
+                                padding: EdgeInsets.all((itemWidth * 0.04).clamp(6.0, 12.0)), // Responsive padding
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    // Item name - responsive font size
+                                    Flexible(
+                                      flex: 3,
+                                      child: Text(
+                                        item.name,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold, 
+                                          fontSize: (itemWidth * 0.09).clamp(12.0, 18.0), // Responsive font size
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    // Price
+                                    Flexible(
+                                      flex: 1,
+                                      child: Text(
+                                        item.price.toStringAsFixed(3),
+                                        style: TextStyle(
+                                          color: Colors.black,
+                                          fontSize: (itemWidth * 0.06).clamp(9.0, 12.0), // Responsive font size
+                                        ),
+                                      ),
+                                    ),
+                                    // Status and note indicator
+                                    Flexible(
+                                      flex: 1,
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Flexible(
+                                            child: Text(
+                                              item.isAvailable ? 'Available'.tr() : 'Out of stock'.tr(),
+                                              style: TextStyle(
+                                                color: item.isAvailable ? Colors.green : Colors.red,
+                                                fontSize: (itemWidth * 0.06).clamp(9.0, 12.0), // Responsive font size
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          if (item.kitchenNote.isNotEmpty)
+                                            Icon(
+                                              Icons.note_alt_outlined,
+                                              size: (itemWidth * 0.08).clamp(12.0, 20.0), // Responsive icon size
+                                              color: Colors.blue.shade700,
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
+                            ),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                      ),
+                    );
+                  },
+                );
+              },
             ),
-          );
-        },
-      ),
     ),
   );
 }
