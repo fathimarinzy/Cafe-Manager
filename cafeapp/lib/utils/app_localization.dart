@@ -747,7 +747,7 @@ class AppLocalization {
     'Kitchen receipt saved as PDF':'إيصال المطبخ محفوظ بصيغة PDF',
     'Failed to print or save kitchen receipt':'فشل في طباعة أو حفظ إيصال المطبخ',
     'KOT printer is disabled. Would you like to save kitchen receipt as PDF?':'تم تعطيل طابعة KOT. هل ترغب في حفظ إيصال المطبخ كملف PDF؟',
-
+    'Could not print kitchen receipt to KOT printer. Would you like to save it as PDF to your device?':'تعذر طباعة إيصال المطبخ على طابعة KOT. هل ترغب في حفظه كملف PDF على جهازك؟',
      // Renewal Screen translations
       'Demo Renewal': 'تجديد العرض التجريبي',
       'License Renewal': 'تجديد الترخيص',
@@ -776,8 +776,9 @@ class AppLocalization {
       'This device already has pending renewal keys. Please use those keys or contact support.': 'هذا الجهاز لديه بالفعل مفاتيح تجديد معلقة. يرجى استخدام تلك المفاتيح أو الاتصال بالدعم.',
       'Renewal failed. Please check your internet connection and try again.': 'فشل التجديد. يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.',
 
-
-
+      //crossplatform pdf
+      'Printer not available. Would you like to save the receipt as PDF to your device?': 'تعذر العثور على الطابعة. هل ترغب في حفظ الإيصال كملف PDF على جهازك؟',
+      'Printer not available. Would you like to save the receipt as PDF?':' تعذر العثور على الطابعة. هل ترغب في حفظ الإيصال كملف PDF؟',
     },
   };
 

@@ -11,8 +11,17 @@ import './thermal_printer_service.dart';
 import '../models/order_history.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/order_item.dart';
+import 'cross_platform_pdf_service.dart'; // Import the new service
 
 class BillService {
+  static Future<bool> savePdfDocument(pw.Document pdf, {String? fileName}) async {
+    return await CrossPlatformPdfService.savePdf(pdf, suggestedFileName: fileName);
+  }
+
+  // Updated show save PDF dialog with platform-aware messaging
+  static Future<bool?> showSavePdfDialog(BuildContext context) async {
+    return await CrossPlatformPdfService.showSavePdfDialog(context);
+  }
   // Get business information from shared preferences
   static Future<Map<String, String>> getBusinessInfo() async {
     final prefs = await SharedPreferences.getInstance();
@@ -1113,35 +1122,35 @@ class BillService {
     }
   }
   
-  // Show a dialog to ask the user if they want to save the PDF
-  static Future<bool?> showSavePdfDialog(BuildContext context) async {
-    if (!context.mounted) return null;
+  // // Show a dialog to ask the user if they want to save the PDF
+  // static Future<bool?> showSavePdfDialog(BuildContext context) async {
+  //   if (!context.mounted) return null;
     
-    return showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: Text('Printer Not Available'.tr()),
-          content: Text('Could not connect to the thermal printer. Would you like to save the bill as a PDF?'.tr()),
-          actions: <Widget>[
-            TextButton(
-              child: Text('Cancel'.tr()),
-              onPressed: () {
-                Navigator.of(dialogContext).pop(false);
-              },
-            ),
-            TextButton(
-              child: Text('Save PDF'.tr()),
-              onPressed: () {
-                Navigator.of(dialogContext).pop(true);
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
+  //   return showDialog<bool>(
+  //     context: context,
+  //     barrierDismissible: false,
+  //     builder: (BuildContext dialogContext) {
+  //       return AlertDialog(
+  //         title: Text('Printer Not Available'.tr()),
+  //         content: Text('Could not connect to the thermal printer. Would you like to save the bill as a PDF?'.tr()),
+  //         actions: <Widget>[
+  //           TextButton(
+  //             child: Text('Cancel'.tr()),
+  //             onPressed: () {
+  //               Navigator.of(dialogContext).pop(false);
+  //             },
+  //           ),
+  //           TextButton(
+  //             child: Text('Save PDF'.tr()),
+  //             onPressed: () {
+  //               Navigator.of(dialogContext).pop(true);
+  //             },
+  //           ),
+  //         ],
+  //       );
+  //     },
+  //   );
+  // }
 
   // Check if printer is enabled in settings
   static Future<bool> isPrinterEnabled() async {
@@ -1186,9 +1195,17 @@ class BillService {
         context: context,
         barrierDismissible: false,
         builder: (BuildContext dialogContext) {
+           String message = 'Printer connection is disabled. Would you like to save the bill as a PDF?'.tr();
+          
+          // Platform-specific messages
+          if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+            message = 'Printer connection is disabled. Would you like to save the bill as PDF to your computer?';
+          } else if (Platform.isIOS) {
+            message = 'Printer connection is disabled. Would you like to save the bill as PDF to your device?';
+          }
           return AlertDialog(
             title: Text('Printer Disabled'.tr()),
-            content: Text('Printer connection is disabled. Would you like to save the bill as a PDF?'.tr()),
+            content: Text(message.tr()),
             actions: <Widget>[
               TextButton(
                 child: Text('Cancel'.tr()),
@@ -1240,8 +1257,10 @@ class BillService {
         taxRate: effectiveTaxRate,
       );
       
-      final saved = await saveWithAndroidIntent(pdf);
+      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final fileName = 'SIMS_receipt_$timestamp.pdf';
       
+      final saved = await savePdfDocument(pdf, fileName: fileName);
       if (saved) {
         return {
           'success': true,
@@ -1330,7 +1349,10 @@ class BillService {
       taxRate: effectiveTaxRate,
     );
     
-    final saved = await saveWithAndroidIntent(pdf);
+       final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+    final fileName = 'SIMS_receipt_$timestamp.pdf';
+    
+    final saved = await savePdfDocument(pdf, fileName: fileName);
     
     if (saved) {
       return {
@@ -1372,9 +1394,17 @@ class BillService {
             context: context,
             barrierDismissible: false,
             builder: (BuildContext context) {
+               String message = 'KOT printer is disabled. Would you like to save kitchen receipt as PDF?'.tr();
+              
+              // Platform-specific message
+              if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+                message = 'KOT printer is disabled. Would you like to save kitchen receipt as PDF to your device?';
+              } else if (Platform.isIOS) {
+                  message = 'KOT printer is disabled. Would you like to save kitchen receipt as PDF to your device?';
+              }
               return AlertDialog(
                 title: Text('KOT Printer Disabled'.tr()),
-                content: Text('KOT printer is disabled. Would you like to save kitchen receipt as PDF?'.tr()),
+                content: Text(message.tr()),
                 actions: <Widget>[
                   TextButton(
                     child: Text('Cancel'.tr()),
@@ -1403,8 +1433,11 @@ class BillService {
               originalItems: originalItems,
             );
             
-            final saved = await saveWithAndroidIntent(pdf);
+            final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+            final fileName = 'SIMS_KOT_${orderNumber ?? timestamp}.pdf';
             
+            final saved = await savePdfDocument(pdf, fileName: fileName);
+                        
             if (saved) {
               return {
                 'success': true,
@@ -1457,9 +1490,17 @@ class BillService {
           context: context,
           barrierDismissible: false,
           builder: (BuildContext context) {
+             String message = 'Could not print kitchen receipt to KOT printer. Would you like to save it as a PDF?'.tr();
+            
+            // Platform-specific message
+            if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+              message = 'Could not print kitchen receipt to KOT printer. Would you like to save it as PDF to your device?'.tr();
+            } else if (Platform.isIOS) {
+              message = 'Could not print kitchen receipt to KOT printer. Would you like to save it as PDF to your device?'.tr();
+            }
             return AlertDialog(
               title: Text('KOT Printer Not Available'.tr()),
-              content: Text('Could not print kitchen receipt to KOT printer. Would you like to save it as a PDF?'.tr()),
+              content: Text(message.tr()),
               actions: <Widget>[
                 TextButton(
                   child: Text('Cancel'.tr()),
@@ -1479,8 +1520,10 @@ class BillService {
         ) ?? false;
         
         if (shouldSave) {
-          final saved = await saveWithAndroidIntent(pdf);
+           final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+          final fileName = 'SIMS_kitchen_${orderNumber ?? timestamp}.pdf';
           
+          final saved = await savePdfDocument(pdf, fileName: fileName);
           if (saved) {
             return {
               'success': true,

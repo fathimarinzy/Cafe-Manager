@@ -23,17 +23,19 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
+        return ios;
       case TargetPlatform.macOS:
+        return macos;
       case TargetPlatform.windows:
+        return windows;
       case TargetPlatform.linux:
+        return linux;
       case TargetPlatform.fuchsia:
         throw UnsupportedError(
-          'DefaultFirebaseOptions are not supported for this platform.',
+          'DefaultFirebaseOptions are not supported for Fuchsia.',
         );
     }
   }
-
-  
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDmpMjCIqh4RVXmY19JRwZhK0S2NxpsaBk',
@@ -43,5 +45,37 @@ class DefaultFirebaseOptions {
     storageBucket: 'simscafe-c743e.firebasestorage.app',
   );
 
- 
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyDmpMjCIqh4RVXmY19JRwZhK0S2NxpsaBk',
+    appId: '1:964942933502:ios:YOUR_IOS_APP_ID',
+    messagingSenderId: '964942933502',
+    projectId: 'simscafe-c743e',
+    storageBucket: 'simscafe-c743e.firebasestorage.app',
+    iosBundleId: 'com.example.cafeapp',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyDmpMjCIqh4RVXmY19JRwZhK0S2NxpsaBk',
+    appId: '1:964942933502:ios:YOUR_MACOS_APP_ID',
+    messagingSenderId: '964942933502',
+    projectId: 'simscafe-c743e',
+    storageBucket: 'simscafe-c743e.firebasestorage.app',
+    iosBundleId: 'com.example.cafeapp',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyDmpMjCIqh4RVXmY19JRwZhK0S2NxpsaBk',
+    appId: '1:964942933502:android:37f129dfabff854f9a64af', // Use Android app ID for desktop
+    messagingSenderId: '964942933502',
+    projectId: 'simscafe-c743e',
+    storageBucket: 'simscafe-c743e.firebasestorage.app',
+  );
+
+  static const FirebaseOptions linux = FirebaseOptions(
+    apiKey: 'AIzaSyDmpMjCIqh4RVXmY19JRwZhK0S2NxpsaBk',
+    appId: '1:964942933502:android:37f129dfabff854f9a64af', // Use Android app ID for desktop
+    messagingSenderId: '964942933502',
+    projectId: 'simscafe-c743e',
+    storageBucket: 'simscafe-c743e.firebasestorage.app',
+  );
 }

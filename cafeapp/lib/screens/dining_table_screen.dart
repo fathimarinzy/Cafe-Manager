@@ -6,7 +6,7 @@ import 'menu_screen.dart';
 import 'table_orders_screen.dart'; 
 import '../providers/order_provider.dart';
 import '../providers/table_provider.dart';
-import '../providers/order_history_provider.dart'; 
+// import '../providers/order_history_provider.dart';   
 import '../utils/app_localization.dart';
 
 class DiningTableScreen extends StatefulWidget {
@@ -236,72 +236,72 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
   }
 
   // Check if there's an active (pending) order for a table
-  Future<void> _checkForActiveOrder(int tableNumber, String serviceType, OrderProvider orderProvider) async {
-    // Show loading indicator
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return const Center(
-          child: CircularProgressIndicator(),
-        );
-      },
-    );
+  // Future<void> _checkForActiveOrder(int tableNumber, String serviceType, OrderProvider orderProvider) async {
+  //   // Show loading indicator
+  //   showDialog(
+  //     context: context,
+  //     barrierDismissible: false,
+  //     builder: (BuildContext context) {
+  //       return const Center(
+  //         child: CircularProgressIndicator(),
+  //       );
+  //     },
+  //   );
     
-    try {
-      // Get the order history provider
-      final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
+  //   try {
+  //     // Get the order history provider
+  //     final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
       
-      // Load orders for this table
-      await historyProvider.loadOrdersByTable(serviceType);
+  //     // Load orders for this table
+  //     await historyProvider.loadOrdersByTable(serviceType);
       
-      // Look for a pending order
-      final orders = historyProvider.orders;
-      final pendingOrders = orders.where((order) => 
-        order.status.toLowerCase() == 'pending').toList();
+  //     // Look for a pending order
+  //     final orders = historyProvider.orders;
+  //     final pendingOrders = orders.where((order) => 
+  //       order.status.toLowerCase() == 'pending').toList();
       
-      if (pendingOrders.isNotEmpty) {
-        // Found at least one active order - close the loading dialog
-        if (mounted) {
-          Navigator.of(context).pop();
+  //     if (pendingOrders.isNotEmpty) {
+  //       // Found at least one active order - close the loading dialog
+  //       if (mounted) {
+  //         Navigator.of(context).pop();
           
-          // Use the first pending order
-          final activeOrder = pendingOrders.first;
+  //         // Use the first pending order
+  //         final activeOrder = pendingOrders.first;
           
-          orderProvider.setCurrentOrderId(activeOrder.id);
-          orderProvider.setCurrentServiceType(serviceType);
-          // Load existing items into the cart
-          await orderProvider.loadExistingOrderItems(activeOrder.id);
+  //         orderProvider.setCurrentOrderId(activeOrder.id);
+  //         orderProvider.setCurrentServiceType(serviceType);
+  //         // Load existing items into the cart
+  //         await orderProvider.loadExistingOrderItems(activeOrder.id);
         
-        if (mounted) { 
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => MenuScreen(
-                serviceType: serviceType,
-                existingOrderId: activeOrder.id,
-              ),
-            ),
-          );
-        }
-          return;
-        }
-      }
+  //       if (mounted) { 
+  //         Navigator.push(
+  //           context,
+  //           MaterialPageRoute(
+  //             builder: (context) => MenuScreen(
+  //               serviceType: serviceType,
+  //               existingOrderId: activeOrder.id,
+  //             ),
+  //           ),
+  //         );
+  //       }
+  //         return;
+  //       }
+  //     }
       
-      // No active order found - close the loading dialog and proceed with new order
-      if (mounted) {
-        Navigator.of(context).pop();
-        _navigateToMenuScreen(serviceType, orderProvider);
-      }
-    } catch (e) {
-      // Error occurred - close the loading dialog and proceed with new order
-      if (mounted) {
-        Navigator.of(context).pop();
-        debugPrint('Error checking for active orders: $e');
-        _navigateToMenuScreen(serviceType, orderProvider);
-      }
-    }
-  }
+  //     // No active order found - close the loading dialog and proceed with new order
+  //     if (mounted) {
+  //       Navigator.of(context).pop();
+  //       _navigateToMenuScreen(serviceType, orderProvider);
+  //     }
+  //   } catch (e) {
+  //     // Error occurred - close the loading dialog and proceed with new order
+  //     if (mounted) {
+  //       Navigator.of(context).pop();
+  //       debugPrint('Error checking for active orders: $e');
+  //       _navigateToMenuScreen(serviceType, orderProvider);
+  //     }
+  //   }
+  // }
   
   // Show dialog for occupied tables
   void _showOccupiedTableDialog(int tableNumber, String serviceType, OrderProvider orderProvider) {
@@ -323,14 +323,14 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
             },
             child: Text('View Orders'.tr()),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              // Check for active orders before creating a new one
-              _checkForActiveOrder(tableNumber, serviceType, orderProvider);
-            },
-            child: Text('New Order'.tr()),
-          ),
+          // TextButton(
+          //   onPressed: () {
+          //     Navigator.of(ctx).pop();
+          //     // Check for active orders before creating a new one
+          //     _checkForActiveOrder(tableNumber, serviceType, orderProvider);
+          //   },
+          //   child: Text('New Order'.tr()),
+          // ),
         ],
       ),
     );

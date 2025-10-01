@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:esc_pos_printer/esc_pos_printer.dart';
-import 'package:esc_pos_utils/esc_pos_utils.dart';
+import 'package:esc_pos_printer_plus/esc_pos_printer_plus.dart';
+import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import '../models/menu_item.dart';
 import './thermal_printer_service.dart';
 

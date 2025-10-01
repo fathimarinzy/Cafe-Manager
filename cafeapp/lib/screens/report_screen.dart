@@ -8,14 +8,15 @@ import '../models/order.dart';
 import '../services/thermal_printer_service.dart';
 // import 'package:esc_pos_printer/esc_pos_printer.dart';
 // import 'package:esc_pos_utils/esc_pos_utils.dart';
-import 'dart:io';
+// import 'dart:io';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
+// import 'package:path_provider/path_provider.dart';
 import '../utils/app_localization.dart';
 import '../utils/service_type_utils.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
 // import 'dart:convert'; // For utf8 encoding
+import '../services/cross_platform_pdf_service.dart';
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
@@ -170,15 +171,16 @@ class _ReportScreenState extends State<ReportScreen> {
       
       String filename;
       if (_selectedReportType == 'daily') {
-        filename = 'Report_${DateFormat('dd-MM-yyyy').format(_selectedDate)}';
+        filename = 'Report_${DateFormat('dd-MM-yyyy').format(_selectedDate)}.pdf';
       } else if (_selectedReportType == 'monthly') {
-        filename = 'Report_${DateFormat('MMMM_yyyy').format(_startDate)}';
+        filename = 'Report_${DateFormat('MMMM_yyyy').format(_startDate)}.pdf';
       } else {
-        filename = 'Report_${DateFormat('dd-MM-yyyy').format(_startDate)}_to_${DateFormat('dd-MM-yyyy').format(_endDate)}';
+        filename = 'Report_${DateFormat('dd-MM-yyyy').format(_startDate)}_to_${DateFormat('dd-MM-yyyy').format(_endDate)}.pdf';
       }
       
-      filename = filename.replaceAll(' ', '_');
-      final saved = await _saveWithAndroidIntent(pdf, filename);
+     // Use cross-platform PDF saving
+    final saved = await CrossPlatformPdfService.savePdf(pdf, suggestedFileName: filename);
+
 
       if (mounted) {
         if (saved) {
@@ -250,6 +252,10 @@ class _ReportScreenState extends State<ReportScreen> {
       }
     }
   }
+
+  // Future<bool?> _showPrintFailedDialog() async {
+  //   return CrossPlatformPdfService.showSavePdfDialog(context);
+  // }
 
   // Show dialog when printing fails
   Future<bool?> _showPrintFailedDialog() async {
@@ -779,15 +785,15 @@ pw.Widget _buildPdfBalanceRow(Map<String, dynamic> paymentTotals, NumberFormat f
       
       String filename;
       if (_selectedReportType == 'daily') {
-        filename = 'Report_${DateFormat('dd-MM-yyyy').format(_selectedDate)}';
+        filename = 'Report_${DateFormat('dd-MM-yyyy').format(_selectedDate)}.pdf';
       } else if (_selectedReportType == 'monthly') {
-        filename = 'Report_${DateFormat('MMMM_yyyy').format(_startDate)}';
+        filename = 'Report_${DateFormat('MMMM_yyyy').format(_startDate)}.pdf';
       } else {
-        filename = 'Report_${DateFormat('dd-MM-yyyy').format(_startDate)}_to_${DateFormat('dd-MM-yyyy').format(_endDate)}';
+        filename = 'Report_${DateFormat('dd-MM-yyyy').format(_startDate)}_to_${DateFormat('dd-MM-yyyy').format(_endDate)}.pdf';
       }
       
-      filename = filename.replaceAll(' ', '_');
-      final saved = await _saveWithAndroidIntent(pdf, filename);
+       // Use cross-platform PDF saving
+    final saved = await CrossPlatformPdfService.savePdf(pdf, suggestedFileName: filename);
 
       if (mounted) {
         if (saved) {
@@ -816,33 +822,33 @@ pw.Widget _buildPdfBalanceRow(Map<String, dynamic> paymentTotals, NumberFormat f
     }
   }
 
-  Future<bool> _saveWithAndroidIntent(pw.Document pdf, String filename) async {
-    try {
-      if (!Platform.isAndroid) {
-        debugPrint('This method only works on Android');
-        return false;
-      }
+  // Future<bool> _saveWithAndroidIntent(pw.Document pdf, String filename) async {
+  //   try {
+  //     if (!Platform.isAndroid) {
+  //       debugPrint('This method only works on Android');
+  //       return false;
+  //     }
       
-      final tempDir = await getTemporaryDirectory();
-      final tempFilename = 'temp_$filename.pdf';
-      final tempFile = File('${tempDir.path}/$tempFilename');
+  //     final tempDir = await getTemporaryDirectory();
+  //     final tempFilename = 'temp_$filename.pdf';
+  //     final tempFile = File('${tempDir.path}/$tempFilename');
       
-      await tempFile.writeAsBytes(await pdf.save());
+  //     await tempFile.writeAsBytes(await pdf.save());
       
-      const platform = MethodChannel('com.simsrestocafe/file_picker');
+  //     const platform = MethodChannel('com.simsrestocafe/file_picker');
       
-      final result = await platform.invokeMethod('createDocument', {
-        'path': tempFile.path,
-        'mimeType': 'application/pdf',
-        'fileName': '$filename.pdf',
-      });
+  //     final result = await platform.invokeMethod('createDocument', {
+  //       'path': tempFile.path,
+  //       'mimeType': 'application/pdf',
+  //       'fileName': '$filename.pdf',
+  //     });
       
-      return result == true;
-    } catch (e) {
-      debugPrint('Error saving PDF with Android intent: $e');
-      return false;
-    }
-  }
+  //     return result == true;
+  //   } catch (e) {
+  //     debugPrint('Error saving PDF with Android intent: $e');
+  //     return false;
+  //   }
+  // }
 
   // Helper method for orders count text
   String getOrdersCountText(int count) {

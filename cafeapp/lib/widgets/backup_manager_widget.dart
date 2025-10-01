@@ -68,7 +68,7 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
       
       if (backupPath != null) {
         _showSuccessSnackBar('Backup created successfully'.tr());
-        _loadBackups(); // Refresh the list
+        _loadBackups();
       } else {
         _showErrorSnackBar('Failed to create backup'.tr());
       }
@@ -86,7 +86,6 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
   Future<void> _restoreBackup(String backupPath) async {
     if (!mounted) return;
     
-    // Show confirmation dialog
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -128,7 +127,6 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
       if (success) {
         _showSuccessSnackBar('Restore completed successfully'.tr());
         
-        // Show restart app dialog
         if (mounted) {
           showDialog(
             context: context,
@@ -164,7 +162,6 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
   Future<void> _deleteBackup(String backupPath) async {
     if (!mounted) return;
     
-    // Show confirmation dialog
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -205,7 +202,7 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
       
       if (success) {
         _showSuccessSnackBar('Backup deleted successfully'.tr());
-        _loadBackups(); // Refresh the list
+        _loadBackups();
       } else {
         _showErrorSnackBar('Failed to delete backup'.tr());
       }
@@ -221,7 +218,6 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
   }
   
   Future<void> _deleteOldBackups() async {
-    // Show confirmation dialog with options
     final days = await showDialog<int>(
       context: context,
       builder: (context) => AlertDialog(
@@ -269,8 +265,8 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
       });
 
       _showSuccessSnackBar('${'Deleted'.tr()} $deletedCount ${'old backup(s)'.tr()}');
-      _loadBackups(); // Refresh the list
-      } catch (e) {
+      _loadBackups();
+    } catch (e) {
       setState(() {
         _isLoading = false;
       });
@@ -280,7 +276,6 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
   }
   
   Future<void> _keepRecentBackups() async {
-    // Show dialog to select how many recent backups to keep
     final keepCount = await showDialog<int>(
       context: context,
       builder: (context) => AlertDialog(
@@ -328,7 +323,7 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
       });
       
       _showSuccessSnackBar('${'Kept'.tr()} $keepCount ${'recent backup(s), deleted'.tr()} $deletedCount');
-      _loadBackups(); // Refresh the list
+      _loadBackups();
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -363,7 +358,7 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
       });
       
       if (exportPath != null) {
-        _showSuccessSnackBar('Backup exported to Downloads folder'.tr());
+        _showSuccessSnackBar('Backup exported to: $exportPath'.tr());
       } else {
         _showErrorSnackBar('Failed to export backup'.tr());
       }
@@ -382,18 +377,17 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
     });
     
     try {
-      final success = await BackupService.exportBackupToGoogleDrive(backupPath);
+      final result = await BackupService.exportBackupToGoogleDrive(backupPath);
       
       setState(() {
         _isLoading = false;
       });
       
-      if (success) {
+      if (result['success'] == true) {
         _showSuccessSnackBar('Backup exported to Google Drive'.tr());
       } else {
-       _showErrorSnackBar(
-        '${'Failed to export to Google Drive'.tr()}.\n${'Note: Google Drive export requires additional setup'.tr()}.'
-      );
+        final error = result['error'] ?? 'Unknown error';
+        _showErrorSnackBar('Failed to export to Google Drive: $error'.tr());
       }
     } catch (e) {
       setState(() {
@@ -487,19 +481,23 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
   }
   
   void _showSuccessSnackBar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.green,
+        duration: const Duration(seconds: 3),
       ),
     );
   }
   
   void _showErrorSnackBar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.red,
+        duration: const Duration(seconds: 4),
       ),
     );
   }
@@ -523,7 +521,6 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
     }
   }
   
-  // Add this method to load Google Drive backups
   Future<void> _loadGoogleDriveBackups() async {
     if (!mounted) return;
     
@@ -532,12 +529,18 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
     });
     
     try {
-      final backups = await BackupService.getGoogleDriveBackups();
+      final result = await BackupService.getGoogleDriveBackups();
       
       if (!mounted) return;
       
       setState(() {
-        _driveBackups = backups;
+        if (result['success'] == true) {
+          _driveBackups = List<Map<String, dynamic>>.from(result['backups'] ?? []);
+        } else {
+          _driveBackups = [];
+          final error = result['error'] ?? 'Unknown error';
+          _showErrorSnackBar('Error loading Google Drive backups: $error'.tr());
+        }
         _isLoadingDriveBackups = false;
       });
     } catch (e) {
@@ -551,11 +554,9 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
     }
   }
   
-  // Add this method to restore from Google Drive
   Future<void> _restoreFromGoogleDrive(String fileId) async {
     if (!mounted) return;
     
-    // Show confirmation dialog
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -586,7 +587,7 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
     });
     
     try {
-      final success = await BackupService.restoreFromGoogleDrive(fileId);
+      final result = await BackupService.restoreFromGoogleDrive(fileId);
       
       if (!mounted) return;
       
@@ -594,10 +595,9 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
         _isLoading = false;
       });
       
-      if (success) {
+      if (result['success'] == true) {
         _showSuccessSnackBar('Restore from Google Drive completed successfully'.tr());
         
-        // Show restart app dialog
         if (mounted) {
           showDialog(
             context: context,
@@ -617,7 +617,8 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
           );
         }
       } else {
-        _showErrorSnackBar('Failed to restore from Google Drive'.tr());
+        final error = result['error'] ?? 'Unknown error';
+        _showErrorSnackBar('Failed to restore from Google Drive: $error'.tr());
       }
     } catch (e) {
       if (!mounted) return;
@@ -630,7 +631,6 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
     }
   }
 
-  // Add this method to show Drive backup options
   void _showDriveBackupOptions(Map<String, dynamic> backup) {
     showModalBottomSheet(
       context: context,
@@ -668,11 +668,9 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
     );
   }
   
-  // Add this method to delete a backup from Google Drive
   Future<void> _deleteGoogleDriveBackup(String fileId) async {
     if (!mounted) return;
     
-    // Show confirmation dialog
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -703,7 +701,7 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
     });
     
     try {
-      final success = await BackupService.deleteBackupFromDrive(fileId);
+      final result = await BackupService.deleteBackupFromDrive(fileId);
       
       if (!mounted) return;
       
@@ -711,11 +709,12 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
         _isLoading = false;
       });
       
-      if (success) {
+      if (result['success'] == true) {
         _showSuccessSnackBar('Backup deleted from Google Drive'.tr());
-        _loadGoogleDriveBackups(); // Refresh the Drive backups list
+        _loadGoogleDriveBackups();
       } else {
-        _showErrorSnackBar('Failed to delete backup from Google Drive'.tr());
+        final error = result['error'] ?? 'Unknown error';
+        _showErrorSnackBar('Failed to delete backup from Google Drive: $error'.tr());
       }
     } catch (e) {
       if (!mounted) return;
@@ -728,7 +727,6 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
     }
   }
   
-  // Add this method to download a backup from Drive
   Future<void> _downloadDriveBackup(String fileId) async {
     if (!mounted) return;
     
@@ -737,7 +735,7 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
     });
     
     try {
-      final localPath = await BackupService.downloadBackupFromDrive(fileId);
+      final result = await BackupService.downloadBackupFromDrive(fileId);
       
       if (!mounted) return;
       
@@ -745,11 +743,12 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
         _isLoading = false;
       });
       
-      if (localPath != null) {
+      if (result['success'] == true) {
         _showSuccessSnackBar('Backup downloaded from Google Drive'.tr());
-        _loadBackups(); // Refresh local backup list
+        _loadBackups();
       } else {
-        _showErrorSnackBar('Failed to download backup from Google Drive'.tr());
+        final error = result['error'] ?? 'Unknown error';
+        _showErrorSnackBar('Failed to download backup from Google Drive: $error'.tr());
       }
     } catch (e) {
       if (!mounted) return;
@@ -776,7 +775,6 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
       ),
       body: Column(
         children: [
-          // Add toggle buttons for local/drive backups
           Container(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -817,7 +815,6 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
             ),
           ),
           
-          // Show appropriate backup list based on toggle
           Expanded(
             child: _showDriveBackups
                 ? _buildDriveBackupsList()
@@ -832,7 +829,6 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
     );
   }
 
-  // Add this method to build the Drive backups list
   Widget _buildDriveBackupsList() {
     if (_isLoadingDriveBackups) {
       return const Center(child: CircularProgressIndicator());
@@ -843,7 +839,12 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('No backups found on Google Drive'.tr()),
+            Icon(Icons.cloud_off, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'No backups found on Google Drive'.tr(),
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+            ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               icon: const Icon(Icons.refresh),
@@ -859,7 +860,6 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
       itemCount: _driveBackups.length,
       itemBuilder: (context, index) {
         final backup = _driveBackups[index];
-        // final id = backup['id'] as String; 
         final name = backup['name'] as String;
         final timestamp = backup['timestamp'] as String;
         final size = backup['size'] as int? ?? 0;
@@ -923,13 +923,29 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
     );
   }
 
-  // Rename the existing backup list method to _buildLocalBackupsList
   Widget _buildLocalBackupsList() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     if (_backups.isEmpty) {
       return Center(
-        child: _isLoading
-            ? const CircularProgressIndicator()
-            : Text('No local backups found'.tr()),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.backup, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'No local backups found'.tr(),
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Tap the + button to create a backup'.tr(),
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+            ),
+          ],
+        ),
       );
     }
     
@@ -940,6 +956,7 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
         final path = backup['path'] as String;
         final timestamp = backup['timestamp'] as String;
         final version = backup['version'] as String? ?? 'Unknown';
+        final platform = backup['platform'] as String? ?? 'Unknown';
         final hasDatabases = backup['has_databases'] as bool? ?? false;
         final size = backup['size'] as int? ?? 0;
         
@@ -976,9 +993,7 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
                   Row(
                     children: [
                       Icon(
-                        hasDatabases
-                            ? Icons.storage
-                            : Icons.settings,
+                        hasDatabases ? Icons.storage : Icons.settings,
                         size: 16,
                         color: Colors.grey[600],
                       ),
@@ -992,6 +1007,24 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
                           fontSize: 14,
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      if (platform != 'Unknown') ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.blue[200]!),
+                          ),
+                          child: Text(
+                            platform,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.blue[700],
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ],

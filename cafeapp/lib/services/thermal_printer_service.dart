@@ -3,8 +3,8 @@ import 'dart:ui' as ui show Canvas, ImageByteFormat, Paint, PaintingStyle, Pictu
 import 'package:flutter/material.dart' show TextAlign, TextPainter, TextSpan, TextStyle, FontWeight, Colors, debugPrint;
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
-import 'package:esc_pos_printer/esc_pos_printer.dart';
-import 'package:esc_pos_utils/esc_pos_utils.dart';
+import 'package:esc_pos_printer_plus/esc_pos_printer_plus.dart';
+import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/menu_item.dart';

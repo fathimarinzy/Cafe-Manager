@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'dart:io';
 import 'dart:async';
@@ -153,304 +152,305 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
     }
   }
 
- void _showDiscoveredPrintersDialog() {
-  showDialog(
-    context: context,
-    builder: (ctx) {
-      // Get screen orientation and size
-      final screenSize = MediaQuery.of(context).size;
-      final isLandscape = screenSize.width > screenSize.height;
-      final dialogWidth = isLandscape ? screenSize.width * 0.7 : screenSize.width * 0.9;
-      final dialogHeight = isLandscape ? screenSize.height * 0.8 : screenSize.height * 0.6;
-      
-      return Dialog(
-        insetPadding: const EdgeInsets.all(20),
-        child: Container(
-          width: dialogWidth,
-          height: dialogHeight,
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              // Header
-              Row(
-                children: [
-                  Icon(
-                    Icons.wifi,
-                    color: Colors.blue.shade700,
-                    size: 28,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Discovered Printers'.tr(),
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+  void _showDiscoveredPrintersDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        // Get screen orientation and size
+        final screenSize = MediaQuery.of(context).size;
+        final isLandscape = screenSize.width > screenSize.height;
+        final dialogWidth = isLandscape ? screenSize.width * 0.7 : screenSize.width * 0.9;
+        final dialogHeight = isLandscape ? screenSize.height * 0.8 : screenSize.height * 0.6;
+        
+        return Dialog(
+          insetPadding: const EdgeInsets.all(20),
+          child: Container(
+            width: dialogWidth,
+            height: dialogHeight,
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Icon(
+                      Icons.wifi,
+                      color: Colors.blue.shade700,
+                      size: 28,
                     ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(ctx).pop(),
-                    icon: const Icon(Icons.close),
-                    tooltip: 'Close'.tr(),
-                  ),
-                ],
-              ),
-              
-              const Divider(height: 24),
-              
-              // Subtitle
-              if (_discoveredPrinters.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(
-                    'Select a printer to configure:'.tr(),
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey.shade700,
-                    ),
-                  ),
-                ),
-              
-              // Printers List
-              Expanded(
-                child: _discoveredPrinters.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.search_off,
-                              size: 64,
-                              color: Colors.grey.shade400,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No printers found'.tr(),
-                              style: TextStyle(
-                                fontSize: 18,
-                                color: Colors.grey.shade600,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Make sure printers are connected to the same network'.tr(),
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey.shade500,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Discovered Printers'.tr(),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
                         ),
-                      )
-                    : ListView.separated(
-                        itemCount: _discoveredPrinters.length,
-                        separatorBuilder: (context, index) => const Divider(height: 1),
-                        itemBuilder: (context, index) {
-                          final printer = _discoveredPrinters[index];
-                          return _buildPrinterTile(ctx, printer, isLandscape);
-                        },
-                      ),
-              ),
-              
-              // Footer buttons
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.of(ctx).pop();
-                        _discoverPrinters(); // Refresh search
-                      },
-                      icon: const Icon(Icons.refresh),
-                      label: Text('Refresh'.tr()),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
+                    IconButton(
                       onPressed: () => Navigator.of(ctx).pop(),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue.shade700,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      icon: const Icon(Icons.close),
+                      tooltip: 'Close'.tr(),
+                    ),
+                  ],
+                ),
+                
+                const Divider(height: 24),
+                
+                // Subtitle
+                if (_discoveredPrinters.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Text(
+                      'Select a printer to configure:'.tr(),
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey.shade700,
                       ),
-                      child: Text('Close'.tr()),
                     ),
                   ),
-                ],
-              ),
-            ],
+                
+                // Printers List
+                Expanded(
+                  child: _discoveredPrinters.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.search_off,
+                                size: 64,
+                                color: Colors.grey.shade400,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No printers found'.tr(),
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.grey.shade600,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Make sure printers are connected to the same network'.tr(),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey.shade500,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: _discoveredPrinters.length,
+                          separatorBuilder: (context, index) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final printer = _discoveredPrinters[index];
+                            return _buildPrinterTile(ctx, printer, isLandscape);
+                          },
+                        ),
+                ),
+                
+                // Footer buttons
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(ctx).pop();
+                          _discoverPrinters(); // Refresh search
+                        },
+                        icon: const Icon(Icons.refresh),
+                        label: Text('Refresh'.tr()),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue.shade700,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: Text('Close'.tr()),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-      );
-    },
-  );
-}
+        );
+      },
+    );
+  }
 
-Widget _buildPrinterTile(BuildContext ctx, Map<String, String> printer, bool isLandscape) {
-  return Container(
-    padding: const EdgeInsets.all(16),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Printer info
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                Icons.print,
-                color: Colors.blue.shade700,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Network Printer'.tr(),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'IP: ${printer['ip']} | Port: ${printer['port']}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade700,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        
-        const SizedBox(height: 16),
-        
-        // Action buttons - responsive layout
-        if (isLandscape)
-          // Landscape: side by side
+  Widget _buildPrinterTile(BuildContext ctx, Map<String, String> printer, bool isLandscape) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Printer info
           Row(
             children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.print,
+                  color: Colors.blue.shade700,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
               Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _receiptIpController.text = printer['ip']!;
-                      _receiptPortController.text = printer['port']!;
-                    });
-                    Navigator.of(ctx).pop();
-                    
-                    // Show confirmation
-                    _showSuccessMessage('Receipt printer configured with ${printer['ip']}'.tr());
-                  },
-                  icon: const Icon(Icons.receipt, size: 18),
-                  label: Text('Set as Receipt Printer'.tr()),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    side: BorderSide(color: Colors.blue.shade700),
-                    foregroundColor: Colors.blue.shade700,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _kotIpController.text = printer['ip']!;
-                      _kotPortController.text = printer['port']!;
-                      _kotPrinterEnabled = true; // Auto-enable KOT printer
-                    });
-                    Navigator.of(ctx).pop();
-                    
-                    // Show confirmation
-                    _showSuccessMessage('KOT printer configured with ${printer['ip']}'.tr());
-                  },
-                  icon: const Icon(Icons.restaurant_menu, size: 18),
-                  label: Text('Set as KOT Printer'.tr()),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade700,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-            ],
-          )
-        else
-          // Portrait: stacked
-          Column(
-            children: [
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _receiptIpController.text = printer['ip']!;
-                      _receiptPortController.text = printer['port']!;
-                    });
-                    Navigator.of(ctx).pop();
-                    
-                    // Show confirmation
-                    _showSuccessMessage('Receipt printer configured with ${printer['ip']}'.tr());
-                  },
-                  icon: const Icon(Icons.receipt, size: 18),
-                  label: Text('Set as Receipt Printer'.tr()),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    side: BorderSide(color: Colors.blue.shade700),
-                    foregroundColor: Colors.blue.shade700,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _kotIpController.text = printer['ip']!;
-                      _kotPortController.text = printer['port']!;
-                      _kotPrinterEnabled = true; // Auto-enable KOT printer
-                    });
-                    Navigator.of(ctx).pop();
-                    
-                    // Show confirmation
-                    _showSuccessMessage('KOT printer configured with ${printer['ip']}'.tr());
-                  },
-                  icon: const Icon(Icons.restaurant_menu, size: 18),
-                  label: Text('Set as KOT Printer'.tr()),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade700,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Network Printer'.tr(),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'IP: ${printer['ip']} | Port: ${printer['port']}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade700,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-      ],
-    ),
-  );
-}
+          
+          const SizedBox(height: 16),
+          
+          // Action buttons - responsive layout
+          if (isLandscape)
+            // Landscape: side by side
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _receiptIpController.text = printer['ip']!;
+                        _receiptPortController.text = printer['port']!;
+                      });
+                      Navigator.of(ctx).pop();
+                      
+                      // Show confirmation
+                      _showSuccessMessage('Receipt printer configured with ${printer['ip']}'.tr());
+                    },
+                    icon: const Icon(Icons.receipt, size: 18),
+                    label: Text('Set as Receipt Printer'.tr()),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      side: BorderSide(color: Colors.blue.shade700),
+                      foregroundColor: Colors.blue.shade700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _kotIpController.text = printer['ip']!;
+                        _kotPortController.text = printer['port']!;
+                        _kotPrinterEnabled = true; // Auto-enable KOT printer
+                      });
+                      Navigator.of(ctx).pop();
+                      
+                      // Show confirmation
+                      _showSuccessMessage('KOT printer configured with ${printer['ip']}'.tr());
+                    },
+                    icon: const Icon(Icons.restaurant_menu, size: 18),
+                    label: Text('Set as KOT Printer'.tr()),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade700,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
+            )
+          else
+            // Portrait: stacked
+            Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _receiptIpController.text = printer['ip']!;
+                        _receiptPortController.text = printer['port']!;
+                      });
+                      Navigator.of(ctx).pop();
+                      
+                      // Show confirmation
+                      _showSuccessMessage('Receipt printer configured with ${printer['ip']}'.tr());
+                    },
+                    icon: const Icon(Icons.receipt, size: 18),
+                    label: Text('Set as Receipt Printer'.tr()),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      side: BorderSide(color: Colors.blue.shade700),
+                      foregroundColor: Colors.blue.shade700,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _kotIpController.text = printer['ip']!;
+                        _kotPortController.text = printer['port']!;
+                        _kotPrinterEnabled = true; // Auto-enable KOT printer
+                      });
+                      Navigator.of(ctx).pop();
+                      
+                      // Show confirmation
+                      _showSuccessMessage('KOT printer configured with ${printer['ip']}'.tr());
+                    },
+                    icon: const Icon(Icons.restaurant_menu, size: 18),
+                    label: Text('Set as KOT Printer'.tr()),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade700,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _saveReceiptPrinterSettings() async {
     if (!_validateIpAddress(_receiptIpController.text)) {
       _showErrorMessage("Please enter a valid IP address for Receipt Printer".tr());
@@ -585,23 +585,44 @@ Widget _buildPrinterTile(BuildContext ctx, Map<String, String> printer, bool isL
     return ipRegex.hasMatch(ip);
   }
 
+  // FIXED: Cross-platform toast replacement using SnackBar
   void _showErrorMessage(String message) {
-    Fluttertoast.showToast(
-      msg: message,
-      toastLength: Toast.LENGTH_LONG,
-      gravity: ToastGravity.BOTTOM,
-      backgroundColor: Colors.red,
-      textColor: Colors.white,
+    if (!mounted) return;
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: 'Dismiss',
+          textColor: Colors.white,
+          onPressed: () {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          },
+        ),
+      ),
     );
   }
 
   void _showSuccessMessage(String message) {
-    Fluttertoast.showToast(
-      msg: message,
-      toastLength: Toast.LENGTH_LONG,
-      gravity: ToastGravity.BOTTOM,
-      backgroundColor: Colors.green,
-      textColor: Colors.white,
+    if (!mounted) return;
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: 'Dismiss',
+          textColor: Colors.white,
+          onPressed: () {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          },
+        ),
+      ),
     );
   }
 
@@ -779,6 +800,7 @@ Widget _buildPrinterTile(BuildContext ctx, Map<String, String> printer, bool isL
       ),
     );
   }
+
 
   Widget _buildKotPrinterTab() {
     return SingleChildScrollView(

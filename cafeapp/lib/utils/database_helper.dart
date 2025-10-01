@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart'; // Add this import
 import 'package:path/path.dart';
 import 'dart:io';
 
@@ -8,6 +8,9 @@ class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
   factory DatabaseHelper() => _instance;
   DatabaseHelper._internal();
+  
+  // Platform initialization flag
+  static bool _platformInitialized = false;
   
   // Database names
   static const String menuDbName = 'cafe_menu.db';
@@ -21,29 +24,88 @@ class DatabaseHelper {
   static Database? _personsDb;
   static Database? _expensesDb;
   
-  // Database getters with proper checks
+  /// Initialize SQLite for the current platform - MUST be called first
+  static Future<void> initializePlatform() async {
+    if (_platformInitialized) return;
+
+    if (kIsWeb) {
+      // Web doesn't support SQLite directly
+      throw UnsupportedError('SQLite is not supported on web platform');
+    } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      // Desktop platforms need sqflite_ffi
+      debugPrint('Initializing SQLite for desktop platform: ${Platform.operatingSystem}');
+      
+      try {
+        // Initialize ffi loader if needed
+        sqfliteFfiInit();
+        
+        // Set the database factory to use ffi
+        databaseFactory = databaseFactoryFfi;
+        
+        debugPrint('SQLite initialized successfully for desktop');
+      } catch (e) {
+        debugPrint('Error initializing SQLite for desktop: $e');
+        rethrow;
+      }
+    } else {
+      // Mobile platforms (Android/iOS) use regular sqflite
+      debugPrint('Using default SQLite for mobile platform: ${Platform.operatingSystem}');
+      // No additional setup needed for mobile
+    }
+
+    _platformInitialized = true;
+  }
+
+  /// Check if the current platform supports SQLite
+  static bool get isSupported {
+    return !kIsWeb;
+  }
+
+  /// Get a descriptive name for the current platform
+  static String get platformName {
+    if (kIsWeb) return 'Web';
+    if (Platform.isWindows) return 'Windows';
+    if (Platform.isMacOS) return 'macOS';
+    if (Platform.isLinux) return 'Linux';
+    if (Platform.isAndroid) return 'Android';
+    if (Platform.isIOS) return 'iOS';
+    return 'Unknown';
+  }
+  
+  // Database getters with proper checks and platform initialization
   Future<Database> get menuDb async {
+    await _ensurePlatformInitialized();
     if (_menuDb != null && _menuDb!.isOpen) return _menuDb!;
     _menuDb = await _openDatabase(menuDbName);
     return _menuDb!;
   }
   
   Future<Database> get ordersDb async {
+    await _ensurePlatformInitialized();
     if (_ordersDb != null && _ordersDb!.isOpen) return _ordersDb!;
     _ordersDb = await _openDatabase(ordersDbName);
     return _ordersDb!;
   }
   
   Future<Database> get personsDb async {
+    await _ensurePlatformInitialized();
     if (_personsDb != null && _personsDb!.isOpen) return _personsDb!;
     _personsDb = await _openDatabase(personsDbName);
     return _personsDb!;
   }
   
   Future<Database> get expensesDb async {
+    await _ensurePlatformInitialized();
     if (_expensesDb != null && _expensesDb!.isOpen) return _expensesDb!;
     _expensesDb = await _openDatabase(expensesDbName);
     return _expensesDb!;
+  }
+  
+  // Ensure platform is initialized before any database operations
+  Future<void> _ensurePlatformInitialized() async {
+    if (!_platformInitialized) {
+      await initializePlatform();
+    }
   }
   
   // Generic function to open a database
@@ -56,7 +118,7 @@ class DatabaseHelper {
         final dbPath = await getDatabasesPath();
         final path = join(dbPath, dbName);
         
-        debugPrint('Opening database: $dbName (Attempt ${retryCount + 1})');
+        debugPrint('Opening database: $dbName at $path (Attempt ${retryCount + 1})');
         
         // If database doesn't exist, this will create it
         return await openDatabase(path);
@@ -173,5 +235,19 @@ class DatabaseHelper {
     }
     
     throw Exception('Failed to execute $operationName after $maxRetries attempts');
+  }
+  
+  // Test database connection
+  Future<bool> testConnection() async {
+    try {
+      await _ensurePlatformInitialized();
+      final db = await menuDb;
+      final result = await db.rawQuery('SELECT 1 as test');
+      debugPrint('Database connection test successful: $result');
+      return true;
+    } catch (e) {
+      debugPrint('Database connection test failed: $e');
+      return false;
+    }
   }
 }

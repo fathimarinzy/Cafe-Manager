@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/order_history.dart';
 import '../services/bill_service.dart';
 import '../utils/extensions.dart';
@@ -13,7 +15,7 @@ import 'dashboard_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import '../providers/table_provider.dart';
-import 'package:flutter_pdfview/flutter_pdfview.dart';
+// import 'package:flutter_pdfview/flutter_pdfview.dart';
 import '../providers/order_provider.dart';
 import '../models/person.dart';
 import '../models/order.dart';
@@ -26,6 +28,7 @@ import '../providers/person_provider.dart';
 import '../screens/search_person_screen.dart';
 import '../repositories/credit_transaction_repository.dart';
 import '../models/credit_transaction.dart';
+import '../services/cross_platform_pdf_service.dart'; // Add this import
 
 class TenderScreen extends StatefulWidget {
   final OrderHistory order;
@@ -180,7 +183,18 @@ class _TenderScreenState extends State<TenderScreen> {
       );
     });
   }
-
+// Replace the existing _saveWithAndroidIntent method
+// Future<bool> _saveWithCrossPlatform(pw.Document pdf, String orderNumber) async {
+//   try {
+//     final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+//     final fileName = 'SIMS_receipt_${orderNumber}_reprint_$timestamp.pdf';
+    
+//     return await CrossPlatformPdfService.savePdf(pdf, suggestedFileName: fileName);
+//   } catch (e) {
+//     debugPrint('Error saving PDF: $e');
+//     return false;
+//   }
+// }
 Future<void> _reprintMainReceipt() async {
   setState(() {
     _isProcessing = true;
@@ -258,9 +272,11 @@ Future<void> _reprintMainReceipt() async {
     } else {
       if (!mounted) return;
       // If printing fails, offer to save as PDF
-      bool? saveAsPdf = await BillService.showSavePdfDialog(context);
+      bool? saveAsPdf = await CrossPlatformPdfService.showSavePdfDialog(context);
       if (saveAsPdf == true) {
-        final saved = await _saveWithCustomFileName(pdf, widget.order.orderNumber);
+        final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+        final fileName = 'SIMS_receipt_${widget.order.orderNumber}_reprint_$timestamp.pdf';
+        final saved = await CrossPlatformPdfService.savePdf(pdf, suggestedFileName: fileName);
         result = {
           'success': saved,
           'message': saved ? 'Receipt saved as PDF' : 'Failed to save PDF',
@@ -320,131 +336,354 @@ double _calculateSubtotal(List<dynamic> items) {
   return items.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
 }
 
-// Custom save method with original order number filename
-Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async {
+// // Custom save method with original order number filename
+// Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async {
+//   try {
+//     if (!Platform.isAndroid) {
+//       debugPrint('This method only works on Android');
+//       return false;
+//     }
+    
+//     final tempDir = await getTemporaryDirectory();
+//     final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+//     final tempFilename = 'temp_receipt_${orderNumber}_$timestamp.pdf';
+//     final tempFile = File('${tempDir.path}/$tempFilename');
+    
+//     await tempFile.writeAsBytes(await pdf.save());
+    
+//     final result = await _channel.invokeMethod('createDocument', {
+//       'path': tempFile.path,
+//       'mimeType': 'application/pdf',
+//       'fileName': 'SIMS_receipt_${orderNumber}_reprint.pdf', // Use original order number
+//     });
+    
+//     return result == true;
+//   } catch (e) {
+//     debugPrint('Error saving PDF with custom filename: $e');
+//     return false;
+//   }
+// }
+// Update the _showSavePdfDialog method
+Future<bool?> _showSavePdfDialog() {
+  return CrossPlatformPdfService.showSavePdfDialog(context);
+}
+  // Future<void> _showBillPreviewDialog() async {
+  //   showDialog(
+  //     context: context,
+  //     barrierDismissible: false,
+  //     builder: (context) => const Center(
+  //       child: CircularProgressIndicator(),
+  //     ),
+  //   );
+    
+  //   try {
+  //     final pdf = await _generateReceipt();
+      
+  //     final tempDir = await getTemporaryDirectory();
+  //     final pdfPath = '${tempDir.path}/bill_preview_${widget.order.id}.pdf';
+  //     final file = File(pdfPath);
+  //     await file.writeAsBytes(await pdf.save());
+      
+  //     if (!mounted) return;
+  //     Navigator.of(context).pop();
+      
+  //     await showDialog(
+  //       context: context,
+  //       builder: (context) => Dialog(
+  //         insetPadding: EdgeInsets.zero,
+  //         child: Column(
+  //           children: [
+  //             Container(
+  //               color: Colors.blue.shade700,
+  //               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+  //               child: Row(
+  //                 children: [
+  //                   IconButton(
+  //                     icon: const Icon(Icons.close, color: Colors.white),
+  //                     onPressed: () => Navigator.of(context).pop(),
+  //                   ),
+  //                   Text(
+  //                     'Preview'.tr(),
+  //                     style: const TextStyle(
+  //                       color: Colors.white,
+  //                       fontSize: 18,
+  //                       fontWeight: FontWeight.bold,
+  //                     ),
+  //                   ),
+  //                   const Spacer(),
+  //                     // Add Reprint button next to Preview text
+  //                   ElevatedButton.icon(
+  //                     icon: const Icon(Icons.print, size: 16),
+  //                     label: Text('Reprint'.tr()),
+  //                     onPressed: () async {
+  //                       await _reprintMainReceipt(); // Call reprint method
+  //                     },
+  //                     style: ElevatedButton.styleFrom(
+  //                       backgroundColor: Colors.white,
+  //                       foregroundColor: Colors.blue.shade900,
+  //                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+  //                       textStyle: const TextStyle(fontSize: 12),
+  //                       minimumSize: const Size(80, 32),
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ),
+  //             ),
+  //             Expanded(
+  //               child: PDFView(
+  //                 filePath: pdfPath,
+  //                 enableSwipe: true,
+  //                 swipeHorizontal: false,
+  //                 autoSpacing: false,
+  //                 pageFling: true,
+  //                 fitPolicy: FitPolicy.BOTH,
+  //                 fitEachPage: false,    
+  //                 defaultPage: 0,
+  //                 onError: (error) {
+  //                   debugPrint('Error loading PDF: $error');
+  //                   if (mounted) {
+  //                     ScaffoldMessenger.of(context).showSnackBar(
+  //                       SnackBar(content: Text('Error loading PDF preview'.tr())),
+  //                     );
+  //                   }
+  //                 },
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+  //     );
+  //   } catch (e) {
+  //     if (mounted) Navigator.of(context).pop();
+      
+  //     if (mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(content: Text('${'Error generating bill preview'.tr()}: $e')),
+  //       );
+  //     }
+  //   }
+  // }
+  Future<void> _showBillPreviewDialog() async {
+  setState(() {
+    _isProcessing = true;
+  });
+  
   try {
-    if (!Platform.isAndroid) {
-      debugPrint('This method only works on Android');
-      return false;
+    final pdf = await _generateReceipt();
+    
+    if (!mounted) {
+      setState(() {
+        _isProcessing = false;
+      });
+      return;
     }
     
-    final tempDir = await getTemporaryDirectory();
-    final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-    final tempFilename = 'temp_receipt_${orderNumber}_$timestamp.pdf';
-    final tempFile = File('${tempDir.path}/$tempFilename');
+     // For desktop, show custom dialog with reprint button
+    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      await _showDesktopBillPreview(pdf);
+    } else {
+      // For mobile, use the existing preview with reprint
+      await _showMobileBillPreview(pdf);
+    }
     
-    await tempFile.writeAsBytes(await pdf.save());
-    
-    final result = await _channel.invokeMethod('createDocument', {
-      'path': tempFile.path,
-      'mimeType': 'application/pdf',
-      'fileName': 'SIMS_receipt_${orderNumber}_reprint.pdf', // Use original order number
-    });
-    
-    return result == true;
   } catch (e) {
-    debugPrint('Error saving PDF with custom filename: $e');
-    return false;
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error generating bill preview: $e'.tr())),
+      );
+    }
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isProcessing = false;
+      });
+    }
   }
 }
-
-  Future<void> _showBillPreviewDialog() async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
-      ),
-    );
-    
-    try {
-      final pdf = await _generateReceipt();
-      
-      final tempDir = await getTemporaryDirectory();
-      final pdfPath = '${tempDir.path}/bill_preview_${widget.order.id}.pdf';
-      final file = File(pdfPath);
-      await file.writeAsBytes(await pdf.save());
-      
-      if (!mounted) return;
-      Navigator.of(context).pop();
-      
-      await showDialog(
-        context: context,
-        builder: (context) => Dialog(
-          insetPadding: EdgeInsets.zero,
-          child: Column(
-            children: [
-              Container(
-                color: Colors.blue.shade700,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Row(
+// Desktop bill preview with reprint button
+Future<void> _showDesktopBillPreview(pw.Document pdf) async {
+  return showDialog(
+    context: context,
+    builder: (context) => Dialog(
+      insetPadding: const EdgeInsets.all(20),
+      child: SizedBox(
+        width: MediaQuery.of(context).size.width * 0.6,
+        height: MediaQuery.of(context).size.height * 0.7,
+        child: Column(
+          children: [
+            Container(
+              color: Colors.blue.shade700,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  Text(
+                    'Preview'.tr(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  // Add Reprint button
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.print, size: 16),
+                    label: Text('Reprint'.tr()),
+                    onPressed: () async {
+                      // Navigator.of(context).pop(); // Close preview
+                      await _reprintMainReceipt(); // Call reprint method
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.blue.shade900,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      textStyle: const TextStyle(fontSize: 12),
+                      minimumSize: const Size(80, 32),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
+                    const Icon(Icons.picture_as_pdf, size: 80, color: Colors.grey),
+                    const SizedBox(height: 24),
                     Text(
-                      'Preview'.tr(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      'Receipt #${widget.order.orderNumber}',
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                     ),
-                    const Spacer(),
-                      // Add Reprint button next to Preview text
+                    const SizedBox(height: 16),
+                    Text(
+                      'Click "Open PDF" to view in your default PDF viewer',
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
                     ElevatedButton.icon(
-                      icon: const Icon(Icons.print, size: 16),
-                      label: Text('Reprint'.tr()),
+                      icon: const Icon(Icons.open_in_new),
+                      label: const Text('Open PDF'),
                       onPressed: () async {
-                        await _reprintMainReceipt(); // Call reprint method
+                        try {
+                          final tempDir = await getTemporaryDirectory();
+                          final pdfPath = '${tempDir.path}/receipt_${widget.order.orderNumber}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+                          final file = File(pdfPath);
+                          await file.writeAsBytes(await pdf.save());
+                          
+                          final uri = Uri.file(pdfPath);
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri);
+                          } else {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Could not open PDF viewer')),
+                              );
+                            }
+                          }
+                        } catch (e) {
+                          debugPrint('Error opening PDF: $e');
+                        }
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.blue.shade900,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        textStyle: const TextStyle(fontSize: 12),
-                        minimumSize: const Size(80, 32),
+                        backgroundColor: Colors.blue.shade700,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                       ),
                     ),
                   ],
                 ),
               ),
-              Expanded(
-                child: PDFView(
-                  filePath: pdfPath,
-                  enableSwipe: true,
-                  swipeHorizontal: false,
-                  autoSpacing: false,
-                  pageFling: true,
-                  fitPolicy: FitPolicy.BOTH,
-                  fitEachPage: false,    
-                  defaultPage: 0,
-                  onError: (error) {
-                    debugPrint('Error loading PDF: $error');
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Error loading PDF preview'.tr())),
-                      );
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
-      );
-    } catch (e) {
-      if (mounted) Navigator.of(context).pop();
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${'Error generating bill preview'.tr()}: $e')),
-        );
-      }
-    }
-  }
+      ),
+    ),
+  );
+}
 
+// Mobile bill preview with reprint button (existing behavior)
+Future<void> _showMobileBillPreview(pw.Document pdf) async {
+  final tempDir = await getTemporaryDirectory();
+  final pdfPath = '${tempDir.path}/bill_preview_${widget.order.id}.pdf';
+  final file = File(pdfPath);
+  await file.writeAsBytes(await pdf.save());
+  
+  if (!mounted) return;
+  
+  await showDialog(
+    context: context,
+    builder: (context) => Dialog(
+      insetPadding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          Container(
+            color: Colors.blue.shade700,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                Text(
+                  'Preview'.tr(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                // Reprint button for mobile
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.print, size: 16),
+                  label: Text('Reprint'.tr()),
+                  onPressed: () async {
+                    Navigator.of(context).pop();
+                    await _reprintMainReceipt();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.blue.shade900,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    textStyle: const TextStyle(fontSize: 12),
+                    minimumSize: const Size(80, 32),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: PDFView(
+              filePath: pdfPath,
+              enableSwipe: true,
+              swipeHorizontal: false,
+              autoSpacing: false,
+              pageFling: true,
+              fitPolicy: FitPolicy.BOTH,
+              fitEachPage: false,    
+              defaultPage: 0,
+              onError: (error) {
+                debugPrint('Error loading PDF: $error');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error loading PDF preview'.tr())),
+                  );
+                }
+              },
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
   Future<bool> _updateOrderStatus(String status) async {
     setState(() {
       _isProcessing = true;
@@ -630,12 +869,14 @@ Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async 
       bool? saveAsPdf = false;
       if (!printed) {
         if (mounted) {
-          saveAsPdf = await _showSavePdfDialog();
+      saveAsPdf = await CrossPlatformPdfService.showSavePdfDialog(context);
         }
         
         if (saveAsPdf == true) {
           try {
-            await _saveWithAndroidIntent(pdf);
+           final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+           final fileName = 'SIMS_receipt_${widget.order.orderNumber}_$timestamp.pdf';
+           await CrossPlatformPdfService.savePdf(pdf, suggestedFileName: fileName);
           } catch (e) {
             debugPrint('Error saving PDF: $e');
           }
@@ -1127,8 +1368,7 @@ Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async 
       }
     }
   }
-  
-void _showBankPaymentDialog() {
+  void _showBankPaymentDialog() {
   _lastFourDigitsController.clear();
   _approvalCodeController.clear();
   
@@ -1142,10 +1382,8 @@ void _showBankPaymentDialog() {
     builder: (BuildContext context) {
       return StatefulBuilder(
         builder: (context, setState) {
-          // Recalculate discounted total in case discount was applied
           final currentDiscountedTotal = _getDiscountedTotal();
           
-          // Check if device is in portrait mode
           final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
           final screenWidth = MediaQuery.of(context).size.width;
           final screenHeight = MediaQuery.of(context).size.height;
@@ -1180,12 +1418,11 @@ void _showBankPaymentDialog() {
                         ),
                       ),
                       Expanded(child: Container()),
-                      // Add discount button in header
                       ElevatedButton.icon(
                         icon: const Icon(Icons.discount, size: 16),
                         label: Text('Discount'.tr()),
                         onPressed: () {
-                          _showDiscountDialog(); // Show discount dialog
+                          _showDiscountDialog();
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.purple.shade100,
@@ -1198,6 +1435,7 @@ void _showBankPaymentDialog() {
                     ],
                   ),
                   const SizedBox(height: 16),
+                  
                   // Content - Different layout for portrait vs landscape
                   Expanded(
                     child: isPortrait 
@@ -1213,8 +1451,6 @@ void _showBankPaymentDialog() {
     },
   );
 }
-
-// [Continue with all the remaining methods: _buildPortraitLayout, _buildLandscapeLayout, _buildPortraitNumberPadButton, _buildNumberPadDialogButton, _applyExactAmount, _showPaymentConfirmationDialog, _processCashPayment, _showBalanceMessageDialog, _updateAmount, _showSavePdfDialog, _saveWithAndroidIntent, _generateReceipt, and all other methods up to the build method]
 
 // Extract payment method selection panel
 Widget _buildPaymentMethodSelection() {
@@ -1862,7 +2098,7 @@ Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
               ),
               const SizedBox(height: 16),
               
-              // Received amount
+              // Received amount - Platform-aware input
               Row(
                 children: [
                   Expanded(
@@ -1877,7 +2113,10 @@ Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
                     child: TextField(
                       controller: _receivedAmountController,
                       focusNode: _receivedFocusNode,
-                      readOnly: true,
+                      readOnly: Platform.isAndroid || Platform.isIOS, // Read-only on mobile, editable on desktop
+                      keyboardType: (Platform.isAndroid || Platform.isIOS) 
+                          ? TextInputType.none // No keyboard on mobile
+                          : const TextInputType.numberWithOptions(decimal: true), // Allow keyboard on desktop
                       decoration: InputDecoration(
                         enabledBorder: UnderlineInputBorder(
                           borderSide: BorderSide(color: Colors.blue.shade100, width: 2),
@@ -1888,13 +2127,16 @@ Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
                         contentPadding: const EdgeInsets.symmetric(vertical: 8),
                       ),
                       textAlign: TextAlign.right,
+                      onChanged: (value) {
+                        setState(() {}); // Trigger rebuild when typing
+                      },
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
               
-              // Last 4 digits
+              // Last 4 digits - Platform-aware input
               Row(
                 children: [
                   Expanded(
@@ -1909,7 +2151,11 @@ Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
                     child: TextField(
                       controller: _lastFourDigitsController,
                       focusNode: _lastFourFocusNode,
-                      readOnly: true,
+                      readOnly: Platform.isAndroid || Platform.isIOS, // Read-only on mobile, editable on desktop
+                      keyboardType: (Platform.isAndroid || Platform.isIOS)
+                          ? TextInputType.none // No keyboard on mobile
+                          : TextInputType.number, // Allow keyboard on desktop
+                      maxLength: 4,
                       decoration: const InputDecoration(
                         enabledBorder: UnderlineInputBorder(
                           borderSide: BorderSide(color: Colors.grey, width: 1),
@@ -1918,15 +2164,19 @@ Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
                           borderSide: BorderSide(color: Colors.blue, width: 2),
                         ),
                         contentPadding: EdgeInsets.symmetric(vertical: 8),
+                        counterText: '', // Hide character counter
                       ),
                       textAlign: TextAlign.right,
+                      onChanged: (value) {
+                        setState(() {}); // Trigger rebuild when typing
+                      },
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
               
-              // Approval code
+              // Approval code - Platform-aware input
               Row(
                 children: [
                   Expanded(
@@ -1941,7 +2191,10 @@ Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
                     child: TextField(
                       controller: _approvalCodeController,
                       focusNode: _approvalFocusNode,
-                      readOnly: true,
+                      readOnly: Platform.isAndroid || Platform.isIOS, // Read-only on mobile, editable on desktop
+                      keyboardType: (Platform.isAndroid || Platform.isIOS)
+                          ? TextInputType.none // No keyboard on mobile
+                          : TextInputType.text, // Allow keyboard on desktop
                       decoration: const InputDecoration(
                         enabledBorder: UnderlineInputBorder(
                           borderSide: BorderSide(color: Colors.grey, width: 1),
@@ -1952,6 +2205,9 @@ Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
                         contentPadding: EdgeInsets.symmetric(vertical: 8),
                       ),
                       textAlign: TextAlign.right,
+                      onChanged: (value) {
+                        setState(() {}); // Trigger rebuild when typing
+                      },
                     ),
                   ),
                 ],
@@ -1962,7 +2218,7 @@ Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
         
         const SizedBox(height: 20),
         
-        // Card types section
+        // Card types section (keep as is)
         Container(
           height: 190,
           padding: const EdgeInsets.all(12),
@@ -2040,12 +2296,11 @@ Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
         
         const SizedBox(height: 20),
         
-        // Number pad section
+        // Number pad section - still works for on-screen input
         SizedBox(
           height: 280,
           child: Column(
             children: [
-              // Row 1: 7, 8, 9
               Expanded(
                 child: Row(
                   children: [
@@ -2057,7 +2312,6 @@ Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
               ),
               const SizedBox(height: 8),
               
-              // Row 2: 4, 5, 6
               Expanded(
                 child: Row(
                   children: [
@@ -2069,7 +2323,6 @@ Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
               ),
               const SizedBox(height: 8),
               
-              // Row 3: 1, 2, 3
               Expanded(
                 child: Row(
                   children: [
@@ -2081,7 +2334,6 @@ Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
               ),
               const SizedBox(height: 8),
               
-              // Row 4: 000, 0, backspace
               Expanded(
                 child: Row(
                   children: [
@@ -2093,7 +2345,6 @@ Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
               ),
               const SizedBox(height: 8),
               
-              // Row 5: C, OK
               Expanded(
                 child: Row(
                   children: [
@@ -2123,7 +2374,6 @@ Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
                             ),
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             minimumSize: const Size(60, 50),
-
                           ),
                           child: Text(
                             'OK'.tr(),
@@ -2147,7 +2397,6 @@ Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
 }
 
 Widget _buildLandscapeLayout(StateSetter setState, double discountedTotal) {
-  // Your existing landscape layout code
   return Row(
     children: [
       Expanded(
@@ -2192,7 +2441,10 @@ Widget _buildLandscapeLayout(StateSetter setState, double discountedTotal) {
                   child: TextField(
                     controller: _receivedAmountController,
                     focusNode: _receivedFocusNode,
-                    readOnly: true,
+                    readOnly: Platform.isAndroid || Platform.isIOS, // Read-only on mobile, editable on desktop
+                    keyboardType: (Platform.isAndroid || Platform.isIOS)
+                        ? TextInputType.none // No keyboard on mobile
+                        : const TextInputType.numberWithOptions(decimal: true), // Allow keyboard on desktop
                     decoration: InputDecoration(
                       enabledBorder: UnderlineInputBorder(
                         borderSide: BorderSide(color: Colors.blue.shade100, width: 2),
@@ -2201,6 +2453,9 @@ Widget _buildLandscapeLayout(StateSetter setState, double discountedTotal) {
                         borderSide: BorderSide(color: Colors.blue.shade700, width: 2),
                       ),
                     ),
+                    onChanged: (value) {
+                      setState(() {}); // Trigger rebuild when typing
+                    },
                   ),
                 ),
               ],
@@ -2221,7 +2476,11 @@ Widget _buildLandscapeLayout(StateSetter setState, double discountedTotal) {
                   child: TextField(
                     controller: _lastFourDigitsController,
                     focusNode: _lastFourFocusNode,
-                    readOnly: true,
+                    readOnly: Platform.isAndroid || Platform.isIOS, // Read-only on mobile, editable on desktop
+                    keyboardType: (Platform.isAndroid || Platform.isIOS)
+                        ? TextInputType.none // No keyboard on mobile
+                        : TextInputType.number, // Allow keyboard on desktop
+                    maxLength: 4,
                     decoration: const InputDecoration(
                       enabledBorder: UnderlineInputBorder(
                         borderSide: BorderSide(color: Colors.grey, width: 1),
@@ -2229,7 +2488,11 @@ Widget _buildLandscapeLayout(StateSetter setState, double discountedTotal) {
                       focusedBorder: UnderlineInputBorder(
                         borderSide: BorderSide(color: Colors.blue, width: 2),
                       ),
+                      counterText: '', // Hide character counter
                     ),
+                    onChanged: (value) {
+                      setState(() {}); // Trigger rebuild when typing
+                    },
                   ),
                 ),
               ],
@@ -2250,7 +2513,10 @@ Widget _buildLandscapeLayout(StateSetter setState, double discountedTotal) {
                   child: TextField(
                     controller: _approvalCodeController,
                     focusNode: _approvalFocusNode,
-                    readOnly: true,
+                    readOnly: Platform.isAndroid || Platform.isIOS, // Read-only on mobile, editable on desktop
+                    keyboardType: (Platform.isAndroid || Platform.isIOS)
+                        ? TextInputType.none // No keyboard on mobile
+                        : TextInputType.text, // Allow keyboard on desktop
                     decoration: const InputDecoration(
                       enabledBorder: UnderlineInputBorder(
                         borderSide: BorderSide(color: Colors.grey, width: 1),
@@ -2259,6 +2525,9 @@ Widget _buildLandscapeLayout(StateSetter setState, double discountedTotal) {
                         borderSide: BorderSide(color: Colors.blue, width: 2),
                       ),
                     ),
+                    onChanged: (value) {
+                      setState(() {}); // Trigger rebuild when typing
+                    },
                   ),
                 ),
               ],
@@ -3017,12 +3286,14 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
       bool? saveAsPdf = false;
       if (!printed) {
         if (mounted) {
-          saveAsPdf = await _showSavePdfDialog();
+      saveAsPdf = await CrossPlatformPdfService.showSavePdfDialog(context);
         }
         
         if (saveAsPdf == true) {
           try {
-            await _saveWithAndroidIntent(pdf);
+            final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+            final fileName = 'SIMS_receipt_${widget.order.orderNumber}_$timestamp.pdf';
+            await CrossPlatformPdfService.savePdf(pdf, suggestedFileName: fileName);
           } catch (e) {
             debugPrint('Error saving PDF: $e');
           }
@@ -3256,32 +3527,32 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
     }
   }
   
-  Future<bool?> _showSavePdfDialog() {
-    return showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Printer Not Available'.tr()),
-          content: Text('No printer was found. Would you like to save the receipt as a PDF?'.tr()),
-          actions: <Widget>[
-            TextButton(
-              child: Text('Cancel'.tr()),
-              onPressed: () {
-                Navigator.of(context).pop(false);
-              },
-            ),
-            TextButton(
-              child: Text('Save PDF'.tr()),
-              onPressed: () {
-                Navigator.of(context).pop(true);
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
+  // Future<bool?> _showSavePdfDialog() {
+  //   return showDialog<bool>(
+  //     context: context,
+  //     barrierDismissible: false,
+  //     builder: (BuildContext context) {
+  //       return AlertDialog(
+  //         title: Text('Printer Not Available'.tr()),
+  //         content: Text('No printer was found. Would you like to save the receipt as a PDF?'.tr()),
+  //         actions: <Widget>[
+  //           TextButton(
+  //             child: Text('Cancel'.tr()),
+  //             onPressed: () {
+  //               Navigator.of(context).pop(false);
+  //             },
+  //           ),
+  //           TextButton(
+  //             child: Text('Save PDF'.tr()),
+  //             onPressed: () {
+  //               Navigator.of(context).pop(true);
+  //             },
+  //           ),
+  //         ],
+  //       );
+  //     },
+  //   );
+  // }
 
   Future<bool> _saveWithAndroidIntent(pw.Document pdf) async {
     try {
