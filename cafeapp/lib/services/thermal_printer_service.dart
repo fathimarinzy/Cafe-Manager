@@ -789,7 +789,8 @@ static Future<Uint8List?> _generateKotImage({
     // Items header
     contentHeight += _smallFontSize + 8; // Item/Qty header + spacing
     contentHeight += 4; // Second line thickness
-    // If edited, show cancelled items first
+
+    // If edited, handle cancelled and new items
     if (isEdited && originalItems != null) {
       // Find cancelled items
       final cancelledItems = originalItems.where((original) {
@@ -799,6 +800,38 @@ static Future<Uint8List?> _generateKotImage({
         );
       }).toList();
       
+      // Find new items (items that weren't in original order)
+      final newItems = items.where((current) {
+        return !originalItems.any((original) => 
+          original.id.toString() == current.id
+        );
+      }).toList();
+      
+      // Find increased quantity items and create modified copies showing only the increase
+      final increasedItems = items.where((current) {
+        final original = originalItems.firstWhere(
+          (orig) => orig.id.toString() == current.id,
+          orElse: () => OrderItem(id: 0, name: '', price: 0, quantity: 0, kitchenNote: ''),
+        );
+        return original.id != 0 && current.quantity > original.quantity;
+      }).map((current) {
+        // Find the original quantity
+        final original = originalItems.firstWhere(
+          (orig) => orig.id.toString() == current.id,
+        );
+        // Create a copy with only the increased quantity
+        return MenuItem(
+          id: current.id,
+          name: current.name,
+          price: current.price,
+          quantity: current.quantity - original.quantity, // Show only the increase
+          imageUrl: current.imageUrl,
+          category: current.category,
+          kitchenNote: current.kitchenNote,
+        );
+      }).toList();
+      
+      // Show cancelled items section if there are any
       if (cancelledItems.isNotEmpty) {
         final cancelledHeaderPainter = _createTextPainter(
           'CANCELLED:',
@@ -813,40 +846,66 @@ static Future<Uint8List?> _generateKotImage({
             fontSize: _smallFontSize,
             maxWidth: _thermalPrinterWidth * 0.7,
           );
-          contentHeight += itemPainter.height + 20; // Extra space for box
+          contentHeight += itemPainter.height + 20;
         }
         
-        contentHeight += 10; // Space after cancelled items
-        
+        contentHeight += 10;
+      }
+      
+      // Show "NEW ITEMS:" header if there are changes
+      if (newItems.isNotEmpty || increasedItems.isNotEmpty) {
         final newItemsHeaderPainter = _createTextPainter(
           'NEW ITEMS:',
           fontSize: _fontSize - 2,
           fontWeight: FontWeight.bold,
         );
         contentHeight += newItemsHeaderPainter.height + 8;
+        
+        // Calculate height for only new and increased items
+        for (final item in [...newItems, ...increasedItems]) {
+          final itemNamePainter = _createTextPainter(
+            item.name,
+            fontSize: _smallFontSize,
+            maxWidth: _thermalPrinterWidth * 0.7,
+          );
+          contentHeight += itemNamePainter.height + 8;
+          
+          if (item.kitchenNote.isNotEmpty) {
+            final notePainter = _createTextPainter(
+              'NOTE: ${item.kitchenNote}',
+              fontSize: _smallFontSize - 2,
+              maxWidth: _thermalPrinterWidth * 0.8,
+            );
+            contentHeight += notePainter.height + 8;
+          }
+          
+          contentHeight += 10;
+        }
       }
-    }
-    // Calculate items height precisely
-    for (final item in items) {
-      final itemNamePainter = _createTextPainter(
-        item.name,
-        fontSize: _smallFontSize,
-        maxWidth: _thermalPrinterWidth * 0.7,
-      );
-      contentHeight += itemNamePainter.height + 8; // Item name + spacing
-      
-      if (item.kitchenNote.isNotEmpty) {
-        final notePainter = _createTextPainter(
-          'NOTE: ${item.kitchenNote}',
-          fontSize: _smallFontSize - 2,
-          maxWidth: _thermalPrinterWidth * 0.8,
+    } else {
+      // Not edited - calculate for all items normally
+      for (final item in items) {
+        final itemNamePainter = _createTextPainter(
+          item.name,
+          fontSize: _smallFontSize,
+          maxWidth: _thermalPrinterWidth * 0.7,
         );
-        contentHeight += notePainter.height + 8; // Kitchen note + spacing
+        contentHeight += itemNamePainter.height + 8;
+        
+        if (item.kitchenNote.isNotEmpty) {
+          final notePainter = _createTextPainter(
+            'NOTE: ${item.kitchenNote}',
+            fontSize: _smallFontSize - 2,
+            maxWidth: _thermalPrinterWidth * 0.8,
+          );
+          contentHeight += notePainter.height + 8;
+        }
+        
+        contentHeight += 10;
       }
-      
-      contentHeight += 10; // Space between items
     }
-    
+
+      
     contentHeight += 4; // Final line thickness only (no extra spacing)
     
     // Create the canvas with exact height
@@ -963,6 +1022,38 @@ static Future<Uint8List?> _generateKotImage({
         );
       }).toList();
       
+      // Find new items (not in original order)
+      final newItems = items.where((current) {
+        return !originalItems.any((original) => 
+          original.id.toString() == current.id
+        );
+      }).toList();
+      
+      // Find increased quantity items and create modified copies showing only the increase
+      final increasedItems = items.where((current) {
+        final original = originalItems.firstWhere(
+          (orig) => orig.id.toString() == current.id,
+          orElse: () => OrderItem(id: 0, name: '', price: 0, quantity: 0, kitchenNote: ''),
+        );
+        return original.id != 0 && current.quantity > original.quantity;
+      }).map((current) {
+        // Find the original quantity
+        final original = originalItems.firstWhere(
+          (orig) => orig.id.toString() == current.id,
+        );
+        // Create a copy with only the increased quantity
+        return MenuItem(
+          id: current.id,
+          name: current.name,
+          price: current.price,
+          quantity: current.quantity - original.quantity, // Show only the increase
+          imageUrl: current.imageUrl,
+          category: current.category,
+          kitchenNote: current.kitchenNote,
+        );
+      }).toList();
+      
+      // Draw cancelled items if any
       if (cancelledItems.isNotEmpty) {
         currentY = _drawText(
           canvas,
@@ -975,14 +1066,12 @@ static Future<Uint8List?> _generateKotImage({
         );
         
         for (final item in cancelledItems) {
-          // Draw cancelled item in a box
           final itemNamePainter = _createTextPainter(
             item.name,
             fontSize: _smallFontSize,
             maxWidth: _thermalPrinterWidth * 0.7,
           );
           
-          // Draw box around cancelled item
           final boxRect = Rect.fromLTWH(
             _padding - 5,
             currentY - 3,
@@ -997,17 +1086,6 @@ static Future<Uint8List?> _generateKotImage({
           
           canvas.drawRect(boxRect, boxPaint);
           
-          // // Draw strikethrough
-          // final strikePaint = ui.Paint()
-          //   ..color = Colors.red
-          //   ..strokeWidth = 1.5;
-          
-          // canvas.drawLine(
-          //   Offset(_padding, currentY + (itemNamePainter.height / 2)),
-          //   Offset(_thermalPrinterWidth - _padding, currentY + (itemNamePainter.height / 2)),
-          //   strikePaint,
-          // );
-          
           itemNamePainter.paint(canvas, Offset(_padding, currentY));
           
           final qtyValuePainter = _createTextPainter(
@@ -1021,7 +1099,10 @@ static Future<Uint8List?> _generateKotImage({
         }
         
         currentY += 10;
-        
+      }
+      
+      // Show "NEW ITEMS:" and draw only new/increased items
+      if (newItems.isNotEmpty || increasedItems.isNotEmpty) {
         currentY = _drawText(
           canvas,
           'NEW ITEMS:',
@@ -1031,42 +1112,76 @@ static Future<Uint8List?> _generateKotImage({
           fontWeight: FontWeight.bold,
           textAlign: TextAlign.left,
         );
+        
+        // Combine new and increased items
+        final itemsToDraw = [...newItems, ...increasedItems];
+        
+        for (final item in itemsToDraw) {
+          final itemNamePainter = _createTextPainter(
+            item.name,
+            fontSize: _smallFontSize,
+            maxWidth: _thermalPrinterWidth * 0.7,
+          );
+          itemNamePainter.paint(canvas, Offset(_padding, currentY));
+          
+          final qtyValuePainter = _createTextPainter(
+            '${item.quantity}',
+            fontSize: _smallFontSize,
+            fontWeight: FontWeight.bold,
+          );
+          qtyValuePainter.paint(canvas, Offset(_thermalPrinterWidth - _padding - qtyValuePainter.width, currentY));
+          
+          currentY += itemNamePainter.height + 8;
+          
+          if (item.kitchenNote.isNotEmpty) {
+            currentY = _drawText(
+              canvas,
+              'NOTE: ${item.kitchenNote}',
+              x: _padding * 1.5,
+              y: currentY,
+              fontSize: _smallFontSize - 2,
+              fontWeight: FontWeight.bold,
+              textAlign: TextAlign.left,
+            );
+          }
+          
+          currentY += 10;
+        }
       }
-    }
-    
-    // Items
-    for (final item in items) {
-      final itemNamePainter = _createTextPainter(
-        item.name,
-        fontSize: _smallFontSize,
-        maxWidth: _thermalPrinterWidth * 0.7,
-      );
-      itemNamePainter.paint(canvas, Offset(_padding, currentY));
-      
-      final qtyValuePainter = _createTextPainter(
-        '${item.quantity}',
-        fontSize: _smallFontSize,
-        fontWeight: FontWeight.bold,
-      );
-      qtyValuePainter.paint(canvas, Offset(_thermalPrinterWidth - _padding - qtyValuePainter.width, currentY));
-      
-      currentY += itemNamePainter.height + 8;
-      
-      if (item.kitchenNote.isNotEmpty) {
-        currentY = _drawText(
-          canvas,
-          'NOTE: ${item.kitchenNote}',
-          x: _padding * 1.5,
-          y: currentY,
-          fontSize: _smallFontSize - 2,
-          fontWeight: FontWeight.bold,
-          textAlign: TextAlign.left,
+    } else {
+      // Not edited - draw all items normally
+      for (final item in items) {
+        final itemNamePainter = _createTextPainter(
+          item.name,
+          fontSize: _smallFontSize,
+          maxWidth: _thermalPrinterWidth * 0.7,
         );
+        itemNamePainter.paint(canvas, Offset(_padding, currentY));
+        
+        final qtyValuePainter = _createTextPainter(
+          '${item.quantity}',
+          fontSize: _smallFontSize,
+          fontWeight: FontWeight.bold,
+        );
+        qtyValuePainter.paint(canvas, Offset(_thermalPrinterWidth - _padding - qtyValuePainter.width, currentY));
+        
+        currentY += itemNamePainter.height + 8;
+        
+        if (item.kitchenNote.isNotEmpty) {
+          currentY = _drawText(
+            canvas,
+            'NOTE: ${item.kitchenNote}',
+            x: _padding * 1.5,
+            y: currentY,
+            fontSize: _smallFontSize - 2,
+            fontWeight: FontWeight.bold,
+            textAlign: TextAlign.left,
+          );
+        }
+        
+        currentY += 10;
       }
-      
-      currentY += 10;
     }
-    
     // Draw final line manually without extra spacing
     final paint = ui.Paint()
       ..color = Colors.black

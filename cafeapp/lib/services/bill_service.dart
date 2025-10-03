@@ -754,7 +754,6 @@ class BillService {
               
               // Show cancelled items if edited
               if (isEdited && originalItems != null) ...[
-                // Find cancelled items
                 ...() {
                   final cancelledItems = originalItems.where((original) {
                     return !items.any((current) => 
@@ -763,30 +762,57 @@ class BillService {
                     );
                   }).toList();
                   
-                  if (cancelledItems.isEmpty) return <pw.Widget>[];
+                  // Find new items
+                  final newItems = items.where((current) {
+                    return !originalItems.any((original) => 
+                      original.id.toString() == current.id
+                    );
+                  }).toList();
                   
-                  return [
-                    pw.SizedBox(height: 5),
-                    _createText(
+                  // Find increased quantity items and create modified copies showing only the increase
+                  final increasedItems = items.where((current) {
+                    final original = originalItems.firstWhere(
+                      (orig) => orig.id.toString() == current.id,
+                      orElse: () => OrderItem(id: 0, name: '', price: 0, quantity: 0, kitchenNote: ''),
+                    );
+                    return original.id != 0 && current.quantity > original.quantity;
+                  }).map((current) {
+                    // Find the original quantity
+                    final original = originalItems.firstWhere(
+                      (orig) => orig.id.toString() == current.id,
+                    );
+                    // Create a copy with only the increased quantity
+                    return MenuItem(
+                      id: current.id,
+                      name: current.name,
+                      price: current.price,
+                      quantity: current.quantity - original.quantity, // Show only the increase
+                      imageUrl: current.imageUrl,
+                      category: current.category,
+                      kitchenNote: current.kitchenNote,
+                    );
+                  }).toList();
+                  
+                  List<pw.Widget> widgets = [];
+                  
+                  // Cancelled items
+                  if (cancelledItems.isNotEmpty) {
+                    widgets.add(pw.SizedBox(height: 5));
+                    widgets.add(_createText(
                       'CANCELLED:',
                       arabicFont: arabicFont,
                       fallbackFont: fallbackFont,
-                      style: pw.TextStyle(
-                        fontSize: 10,
-                        fontWeight: pw.FontWeight.bold,
-          
-                      ),
-                    ),
-                    pw.SizedBox(height: 5),
+                      style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+                    ));
+                    widgets.add(pw.SizedBox(height: 5));
                     
-                    // Cancelled items
-                    ...cancelledItems.map((item) => pw.Column(
+                    widgets.addAll(cancelledItems.map((item) => pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
                         pw.Container(
                           padding: const pw.EdgeInsets.all(5),
                           decoration: pw.BoxDecoration(
-                            border: pw.Border.all( width: 1),
+                            border: pw.Border.all(width: 1),
                             borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
                           ),
                           child: pw.Row(
@@ -794,27 +820,11 @@ class BillService {
                             children: [
                               pw.Expanded(
                                 flex: 6,
-                                child: pw.Stack(
-                                  children: [
-                                    _createText(
-                                      item.name,
-                                      arabicFont: arabicFont,
-                                      fallbackFont: fallbackFont,
-                                      style: pw.TextStyle(
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                    // Strikethrough line
-                                    // pw.Positioned(
-                                    //   top: 6,
-                                    //   left: 0,
-                                    //   right: 0,
-                                    //   child: pw.Container(
-                                    //     height: 1,
-                                    //     color: PdfColors.red,
-                                    //   ),
-                                    // ),
-                                  ],
+                                child: _createText(
+                                  item.name,
+                                  arabicFont: arabicFont,
+                                  fallbackFont: fallbackFont,
+                                  style: pw.TextStyle(fontSize: 12),
                                 ),
                               ),
                               pw.Expanded(
@@ -823,9 +833,7 @@ class BillService {
                                   '${item.quantity}',
                                   arabicFont: arabicFont,
                                   fallbackFont: fallbackFont,
-                                  style: pw.TextStyle(
-                                    fontSize: 12,
-                                  ),
+                                  style: pw.TextStyle(fontSize: 12),
                                   textAlign: pw.TextAlign.right,
                                 ),
                               ),
@@ -834,101 +842,146 @@ class BillService {
                         ),
                         pw.SizedBox(height: 5),
                       ],
-                    )),
+                    )));
                     
-                    pw.SizedBox(height: 10),
-                    _createText(
+                    widgets.add(pw.SizedBox(height: 10));
+                  }
+                  
+                  // New items header and items
+                  if (newItems.isNotEmpty || increasedItems.isNotEmpty) {
+                    widgets.add(_createText(
                       'NEW ITEMS:',
                       arabicFont: arabicFont,
                       fallbackFont: fallbackFont,
-                      style: pw.TextStyle(
-                        fontSize: 10,
-                        fontWeight: pw.FontWeight.bold,
-                      ),
-                    ),
-                    pw.SizedBox(height: 5),
-                  ];
-                }(),
-              ],
-              
-              // Current items - each item displays in its original language
-              pw.Column(
-                children: items.map((item) {
-                  return pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.only(top: 5, bottom: 2),
-                        child: pw.Row(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
-                          children: [
-                            pw.Expanded(
-                              flex: 6,
-                              child: _createText(
-                                item.name,
-                                arabicFont: arabicFont,
-                                fallbackFont: fallbackFont,
-                                style: pw.TextStyle(
-                                  fontSize: 12,
-                                  color: isEdited ? PdfColors.black : PdfColors.black,
-                                  fontWeight: isEdited ? pw.FontWeight.normal : pw.FontWeight.normal,
-                                ),
-                              ),
-                            ),
-                            pw.Expanded(
-                              flex: 2,
-                              child: _createText(
-                                '${item.quantity}',
-                                arabicFont: arabicFont,
-                                fallbackFont: fallbackFont,
-                                style: pw.TextStyle(
-                                  fontSize: 12,
-                                  color: isEdited ? PdfColors.black : PdfColors.black,
-                                  fontWeight: isEdited ? pw.FontWeight.normal : pw.FontWeight.normal,
-                                ),
-                                textAlign: pw.TextAlign.right,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      
-                      // Add kitchen note if present - display in its original language
-                      if (item.kitchenNote.isNotEmpty)
+                      style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+                    ));
+                    widgets.add(pw.SizedBox(height: 5));
+                    
+                    // Draw only new and increased items
+                    final itemsToDraw = [...newItems, ...increasedItems];
+                    
+                    widgets.addAll(itemsToDraw.map((item) => pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
                         pw.Padding(
-                          padding: const pw.EdgeInsets.only(left: 10, bottom: 5),
+                          padding: const pw.EdgeInsets.only(top: 5, bottom: 2),
                           child: pw.Row(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
                             children: [
-                              _createText(
-                                'NOTE: ',
-                                arabicFont: arabicFont,
-                                fallbackFont: fallbackFont,
-                                style: pw.TextStyle(
-                                  fontSize: 10,
-                                  color: isEdited ? PdfColors.black : PdfColors.black,
+                              pw.Expanded(
+                                flex: 6,
+                                child: _createText(
+                                  item.name,
+                                  arabicFont: arabicFont,
+                                  fallbackFont: fallbackFont,
+                                  style: pw.TextStyle(fontSize: 12),
                                 ),
                               ),
                               pw.Expanded(
+                                flex: 2,
                                 child: _createText(
-                                  item.kitchenNote,
+                                  '${item.quantity}',
                                   arabicFont: arabicFont,
                                   fallbackFont: fallbackFont,
-                                  style: pw.TextStyle(
-                                    fontSize: 10,
-                                    color: isEdited ? PdfColors.black : PdfColors.black,
-                                  ),
+                                  style: pw.TextStyle(fontSize: 12),
+                                  textAlign: pw.TextAlign.right,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                      
-                      // Add a small space between items
-                      pw.SizedBox(height: 2),
-                    ],
-                  );
-                }).toList(),
-              ),
+                        if (item.kitchenNote.isNotEmpty)
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.only(left: 10, bottom: 5),
+                            child: pw.Row(
+                              children: [
+                                _createText(
+                                  'NOTE: ',
+                                  arabicFont: arabicFont,
+                                  fallbackFont: fallbackFont,
+                                  style: pw.TextStyle(fontSize: 10),
+                                ),
+                                pw.Expanded(
+                                  child: _createText(
+                                    item.kitchenNote,
+                                    arabicFont: arabicFont,
+                                    fallbackFont: fallbackFont,
+                                    style: pw.TextStyle(fontSize: 10),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        pw.SizedBox(height: 2),
+                      ],
+                    )));
+                  }
+                  
+                  return widgets;
+                }(),
+              ],
+
+              // If not edited, draw all items normally
+              if (!isEdited || originalItems == null)
+                pw.Column(
+                  children: items.map((item) {
+                    return pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.only(top: 5, bottom: 2),
+                          child: pw.Row(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              pw.Expanded(
+                                flex: 6,
+                                child: _createText(
+                                  item.name,
+                                  arabicFont: arabicFont,
+                                  fallbackFont: fallbackFont,
+                                  style: pw.TextStyle(fontSize: 12),
+                                ),
+                              ),
+                              pw.Expanded(
+                                flex: 2,
+                                child: _createText(
+                                  '${item.quantity}',
+                                  arabicFont: arabicFont,
+                                  fallbackFont: fallbackFont,
+                                  style: pw.TextStyle(fontSize: 12),
+                                  textAlign: pw.TextAlign.right,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (item.kitchenNote.isNotEmpty)
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.only(left: 10, bottom: 5),
+                            child: pw.Row(
+                              children: [
+                                _createText(
+                                  'NOTE: ',
+                                  arabicFont: arabicFont,
+                                  fallbackFont: fallbackFont,
+                                  style: pw.TextStyle(fontSize: 10),
+                                ),
+                                pw.Expanded(
+                                  child: _createText(
+                                    item.kitchenNote,
+                                    arabicFont: arabicFont,
+                                    fallbackFont: fallbackFont,
+                                    style: pw.TextStyle(fontSize: 10),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        pw.SizedBox(height: 2),
+                      ],
+                    );
+                  }).toList(),
+                ),
               
               pw.Divider(thickness: 1),
             ],
