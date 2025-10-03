@@ -1,3 +1,4 @@
+import 'package:cafeapp/utils/camera_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -7,6 +8,7 @@ import '../providers/menu_provider.dart';
 import '../models/menu_item.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../utils/app_localization.dart';
+
 
 class ModifierScreen extends StatefulWidget {
   const ModifierScreen({super.key});
@@ -150,14 +152,30 @@ class _ModifierScreenState extends State<ModifierScreen> {
 
   // Updated camera function with better file handling
   Future<void> _takePhoto() async {
-    setState(() {
-      _isImageLoading = true;
-    });
+  setState(() {
+    _isImageLoading = true;
+  });
+  
+  try {
+    bool isDesktop = Platform.isWindows || Platform.isMacOS || Platform.isLinux;
     
-    try {
+    if (isDesktop) {
+      // Use camera package for desktop
+      final File? capturedImage = await CameraHelper.capturePhoto(context);
+      
+      if (!mounted) return;
+      
+      if (capturedImage != null && await capturedImage.exists()) {
+        setState(() {
+          _selectedImage = capturedImage;
+          _base64Image = null;
+        });
+      }
+    } else {
+      // Use image_picker for mobile (existing code)
       final XFile? pickedFile = await _imagePicker.pickImage(
         source: ImageSource.camera,
-        imageQuality: 25, // Lower quality for smaller size
+        imageQuality: 25,
         maxWidth: 300,
         maxHeight: 300,
       );
@@ -165,10 +183,8 @@ class _ModifierScreenState extends State<ModifierScreen> {
       if (!mounted) return;
       
       if (pickedFile != null) {
-        // Convert XFile to File
         final File imageFile = File(pickedFile.path);
         
-        // Check if file exists before using it
         if (await imageFile.exists()) {
           if (!mounted) return;
           setState(() {
@@ -182,19 +198,22 @@ class _ModifierScreenState extends State<ModifierScreen> {
           );
         }
       }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error taking photo'.tr())),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isImageLoading = false;
-        });
-      }
+    }
+  } catch (e) {
+    debugPrint('Error taking photo: $e');
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error taking photo: ${e.toString()}'.tr())),
+    );
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isImageLoading = false;
+      });
     }
   }
+}
+
 
   // Improved base64 encoding function with better error handling
   String? _getBase64Image() {

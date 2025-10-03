@@ -59,7 +59,11 @@ dependencies:
   firebase_auth: ^5.0.0
   cloud_firestore: ^5.0.0
   firebase_database: ^11.0.0
+
   http_parser: ^4.1.2
+  camera: ^0.10.5+9
+  camera_windows: ^0.2.1+9  # For Windows
+  camera_macos: ^0.0.9
  
 
 

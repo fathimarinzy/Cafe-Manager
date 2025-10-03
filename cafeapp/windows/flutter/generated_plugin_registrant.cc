@@ -6,6 +6,7 @@
 
 #include "generated_plugin_registrant.h"
 
+#include <camera_windows/camera_windows.h>
 #include <charset_converter/charset_converter_plugin.h>
 #include <cloud_firestore/cloud_firestore_plugin_c_api.h>
 #include <connectivity_plus/connectivity_plus_windows_plugin.h>
@@ -22,6 +23,8 @@
 #include <window_manager/window_manager_plugin.h>
 
 void RegisterPlugins(flutter::PluginRegistry* registry) {
+  CameraWindowsRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("CameraWindows"));
   CharsetConverterPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("CharsetConverterPlugin"));
   CloudFirestorePluginCApiRegisterWithRegistrar(

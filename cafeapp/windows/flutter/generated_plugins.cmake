@@ -3,6 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  camera_windows
   charset_converter
   cloud_firestore
   connectivity_plus
