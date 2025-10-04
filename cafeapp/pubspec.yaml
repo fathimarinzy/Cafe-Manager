@@ -114,7 +114,7 @@ msix_config:
   display_name: SIMS CAFE
   publisher_display_name: SIMS AI
   identity_name: com.sims.cafeapp
-  msix_version: 1.0.1
+  msix_version: 1.0.1.0
   logo_path: assets/icon/icon.png  # Your app icon
   capabilities: internetClient
   
