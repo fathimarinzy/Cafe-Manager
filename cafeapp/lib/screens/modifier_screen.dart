@@ -63,13 +63,292 @@ class _ModifierScreenState extends State<ModifierScreen> {
     _categoryController.dispose();
     super.dispose();
   }
+  
+  /// Start export process
+  void _exportMenuWithImages() async {
+    final menuProvider = Provider.of<MenuProvider>(context, listen: false);
+    
+    if (menuProvider.items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No items to export. Please add items first.'.tr()),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Count items with images
+    final itemsWithImages = menuProvider.items.where((item) => item.imageUrl.isNotEmpty).length;
+    
+    // Show export preview dialog
+    _showExportPreviewDialog(itemsWithImages);
+  }
+
+  /// Show export preview dialog
+  void _showExportPreviewDialog(int itemsWithImages) {
+    final menuProvider = Provider.of<MenuProvider>(context, listen: false);
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Export Menu Items'.tr()),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Export Statistics:'.tr(),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 12),
+              
+              _buildStatRow('Total Items:'.tr(), '${menuProvider.items.length}'),
+              _buildStatRow('Categories:'.tr(), '${menuProvider.categories.length}'),
+              _buildStatRow('Items with Images:'.tr(), '$itemsWithImages'),
+              _buildStatRow(
+                'Available:'.tr(), 
+                '${menuProvider.items.where((item) => item.isAvailable).length}'
+              ),
+              
+              const SizedBox(height: 16),
+
+              // Info box
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue[300]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.info, color: Colors.blue[700], size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          'What will be exported:'.tr(),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '📄 menu_items.xlsx - Excel file with all menu items',
+                      style: TextStyle(fontSize: 12, color: Colors.blue[900]),
+                    ),
+                    Text(
+                      '📁 images/ - Folder with all item images',
+                      style: TextStyle(fontSize: 12, color: Colors.blue[900]),
+                    ),
+                    Text(
+                      '📋 README sheet - Import instructions',
+                      style: TextStyle(fontSize: 12, color: Colors.blue[900]),
+                    ),
+                    Text(
+                      '📊 Summary sheet - Statistics',
+                      style: TextStyle(fontSize: 12, color: Colors.blue[900]),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            child: Text('Cancel'.tr()),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _performExport();
+            },
+            icon: const Icon(Icons.folder),
+            label: Text('Export Now'.tr()),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue[700],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Perform the export
+  void _performExport() async {
+    final menuProvider = Provider.of<MenuProvider>(context, listen: false);
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 20),
+            Text("Exporting menu items ...".tr()),
+            SizedBox(height: 8),
+            Text(
+              'This may take a moment for large menus',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final result = await ExcelImportService.exportMenuItemsWithImages(menuProvider.items);
+      
+      if (!mounted) return;
+      Navigator.of(context).pop();
+
+      if (result != null && result['success'] == true) {
+        _showExportSuccessDialog(result);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export cancelled'.tr()),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error exporting: ${e.toString()}'.tr()),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
+  /// Show export success dialog
+  void _showExportSuccessDialog(Map<String, dynamic> result) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green[600], size: 28),
+            const SizedBox(width: 12),
+            Expanded(child: Text('Export Successful!'.tr())),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Export Summary:'.tr(),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 12),
+              
+              _buildResultRow('Items Exported:', '${result['itemsExported']}'),
+              _buildResultRow('Images Exported:', '${result['imagesExported']}', Colors.green),
+              if (result['imagesFailed'] > 0)
+                _buildResultRow('Images Failed:', '${result['imagesFailed']}', Colors.orange),
+              
+              const SizedBox(height: 16),
+              
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Export Location:'.tr(),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    SelectableText(
+                      result['folderPath'],
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 12),
+              
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green[300]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.folder_open, color: Colors.green[700], size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Folder Contents:'.tr(),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green[900],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text('📄 menu_items.xlsx', style: TextStyle(fontSize: 12)),
+                    Text('📁 images/ (${result['imagesExported']} files)', style: TextStyle(fontSize: 12)),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Keep these files together for reimport',
+                      style: TextStyle(fontSize: 11, color: Colors.green[700], fontStyle: FontStyle.italic),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('OK'.tr()),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Show import dialog with category selection
   void _showImportDialog() {
     final menuProvider = Provider.of<MenuProvider>(context, listen: false);
     String? selectedImportCategory = menuProvider.categories.isNotEmpty 
         ? menuProvider.categories.first 
         : null;
-    bool useExcelCategory = false;
+    bool useExcelCategory = true; // Default to using Excel categories
 
     showDialog(
       context: context,
@@ -82,7 +361,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Choose how to assign categories:'.tr(),
+                  'Choose category handling:'.tr(),
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
@@ -113,7 +392,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
                   },
                 ),
                 
-                // Category dropdown (only show if not using Excel category)
+                // Category dropdown
                 if (!useExcelCategory) ...[
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
@@ -151,7 +430,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
                   ),
                 ),
                 
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 
                 // Format information
                 Container(
@@ -179,12 +458,19 @@ class _ModifierScreenState extends State<ModifierScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Columns: Name | Price | Category | Available | Image URL',
+                        '• Columns: Name | Price | Category | Available | Image File',
                         style: TextStyle(fontSize: 12, color: Colors.blue[900]),
                       ),
-                      const SizedBox(height: 4),
                       Text(
-                        'Available values: Yes/No or True/False',
+                        '• Available values: Yes/No or True/False',
+                        style: TextStyle(fontSize: 12, color: Colors.blue[900]),
+                      ),
+                      Text(
+                        '• images/ folder must be in same location as Excel file. So the images loaded automatically',
+                        style: TextStyle(fontSize: 12, color: Colors.blue[900]),
+                      ),
+                      Text(
+                        '• Image files must match names in "Image File" column',
                         style: TextStyle(fontSize: 12, color: Colors.blue[900]),
                       ),
                     ],
@@ -215,11 +501,9 @@ class _ModifierScreenState extends State<ModifierScreen> {
     );
   }
 
-  // Import items from Excel
+
+  /// Import from Excel with images
   void _importFromExcel(String? defaultCategory, bool useExcelCategory) async {
-    // Show loading indicator
-    if (!mounted) return;
-    
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -235,20 +519,17 @@ class _ModifierScreenState extends State<ModifierScreen> {
     );
 
     try {
-      // Import items
-      final items = await ExcelImportService.importMenuItemsFromExcel(
+      final items = await ExcelImportService.importMenuItemsWithImages(
         category: useExcelCategory ? null : defaultCategory,
       );
 
       if (!mounted) return;
-      
-      // Close loading dialog
       Navigator.of(context).pop();
 
       if (items == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Import cancelled or no file selected'.tr()),
+            content: Text('Import cancelled or file not selected'.tr()),
             backgroundColor: Colors.orange,
           ),
         );
@@ -265,17 +546,14 @@ class _ModifierScreenState extends State<ModifierScreen> {
         return;
       }
 
-      // Show confirmation dialog with preview
       _showImportConfirmationDialog(items);
     } catch (e) {
       if (!mounted) return;
-      
-      // Close loading dialog
       Navigator.of(context).pop();
       
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error importing Excel file: ${e.toString()}'.tr()),
+          content: Text('Error importing: ${e.toString()}'.tr()),
           backgroundColor: Colors.red,
           duration: const Duration(seconds: 4),
         ),
@@ -283,12 +561,15 @@ class _ModifierScreenState extends State<ModifierScreen> {
     }
   }
 
-  // Show confirmation dialog before importing
+
+  /// Show import confirmation
   void _showImportConfirmationDialog(List<MenuItem> items) {
-    // Group items by category for preview
     Map<String, int> categoryCounts = {};
+    int itemsWithImages = 0;
+    
     for (var item in items) {
       categoryCounts[item.category] = (categoryCounts[item.category] ?? 0) + 1;
+      if (item.imageUrl.isNotEmpty) itemsWithImages++;
     }
 
     showDialog(
@@ -302,9 +583,10 @@ class _ModifierScreenState extends State<ModifierScreen> {
             children: [
               Text(
                 '${'Found'.tr()} ${items.length} ${'items to import:'.tr()}',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               const SizedBox(height: 12),
+              
               ...categoryCounts.entries.map((entry) => Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(
@@ -318,7 +600,31 @@ class _ModifierScreenState extends State<ModifierScreen> {
                   ],
                 ),
               )),
-              const SizedBox(height: 16),
+              
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green[300]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.image, color: Colors.green[700], size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      '$itemsWithImages ${'items with images'.tr()}',
+                      style: TextStyle(
+                        color: Colors.green[700],
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -332,7 +638,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'This will add all items to the menu. Existing items will not be affected.'.tr(),
+                        'This will add all items to menu. Existing items not affected.'.tr(),
                         style: TextStyle(
                           color: Colors.orange[700],
                           fontSize: 13,
@@ -362,9 +668,8 @@ class _ModifierScreenState extends State<ModifierScreen> {
     );
   }
 
-  // Perform the actual import
+    /// Perform import
   void _performImport(List<MenuItem> items) async {
-    // Show progress dialog
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -394,7 +699,6 @@ class _ModifierScreenState extends State<ModifierScreen> {
       try {
         final item = items[i];
         
-        // Add category if it doesn't exist
         if (!menuProvider.categories.contains(item.category)) {
           await menuProvider.addCategory(item.category);
           if (!newCategories.contains(item.category)) {
@@ -402,7 +706,6 @@ class _ModifierScreenState extends State<ModifierScreen> {
           }
         }
         
-        // Add item
         await menuProvider.addMenuItem(item);
         successCount++;
       } catch (e) {
@@ -412,43 +715,31 @@ class _ModifierScreenState extends State<ModifierScreen> {
     }
 
     if (!mounted) return;
-    
-    // Close progress dialog
     Navigator.of(context).pop();
 
-    // Refresh data
     await menuProvider.fetchCategories(forceRefresh: true);
     await menuProvider.fetchMenu(forceRefresh: true);
 
-    // Show result
-    String message = '';
-    if (failCount == 0) {
-      message = 'Successfully imported $successCount items!'.tr();
-    } else {
-      message = 'Imported $successCount items. $failCount failed.'.tr();
-    }
+    String message = failCount == 0
+        ? 'Successfully imported $successCount items!'.tr()
+        : 'Imported $successCount items. $failCount failed.'.tr();
 
     if (newCategories.isNotEmpty) {
-      message += '\n${'New categories created:'.tr()} ${newCategories.join(', ')}';
+      message += '\n${'New categories:'.tr()} ${newCategories.join(', ')}';
     }
-    if (!mounted) return;
+    if(!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
         backgroundColor: failCount == 0 ? Colors.green : Colors.orange,
         duration: const Duration(seconds: 5),
-        action: SnackBarAction(
-          label: 'OK'.tr(),
-          onPressed: () {},
-        ),
       ),
     );
 
-    // Reset form
     _resetForm();
   }
 
-  // Download template
+  /// Download template
   void _downloadTemplate() async {
     showDialog(
       context: context,
@@ -468,8 +759,6 @@ class _ModifierScreenState extends State<ModifierScreen> {
       final filePath = await ExcelImportService.createSampleTemplate();
       
       if (!mounted) return;
-      
-      // Close loading dialog
       Navigator.of(context).pop();
 
       if (filePath != null) {
@@ -477,10 +766,6 @@ class _ModifierScreenState extends State<ModifierScreen> {
           SnackBar(
             content: Text('Template saved successfully!'.tr()),
             backgroundColor: Colors.green,
-            action: SnackBarAction(
-              label: 'OK'.tr(),
-              onPressed: () {},
-            ),
           ),
         );
       } else {
@@ -493,8 +778,6 @@ class _ModifierScreenState extends State<ModifierScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      
-      // Close loading dialog
       Navigator.of(context).pop();
       
       ScaffoldMessenger.of(context).showSnackBar(
@@ -504,6 +787,44 @@ class _ModifierScreenState extends State<ModifierScreen> {
         ),
       );
     }
+  }
+  Widget _buildStatRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 14)),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.blue,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultRow(String label, String value, [Color? valueColor]) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: valueColor ?? Colors.blue,
+            ),
+          ),
+        ],
+      ),
+    );
   }
   // Show edit category dialog
   void _showEditCategoryDialog(String currentCategory) {
@@ -1709,22 +2030,41 @@ class _ModifierScreenState extends State<ModifierScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Import from Excel button (LEFT SIDE)
-                    ElevatedButton.icon(
-                      onPressed: _showImportDialog,
-                      icon: const Icon(Icons.file_upload),
-                      label: Text('Import Excel'.tr()),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green[700],
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      ),
+                    // Left side: Import and Export buttons
+                    Row(
+                      children: [
+                        // Import from Excel button
+                        ElevatedButton.icon(
+                          onPressed: _showImportDialog,
+                          icon: const Icon(Icons.file_upload, size: 20),
+                          label: Text('Import Menu'.tr()),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green[700],
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                        ),
+                        
+                        const SizedBox(width: 12),
+                        
+                        // Export to Excel button
+                        ElevatedButton.icon(
+                          onPressed: _exportMenuWithImages,
+                          icon: const Icon(Icons.file_download, size: 20),
+                          label: Text('Export Menu'.tr()),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue[700],
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                        ),
+                      ],
                     ),
                     
                     // Spacer to push Cancel and Add/Update to the right
                     const Spacer(),
                     
-                    // Cancel and Add/Update buttons (RIGHT SIDE)
+                    // Right side: Cancel and Add/Update buttons
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
