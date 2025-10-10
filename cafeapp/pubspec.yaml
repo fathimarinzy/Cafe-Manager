@@ -39,6 +39,7 @@ dependencies:
   crypto: ^3.0.3
   cross_file: ^0.3.4+1
   flutter_dotenv: ^5.2.1
+  excel: ^4.0.3 
 
   # Desktop-specific
   window_manager: ^0.4.2

@@ -1,3 +1,4 @@
+import 'package:cafeapp/services/excel_import_service.dart';
 import 'package:cafeapp/utils/camera_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -61,6 +62,448 @@ class _ModifierScreenState extends State<ModifierScreen> {
     _priceController.dispose();
     _categoryController.dispose();
     super.dispose();
+  }
+  // Show import dialog with category selection
+  void _showImportDialog() {
+    final menuProvider = Provider.of<MenuProvider>(context, listen: false);
+    String? selectedImportCategory = menuProvider.categories.isNotEmpty 
+        ? menuProvider.categories.first 
+        : null;
+    bool useExcelCategory = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text('Import from Excel'.tr()),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Choose how to assign categories:'.tr(),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                
+                // Option 1: Use category from Excel
+                RadioListTile<bool>(
+                  title: Text('Use category from Excel file'.tr()),
+                  subtitle: Text('Each item will use its own category from the file'.tr()),
+                  value: true,
+                  groupValue: useExcelCategory,
+                  onChanged: (value) {
+                    setState(() {
+                      useExcelCategory = value ?? false;
+                    });
+                  },
+                ),
+                
+                // Option 2: Assign all to one category
+                RadioListTile<bool>(
+                  title: Text('Assign all items to one category'.tr()),
+                  subtitle: Text('All imported items will use the selected category'.tr()),
+                  value: false,
+                  groupValue: useExcelCategory,
+                  onChanged: (value) {
+                    setState(() {
+                      useExcelCategory = value ?? false;
+                    });
+                  },
+                ),
+                
+                // Category dropdown (only show if not using Excel category)
+                if (!useExcelCategory) ...[
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    decoration: InputDecoration(
+                      labelText: 'Select Category'.tr(),
+                      border: OutlineInputBorder(),
+                    ),
+                    value: selectedImportCategory,
+                    items: menuProvider.categories.map((category) {
+                      return DropdownMenuItem(
+                        value: category,
+                        child: Text(category),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedImportCategory = value;
+                      });
+                    },
+                  ),
+                ],
+                
+                const SizedBox(height: 16),
+                
+                // Download template button
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    _downloadTemplate();
+                  },
+                  icon: const Icon(Icons.download),
+                  label: Text('Download Template'.tr()),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.blue[700],
+                  ),
+                ),
+                
+                const SizedBox(height: 8),
+                
+                // Format information
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue[300]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.info, color: Colors.blue[700], size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Excel Format:'.tr(),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Columns: Name | Price | Category | Available | Image URL',
+                        style: TextStyle(fontSize: 12, color: Colors.blue[900]),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Available values: Yes/No or True/False',
+                        style: TextStyle(fontSize: 12, color: Colors.blue[900]),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              child: Text('Cancel'.tr()),
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                _importFromExcel(
+                  useExcelCategory ? null : selectedImportCategory,
+                  useExcelCategory,
+                );
+              },
+              icon: const Icon(Icons.upload_file),
+              label: Text('Select File'.tr()),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Import items from Excel
+  void _importFromExcel(String? defaultCategory, bool useExcelCategory) async {
+    // Show loading indicator
+    if (!mounted) return;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Expanded(child: Text("Reading Excel file...".tr())),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      // Import items
+      final items = await ExcelImportService.importMenuItemsFromExcel(
+        category: useExcelCategory ? null : defaultCategory,
+      );
+
+      if (!mounted) return;
+      
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      if (items == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Import cancelled or no file selected'.tr()),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      if (items.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No valid items found in Excel file'.tr()),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      // Show confirmation dialog with preview
+      _showImportConfirmationDialog(items);
+    } catch (e) {
+      if (!mounted) return;
+      
+      // Close loading dialog
+      Navigator.of(context).pop();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error importing Excel file: ${e.toString()}'.tr()),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
+  // Show confirmation dialog before importing
+  void _showImportConfirmationDialog(List<MenuItem> items) {
+    // Group items by category for preview
+    Map<String, int> categoryCounts = {};
+    for (var item in items) {
+      categoryCounts[item.category] = (categoryCounts[item.category] ?? 0) + 1;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Confirm Import'.tr()),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${'Found'.tr()} ${items.length} ${'items to import:'.tr()}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              ...categoryCounts.entries.map((entry) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('${entry.key}:'),
+                    Text(
+                      '${entry.value} ${'items'.tr()}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              )),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange[300]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.orange[700], size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'This will add all items to the menu. Existing items will not be affected.'.tr(),
+                        style: TextStyle(
+                          color: Colors.orange[700],
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            child: Text('Cancel'.tr()),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _performImport(items);
+            },
+            child: Text('Import'.tr()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Perform the actual import
+  void _performImport(List<MenuItem> items) async {
+    // Show progress dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 20),
+            Text("Importing items...".tr()),
+            SizedBox(height: 8),
+            Text(
+              '0 / ${items.length}',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final menuProvider = Provider.of<MenuProvider>(context, listen: false);
+    int successCount = 0;
+    int failCount = 0;
+    List<String> newCategories = [];
+
+    for (int i = 0; i < items.length; i++) {
+      try {
+        final item = items[i];
+        
+        // Add category if it doesn't exist
+        if (!menuProvider.categories.contains(item.category)) {
+          await menuProvider.addCategory(item.category);
+          if (!newCategories.contains(item.category)) {
+            newCategories.add(item.category);
+          }
+        }
+        
+        // Add item
+        await menuProvider.addMenuItem(item);
+        successCount++;
+      } catch (e) {
+        debugPrint('Error importing item ${i + 1}: $e');
+        failCount++;
+      }
+    }
+
+    if (!mounted) return;
+    
+    // Close progress dialog
+    Navigator.of(context).pop();
+
+    // Refresh data
+    await menuProvider.fetchCategories(forceRefresh: true);
+    await menuProvider.fetchMenu(forceRefresh: true);
+
+    // Show result
+    String message = '';
+    if (failCount == 0) {
+      message = 'Successfully imported $successCount items!'.tr();
+    } else {
+      message = 'Imported $successCount items. $failCount failed.'.tr();
+    }
+
+    if (newCategories.isNotEmpty) {
+      message += '\n${'New categories created:'.tr()} ${newCategories.join(', ')}';
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: failCount == 0 ? Colors.green : Colors.orange,
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'OK'.tr(),
+          onPressed: () {},
+        ),
+      ),
+    );
+
+    // Reset form
+    _resetForm();
+  }
+
+  // Download template
+  void _downloadTemplate() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Expanded(child: Text("Creating template...".tr())),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final filePath = await ExcelImportService.createSampleTemplate();
+      
+      if (!mounted) return;
+      
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      if (filePath != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Template saved successfully!'.tr()),
+            backgroundColor: Colors.green,
+            action: SnackBarAction(
+              label: 'OK'.tr(),
+              onPressed: () {},
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Template download cancelled'.tr()),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      
+      // Close loading dialog
+      Navigator.of(context).pop();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error creating template: ${e.toString()}'.tr()),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
   // Show edit category dialog
   void _showEditCategoryDialog(String currentCategory) {
@@ -1264,16 +1707,37 @@ class _ModifierScreenState extends State<ModifierScreen> {
 
                 // Form buttons
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    TextButton(
-                      onPressed: _resetForm,
-                      child:  Text('Cancel'.tr()),
+                    // Import from Excel button (LEFT SIDE)
+                    ElevatedButton.icon(
+                      onPressed: _showImportDialog,
+                      icon: const Icon(Icons.file_upload),
+                      label: Text('Import Excel'.tr()),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green[700],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
                     ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: _saveItemToDatabase,
-                      child: Text(_editingItem == null ? 'Add Item'.tr() : 'Update Item'.tr()),
+                    
+                    // Spacer to push Cancel and Add/Update to the right
+                    const Spacer(),
+                    
+                    // Cancel and Add/Update buttons (RIGHT SIDE)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: _resetForm,
+                          child: Text('Cancel'.tr()),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: _saveItemToDatabase,
+                          child: Text(_editingItem == null ? 'Add Item'.tr() : 'Update Item'.tr()),
+                        ),
+                      ],
                     ),
                   ],
                 ),
