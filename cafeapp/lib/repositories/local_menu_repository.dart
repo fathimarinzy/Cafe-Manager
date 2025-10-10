@@ -414,4 +414,99 @@ class LocalMenuRepository {
       debugPrint('Error closing menu database: $e');
     }
   }
+  // Update category name for all items with that category
+  Future<void> updateCategory(String oldCategory, String newCategory) async {
+    int retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        final db = await database;
+        final timestamp = DateTime.now().toIso8601String();
+        
+        // Update all items with the old category to the new category
+        await db.update(
+          'menu_items',
+          {
+            'category': newCategory,
+            'lastUpdated': timestamp,
+          },
+          where: 'category = ? AND isDeleted = ?',
+          whereArgs: [oldCategory, 0],
+        );
+        
+        debugPrint('Updated category from "$oldCategory" to "$newCategory"');
+        return;
+      } catch (e) {
+        retryCount++;
+        debugPrint('Error updating category (Attempt $retryCount): $e');
+        
+        if (retryCount >= maxRetries) {
+          debugPrint('Maximum retries reached for updating category');
+          rethrow;
+        }
+        
+        // Reset database connection
+        try {
+          if (_database != null) {
+            await _database!.close();
+            _database = null;
+          }
+        } catch (closeError) {
+          debugPrint('Error closing database after error: $closeError');
+        }
+        
+        // Wait before retrying
+        await Future.delayed(Duration(milliseconds: 500 * retryCount));
+      }
+    }
+  }
+
+  // Delete category (remove all items in that category)
+  Future<void> deleteCategory(String category) async {
+    int retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        final db = await database;
+        final timestamp = DateTime.now().toIso8601String();
+        
+        // Soft delete all items in this category
+        await db.update(
+          'menu_items',
+          {
+            'isDeleted': 1,
+            'lastUpdated': timestamp,
+          },
+          where: 'category = ? AND isDeleted = ?',
+          whereArgs: [category, 0],
+        );
+        
+        debugPrint('Deleted all items in category: $category');
+        return;
+      } catch (e) {
+        retryCount++;
+        debugPrint('Error deleting category (Attempt $retryCount): $e');
+        
+        if (retryCount >= maxRetries) {
+          debugPrint('Maximum retries reached for deleting category');
+          rethrow;
+        }
+        
+        // Reset database connection
+        try {
+          if (_database != null) {
+            await _database!.close();
+            _database = null;
+          }
+        } catch (closeError) {
+          debugPrint('Error closing database after error: $closeError');
+        }
+        
+        // Wait before retrying
+        await Future.delayed(Duration(milliseconds: 500 * retryCount));
+      }
+    }
+  }
 }

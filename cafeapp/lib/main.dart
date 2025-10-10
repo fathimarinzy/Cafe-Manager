@@ -42,7 +42,7 @@ import 'services/connectivity_monitor.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
+   await _setupPortableDataPaths();
   // CRITICAL FIX: Initialize database with proper error handling
   bool isDatabaseInitialized = false;
   try {
@@ -79,7 +79,23 @@ void main() async {
 
   runApp(const MyApp());
 }
-
+Future<void> _setupPortableDataPaths() async {
+  try {
+    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      final executableDir = Directory(Platform.resolvedExecutable).parent;
+      final portableDataDir = Directory('${executableDir.path}/AppData');
+      
+      // Create portable data directory if it doesn't exist
+      if (!await portableDataDir.exists()) {
+        await portableDataDir.create(recursive: true);
+      }
+      
+      debugPrint('📁 Portable data directory: ${portableDataDir.path}');
+    }
+  } catch (e) {
+    debugPrint('⚠️ Portable data setup error: $e');
+  }
+}
 bool isDesktop() {
   try {
     return Platform.isWindows || Platform.isMacOS || Platform.isLinux;
@@ -136,15 +152,10 @@ Future<void> _performQuickInitialization(bool isDatabaseInitialized) async {
     }
   }
 
-  // CRITICAL FIX: Initialize Firebase with desktop support
+  // Initialize Firebase - works for all platforms now
   try {
-    // For desktop, we need to initialize Firebase differently
-    if (isDesktop()) {
-      debugPrint('🖥️ Initializing Firebase for desktop platform...');
-      await _initializeFirebaseForDesktop();
-    } else {
-      FirebaseService.initializeQuickly();
-    }
+    debugPrint('🔥 Initializing Firebase for all platforms...');
+    FirebaseService.initializeQuickly();
     debugPrint('✅ Firebase initialization started');
   } catch (e) {
     debugPrint('⚠️ Firebase initialization error: $e');
@@ -156,25 +167,26 @@ Future<void> _performQuickInitialization(bool isDatabaseInitialized) async {
   debugPrint('✅ Quick initialization completed');
 }
 
-// NEW: Desktop-specific Firebase initialization
-Future<void> _initializeFirebaseForDesktop() async {
-  try {
-    // On desktop, Firebase initialization might need special handling
-    // Make sure you have firebase_core configured for desktop in your Firebase console
+
+// // NEW: Desktop-specific Firebase initialization
+// Future<void> _initializeFirebaseForDesktop() async {
+//   try {
+//     // On desktop, Firebase initialization might need special handling
+//     // Make sure you have firebase_core configured for desktop in your Firebase console
     
-    // Check if internet is available first
-    final hasInternet = await _checkInternetConnection();
-    debugPrint('Internet connection available: $hasInternet');
+//     // Check if internet is available first
+//     final hasInternet = await _checkInternetConnection();
+//     debugPrint('Internet connection available: $hasInternet');
     
-    if (hasInternet) {
-      FirebaseService.initializeQuickly();
-    } else {
-      debugPrint('⚠️ No internet connection detected - skipping Firebase initialization');
-    }
-  } catch (e) {
-    debugPrint('⚠️ Error in desktop Firebase initialization: $e');
-  }
-}
+//     if (hasInternet) {
+//       FirebaseService.initializeQuickly();
+//     } else {
+//       debugPrint('⚠️ No internet connection detected - skipping Firebase initialization');
+//     }
+//   } catch (e) {
+//     debugPrint('⚠️ Error in desktop Firebase initialization: $e');
+//   }
+// }
 
 // NEW: Check internet connection for desktop
 Future<bool> _checkInternetConnection() async {

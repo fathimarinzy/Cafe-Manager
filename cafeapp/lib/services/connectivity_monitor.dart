@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'firebase_service.dart';
 import 'offline_sync_service.dart';
@@ -20,15 +21,25 @@ class ConnectivityMonitor {
     _isMonitoring = true;
     debugPrint('🔄 Starting connectivity monitoring...');
     
-    // Check connectivity every 30 seconds
-    _connectivityTimer = Timer.periodic(const Duration(seconds: 30), (timer) async {
+    // More frequent checks for desktop
+    final checkInterval = (Platform.isWindows || Platform.isMacOS || Platform.isLinux) 
+        ? const Duration(seconds: 15) 
+        : const Duration(seconds: 30);
+    
+    _connectivityTimer = Timer.periodic(checkInterval, (timer) async {
       await _checkConnectivityAndSync();
     });
     
-    // Initial check
-    _checkConnectivityAndSync();
+    // Initial check with shorter delay for desktop
+    final initialDelay = (Platform.isWindows || Platform.isMacOS || Platform.isLinux) 
+        ? const Duration(seconds: 5) 
+        : const Duration(seconds: 10);
+    
+    Timer(initialDelay, () {
+      _checkConnectivityAndSync();
+    });
   }
-  
+    
   /// Stop monitoring connectivity
   void stopMonitoring() {
     if (!_isMonitoring) return;

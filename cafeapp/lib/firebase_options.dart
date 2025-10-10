@@ -17,7 +17,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError('Web is not supported');
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -46,8 +46,8 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyDmpMjCIqh4RVXmY19JRwZhK0S2NxpsaBk',
-    appId: '1:964942933502:ios:YOUR_IOS_APP_ID',
+    apiKey: 'AIzaSyD4b7wl4E-33NWBVVyKoMnYzK-mkt9IOWQ',
+    appId: '1:964942933502:ios:b193122bc9c865e99a64af',
     messagingSenderId: '964942933502',
     projectId: 'simscafe-c743e',
     storageBucket: 'simscafe-c743e.firebasestorage.app',
@@ -55,8 +55,8 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyDmpMjCIqh4RVXmY19JRwZhK0S2NxpsaBk',
-    appId: '1:964942933502:ios:YOUR_MACOS_APP_ID',
+    apiKey: 'AIzaSyD4b7wl4E-33NWBVVyKoMnYzK-mkt9IOWQ',
+    appId: '1:964942933502:ios:b193122bc9c865e99a64af',
     messagingSenderId: '964942933502',
     projectId: 'simscafe-c743e',
     storageBucket: 'simscafe-c743e.firebasestorage.app',
@@ -64,18 +64,32 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyDmpMjCIqh4RVXmY19JRwZhK0S2NxpsaBk',
-    appId: '1:964942933502:android:37f129dfabff854f9a64af', // Use Android app ID for desktop
+    apiKey: 'AIzaSyB1ggenNDwBP6NZ3_pYH3htNCHBTS395O0',
+    appId: '1:964942933502:web:03a2ad4b1092905c9a64af',
     messagingSenderId: '964942933502',
     projectId: 'simscafe-c743e',
+    authDomain: 'simscafe-c743e.firebaseapp.com',
     storageBucket: 'simscafe-c743e.firebasestorage.app',
+    measurementId: 'G-S6XPMZ1M3E',
   );
 
   static const FirebaseOptions linux = FirebaseOptions(
-    apiKey: 'AIzaSyDmpMjCIqh4RVXmY19JRwZhK0S2NxpsaBk',
-    appId: '1:964942933502:android:37f129dfabff854f9a64af', // Use Android app ID for desktop
+    apiKey: 'AIzaSyB1ggenNDwBP6NZ3_pYH3htNCHBTS39500',
+    appId: '1:964942933502:web:0526735d40a11f4d9a64af',
     messagingSenderId: '964942933502',
     projectId: 'simscafe-c743e',
     storageBucket: 'simscafe-c743e.firebasestorage.app',
+    authDomain: 'simscafe-c743e.firebaseapp.com',
   );
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyB1ggenNDwBP6NZ3_pYH3htNCHBTS395O0',
+    appId: '1:964942933502:web:0526735d40a11f4d9a64af',
+    messagingSenderId: '964942933502',
+    projectId: 'simscafe-c743e',
+    authDomain: 'simscafe-c743e.firebaseapp.com',
+    storageBucket: 'simscafe-c743e.firebasestorage.app',
+    measurementId: 'G-S90YMKNLFF',
+  );
+
 }

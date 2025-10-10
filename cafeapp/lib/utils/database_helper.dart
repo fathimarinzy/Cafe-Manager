@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart'; // Add this import
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 
 class DatabaseHelper {
@@ -72,6 +73,47 @@ class DatabaseHelper {
     return 'Unknown';
   }
   
+  /// Get the proper database path based on build mode and platform
+  static Future<String> _getDatabasePath(String dbName) async {
+  // 🆕 PORTABLE MODE: Check if running from portable location
+  if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+    final executableDir = Directory(Platform.resolvedExecutable).parent;
+    final portableDataDir = Directory('${executableDir.path}/AppData/databases');
+    
+    // If AppData folder exists, we're in portable mode
+    if (await portableDataDir.parent.exists()) {
+      if (!await portableDataDir.exists()) {
+        await portableDataDir.create(recursive: true);
+      }
+      final dbPath = '${portableDataDir.path}/$dbName';
+      debugPrint('📁 PORTABLE Database path: $dbPath');
+      return dbPath;
+    }
+  }
+  
+  // 🆕 DESKTOP RELEASE MODE (existing but improved)
+  if (kReleaseMode && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
+    try {
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final dbDir = Directory('${appDocDir.path}/SimsCafe/databases');
+      if (!await dbDir.exists()) {
+        await dbDir.create(recursive: true);
+      }
+      final dbPath = '${dbDir.path}/$dbName';
+      debugPrint('📁 Release database path: $dbPath');
+      return dbPath;
+    } catch (e) {
+      debugPrint('⚠️ Error creating release database path: $e');
+    }
+  }
+  
+  // 🆕 FALLBACK: Default path (mobile/debug)
+  final dbPath = await getDatabasesPath();
+  final fullPath = join(dbPath, dbName);
+  debugPrint('📁 Default database path: $fullPath');
+  return fullPath;
+}
+  
   // Database getters with proper checks and platform initialization
   Future<Database> get menuDb async {
     await _ensurePlatformInitialized();
@@ -108,26 +150,29 @@ class DatabaseHelper {
     }
   }
   
-  // Generic function to open a database
+  // Generic function to open a database with proper path handling
   Future<Database> _openDatabase(String dbName) async {
     int retryCount = 0;
     const maxRetries = 3;
     
     while (retryCount < maxRetries) {
       try {
-        final dbPath = await getDatabasesPath();
-        final path = join(dbPath, dbName);
+        // Use the new path method that handles release vs debug mode
+        final path = await _getDatabasePath(dbName);
         
-        debugPrint('Opening database: $dbName at $path (Attempt ${retryCount + 1})');
+        debugPrint('Initializing $dbName at: $path (Attempt ${retryCount + 1})');
         
         // If database doesn't exist, this will create it
-        return await openDatabase(path);
+        final db = await openDatabase(path);
+        
+        debugPrint('✅ $dbName opened successfully');
+        return db;
       } catch (e) {
         retryCount++;
-        debugPrint('Error opening database $dbName (Attempt $retryCount): $e');
+        debugPrint('❌ Error opening database $dbName (Attempt $retryCount): $e');
         
         if (retryCount >= maxRetries) {
-          debugPrint('Maximum retries reached for opening $dbName');
+          debugPrint('❌ Maximum retries reached for opening $dbName');
           rethrow;
         }
         
@@ -181,16 +226,13 @@ class DatabaseHelper {
       // Wait to ensure connections are fully closed
       await Future.delayed(const Duration(milliseconds: 500));
       
-      // Get database path
-      final dbPath = await getDatabasesPath();
-      
       // List of database files to delete
       final dbFiles = [menuDbName, ordersDbName, personsDbName, expensesDbName];
       
       // Delete each database file
       for (final dbFile in dbFiles) {
         try {
-          final filePath = join(dbPath, dbFile);
+          final filePath = await _getDatabasePath(dbFile);
           final file = File(filePath);
           
           if (await file.exists()) {
@@ -207,6 +249,15 @@ class DatabaseHelper {
       debugPrint('Error resetting databases: $e');
       rethrow;
     }
+  }
+  
+  // Get database directory for user reference
+  static Future<String> getDatabaseDirectory() async {
+    if (kReleaseMode && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
+      final appDocDir = await getApplicationDocumentsDirectory();
+      return '${appDocDir.path}/SimsCafe/databases';
+    }
+    return await getDatabasesPath();
   }
   
   // Execute query with retry mechanism
@@ -248,6 +299,50 @@ class DatabaseHelper {
     } catch (e) {
       debugPrint('Database connection test failed: $e');
       return false;
+    }
+  }
+  
+  // Get database info for debugging
+  Future<Map<String, dynamic>> getDatabaseInfo() async {
+    try {
+      final dbDir = await getDatabaseDirectory();
+      final menuPath = await _getDatabasePath(menuDbName);
+      final ordersPath = await _getDatabasePath(ordersDbName);
+      final personsPath = await _getDatabasePath(personsDbName);
+      final expensesPath = await _getDatabasePath(expensesDbName);
+      
+      return {
+        'platform': platformName,
+        'buildMode': kReleaseMode ? 'Release' : 'Debug',
+        'databaseDirectory': dbDir,
+        'databases': {
+          'menu': {
+            'path': menuPath,
+            'exists': await File(menuPath).exists(),
+            'isOpen': _menuDb != null && _menuDb!.isOpen,
+          },
+          'orders': {
+            'path': ordersPath,
+            'exists': await File(ordersPath).exists(),
+            'isOpen': _ordersDb != null && _ordersDb!.isOpen,
+          },
+          'persons': {
+            'path': personsPath,
+            'exists': await File(personsPath).exists(),
+            'isOpen': _personsDb != null && _personsDb!.isOpen,
+          },
+          'expenses': {
+            'path': expensesPath,
+            'exists': await File(expensesPath).exists(),
+            'isOpen': _expensesDb != null && _expensesDb!.isOpen,
+          },
+        },
+      };
+    } catch (e) {
+      debugPrint('Error getting database info: $e');
+      return {
+        'error': e.toString(),
+      };
     }
   }
 }

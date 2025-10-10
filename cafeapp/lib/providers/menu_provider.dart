@@ -209,4 +209,77 @@ class MenuProvider with ChangeNotifier {
       return false;
     }
   }
+  // Update a category name
+  Future<bool> updateCategory(String oldCategory, String newCategory) async {
+    if (oldCategory.isEmpty || newCategory.isEmpty) return false;
+    
+    final trimmedNewCategory = newCategory.trim();
+    final trimmedOldCategory = oldCategory.trim();
+    
+    // Check if the category name is the same
+    if (trimmedOldCategory == trimmedNewCategory) return true;
+    
+    try {
+      // Check if new category name already exists
+      if (_categories.contains(trimmedNewCategory)) {
+        debugPrint('Category "$trimmedNewCategory" already exists');
+        return false;
+      }
+      
+      // Update in local database
+      debugPrint('Updating category from "$trimmedOldCategory" to "$trimmedNewCategory"');
+      await _localRepo.updateCategory(trimmedOldCategory, trimmedNewCategory);
+      debugPrint('Category updated successfully');
+      
+      // Update local state - update category list
+      final index = _categories.indexOf(trimmedOldCategory);
+      if (index >= 0) {
+        _categories[index] = trimmedNewCategory;
+      }
+      
+      // Update all items with the old category
+      for (var item in _items) {
+        if (item.category == trimmedOldCategory) {
+          final updatedItem = item.copyWith(category: trimmedNewCategory);
+          final itemIndex = _items.indexWhere((i) => i.id == item.id);
+          if (itemIndex >= 0) {
+            _items[itemIndex] = updatedItem;
+          }
+        }
+      }
+      
+      notifyListeners();
+      return true;
+    } catch (error) {
+      debugPrint('Error updating category: $error');
+      return false;
+    }
+  }
+
+  // Delete a category (and all its items)
+  Future<bool> deleteCategory(String category) async {
+    if (category.isEmpty) return false;
+    
+    try {
+      // Delete from local database
+      debugPrint('Deleting category: $category');
+      await _localRepo.deleteCategory(category);
+      debugPrint('Category deleted successfully');
+      
+      // Update local state
+      _categories.remove(category);
+      _items.removeWhere((item) => item.category == category);
+      
+      notifyListeners();
+      return true;
+    } catch (error) {
+      debugPrint('Error deleting category: $error');
+      return false;
+    }
+  }
+
+  // Get item count for a category
+  int getCategoryItemCount(String category) {
+    return _items.where((item) => item.category == category).length;
+  }
 }

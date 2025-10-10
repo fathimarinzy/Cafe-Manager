@@ -48,7 +48,7 @@ class FirebaseService {
         Firebase.initializeApp(
           options: DefaultFirebaseOptions.currentPlatform,
         ),
-        Future.delayed(const Duration(seconds: 5), () {
+        Future.delayed(const Duration(seconds: 10), () {
           throw TimeoutException('Firebase initialization timed out', const Duration(seconds: 5));
         }),
       ]);
@@ -107,87 +107,150 @@ class FirebaseService {
   
   // NEW: Store offline registration in Firebase
   static Future<Map<String, dynamic>> storeOfflineRegistration({
-    required String businessName,
-    String? secondBusinessName,
-    required String businessAddress,
-    required String businessPhone,
-    String? businessEmail,
-    required String deviceId,
-    required List<String> registrationKeys,
-  }) async {
-    await ensureInitialized();
-    
-    if (!isFirebaseAvailable) {
-      return {
-        'success': false,
-        'message': 'No internet connection. Data stored locally only.',
-        'isOffline': true,
-      };
-    }
-
-    try {
-      debugPrint('🔵 Storing offline registration in Firebase...');
-      
-      // Check if device already has an offline registration
-      final existingQuery = await _firestore
-          .collection(_offlineRegistrationsCollection)
-          .where('deviceId', isEqualTo: deviceId)
-          .limit(1)
-          .get();
-
-      final offlineData = {
-        'businessName': businessName,
-        'secondBusinessName': secondBusinessName ?? '',
-        'businessAddress': businessAddress,
-        'businessPhone': businessPhone,
-        'businessEmail': businessEmail ?? '',
-        'deviceId': deviceId,
-        'registrationKeys': registrationKeys,
-        'registrationType': 'offline',
-        'isActive': true,
-        'syncedAt': FieldValue.serverTimestamp(),
-      };
-
-      if (existingQuery.docs.isNotEmpty) {
-        // Update existing offline registration
-        final docId = existingQuery.docs.first.id;
-        await _firestore
-            .collection(_offlineRegistrationsCollection)
-            .doc(docId)
-            .update({
-          ...offlineData,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-
-        debugPrint('✅ Offline registration updated with ID: $docId');
-        return {
-          'success': true,
-          'companyId': docId,
-          'message': 'Offline registration synced successfully',
-        };
-      } else {
-        // Create new offline registration
-        offlineData['createdAt'] = FieldValue.serverTimestamp();
-        
-        final docRef = await _firestore
-            .collection(_offlineRegistrationsCollection)
-            .add(offlineData);
-
-        debugPrint('✅ Offline registration stored with ID: ${docRef.id}');
-        return {
-          'success': true,
-          'companyId': docRef.id,
-          'message': 'Offline registration synced successfully',
-        };
-      }
-    } catch (e) {
-      debugPrint('❌ Error storing offline registration: $e');
-      return {
-        'success': false,
-        'message': 'Failed to sync offline registration: ${e.toString()}',
-      };
-    }
+  required String businessName,
+  String? secondBusinessName,
+  required String businessAddress,
+  required String businessPhone,
+  String? businessEmail,
+  required String deviceId,
+  required List<String> registrationKeys,
+}) async {
+  debugPrint('=== STORE OFFLINE REGISTRATION START ===');
+  debugPrint('Parameters received:');
+  debugPrint('  businessName: "$businessName"');
+  debugPrint('  secondBusinessName: "$secondBusinessName"');
+  debugPrint('  businessAddress: "$businessAddress"');
+  debugPrint('  businessPhone: "$businessPhone"');
+  debugPrint('  businessEmail: "$businessEmail"');
+  debugPrint('  deviceId: "$deviceId"');
+  debugPrint('  registrationKeys: $registrationKeys');
+  
+  await ensureInitialized();
+  debugPrint('Firebase initialized: $_isInitialized');
+  debugPrint('Firebase available: $isFirebaseAvailable');
+  debugPrint('Offline mode: $_isOfflineMode');
+  
+  if (!isFirebaseAvailable) {
+    debugPrint('❌ Firebase not available - returning offline status');
+    return {
+      'success': false,
+      'message': 'No internet connection. Data stored locally only.',
+      'isOffline': true,
+    };
   }
+
+  try {
+    debugPrint('🔵 Attempting to store offline registration in Firebase...');
+    
+    // Check if device already has an offline registration
+    debugPrint('🔍 Checking for existing offline registration...');
+    final existingQuery = await _firestore
+        .collection(_offlineRegistrationsCollection)
+        .where('deviceId', isEqualTo: deviceId)
+        .limit(1)
+        .get()
+        .timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            debugPrint('⚠️ Firestore query timed out');
+            throw TimeoutException('Query timed out');
+          },
+        );
+
+    debugPrint('📊 Existing query results: ${existingQuery.docs.length} documents found');
+
+    final offlineData = {
+      'businessName': businessName,
+      'secondBusinessName': secondBusinessName ?? '',
+      'businessAddress': businessAddress,
+      'businessPhone': businessPhone,
+      'businessEmail': businessEmail ?? '',
+      'deviceId': deviceId,
+      'registrationKeys': registrationKeys,
+      'registrationType': 'offline',
+      'isActive': true,
+      'syncedAt': FieldValue.serverTimestamp(),
+    };
+    
+    debugPrint('📦 Data to be stored: $offlineData');
+
+    if (existingQuery.docs.isNotEmpty) {
+      // Update existing offline registration
+      final docId = existingQuery.docs.first.id;
+      debugPrint('🔄 Updating existing document with ID: $docId');
+      
+      await _firestore
+          .collection(_offlineRegistrationsCollection)
+          .doc(docId)
+          .update({
+        ...offlineData,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          debugPrint('⚠️ Firestore update timed out');
+          throw TimeoutException('Update timed out');
+        },
+      );
+
+      debugPrint('✅ Offline registration updated with ID: $docId');
+      return {
+        'success': true,
+        'companyId': docId,
+        'message': 'Offline registration synced successfully',
+      };
+    } else {
+      // Create new offline registration
+      debugPrint('➕ Creating new offline registration document');
+      offlineData['createdAt'] = FieldValue.serverTimestamp();
+      
+      final docRef = await _firestore
+          .collection(_offlineRegistrationsCollection)
+          .add(offlineData)
+          .timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              debugPrint('⚠️ Firestore add timed out');
+              throw TimeoutException('Add timed out');
+            },
+          );
+
+      debugPrint('✅ Offline registration stored with ID: ${docRef.id}');
+      return {
+        'success': true,
+        'companyId': docRef.id,
+        'message': 'Offline registration synced successfully',
+      };
+    }
+  } on TimeoutException catch (e) {
+    debugPrint('⏱️ Timeout storing offline registration: $e');
+    return {
+      'success': false,
+      'message': 'Request timed out. Please check your internet connection.',
+      'timeout': true,
+    };
+  } on FirebaseException catch (e) {
+    debugPrint('🔥 Firebase exception storing offline registration:');
+    debugPrint('   Code: ${e.code}');
+    debugPrint('   Message: ${e.message}');
+    debugPrint('   Plugin: ${e.plugin}');
+    return {
+      'success': false,
+      'message': 'Firebase error: ${e.message}',
+      'firebaseError': true,
+    };
+  } catch (e) {
+    debugPrint('❌ Error storing offline registration: $e');
+    debugPrint('   Error type: ${e.runtimeType}');
+    debugPrint('   Stack trace: ${StackTrace.current}');
+    return {
+      'success': false,
+      'message': 'Failed to sync offline registration: ${e.toString()}',
+    };
+  } finally {
+    debugPrint('=== STORE OFFLINE REGISTRATION END ===');
+  }
+}
 
   // NEW: Store demo registration in Firebase
   static Future<Map<String, dynamic>> storeDemoRegistration({

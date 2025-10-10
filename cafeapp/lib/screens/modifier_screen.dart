@@ -62,7 +62,210 @@ class _ModifierScreenState extends State<ModifierScreen> {
     _categoryController.dispose();
     super.dispose();
   }
-  
+  // Show edit category dialog
+  void _showEditCategoryDialog(String currentCategory) {
+    final controller = TextEditingController(text: currentCategory);
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Edit Category'.tr()),
+        content: TextField(
+          controller: controller,
+          decoration: InputDecoration(
+            labelText: 'Category Name'.tr(),
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            child: Text('Cancel'.tr()),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+          TextButton(
+            child: Text('Save'.tr()),
+            onPressed: () {
+              final newCategory = controller.text.trim();
+              if (newCategory.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Category name cannot be empty'.tr()),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+              
+              Navigator.of(ctx).pop();
+              _updateCategory(currentCategory, newCategory);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Update category
+  void _updateCategory(String oldCategory, String newCategory) async {
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Text("Updating category...".tr())
+          ],
+        ),
+      ),
+    );
+    
+    final menuProvider = Provider.of<MenuProvider>(context, listen: false);
+    final success = await menuProvider.updateCategory(oldCategory, newCategory);
+    
+    if (!mounted) return;
+    
+    // Close loading dialog
+    Navigator.of(context).pop();
+    
+    // Show result message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          success 
+            ? 'Category updated successfully'.tr() 
+            : 'Failed to update category. Name may already exist.'.tr()
+        ),
+        backgroundColor: success ? Colors.green : Colors.red,
+      ),
+    );
+    
+    if (success) {
+      // Update selected category to the new name
+      setState(() {
+        _selectedCategory = newCategory;
+      });
+      
+      // Refresh data
+      await menuProvider.fetchCategories(forceRefresh: true);
+      await menuProvider.fetchMenu(forceRefresh: true);
+    }
+  }
+
+  // Show delete category confirmation
+  void _showDeleteCategoryConfirmation(String category) async {
+    final menuProvider = Provider.of<MenuProvider>(context, listen: false);
+    final itemCount = menuProvider.getCategoryItemCount(category);
+    
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete Category'.tr()),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${'Are you sure you want to delete category'.tr()} "$category"?'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange[300]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.warning, color: Colors.orange[700], size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${'This will delete'.tr()} $itemCount ${'items in this category'.tr()}.',
+                      style: TextStyle(
+                        color: Colors.orange[700],
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            child: Text('Cancel'.tr()),
+            onPressed: () => Navigator.of(ctx).pop(false),
+          ),
+          TextButton(
+            child: Text('Delete'.tr(), style: TextStyle(color: Colors.red)),
+            onPressed: () => Navigator.of(ctx).pop(true),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirm == true) {
+      _deleteCategory(category);
+    }
+  }
+
+  // Delete category
+  void _deleteCategory(String category) async {
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Text("Deleting category...".tr())
+          ],
+        ),
+      ),
+    );
+    
+    final menuProvider = Provider.of<MenuProvider>(context, listen: false);
+    final success = await menuProvider.deleteCategory(category);
+    
+    if (!mounted) return;
+    
+    // Close loading dialog
+    Navigator.of(context).pop();
+    
+    // Show result message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          success 
+            ? 'Category deleted successfully'.tr() 
+            : 'Failed to delete category. Please try again.'.tr()
+        ),
+        backgroundColor: success ? Colors.green : Colors.red,
+      ),
+    );
+    
+    if (success) {
+      // Reset selected category
+      setState(() {
+        if (menuProvider.categories.isNotEmpty) {
+          _selectedCategory = menuProvider.categories.first;
+        } else {
+          _selectedCategory = '';
+        }
+      });
+      
+      // Refresh data
+      await menuProvider.fetchCategories(forceRefresh: true);
+      await menuProvider.fetchMenu(forceRefresh: true);
+    }
+  }
   void _resetForm() {
     _nameController.clear();
     _priceController.clear();
@@ -713,26 +916,49 @@ class _ModifierScreenState extends State<ModifierScreen> {
           // Category dropdown for the list panel
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: DropdownButtonFormField<String>(
-              decoration: InputDecoration(
-                labelText: 'Category'.tr(),
-                border: OutlineInputBorder(),
-              ),
-              value: menuProvider.categories.contains(_selectedCategory) ? _selectedCategory : null,
-              items: menuProvider.categories.map((category) {
-                return DropdownMenuItem(
-                  value: category,
-                  child: Text(category),
-                );
-              }).toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    _selectedCategory = value;
-                  });     
-                }
-              },
-              hint: Text('Select a category'.tr()),
+            child: Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    decoration: InputDecoration(
+                      labelText: 'Category'.tr(),
+                      border: OutlineInputBorder(),
+                    ),
+                    value: menuProvider.categories.contains(_selectedCategory) ? _selectedCategory : null,
+                    items: menuProvider.categories.map((category) {
+                      return DropdownMenuItem(
+                        value: category,
+                        child: Text(category),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _selectedCategory = value;
+                        });     
+                      }
+                    },
+                    hint: Text('Select a category'.tr()),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Edit category button
+                IconButton(
+                  icon: const Icon(Icons.edit, color: Colors.blue),
+                  onPressed: _selectedCategory.isEmpty || !menuProvider.categories.contains(_selectedCategory)
+                      ? null
+                      : () => _showEditCategoryDialog(_selectedCategory),
+                  tooltip: 'Edit category'.tr(),
+                ),
+                // Delete category button
+                IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  onPressed: _selectedCategory.isEmpty || !menuProvider.categories.contains(_selectedCategory)
+                      ? null
+                      : () => _showDeleteCategoryConfirmation(_selectedCategory),
+                  tooltip: 'Delete category'.tr(),
+                ),
+              ],
             ),
           ),
 

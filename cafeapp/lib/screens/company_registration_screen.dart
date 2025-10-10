@@ -1,3 +1,5 @@
+import 'package:cafeapp/services/connectivity_monitor.dart';
+import 'package:cafeapp/services/firebase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,7 +10,8 @@ import '../providers/settings_provider.dart';
 import '../services/license_service.dart';
 import '../services/offline_sync_service.dart'; 
 import 'package:flutter_dotenv/flutter_dotenv.dart'; 
-
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 class CompanyRegistrationScreen extends StatefulWidget {
   const CompanyRegistrationScreen({super.key});
 
@@ -137,147 +140,219 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
     return true;
   }
 
-  Future<void> _registerCompany() async {
-     // Validate that all key fields are filled
-    for (int i = 0; i < 5; i++) {
-      if (_keyControllers[i].text.trim().isEmpty) {
-        _showErrorMessage('Please fill all registration key fields');
-        return;
-      }
-    }
-     // Validate that business information is filled
-    if (_businessNameController.text.trim().isEmpty ||
-        _businessAddressController.text.trim().isEmpty ||
-        _businessPhoneController.text.trim().isEmpty 
-       ) {
-      _showErrorMessage('Please fill all business information fields');
+Future<void> _registerCompany() async {
+  debugPrint('=== REGISTRATION DEBUG START ===');
+  debugPrint('Build Mode: ${kReleaseMode ? "RELEASE" : "DEBUG"}');
+  debugPrint('Platform: ${Platform.operatingSystem}');
+  
+  // Validate that all key fields are filled
+  for (int i = 0; i < 5; i++) {
+    if (_keyControllers[i].text.trim().isEmpty) {
+      _showErrorMessage('Please fill all registration key fields');
       return;
     }
-    setState(() {
-      _isLoading = true;
-    });
+  }
+  
+  // Validate that business information is filled
+  if (_businessNameController.text.trim().isEmpty ||
+      _businessAddressController.text.trim().isEmpty ||
+      _businessPhoneController.text.trim().isEmpty) {
+    _showErrorMessage('Please fill all business information fields');
+    return;
+  }
+  
+  setState(() {
+    _isLoading = true;
+  });
 
-    try {
-      // Validate keys
-      if (!_validateKeys()) {
-        _showErrorMessage('Invalid registration keys. Please check your keys and try again.');
-        setState(() {
-          _isLoading = false;
-        });
-        return;
-      }
+  try {
+    // Validate keys
+    if (!_validateKeys()) {
+      _showErrorMessage('Invalid registration keys. Please check your keys and try again.');
+      setState(() {
+        _isLoading = false;
+      });
+      return;
+    }
+    
+    debugPrint('✅ Registration keys validated');
 
-      // Save company registration locally FIRST
-      final prefs = await SharedPreferences.getInstance();
+    // Save company registration locally FIRST
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Ensure device ID exists
+    String? deviceId = prefs.getString('device_id');
+    if (deviceId == null || deviceId.isEmpty) {
+      deviceId = 'device_${DateTime.now().millisecondsSinceEpoch}';
+      await prefs.setString('device_id', deviceId);
+      debugPrint('✅ Generated new device ID: $deviceId');
+    } else {
+      debugPrint('✅ Using existing device ID: $deviceId');
+    }
+    
+    await prefs.setBool('company_registered', true);
+    await prefs.setBool('device_registered', true);
+    debugPrint('✅ Set registration flags in SharedPreferences');
+
+    // Set license start date
+    await LicenseService.setLicenseStartDate();
+    debugPrint('✅ License start date set');
+
+    // Save business information to SharedPreferences
+    await prefs.setString('business_name', _businessNameController.text.trim());
+    await prefs.setString('second_business_name', _secondBusinessNameController.text.trim());
+    await prefs.setString('business_address', _businessAddressController.text.trim());
+    await prefs.setString('business_phone', _businessPhoneController.text.trim());
+    await prefs.setString('business_email', _businessEmailController.text.trim());
+    
+    debugPrint('✅ Business info saved to SharedPreferences:');
+    debugPrint('   Name: ${_businessNameController.text.trim()}');
+    debugPrint('   Address: ${_businessAddressController.text.trim()}');
+    debugPrint('   Phone: ${_businessPhoneController.text.trim()}');
+    debugPrint('   Email: ${_businessEmailController.text.trim()}');
+
+    // Update SettingsProvider
+    if (mounted) {
+      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+      await settingsProvider.saveAllSettings(
+        businessName: _businessNameController.text.trim(),
+        secondBusinessName: _secondBusinessNameController.text.trim(),
+        businessAddress: _businessAddressController.text.trim(),
+        businessPhone: _businessPhoneController.text.trim(),
+        businessEmail: _businessEmailController.text.trim(),
+      );
+      debugPrint('✅ Settings provider updated');
+    }
+
+    // IMPORTANT: Wait a moment to ensure all data is saved
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    // Mark offline registration data as pending sync
+    await OfflineSyncService.markOfflineDataPending();
+    debugPrint('✅ Marked offline data as pending sync');
+    
+    // Debug: Check what data is actually stored before attempting sync
+    await OfflineSyncService.debugStoredRegistrationData();
+    
+    // Check Firebase availability
+    await FirebaseService.ensureInitialized();
+    final isFirebaseAvailable = FirebaseService.isFirebaseAvailable;
+    debugPrint('🔥 Firebase available: $isFirebaseAvailable');
+    
+    // Show success message
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Registration successful'.tr()),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Navigate to dashboard after a brief delay
+      await Future.delayed(const Duration(seconds: 1));
       
-      // Ensure device ID exists
-      String? deviceId = prefs.getString('device_id');
-      if (deviceId == null || deviceId.isEmpty) {
-        // Generate device ID if missing
-        deviceId = 'device_${DateTime.now().millisecondsSinceEpoch}';
-        await prefs.setString('device_id', deviceId);
-        debugPrint('Generated new device ID: $deviceId');
-      }
-      
-      await prefs.setBool('company_registered', true);
-      await prefs.setBool('device_registered', true);
-
-      // Set license start date
-      await LicenseService.setLicenseStartDate();
-
-      // Save business information to SharedPreferences
-      await prefs.setString('business_name', _businessNameController.text.trim());
-      await prefs.setString('second_business_name', _secondBusinessNameController.text.trim());
-      await prefs.setString('business_address', _businessAddressController.text.trim());
-      await prefs.setString('business_phone', _businessPhoneController.text.trim());
-      await prefs.setString('business_email', _businessEmailController.text.trim()); // NEW: Save email
-
-      // Update SettingsProvider
       if (mounted) {
-        final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-        await settingsProvider.saveAllSettings(
-          businessName: _businessNameController.text.trim(),
-          secondBusinessName: _secondBusinessNameController.text.trim(),
-          businessAddress: _businessAddressController.text.trim(),
-          businessPhone: _businessPhoneController.text.trim(),
-          businessEmail: _businessEmailController.text.trim(), // NEW: Pass email to settings
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const DashboardScreen()),
+          (route) => false,
         );
-      }
-
-      // IMPORTANT: Wait a moment to ensure all data is saved
-      await Future.delayed(const Duration(milliseconds: 500));
-      
-      // Mark offline registration data as pending sync
-      await OfflineSyncService.markOfflineDataPending();
-      
-      // Debug: Check what data is actually stored before attempting sync
-      await OfflineSyncService.debugStoredRegistrationData();
-      
-      // Show success message
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Registration successful'.tr()),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        // Navigate to dashboard after a brief delay
-        await Future.delayed(const Duration(seconds: 1));
-        
-        if (mounted) {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const DashboardScreen()),
-            (route) => false, // Remove all previous routes
-          );
-        }
-      }
-      
-      // Attempt Firebase sync AFTER navigation (non-blocking)
-      _attemptFirebaseSyncDelayed();
-      
-    } catch (e) {
-      debugPrint('Error registering company: $e');
-      _showErrorMessage('Registration failed. Please try again.');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
       }
     }
+    
+    // Attempt Firebase sync AFTER navigation (non-blocking)
+    _attemptFirebaseSyncDelayed();
+    
+  } catch (e) {
+    debugPrint('❌ Error registering company: $e');
+    debugPrint('   Error type: ${e.runtimeType}');
+    debugPrint('   Stack trace: ${StackTrace.current}');
+    _showErrorMessage('Registration failed. Please try again.');
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
+  
+  debugPrint('=== REGISTRATION DEBUG END ===');
+}
 
-  // NEW: Delayed Firebase sync attempt (after navigation completes)
-  void _attemptFirebaseSyncDelayed() async {
-    // Wait a bit more to ensure navigation is complete and data is fully saved
+// Also update the _attemptFirebaseSyncDelayed method:
+
+void _attemptFirebaseSyncDelayed() async {
+  debugPrint('=== PORTABLE SYNC START ===');
+  
+  // Longer delay for portable version initialization
+  final delayDuration = (Platform.isWindows || Platform.isMacOS || Platform.isLinux) 
+      ? const Duration(seconds: 5) 
+      : const Duration(seconds: 2);
+  
+  await Future.delayed(delayDuration);
+  
+  try {
+    debugPrint('🔄 Portable: Attempting Firebase sync...');
+    
+    // Ensure Firebase is properly initialized for portable
+    await FirebaseService.ensureInitialized();
+    final isFirebaseAvailable = FirebaseService.isFirebaseAvailable;
+    debugPrint('🔥 Portable Firebase available: $isFirebaseAvailable');
+    
+    if (!isFirebaseAvailable) {
+      debugPrint('⚠️ Portable: Firebase not available - starting monitor');
+      OfflineSyncService.autoSync();
+      ConnectivityMonitor.instance.startMonitoring();
+      return;
+    }
+    
+    // 🆕 More aggressive sync for portable version
+    debugPrint('🔄 Portable: Force syncing registration...');
+    final syncResult = await OfflineSyncService.forceSyncOfflineRegistration();
+    
+    debugPrint('📊 Portable Sync result: ${syncResult['success']}');
+    
+    if (syncResult['success']) {
+      debugPrint('✅ Portable: Sync successful!');
+      // 🆕 Verify the data actually reached Firestore
+      await _verifyFirestoreSync();
+    } else {
+      debugPrint('❌ Portable: Sync failed - ${syncResult['message']}');
+      // Start aggressive monitoring for portable
+      OfflineSyncService.autoSync();
+      ConnectivityMonitor.instance.startMonitoring();
+    }
+  } catch (e) {
+    debugPrint('❌ Portable: Sync error - $e');
+    // Ensure monitoring starts even on error
+    ConnectivityMonitor.instance.startMonitoring();
+  }
+  
+  debugPrint('=== PORTABLE SYNC END ===');
+}
+
+// 🆕 ADD THIS METHOD to verify Firestore sync
+Future<void> _verifyFirestoreSync() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final deviceId = prefs.getString('device_id') ?? '';
+    
+    if (deviceId.isEmpty) return;
+    
+    // Wait a moment for Firestore to process
     await Future.delayed(const Duration(seconds: 2));
     
-    try {
-      debugPrint('Attempting delayed Firebase sync...');
-       
-      // Debug: Check stored data again before sync
-      await OfflineSyncService.debugStoredRegistrationData();
-      
-      final syncResult = await OfflineSyncService.checkAndSync();
-      
-      if (syncResult['success']) {
-        debugPrint('Delayed sync successful: ${syncResult['message']}');
-      } else if (syncResult['noConnection'] == true) {
-        debugPrint('No internet connection - will sync when available');
-        // Start auto-sync for when connection is restored
-        OfflineSyncService.autoSync();
-      } else {
-        debugPrint('Delayed sync failed: ${syncResult['message']}');
-        // Start auto-sync to retry later
-        OfflineSyncService.autoSync();
-      }
-    } catch (e) {
-      debugPrint('Error during delayed Firebase sync: $e');
-      // Start auto-sync to retry later
-      OfflineSyncService.autoSync();
+    // Check if data actually exists in Firestore
+    final firestoreCheck = await FirebaseService.getOfflineRegistration(deviceId);
+    
+    if (firestoreCheck['isRegistered']) {
+      debugPrint('✅ PORTABLE CONFIRMED: Business data in Firestore!');
+    } else {
+      debugPrint('⚠️ PORTABLE: Data not in Firestore yet - sync pending');
     }
+  } catch (e) {
+    debugPrint('Error verifying Firestore: $e');
   }
+}
 
   void _showErrorMessage(String message) {
     if (mounted) {

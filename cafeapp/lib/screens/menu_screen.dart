@@ -690,9 +690,32 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
           ? Center(child: Text('No items found in this category'.tr()))
           : LayoutBuilder(
               builder: (context, constraints) {
-                // Calculate responsive dimensions based on available space
+                // Calculate responsive column count based on available width
                 final availableWidth = constraints.maxWidth;
-                final itemWidth = (availableWidth - (8.0 * (crossAxisCount + 1))) / crossAxisCount;
+                
+                // Define ideal card width range (min and max)
+                const double minCardWidth = 180.0; // Minimum card width
+                const double maxCardWidth = 250.0; // Maximum card width
+                const double spacing = 8.0;
+                
+                // Calculate optimal number of columns
+                int responsiveColumns = crossAxisCount;
+                
+                // For desktop screens, calculate columns dynamically
+                if (availableWidth > 800) {
+                  // Calculate how many columns can fit with ideal card width
+                  int maxPossibleColumns = ((availableWidth + spacing) / (minCardWidth + spacing)).floor();
+                  int minPossibleColumns = ((availableWidth + spacing) / (maxCardWidth + spacing)).floor();
+                  
+                  // Use a column count that gives cards between min and max width
+                  responsiveColumns = maxPossibleColumns.clamp(minPossibleColumns, 8); // Max 8 columns
+                  
+                  // Ensure at least 3 columns on desktop
+                  if (responsiveColumns < 3) responsiveColumns = 3;
+                }
+                
+                // Calculate actual card dimensions
+                final itemWidth = (availableWidth - (spacing * (responsiveColumns + 1))) / responsiveColumns;
                 
                 // Calculate responsive heights - maintain good proportions
                 final imageHeight = itemWidth * 0.6; // 60% of item width for image
@@ -705,10 +728,10 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                 return GridView.builder(
                   padding: EdgeInsets.zero,
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossAxisCount,
-                    childAspectRatio: aspectRatio, // Dynamic aspect ratio
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
+                    crossAxisCount: responsiveColumns,
+                    childAspectRatio: aspectRatio,
+                    crossAxisSpacing: spacing,
+                    mainAxisSpacing: spacing,
                   ),
                   itemCount: items.length,
                   itemBuilder: (ctx, index) {
@@ -769,7 +792,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                                           'Out of stock'.tr(),
                                           style: TextStyle(
                                             color: Colors.white, 
-                                            fontSize: (itemWidth * 0.08).clamp(10.0, 16.0), // Responsive font size
+                                            fontSize: (itemWidth * 0.08).clamp(10.0, 16.0),
                                           ),
                                         ),
                                       ),
@@ -780,7 +803,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                             // Content section - responsive height with equal padding
                             Expanded(
                               child: Padding(
-                                padding: EdgeInsets.all((itemWidth * 0.04).clamp(6.0, 12.0)), // Responsive padding
+                                padding: EdgeInsets.all((itemWidth * 0.04).clamp(6.0, 12.0)),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -792,7 +815,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                                         item.name,
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold, 
-                                          fontSize: (itemWidth * 0.09).clamp(12.0, 18.0), // Responsive font size
+                                          fontSize: (itemWidth * 0.09).clamp(12.0, 18.0),
                                         ),
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
@@ -805,7 +828,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                                         item.price.toStringAsFixed(3),
                                         style: TextStyle(
                                           color: Colors.black,
-                                          fontSize: (itemWidth * 0.06).clamp(9.0, 12.0), // Responsive font size
+                                          fontSize: (itemWidth * 0.06).clamp(9.0, 12.0),
                                         ),
                                       ),
                                     ),
@@ -820,7 +843,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                                               item.isAvailable ? 'Available'.tr() : 'Out of stock'.tr(),
                                               style: TextStyle(
                                                 color: item.isAvailable ? Colors.green : Colors.red,
-                                                fontSize: (itemWidth * 0.06).clamp(9.0, 12.0), // Responsive font size
+                                                fontSize: (itemWidth * 0.06).clamp(9.0, 12.0),
                                               ),
                                               overflow: TextOverflow.ellipsis,
                                             ),
@@ -828,7 +851,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                                           if (item.kitchenNote.isNotEmpty)
                                             Icon(
                                               Icons.note_alt_outlined,
-                                              size: (itemWidth * 0.08).clamp(12.0, 20.0), // Responsive icon size
+                                              size: (itemWidth * 0.08).clamp(12.0, 20.0),
                                               color: Colors.blue.shade700,
                                             ),
                                         ],
