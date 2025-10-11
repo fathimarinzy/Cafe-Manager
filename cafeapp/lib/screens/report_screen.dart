@@ -1062,128 +1062,151 @@ pw.Widget _buildPdfBalanceRow(Map<String, dynamic> paymentTotals, NumberFormat f
       return false;
     }).toList();
   }
+Map<String, dynamic> _createReportFromData(List<Order> orders, List<Map<String, dynamic>> expenses) {
+  debugPrint('Creating report from ${orders.length} orders and ${expenses.length} expenses');
+  
+  final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+  
+  final totalOrders = orders.length;
+  final totalRevenue = orders.fold(0.0, (sum, order) => sum + order.total);
+  final totalItemsSold = orders.fold(0, (sum, order) => sum + order.items.length);
 
-  Map<String, dynamic> _createReportFromData(List<Order> orders, List<Map<String, dynamic>> expenses) {
-    debugPrint('Creating report from ${orders.length} orders and ${expenses.length} expenses');
+  final Map<String, List<Order>> ordersByServiceType = {};
+  for (final order in orders) {
+    String normalizedServiceType = _normalizeServiceType(order.serviceType);
+    ordersByServiceType.putIfAbsent(normalizedServiceType, () => []).add(order);
+  }  
+  
+  // Calculate subtotal, tax, and discount based on VAT type
+  double subtotal = 0.0;
+  double tax = 0.0;
+  double discount = 0.0;
+  
+  for (final order in orders) {
+    discount += order.discount;
     
+    if (settingsProvider.isVatInclusive) {
+      // Inclusive VAT: extract tax from total
+      final orderTotal = order.total - order.discount;
+      final orderTax = orderTotal - (orderTotal / (1 + (settingsProvider.taxRate / 100)));
+      final orderSubtotal = orderTotal - orderTax;
+      
+      subtotal += orderSubtotal;
+      tax += orderTax;
+    } else {
+      // Exclusive VAT: calculate separately
+      final orderSubtotal = (order.total - order.discount) / (1 + (settingsProvider.taxRate / 100));
+      final orderTax = orderSubtotal * (settingsProvider.taxRate / 100);
+      
+      subtotal += orderSubtotal;
+      tax += orderTax;
+    }
+  }
+  
+  final Map<String, Map<String, double>> paymentTotals = {
+    'cash': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
+    'bank': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
+    'other': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
+    'total': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
+  };
+  
+  for (final order in orders) {
+    final paymentMethod = (order.paymentMethod ?? 'cash').toLowerCase();
+    if (paymentMethod == 'customer_credit') {
+      continue;
+    } else if (paymentMethod == 'cash') {
+      paymentTotals['cash']!['sales'] = (paymentTotals['cash']!['sales'] ?? 0.0) + order.total;
+    } else if (paymentMethod == 'bank') {
+      paymentTotals['bank']!['sales'] = (paymentTotals['bank']!['sales'] ?? 0.0) + order.total;
+    } else {
+      paymentTotals['other']!['sales'] = (paymentTotals['other']!['sales'] ?? 0.0) + order.total;
+    }
+    
+    if (paymentMethod != 'customer_credit') {
+      paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + order.total;
+    }
+  }
+  
+  for (final expense in expenses) {
+    final accountType = (expense['accountType'] as String? ?? '').toLowerCase();
+    final total = (expense['grandTotal'] as num? ?? 0).toDouble();
+    
+    if (accountType.contains('cash')) {
+      paymentTotals['cash']!['expenses'] = (paymentTotals['cash']!['expenses'] ?? 0.0) + total;
+    } else if (accountType.contains('bank')) {
+      paymentTotals['bank']!['expenses'] = (paymentTotals['bank']!['expenses'] ?? 0.0) + total;
+    } else {
+      paymentTotals['other']!['expenses'] = (paymentTotals['other']!['expenses'] ?? 0.0) + total;
+    }
+    paymentTotals['total']!['expenses'] = (paymentTotals['total']!['expenses'] ?? 0.0) + total;
+  }
+  
+  for (final key in paymentTotals.keys) {
+    paymentTotals[key]!['net'] = (paymentTotals[key]!['sales'] ?? 0.0) - (paymentTotals[key]!['expenses'] ?? 0.0);
+  }
+  
+  final Map<String, Map<String, dynamic>> itemSales = {};
+  
+  for (final order in orders) {
+    for (final item in order.items) {
+      final itemId = item.id.toString();
+      final itemName = item.name;
+      
+      if (!itemSales.containsKey(itemId)) {
+        itemSales[itemId] = {
+          'name': itemName,
+          'quantity': 0,
+          'price': item.price,
+          'total_revenue': 0.0,
+        };
+      }
+      
+      itemSales[itemId]!['quantity'] = (itemSales[itemId]!['quantity'] as int) + item.quantity;
+      itemSales[itemId]!['total_revenue'] = (itemSales[itemId]!['total_revenue'] as double) + (item.price * item.quantity);
+    }
+  }
+  
+  final topItems = itemSales.values.toList()
+    ..sort((a, b) => (b['total_revenue'] as double).compareTo(a['total_revenue'] as double));
+  
+  final serviceTypeSales = ordersByServiceType.entries.map((entry) {
+    final serviceType = entry.key;
+    final orders = entry.value;
     final totalOrders = orders.length;
     final totalRevenue = orders.fold(0.0, (sum, order) => sum + order.total);
-    final totalItemsSold = orders.fold(0, (sum, order) => sum + order.items.length);
-
-    final Map<String, List<Order>> ordersByServiceType = {};
-    for (final order in orders) {
-      String normalizedServiceType = _normalizeServiceType(order.serviceType);
-      ordersByServiceType.putIfAbsent(normalizedServiceType, () => []).add(order);
-    }  
-    final subtotal = orders.fold(0.0, (sum, order) => sum + order.subtotal);
-    final tax = orders.fold(0.0, (sum, order) => sum + order.tax);
-    final discount = orders.fold(0.0, (sum, order) => sum + order.discount);
-    
-    final Map<String, Map<String, double>> paymentTotals = {
-      'cash': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
-      'bank': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
-      'other': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
-      'total': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
-    };
-    
-    for (final order in orders) {
-      final paymentMethod = (order.paymentMethod ?? 'cash').toLowerCase();
-      if (paymentMethod == 'customer_credit') {
-         continue;
-        // paymentTotals['cash']!['sales'] = (paymentTotals['cash']!['sales'] ?? 0.0) + order.total;
-      } else if (paymentMethod == 'cash') {
-        paymentTotals['cash']!['sales'] = (paymentTotals['cash']!['sales'] ?? 0.0) + order.total;
-      } else if (paymentMethod == 'bank') {
-        paymentTotals['bank']!['sales'] = (paymentTotals['bank']!['sales'] ?? 0.0) + order.total;
-      } else {
-        paymentTotals['other']!['sales'] = (paymentTotals['other']!['sales'] ?? 0.0) + order.total;
-      }
-      // paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + order.total;
-      // Only add to total sales if it's not customer_credit
-      if (paymentMethod != 'customer_credit') {
-        paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + order.total;
-      }
-    }
-    
-    for (final expense in expenses) {
-      final accountType = (expense['accountType'] as String? ?? '').toLowerCase();
-      final total = (expense['grandTotal'] as num? ?? 0).toDouble();
-      
-      if (accountType.contains('cash')) {
-        paymentTotals['cash']!['expenses'] = (paymentTotals['cash']!['expenses'] ?? 0.0) + total;
-      } else if (accountType.contains('bank')) {
-        paymentTotals['bank']!['expenses'] = (paymentTotals['bank']!['expenses'] ?? 0.0) + total;
-      } else {
-        paymentTotals['other']!['expenses'] = (paymentTotals['other']!['expenses'] ?? 0.0) + total;
-      }
-      paymentTotals['total']!['expenses'] = (paymentTotals['total']!['expenses'] ?? 0.0) + total;
-    }
-    
-    for (final key in paymentTotals.keys) {
-      paymentTotals[key]!['net'] = (paymentTotals[key]!['sales'] ?? 0.0) - (paymentTotals[key]!['expenses'] ?? 0.0);
-    }
-    
-    final Map<String, Map<String, dynamic>> itemSales = {};
-    
-    for (final order in orders) {
-      for (final item in order.items) {
-        final itemId = item.id.toString();
-        final itemName = item.name;
-        
-        if (!itemSales.containsKey(itemId)) {
-          itemSales[itemId] = {
-            'name': itemName,
-            'quantity': 0,
-            'price': item.price,
-            'total_revenue': 0.0,
-          };
-        }
-        
-        itemSales[itemId]!['quantity'] = (itemSales[itemId]!['quantity'] as int) + item.quantity;
-        itemSales[itemId]!['total_revenue'] = (itemSales[itemId]!['total_revenue'] as double) + (item.price * item.quantity);
-      }
-    }
-    
-    final topItems = itemSales.values.toList()
-      ..sort((a, b) => (b['total_revenue'] as double).compareTo(a['total_revenue'] as double));
-    
-    final serviceTypeSales = ordersByServiceType.entries.map((entry) {
-      final serviceType = entry.key;
-      final orders = entry.value;
-      final totalOrders = orders.length;
-      final totalRevenue = orders.fold(0.0, (sum, order) => sum + order.total);
-      
-      return {
-        'serviceType': serviceType,
-        'totalOrders': totalOrders,
-        'totalRevenue': totalRevenue,
-      };
-    }).toList();
     
     return {
-      'summary': {
-        'totalOrders': totalOrders,
-        'totalRevenue': totalRevenue,
-        'totalItemsSold': totalItemsSold,
-      },
-      'revenue': {
-        'subtotal': subtotal,
-        'tax': tax,
-        'discounts': discount,
-        'total': totalRevenue,
-      },
-      'paymentTotals': paymentTotals,
-      'serviceTypeSales': serviceTypeSales,
-      'topItems': topItems,
-      'orders': orders.map((order) => {
-        'id': order.id,
-        'serviceType': order.serviceType,
-        'total': order.total,
-        'status': order.status,
-        'createdAt': order.createdAt,
-      }).toList(),
+      'serviceType': serviceType,
+      'totalOrders': totalOrders,
+      'totalRevenue': totalRevenue,
     };
-  }
+  }).toList();
+  
+  return {
+    'summary': {
+      'totalOrders': totalOrders,
+      'totalRevenue': totalRevenue,
+      'totalItemsSold': totalItemsSold,
+    },
+    'revenue': {
+      'subtotal': subtotal,
+      'tax': tax,
+      'discounts': discount,
+      'total': totalRevenue,
+      'isVatInclusive': settingsProvider.isVatInclusive,
+    },
+    'paymentTotals': paymentTotals,
+    'serviceTypeSales': serviceTypeSales,
+    'topItems': topItems,
+    'orders': orders.map((order) => {
+      'id': order.id,
+      'serviceType': order.serviceType,
+      'total': order.total,
+      'status': order.status,
+      'createdAt': order.createdAt,
+    }).toList(),
+  };
+}
 
   Future<void> _selectDate() async {
     final DateTime? picked = await showDatePicker(
@@ -1747,39 +1770,65 @@ pw.Widget _buildPdfBalanceRow(Map<String, dynamic> paymentTotals, NumberFormat f
     );
   }
 
-  Widget _buildRevenueSection() {
-    final revenue = _reportData!['revenue'] ?? {};
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Revenue Breakdown'.tr(),
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+Widget _buildRevenueSection() {
+  final revenue = _reportData!['revenue'] ?? {};
+  final isVatInclusive = revenue['isVatInclusive'] as bool? ?? false;
+  
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        'Revenue Breakdown'.tr(),
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      ),
+      const SizedBox(height: 12),
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(8),
         ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            children: [
-              _buildRevenueRow('Subtotal'.tr(), revenue['subtotal'] as double? ?? 0.0),
-              const SizedBox(height: 8),
-              _buildRevenueRow('Tax'.tr(), revenue['tax'] as double? ?? 0.0),
-              const SizedBox(height: 8),
-              _buildRevenueRow('Discounts'.tr(), revenue['discounts'] as double? ?? 0.0),
-              const Divider(),
-              _buildRevenueRow('Total Revenue'.tr(), revenue['total'] as double? ?? 0.0, isTotal: true),
-            ],
-          ),
+        child: Column(
+          children: [
+            _buildRevenueRow('Subtotal'.tr(), revenue['subtotal'] as double? ?? 0.0),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Text('Tax'.tr()),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade100,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        isVatInclusive ? 'Inclusive'.tr() : 'Exclusive'.tr(),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue.shade800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                Text((revenue['tax'] as double? ?? 0.0).toStringAsFixed(3)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _buildRevenueRow('Discounts'.tr(), revenue['discounts'] as double? ?? 0.0),
+            const Divider(),
+            _buildRevenueRow('Total Revenue'.tr(), revenue['total'] as double? ?? 0.0, isTotal: true),
+          ],
         ),
-      ],
-    );
-  }
-
+      ),
+    ],
+  );
+}
   Widget _buildRevenueRow(String label, double amount, {bool isTotal = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,

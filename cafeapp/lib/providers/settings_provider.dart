@@ -17,7 +17,8 @@ class SettingsProvider with ChangeNotifier {
   
   // Tax settings
   double _taxRate = 0.0;
-  
+  bool _isVatInclusive = false; // NEW: Add this field
+
   // Table layout
   int _tableRows = 4;
   int _tableColumns = 4;
@@ -70,7 +71,8 @@ String get languageCode {
   bool get isLoading => _isLoading;
   bool get isInitialized => _isInitialized;
   ThemeMode get themeMode => _themeMode;
-  
+  bool get isVatInclusive => _isVatInclusive;
+
   SettingsProvider() {
       _loadSettings().then((_) {
     // Initialize the language after settings are loaded
@@ -160,7 +162,8 @@ void initializeLanguage() {
       
       // Load tax settings
       _taxRate = prefs.getDouble('tax_rate') ?? _taxRate;
-      
+      _isVatInclusive = prefs.getBool('is_vat_inclusive') ?? _isVatInclusive;
+
       // Load table layout
       _tableRows = prefs.getInt('table_rows') ?? _tableRows;
       _tableColumns = prefs.getInt('table_columns') ?? _tableColumns;
@@ -236,6 +239,12 @@ void initializeLanguage() {
           if (value is double) {
             _taxRate = value;
             await prefs.setDouble(key, value);
+          }
+          break;
+        case 'is_vat_inclusive':
+          if (value is bool) {
+            _isVatInclusive = value;
+            await prefs.setBool(key, value);
           }
           break;
         case 'table_rows':
@@ -326,6 +335,8 @@ void initializeLanguage() {
     String? businessEmail, 
     String? receiptFooter,
     ThemeMode? themeMode,
+    bool? isVatInclusive,
+
   }) async {
     _isLoading = true;
     notifyListeners();
@@ -380,7 +391,10 @@ void initializeLanguage() {
         _taxRate = taxRate;
         await prefs.setDouble('tax_rate', taxRate);
       }
-      
+      if (isVatInclusive != null) {
+        _isVatInclusive = isVatInclusive;
+        await prefs.setBool('is_vat_inclusive', isVatInclusive);
+      }
       // Update table layout
       if (tableRows != null) {
         _tableRows = tableRows;
@@ -453,6 +467,8 @@ void initializeLanguage() {
       
       // Reset tax settings
       _taxRate = 0.0;
+      _isVatInclusive = false;
+
       
       // Reset table layout
       _tableRows = 4;
@@ -489,6 +505,8 @@ void initializeLanguage() {
         businessEmail: _businessEmail, // Include business email in reset
         receiptFooter: _receiptFooter,
         themeMode: _themeMode,
+        isVatInclusive: _isVatInclusive,
+
       );
     } catch (e) {
       debugPrint('Error resetting settings: $e');

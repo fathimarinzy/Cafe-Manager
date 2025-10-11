@@ -1,3 +1,4 @@
+import 'package:cafeapp/providers/settings_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:intl/intl.dart';
@@ -182,6 +183,35 @@ class _TenderScreenState extends State<TenderScreen> {
         ),
       );
     });
+  }
+   // Add this method to calculate subtotal and tax based on VAT type
+  Map<String, double> _calculateAmounts() {
+    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+    final discountAmount = _getCurrentDiscount();
+    
+    double subtotal;
+    double tax;
+    double total;
+    
+    if (settingsProvider.isVatInclusive) {
+      // Inclusive VAT: prices already include tax, so total stays the same
+      total = widget.order.total - discountAmount;
+      // Extract the tax component from the total
+      tax = total - (total / (1 + (settingsProvider.taxRate / 100)));
+      // Subtotal is the amount without tax
+      subtotal = total - tax;
+    } else {
+      // Exclusive VAT: add tax on top of prices
+      subtotal = widget.order.total - discountAmount;
+      tax = subtotal * (widget.taxRate / 100.0);
+      total = subtotal + tax;
+    }
+    
+    return {
+      'subtotal': subtotal,
+      'tax': tax,
+      'total': total,
+    };
   }
 // Replace the existing _saveWithAndroidIntent method
 // Future<bool> _saveWithCrossPlatform(pw.Document pdf, String orderNumber) async {
@@ -737,7 +767,6 @@ Future<void> _showMobileBillPreview(pw.Document pdf) async {
       }
     }
   }
-
   Future<void> _processPayment(double amount) async {
     if (_selectedPaymentMethod == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -753,27 +782,22 @@ Future<void> _showMobileBillPreview(pw.Document pdf) async {
     });
 
     try {
-    // Handle credit completion case
-    if (widget.isCreditCompletion) {
-      await _processCreditCompletionPayment(amount, _selectedPaymentMethod!.toLowerCase());
-      return;
-    }
+      if (widget.isCreditCompletion) {
+        await _processCreditCompletionPayment(amount, _selectedPaymentMethod!.toLowerCase());
+        return;
+      }
 
-    final discountedTotal = _getDiscountedTotal();
-    
-    double change = 0.0;
-    if (amount > discountedTotal) {
-      change = amount - discountedTotal;
-    }
+      final discountedTotal = _getDiscountedTotal();
+      
+      double change = 0.0;
+      if (amount > discountedTotal) {
+        change = amount - discountedTotal;
+      }
 
-  
       final paymentMethod = _selectedPaymentMethod!.toLowerCase();
       Order? savedOrder;
       
-      double discountAmount = 0.0;
-      if (_serviceTotals.containsKey(_currentServiceType)) {
-        discountAmount = _serviceTotals[_currentServiceType]!['discount'] ?? 0.0;
-      }
+      final amounts = _calculateAmounts();
       
       if (widget.order.id != 0) {
         final orders = await _localOrderRepo.getAllOrders();
@@ -781,22 +805,15 @@ Future<void> _showMobileBillPreview(pw.Document pdf) async {
         
         if (orderIndex >= 0) {
           final existingOrder = orders[orderIndex];
-           // Get current discount
-            double discountAmount = 0.0;
-            if (_serviceTotals.containsKey(_currentServiceType)) {
-              discountAmount = _serviceTotals[_currentServiceType]!['discount'] ?? 0.0;
-            }
-            // Calculate final total after discount
-            final finalTotal = widget.order.total - discountAmount;
 
           savedOrder = Order(
             id: existingOrder.id,
             serviceType: existingOrder.serviceType,
             items: existingOrder.items,
-            subtotal: widget.order.total - (widget.order.total * (widget.taxRate / 100)),
-            tax: widget.order.total * (widget.taxRate / 100),
-            discount: discountAmount,
-            total: finalTotal,
+            subtotal: amounts['subtotal']!,
+            tax: amounts['tax']!,
+            discount: _getCurrentDiscount(),
+            total: amounts['total']!,
             status: 'completed',
             createdAt: existingOrder.createdAt,
             customerId: widget.customer?.id ?? existingOrder.customerId,
@@ -821,10 +838,10 @@ Future<void> _showMobileBillPreview(pw.Document pdf) async {
         savedOrder = Order(
           serviceType: widget.order.serviceType,
           items: orderItems,
-          subtotal: widget.order.total - (widget.order.total * (widget.taxRate / 100)),
-          tax: widget.order.total * (widget.taxRate / 100),
-          discount: discountAmount,
-          total: widget.order.total - discountAmount,
+          subtotal: amounts['subtotal']!,
+          tax: amounts['tax']!,
+          discount: _getCurrentDiscount(),
+          total: amounts['total']!,
           status: 'completed',
           createdAt: DateTime.now().toIso8601String(),
           customerId: widget.customer?.id,
@@ -860,7 +877,12 @@ Future<void> _showMobileBillPreview(pw.Document pdf) async {
 
       bool printed = false;
       try {
-        printed = await BillService.printThermalBill(widget.order, isEdited: widget.isEdited, taxRate: widget.taxRate, discount: discountAmount);
+        printed = await BillService.printThermalBill(
+          widget.order, 
+          isEdited: widget.isEdited, 
+          taxRate: widget.taxRate, 
+          discount: _getCurrentDiscount()
+        );
       } catch (e) {
         debugPrint('Printing error: $e');
         debugPrint('Attempted to print using: $savedPrinterName');
@@ -869,14 +891,14 @@ Future<void> _showMobileBillPreview(pw.Document pdf) async {
       bool? saveAsPdf = false;
       if (!printed) {
         if (mounted) {
-      saveAsPdf = await CrossPlatformPdfService.showSavePdfDialog(context);
+          saveAsPdf = await CrossPlatformPdfService.showSavePdfDialog(context);
         }
         
         if (saveAsPdf == true) {
           try {
-           final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-           final fileName = 'SIMS_receipt_${widget.order.orderNumber}_$timestamp.pdf';
-           await CrossPlatformPdfService.savePdf(pdf, suggestedFileName: fileName);
+            final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+            final fileName = 'SIMS_receipt_${widget.order.orderNumber}_$timestamp.pdf';
+            await CrossPlatformPdfService.savePdf(pdf, suggestedFileName: fileName);
           } catch (e) {
             debugPrint('Error saving PDF: $e');
           }
@@ -1787,127 +1809,148 @@ Widget _buildPaymentSummary() {
   );
 }
 
-// Extract order info bar
-Widget _buildOrderInfoBar() {
-  final formatCurrency = NumberFormat.currency(symbol: '', decimalDigits: 3);
-  final discount = _getCurrentDiscount();
-  
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-    decoration: BoxDecoration(
-      color: Colors.grey.shade200,
-      border: Border(
-        bottom: BorderSide(color: Colors.grey.shade300),
+  // Extract order info bar
+  Widget _buildOrderInfoBar() {
+    final formatCurrency = NumberFormat.currency(symbol: '', decimalDigits: 3);
+    final discount = _getCurrentDiscount();
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade300),
+        ),
       ),
-    ),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [ 
-              Text('${'Customer'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-              Text(
-              _currentCustomer?.name ?? 'NA',
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [ 
+                Text('${'Customer'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                Text(
+                  _currentCustomer?.name ?? 'NA',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+              ],
             ),
-            ],
           ),
-        ),
-        
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('${'Order type'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-              Text(_getTranslatedServiceType(widget.order.serviceType), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-            ],
+          
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${'Order type'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                Text(_getTranslatedServiceType(widget.order.serviceType), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              ],
+            ),
           ),
-        ),
-        
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('${'Tables'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-              Text(
-                widget.order.serviceType.contains('Table') 
-                    ? widget.order.serviceType.split('Table ').last 
-                    : '0',
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)
-              ),
-            ],
+          
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${'Tables'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                Text(
+                  widget.order.serviceType.contains('Table') 
+                      ? widget.order.serviceType.split('Table ').last 
+                      : '0',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)
+                ),
+              ],
+            ),
           ),
-        ),
-        
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('${'Status'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-              Row(
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    margin: const EdgeInsets.only(right: 6),
-                    decoration: BoxDecoration(
-                      color: _getStatusColor(_orderStatus),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  Text(
-                    _getTranslatedStatus(_orderStatus),
-                    style: TextStyle(
-                      fontSize: 14, 
-                      fontWeight: FontWeight.bold,
-                      color: _getStatusColor(_orderStatus),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('${'Total amount'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-              Row(
-                children: [
-                  Text(
-                    formatCurrency.format(widget.order.total),
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)
-                  ),
-                  const SizedBox(width: 4),
-                  if (discount > 0)
+          
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text('${'Status'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    const SizedBox(width: 4),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                       decoration: BoxDecoration(
-                        color: Colors.purple.shade100,
-                        borderRadius: BorderRadius.circular(4),
+                        color: Colors.blue.shade100,
+                        borderRadius: BorderRadius.circular(3),
                       ),
                       child: Text(
-                        '-${formatCurrency.format(discount)}',
+                        settingsProvider.isVatInclusive ? 'Incl.' : 'Excl.',
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: 9,
                           fontWeight: FontWeight.bold,
-                          color: Colors.purple.shade800,
+                          color: Colors.blue.shade800,
                         ),
                       ),
                     ),
-                ],
-              ), 
-            ],
+                  ],
+                ),
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      margin: const EdgeInsets.only(right: 6),
+                      decoration: BoxDecoration(
+                        color: _getStatusColor(_orderStatus),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    Text(
+                      _getTranslatedStatus(_orderStatus),
+                      style: TextStyle(
+                        fontSize: 14, 
+                        fontWeight: FontWeight.bold,
+                        color: _getStatusColor(_orderStatus),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
-    ),
-  );
-}
+          
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${'Total amount'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                Row(
+                  children: [
+                    Text(
+                      formatCurrency.format(widget.order.total),
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)
+                    ),
+                    const SizedBox(width: 4),
+                    if (discount > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.purple.shade100,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '-${formatCurrency.format(discount)}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.purple.shade800,
+                          ),
+                        ),
+                      ),
+                  ],
+                ), 
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
 @override
 Widget build(BuildContext context) {
@@ -3582,21 +3625,15 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
   }
 
   Future<pw.Document> _generateReceipt() async {
-     double subtotal = widget.order.total / (1 + (widget.taxRate / 100.0));
-    double tax = widget.order.total - subtotal;
-    
-    double discountAmount = 0.0;
-    if (_serviceTotals.containsKey(_currentServiceType)) {
-      discountAmount = _serviceTotals[_currentServiceType]!['discount'] ?? 0.0;
-    }
+    final amounts = _calculateAmounts();
     
     final pdf = await BillService.generateBill(
       items: widget.order.items.map((item) => item.toMenuItem()).toList(),
       serviceType: widget.order.serviceType,
-      subtotal: subtotal,
-      tax: tax,
-      discount: discountAmount,
-      total: widget.order.total - discountAmount,
+      subtotal: amounts['subtotal']!,
+      tax: amounts['tax']!,
+      discount: _getCurrentDiscount(),
+      total: amounts['total']!,
       personName: null,
       tableInfo: widget.order.serviceType.contains('Table') ? widget.order.serviceType : null,
       isEdited: widget.isEdited,
@@ -3606,7 +3643,6 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
     
     return pdf;
   }
-
   // Add this method to handle customer credit payment
  Future<void> _processCustomerCreditPayment(Person customer) async {
   final discountedTotal = _getDiscountedTotal();

@@ -958,6 +958,8 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
 
   // Portrait order panel - horizontal layout with scrollable items
   Widget _buildPortraitOrderPanel(OrderProvider orderProvider) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+
     return Container(
       color: Colors.white,
       child: Row(
@@ -1075,7 +1077,37 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                     child: Column(
                       children: [
                         _buildSummaryRow('Sub total'.tr(), orderProvider.subtotal.toStringAsFixed(3)),
-                        _buildSummaryRow('Tax amount'.tr(), '0.000'),
+                        // Tax row with VAT type indicator
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Text('Tax amount'.tr()),
+                                  const SizedBox(width: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue.shade100,
+                                      borderRadius: BorderRadius.circular(3),
+                                    ),
+                                    child: Text(
+                                      settingsProvider.isVatInclusive ? 'Incl.' : 'Excl.',
+                                      style: TextStyle(
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.blue.shade800,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Text(orderProvider.tax.toStringAsFixed(3)),
+                            ],
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1169,6 +1201,8 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
 
   // Landscape order panel - same as current vertical layout
   Widget _buildLandscapeOrderPanel(OrderProvider orderProvider) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+
     return Container(
       width: 350,
       color: Colors.white,
@@ -1343,8 +1377,34 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                         ),
                         const SizedBox(height: 8),
                         
-                        // Additional charges rows
-                        _buildSummaryRow('Tax amount'.tr(), '0.000'),
+                         // Tax row with VAT type badge
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Text('Tax amount'.tr()),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.shade100,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    settingsProvider.isVatInclusive ? 'Incl.' : 'Excl.',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.blue.shade800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                             Text(orderProvider.tax.toStringAsFixed(3)),
+                          ],
+                        ),
                         // _buildSummaryRow('Item discount'.tr(), '0.000'),
                         // _buildSummaryRow('Bill discount'.tr(), '0.000'),
                        // _buildSummaryRow('Delivery charge'.tr(), '0.000'),
@@ -1849,127 +1909,152 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
   }
 
   // Updated payment button with better sizing for portrait mode
-  Widget _buildPaymentButton(String text, Color color) {
-    return SizedBox(
-      height: 45, // Slightly reduced height for portrait
-      child: OutlinedButton(
-        onPressed: () async {
-          final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+ Widget _buildPaymentButton(String text, Color color) {
+  return SizedBox(
+    height: 45,
+    child: OutlinedButton(
+      onPressed: () async {
+        final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+        final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+        
+        if (orderProvider.cartItems.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Please add items to your order'.tr())),
+          );
+          return;
+        }
+        
+        // For Credit button - just navigate to SearchPersonScreen
+        if (text == "Credit".tr()) {
+          final selectedPerson = await Navigator.push<Person>(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const SearchPersonScreen(),
+            ),
+          );
           
-          if (orderProvider.cartItems.isEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Please add items to your order'.tr())),
-            );
-            return;
+          if (selectedPerson != null) {
+            orderProvider.setSelectedPerson(selectedPerson);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Customer selected: ${selectedPerson.name}'),
+                  duration: const Duration(milliseconds: 100),
+                ),
+              );
+            }
           }
-          
-          // For Credit button - just navigate to SearchPersonScreen
-          if (text == "Credit".tr() ) {
-            final selectedPerson = await Navigator.push<Person>(
+          return;
+        }
+
+        try {
+          // For Cash or Tender button - navigate to TenderScreen
+          if (text == "Cash".tr() || text == "Tender".tr()) {
+            // Convert cart items to order items
+            final orderItems = orderProvider.cartItems.map((menuItem) => 
+              OrderItem(
+                id: int.parse(menuItem.id),
+                name: menuItem.name,
+                price: menuItem.price,
+                quantity: menuItem.quantity,
+                kitchenNote: menuItem.kitchenNote,
+              )
+            ).toList();
+
+            // Calculate totals based on VAT type
+            double itemPricesSum = orderProvider.cartItems.fold(
+              0.0, 
+              (sum, item) => sum + (item.price * item.quantity)
+            );
+            
+            double subtotal;
+            double tax;
+            double total;
+            
+            if (settingsProvider.isVatInclusive) {
+              // Inclusive VAT: item prices already include tax
+              total = itemPricesSum;
+              // Extract tax from the total
+              tax = total - (total / (1 + (settingsProvider.taxRate / 100)));
+              subtotal = total - tax;
+            } else {
+              // Exclusive VAT: add tax on top
+              subtotal = itemPricesSum;
+              tax = subtotal * (settingsProvider.taxRate / 100);
+              total = subtotal + tax;
+            }
+
+            // Use existing order ID if we're editing an order
+            final orderId = widget.existingOrderId;
+            
+            // Create a temporary Order object for TenderScreen
+            final tempOrder = Order(
+              id: orderId,
+              serviceType: widget.serviceType,
+              items: orderItems,
+              subtotal: subtotal,
+              tax: tax,
+              discount: 0.0,
+              total: total,
+              status: 'pending',
+              customerId: orderProvider.selectedPerson?.id
+            );
+            
+            // Convert to OrderHistory for TenderScreen
+            final orderHistory = OrderHistory.fromOrder(tempOrder);
+
+            // Navigate to TenderScreen with the temporary order
+            final result = await Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => const SearchPersonScreen(),
+                builder: (context) => TenderScreen(
+                  order: orderHistory,
+                  isEdited: orderId != null,
+                  taxRate: settingsProvider.taxRate,
+                  preselectedPaymentMethod: text == "Cash".tr() ? 'Cash' : 'Bank',
+                  showBankDialogOnLoad: text == "Tender".tr(),
+                  customer: orderProvider.selectedPerson,
+                ),
               ),
             );
             
-            if (selectedPerson != null) {
-              orderProvider.setSelectedPerson(selectedPerson);
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Customer selected: ${selectedPerson.name}'),
-                  duration: const Duration(milliseconds: 100),
-                  ),
-                );
-              }
+            // If we got a result back, it means the order was successfully processed
+            if (result == true) {
+              // Clear the cart after successful payment
+              orderProvider.clearCart();
+              orderProvider.clearSelectedPerson();
             }
-            return;
           }
-
-          try {
-            // For Cash or Tender button - navigate to TenderScreen first, then create/update order
-            if (text == "Cash".tr() || text == "Tender".tr()) {
-              // Convert cart items to order items
-              final orderItems = orderProvider.cartItems.map((menuItem) => 
-                OrderItem(
-                  id: int.parse(menuItem.id),
-                  name: menuItem.name,
-                  price: menuItem.price,
-                  quantity: menuItem.quantity,
-                  kitchenNote: menuItem.kitchenNote,
-                )
-              ).toList();
-
-              // Use existing order ID if we're editing an order
-              final orderId = widget.existingOrderId;
-              
-              // Create a temporary Order object for TenderScreen
-              final tempOrder = Order(
-                id: orderId, // Pass existing ID if editing an order
-                serviceType: widget.serviceType,
-                items: orderItems,
-                subtotal: orderProvider.subtotal,
-                tax: orderProvider.tax,
-                discount: 0.0,
-                total: orderProvider.total,
-                status: 'pending',
-                customerId: orderProvider.selectedPerson?.id
-              );
-              
-              // Convert to OrderHistory for TenderScreen
-              final orderHistory = OrderHistory.fromOrder(tempOrder);
-
-              // Navigate to TenderScreen with the temporary order
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => TenderScreen(
-                    order: orderHistory,
-                    isEdited: orderId != null, // Set isEdited based on whether we have an existing order ID
-                    taxRate: Provider.of<SettingsProvider>(context, listen: false).taxRate,
-                    preselectedPaymentMethod: text == "Cash".tr() ? 'Cash' : 'Bank',
-                    showBankDialogOnLoad: text == "Tender".tr(),
-                    customer: orderProvider.selectedPerson,
-                  ),
+          else if (text == "Order".tr()) {
+            // Existing order flow - send to OrderConfirmationScreen
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (ctx) => OrderConfirmationScreen(
+                  serviceType: widget.serviceType,
                 ),
-              );
-              
-              // If we got a result back, it means the order was successfully processed
-              if (result == true) {
-                // Clear the cart after successful payment
-                orderProvider.clearCart();
-                orderProvider.clearSelectedPerson();
-              }
-            }
-            else if (text == "Order".tr()) {
-              // Existing order flow - send to OrderConfirmationScreen
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (ctx) => OrderConfirmationScreen(
-                    serviceType: widget.serviceType,
-                  ),
-                ),
-              );
-            }
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Error: ${e.toString()}')),
-              );
-            }
-            debugPrint('Error processing payment: $e');
+              ),
+            );
           }
-        },
-        style: OutlinedButton.styleFrom(
-          backgroundColor: color,
-          side: BorderSide(color: Colors.grey.shade300),
-        ),
-        child: Text(
-          text, 
-          style: const TextStyle(color: Colors.black, fontSize: 12), // Smaller font for portrait
-          overflow: TextOverflow.ellipsis,
-        ),
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error: ${e.toString()}')),
+            );
+          }
+          debugPrint('Error processing payment: $e');
+        }
+      },
+      style: OutlinedButton.styleFrom(
+        backgroundColor: color,
+        side: BorderSide(color: Colors.grey.shade300),
       ),
-    );
-  }
+      child: Text(
+        text, 
+        style: const TextStyle(color: Colors.black, fontSize: 12),
+        overflow: TextOverflow.ellipsis,
+      ),
+    ),
+  );
+}
 
 }

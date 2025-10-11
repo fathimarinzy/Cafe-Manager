@@ -153,7 +153,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       }
     });
   }
-  Future<bool> _saveOrderChangesToBackend() async {
+Future<bool> _saveOrderChangesToBackend() async {
   if (_order == null) return false;
   
   setState(() {
@@ -161,10 +161,25 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   });
   
   try {
-    // Calculate the new totals
+    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+    
+    // Calculate the new totals based on VAT type
     double subtotal = _calculateSubtotal(_order!.items);
-    double tax = subtotal * (_taxRate / 100.0);
-    double total = subtotal + tax - _discountAmount;
+    double tax;
+    double total;
+    
+    if (settingsProvider.isVatInclusive) {
+      // Inclusive VAT: item prices already include tax
+      total = subtotal - _discountAmount;
+      // Extract the tax component
+      tax = total - (total / (1 + (settingsProvider.taxRate / 100)));
+      // Recalculate subtotal without tax
+      subtotal = total - tax;
+    } else {
+      // Exclusive VAT: add tax on top
+      tax = subtotal * (settingsProvider.taxRate / 100.0);
+      total = subtotal + tax - _discountAmount;
+    }
 
     // Convert OrderHistory items to OrderItem objects
     final orderItems = _order!.items.map((item) => 
@@ -196,7 +211,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     // Save the order locally
     final updatedOrder = await localOrderRepo.saveOrder(localOrder);
     
-    debugPrint('Order updated locally: ${updatedOrder.id}');
+    debugPrint('Order updated locally with VAT type: ${updatedOrder.id}');
+    debugPrint('Subtotal: $subtotal, Tax: $tax, Total: $total, Is Inclusive: ${settingsProvider.isVatInclusive}');
     await LocalOrderRepository().printDatabaseContents();
 
     if (mounted) {
@@ -234,7 +250,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         _isLoading = false;
       });
       
-      // Show error message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error updating order'.tr()),
@@ -939,9 +954,28 @@ void _showEditOrderItemsDialog() {
   
   Widget _buildOrderDetailsView() {
     final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
-    final subtotal = _calculateSubtotal(_order!.items);
-    final tax = subtotal * (_taxRate / 100.0);
-    final total = subtotal + tax - _discountAmount;  
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    
+    // Calculate the sum of item prices first
+    final itemPricesSum = _calculateSubtotal(_order!.items);
+    
+    double subtotal;
+    double tax;
+    double total;
+    
+    if (settingsProvider.isVatInclusive) {
+      // Inclusive: item prices already include tax
+      total = itemPricesSum - _discountAmount;
+      // Extract tax from the total
+      tax = total - (total / (1 + (settingsProvider.taxRate / 100)));
+      // Calculate subtotal without tax
+      subtotal = total - tax;
+    } else {
+      // Exclusive: add tax on top
+      subtotal = itemPricesSum - _discountAmount;
+      tax = subtotal * (settingsProvider.taxRate / 100.0);
+      total = subtotal + tax;
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -1072,9 +1106,36 @@ void _showEditOrderItemsDialog() {
                   
                   _buildTotalRow('Subtotal:'.tr(), subtotal, currencyFormat),
                   const SizedBox(height: 4),
-                  _buildTotalRow('Tax:'.tr(), tax, currencyFormat),
-                  if (_order!.total > 0) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Text('Tax:'.tr()),
+                          const SizedBox(width: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade100,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              settingsProvider.isVatInclusive ? 'Incl.' : 'Excl.',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue.shade800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(currencyFormat.format(tax)),
+                    ],
+                  ),
+                  if (_discountAmount > 0 || total > 0) ...[
                     const SizedBox(height: 4),
+                    if (_discountAmount > 0)
                     _buildTotalRow('Discount:'.tr(), _discountAmount, currencyFormat, isDiscount: true),
                     const Divider(height: 16),
                     _buildTotalRow(

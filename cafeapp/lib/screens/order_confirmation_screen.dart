@@ -1,3 +1,4 @@
+import 'package:cafeapp/providers/settings_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -418,8 +419,6 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
     );
   }
 
-  // In OrderConfirmationScreen, update the _processOrder method:
-
 Future<void> _processOrder() async {
   setState(() {
     _isProcessing = true;
@@ -427,6 +426,8 @@ Future<void> _processOrder() async {
 
   try {
     final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+    
     final result = await orderProvider.processOrderWithBill(context);
 
     if (result['success']) {
@@ -434,25 +435,52 @@ Future<void> _processOrder() async {
       
       // If we have a customer selected, update the order with customer info
       if (orderProvider.selectedPerson != null && processedOrder != null) {
-        // Create updated order with customer ID
+        // Calculate tax and subtotal based on VAT type
+        double subtotal;
+        double tax;
+        double total;
+        
+        // Get the sum of all item prices
+        double itemPricesSum = processedOrder.items.fold(
+          0.0, 
+          (sum, item) => sum + (item.price * item.quantity)
+        );
+        
+        if (settingsProvider.isVatInclusive) {
+          // Inclusive VAT: item prices already include tax
+          // Total stays as the sum of item prices (tax is already in the prices)
+          total = itemPricesSum - processedOrder.discount;
+          // Extract the tax component from the total
+          tax = total - (total / (1 + (settingsProvider.taxRate / 100)));
+          // Subtotal is the amount without tax
+          subtotal = total - tax;
+        } else {
+          // Exclusive VAT: add tax on top of item prices
+          subtotal = itemPricesSum - processedOrder.discount;
+          tax = subtotal * (settingsProvider.taxRate / 100);
+          total = subtotal + tax;
+        }
+        
+        // Create updated order with customer ID and correct tax calculation
         final updatedOrder = Order(
           id: processedOrder.id,
           serviceType: processedOrder.serviceType,
           items: processedOrder.items,
-          subtotal: processedOrder.subtotal,
-          tax: processedOrder.tax,
+          subtotal: subtotal,
+          tax: tax,
           discount: processedOrder.discount,
-          total: processedOrder.total,
+          total: total,
           status: processedOrder.status,
           createdAt: processedOrder.createdAt,
-          customerId: orderProvider.selectedPerson!.id, // Add customer ID
+          customerId: orderProvider.selectedPerson!.id,
           paymentMethod: processedOrder.paymentMethod,
         );
         
         // Save the updated order
         final localOrderRepo = LocalOrderRepository();
         await localOrderRepo.saveOrder(updatedOrder);
-        debugPrint('Updated order with customer ID: ${orderProvider.selectedPerson!.id}');
+        debugPrint('Updated order with customer ID and VAT type: ${orderProvider.selectedPerson!.id}');
+        debugPrint('Inclusive VAT: ${settingsProvider.isVatInclusive}, Total: $total, Tax: $tax, Subtotal: $subtotal');
       }
 
       if (mounted) {
@@ -463,7 +491,6 @@ Future<void> _processOrder() async {
           ),
         );
 
-        // Navigate to order list and clear the navigation stack
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const DashboardScreen()),
           (route) => false,

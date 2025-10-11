@@ -233,28 +233,50 @@ void addToCart(MenuItem item) {
     if (!_serviceTypeCarts.containsKey(serviceType)) return;
 
     final cartItems = _serviceTypeCarts[serviceType]!;
-    final subtotal = cartItems.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
     
-    // Get tax rate from SettingsProvider (need to pass context)
+    // Calculate the sum of all item prices (item price × quantity)
+    final itemPricesSum = cartItems.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
+    
+    // Get tax rate and VAT type from SettingsProvider
     final BuildContext? context = _context;
-    double taxRate = 0.0; // Default value
+    double taxRate = 0.0;
+    bool isVatInclusive = false;
     
     if (context != null && context.mounted) {
       final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
       taxRate = settingsProvider.taxRate;
+      isVatInclusive = settingsProvider.isVatInclusive;
     }
     
-    // Calculate tax using the configured tax rate
-    final tax = subtotal * (taxRate / 100.0);
+    double subtotal;
+    double tax;
+    double total;
+    
+    if (isVatInclusive) {
+      // Inclusive VAT: item prices already include tax
+      // Total = sum of item prices (tax is already included)
+      total = itemPricesSum;
+      // Extract the tax component from the total
+      tax = total - (total / (1 + (taxRate / 100)));
+      // Subtotal is the amount without tax
+      subtotal = total - tax;
+    } else {
+      // Exclusive VAT: add tax on top of item prices
+      subtotal = itemPricesSum;
+      tax = subtotal * (taxRate / 100);
+      total = subtotal + tax;
+    }
+    
     final discount = _serviceTotals[serviceType]?['discount'] ?? 0.0;
-    final calculatedTotal = (subtotal + tax - discount).clamp(0.0, double.infinity);
 
     _serviceTotals[serviceType] = {
       'subtotal': subtotal,
       'tax': tax,
       'discount': discount,
-      'total': calculatedTotal,
+      'total': total - discount, // Apply discount to final total
     };
+    
+    debugPrint('Order totals updated - Inclusive: $isVatInclusive, ItemSum: $itemPricesSum, Subtotal: $subtotal, Tax: $tax, Total: $total');
   }
   
   // For this to work, we need to store the BuildContext
@@ -294,38 +316,55 @@ void addToCart(MenuItem item) {
     }
 
     try {
+      // Get settings for VAT calculation
+      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+      
+      // Calculate totals based on VAT type
+      final itemPricesSum = cartItems.fold(
+        0.0, 
+        (sum, item) => sum + (item.price * item.quantity)
+      );
+      
+      double calculatedSubtotal;
+      double calculatedTax;
+      double calculatedTotal;
+      
+      if (settingsProvider.isVatInclusive) {
+        // Inclusive VAT: item prices already include tax
+        calculatedTotal = itemPricesSum - discount;
+        calculatedTax = calculatedTotal - (calculatedTotal / (1 + (settingsProvider.taxRate / 100)));
+        calculatedSubtotal = calculatedTotal - calculatedTax;
+      } else {
+        // Exclusive VAT: add tax on top
+        calculatedSubtotal = itemPricesSum - discount;
+        calculatedTax = calculatedSubtotal * (settingsProvider.taxRate / 100);
+        calculatedTotal = calculatedSubtotal + calculatedTax;
+      }
+      
       // Extract table number from service type if this is a dining order
       String? tableInfo;
       int? tableNumber;
-       
-    if (_currentServiceType.startsWith('Dining - Table')) {
-      tableInfo = _currentServiceType;
-      // Extract the table number more reliably
-      final tableNumberMatch = RegExp(r'Table (\d+)').firstMatch(_currentServiceType);
-      if (tableNumberMatch != null && tableNumberMatch.groupCount >= 1) {
-        tableNumber = int.tryParse(tableNumberMatch.group(1)!);
+      
+      if (_currentServiceType.startsWith('Dining - Table')) {
+        tableInfo = _currentServiceType;
+        final tableNumberMatch = RegExp(r'Table (\d+)').firstMatch(_currentServiceType);
+        if (tableNumberMatch != null && tableNumberMatch.groupCount >= 1) {
+          tableNumber = int.tryParse(tableNumberMatch.group(1)!);
+        }
       }
-    }
       
-      // Generate a timestamp for order creation
-      // final now = DateTime.now();
-      
-      // Format for consistent timestamp handling
       final formattedTimestamp = DateTime.now().toLocal().toIso8601String();
-      // Create or update the order locally
       Order? localOrder;
       
-      // Log the current state for debugging
       debugPrint('Processing order: currentOrderId=$_currentOrderId');
-      debugPrint('Order timestamp: $formattedTimestamp'); // Add debug log
-
+      debugPrint('Order timestamp: $formattedTimestamp');
+      debugPrint('VAT Inclusive: ${settingsProvider.isVatInclusive}, Subtotal: $calculatedSubtotal, Tax: $calculatedTax, Total: $calculatedTotal');
       
       if (_currentOrderId != null) {
-        // Updating existing order - make sure to use the existing order ID
+        // Updating existing order
         final existingOrderId = _currentOrderId!;
         debugPrint('Updating existing order #$existingOrderId');
         
-        // Convert cart items to OrderItem objects
         final orderItems = _serviceTypeCarts[_currentServiceType]!.map((item) => 
           OrderItem(
             id: int.tryParse(item.id) ?? 0,
@@ -336,29 +375,26 @@ void addToCart(MenuItem item) {
           )
         ).toList();
         
-        // Create an order object with the existing ID
         localOrder = Order(
-          id: existingOrderId, // Use existing order ID
+          id: existingOrderId,
           serviceType: _currentServiceType,
           items: orderItems,
-          subtotal: subtotal,
-          tax: tax,
+          subtotal: calculatedSubtotal,
+          tax: calculatedTax,
           discount: discount,
-          total: total,
-          status: 'pending', // Changed from 'pending' to 'completed' for payment
+          total: calculatedTotal,
+          status: 'pending',
           createdAt: formattedTimestamp,
           customerId: _selectedPerson?.id,
-          paymentMethod: 'cash', // Default to cash
+          paymentMethod: 'cash',
         );
         
-        // Save to local storage
         localOrder = await _localOrderRepo.saveOrder(localOrder);
         debugPrint('Updated order in local database: ID=${localOrder.id}');
       } else {
         // Create a new order
         debugPrint('Creating new order');
         
-        // Convert cart items to OrderItem objects
         final orderItems = _serviceTypeCarts[_currentServiceType]!.map((item) => 
           OrderItem(
             id: int.tryParse(item.id) ?? 0,
@@ -369,75 +405,60 @@ void addToCart(MenuItem item) {
           )
         ).toList();
         
-        // Create a new local order
         localOrder = Order(
           serviceType: _currentServiceType,
           items: orderItems,
-          subtotal: subtotal,
-          tax: tax,
+          subtotal: calculatedSubtotal,
+          tax: calculatedTax,
           discount: discount,
-          total: total,
-          status: 'pending', // Changed from 'pending' to 'completed' for payment
+          total: calculatedTotal,
+          status: 'pending',
           createdAt: formattedTimestamp,
           customerId: _selectedPerson?.id,
-          paymentMethod: 'cash', // Default to cash
+          paymentMethod: 'cash',
         );
         
-        // Save to local storage
         localOrder = await _localOrderRepo.saveOrder(localOrder);
         debugPrint('Created new order in local database: ID=${localOrder.id}');
       }
       
-      // if (localOrder == null) {
-      //   return {
-      //     'success': false,
-      //     'message': 'Failed to create or update order in the system',
-      //   };
-      // }  
-      
-      // Store context mounted state before async operation
       final isContextMounted = context.mounted;
       
-      // Now print the kitchen receipt with the order ID
       final String orderNumberPadded = localOrder.id.toString().padLeft(4, '0');
       Map<String, dynamic> printResult = await BillService.printKitchenOrderReceipt(
         items: cartItems,
         serviceType: _currentServiceType,
         tableInfo: tableInfo,
         orderNumber: orderNumberPadded,
-        context: isContextMounted ? context : null, // Pass context only if still mounted
+        context: isContextMounted ? context : null,
       );
       
-      // If this is a table order, update the table status to occupied
-    if (tableNumber != null && isContextMounted && context.mounted) {
-      final tableProvider = Provider.of<TableProvider>(context, listen: false);
-      final nonNullTableNumber = tableNumber; // Use non-null assertion since we've already checked
-      
-      // First try to find the exact table
-      final table = tableProvider.tables.firstWhere(
-        (t) => t.number == nonNullTableNumber,
-        orElse: () => TableModel(id: '', number: nonNullTableNumber, isOccupied: false)
-      );
-      
-      if (table.id.isNotEmpty) {
-        // Set the table as occupied since we're creating an order
-        final updatedTable = TableModel(
-          id: table.id,
-          number: table.number,
-          isOccupied: true, // Set to true when creating an order
-          capacity: table.capacity,
-          note: table.note,
+      // Update table status if needed
+      if (tableNumber != null && isContextMounted && context.mounted) {
+        final tableProvider = Provider.of<TableProvider>(context, listen: false);
+        final nonNullTableNumber = tableNumber;
+        
+        final table = tableProvider.tables.firstWhere(
+          (t) => t.number == nonNullTableNumber,
+          orElse: () => TableModel(id: '', number: nonNullTableNumber, isOccupied: false)
         );
         
-        await tableProvider.updateTable(updatedTable);
-        debugPrint('Table ${nonNullTableNumber.toString()} status updated to occupied');
-      } else {
-        // If the table wasn't found in the provider but we have a valid number,
-        // try to update it by number
-        await tableProvider.setTableStatus(nonNullTableNumber, true);
-        debugPrint('Table ${nonNullTableNumber.toString()} status set to occupied by number');
+        if (table.id.isNotEmpty) {
+          final updatedTable = TableModel(
+            id: table.id,
+            number: table.number,
+            isOccupied: true,
+            capacity: table.capacity,
+            note: table.note,
+          );
+          
+          await tableProvider.updateTable(updatedTable);
+          debugPrint('Table ${nonNullTableNumber.toString()} status updated to occupied');
+        } else {
+          await tableProvider.setTableStatus(nonNullTableNumber, true);
+          debugPrint('Table ${nonNullTableNumber.toString()} status set to occupied by number');
+        }
       }
-    }
 
       // Clear the current service type's cart
       clearCart();

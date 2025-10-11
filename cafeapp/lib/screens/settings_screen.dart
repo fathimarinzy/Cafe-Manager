@@ -1554,83 +1554,206 @@ Future<void> _performFirstTimeReset() async {
     );
   }
 
-  void _showTaxSettingsDialog() {
-    final taxRateController = TextEditingController(text: _taxRateController.text);
-    final formKey = GlobalKey<FormState>();
-    
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Tax Settings'.tr()),
-          content: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${'Current Tax Rate'.tr()}: ${_taxRateController.text}%',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+void _showTaxSettingsDialog() {
+  final taxRateController = TextEditingController(text: _taxRateController.text);
+  bool isVatInclusive = Provider.of<SettingsProvider>(context, listen: false).isVatInclusive;
+  final formKey = GlobalKey<FormState>();
+  
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Text('Tax Settings'.tr()),
+            content: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${'Current Tax Rate'.tr()}: ${_taxRateController.text}%',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: taxRateController,
-                  decoration: InputDecoration(
-                    labelText: 'Sales Tax Rate (%)'.tr(),
-                    border: const OutlineInputBorder(),
-                    suffixText: '%',
-                    hintText: 'Enter your tax rate (e.g., 5.0)'.tr(),
-                  ),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter tax rate'.tr();
-                    }
-                    try {
-                      final rate = double.parse(value);
-                      if (rate < 0 || rate > 100) {
-                        return 'Tax rate must be between 0 and 100'.tr();
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: taxRateController,
+                    decoration: InputDecoration(
+                      labelText: 'Sales Tax Rate (%)'.tr(),
+                      border: const OutlineInputBorder(),
+                      suffixText: '%',
+                      hintText: 'Enter your tax rate (e.g., 5.0)'.tr(),
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter tax rate'.tr();
                       }
-                    } catch (e) {
-                      return 'Please enter a valid number'.tr();
-                    }
-                    return null;
-                  },
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Cancel'.tr()),
-            ),
-            TextButton(
-              onPressed: () {
-                if (formKey.currentState!.validate()) {
-                  setState(() {
-                    _taxRateController.text = taxRateController.text;
-                  });
+                      try {
+                        final rate = double.parse(value);
+                        if (rate < 0 || rate > 100) {
+                          return 'Tax rate must be between 0 and 100'.tr();
+                        }
+                      } catch (e) {
+                        return 'Please enter a valid number'.tr();
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 20),
                   
-                  Navigator.pop(context);
+                  // VAT Type Section
+                  Text(
+                    'VAT Type'.tr(),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Tax rate updated (not saved yet)'.tr())),
-                  );
-                }
-              },
-              child: Text('Update'.tr()),
+                  // Exclusive VAT Option
+                  InkWell(
+                    onTap: () {
+                      setState(() {
+                        isVatInclusive = false;
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: !isVatInclusive ? Colors.blue : Colors.grey.shade300,
+                          width: !isVatInclusive ? 2 : 1,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                        color: !isVatInclusive ? Colors.blue.shade50 : Colors.white,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            !isVatInclusive ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                            color: !isVatInclusive ? Colors.blue : Colors.grey,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Exclusive VAT'.tr(),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: !isVatInclusive ? Colors.blue.shade900 : Colors.black,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Tax added on top of price'.tr(),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 12),
+                  
+                  // Inclusive VAT Option
+                  InkWell(
+                    onTap: () {
+                      setState(() {
+                        isVatInclusive = true;
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: isVatInclusive ? Colors.blue : Colors.grey.shade300,
+                          width: isVatInclusive ? 2 : 1,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                        color: isVatInclusive ? Colors.blue.shade50 : Colors.white,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isVatInclusive ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                            color: isVatInclusive ? Colors.blue : Colors.grey,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Inclusive VAT'.tr(),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: isVatInclusive ? Colors.blue.shade900 : Colors.black,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Tax included in price'.tr(),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
-        );
-      },
-    );
-  }
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Cancel'.tr()),
+              ),
+              TextButton(
+                onPressed: () {
+                  if (formKey.currentState!.validate()) {
+                    setState(() {
+                      _taxRateController.text = taxRateController.text;
+                    });
+                    
+                    // Save the VAT type setting
+                    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+                    settingsProvider.setSetting('is_vat_inclusive', isVatInclusive);
+                    
+                    Navigator.pop(context);
+                    
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Tax settings updated (not saved yet)'.tr())),
+                    );
+                  }
+                },
+                child: Text('Update'.tr()),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
   
   Widget _buildReportsSection() {
     return Card(
