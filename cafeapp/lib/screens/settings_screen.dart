@@ -22,6 +22,7 @@ import 'renewal_screen.dart';
 import '../services/offline_sync_service.dart';
 import '../services/connectivity_monitor.dart';
 import '../services/online_sync_service.dart';
+import '../services/logo_service.dart';
 
 
 class SettingsScreen extends StatefulWidget {
@@ -45,6 +46,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isLicenseExpired = false;
   int _remainingLicenseDays = 0;
   bool _isRegularUser = false;
+
+  bool _hasLogo = false;
   
   // Business Information
   final _businessNameController = TextEditingController();
@@ -78,12 +81,174 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   void initState() {
+    _loadLogo();
     super.initState();
     _loadSettings();
     _checkDemoStatus();
     _checkLicenseStatus(); 
   }
-    
+    Future<void> _loadLogo() async {
+  final hasLogo = await LogoService.hasLogo();
+  setState(() {
+    _hasLogo = hasLogo;
+  });
+}
+
+Future<void> _showLogoDialog() async {
+  final logoEnabled = await LogoService.isLogoEnabled();
+  if (!mounted) return;
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Text('Business Logo Settings'.tr()),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Logo Preview
+                  FutureBuilder<Widget?>(
+                    future: LogoService.getLogoWidget(
+                      height: 120,
+                      width: 120,
+                    ),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData && snapshot.data != null) {
+                        return Column(
+                          children: [
+                            snapshot.data!,
+                            const SizedBox(height: 16),
+                          ],
+                        );
+                      }
+                      return Column(
+                        children: [
+                          Icon(Icons.image, size: 80, color: Colors.grey[400]),
+                          const SizedBox(height: 8),
+                          Text('No logo uploaded'.tr()),
+                          const SizedBox(height: 16),
+                        ],
+                      );
+                    },
+                  ),
+                  
+                  // Upload/Change Logo Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        final success = await LogoService.pickAndSaveLogo();
+                        if (success) {
+                          _loadLogo();
+                          setState(() {});
+                        
+                          if (mounted) {
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Logo updated successfully'.tr())),
+                            );
+                          }
+                        }
+                      },
+                      icon: Icon(_hasLogo ? Icons.edit : Icons.upload),
+                      label: Text(_hasLogo ? 'Change Logo'.tr() : 'Upload Logo'.tr()),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue[700],
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                  
+                  if (_hasLogo) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: Text('Remove Logo'.tr()),
+                              content: Text('Are you sure you want to remove the business logo?'.tr()),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: Text('Cancel'.tr()),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: Colors.red,
+                                  ),
+                                  child: Text('Remove'.tr()),
+                                ),
+                              ],
+                            ),
+                          );
+                          
+                          if (confirm == true) {
+                            await LogoService.deleteLogo();
+                            _loadLogo();
+                            setState(() {});
+                            if (mounted) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Logo removed successfully'.tr())),
+                              );
+                            }
+                          }
+                        },
+                        icon: const Icon(Icons.delete),
+                        label: Text('Remove Logo'.tr()),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                        ),
+                      ),
+                    ),
+                  ],
+                  
+                  const SizedBox(height: 24),
+                  const Divider(),
+                  const SizedBox(height: 16),
+                  
+                  // Enable/Disable in Receipts
+                  SwitchListTile(
+                    title: Text('Show Logo in Receipts'.tr()),
+                    subtitle: Text('Display logo on printed and PDF receipts'.tr()),
+                    value: logoEnabled,
+                    onChanged: (bool value) async {
+                      await LogoService.setLogoEnabled(value);
+                      setState(() {});
+                      if (mounted) {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(value 
+                              ? 'Logo will appear in receipts'.tr() 
+                              : 'Logo will not appear in receipts'.tr()),
+                          ),
+                        );
+                      }
+                    },
+                    activeColor: Colors.blue[700],
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Close'.tr()),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
   // Add this method
 Future<void> _checkLicenseStatus() async {
   final licenseStatus = await LicenseService.getLicenseStatus();
@@ -736,6 +901,18 @@ Future<void> _checkLicenseStatus() async {
                   _buildBusinessInfoSection(),
                   const Divider(),
                 ],
+                const Divider(height: 1),
+
+                // Logo Settings
+                ListTile(
+                  leading: Icon(Icons.image, color: (!(_isRegularUser && _isLicenseExpired)&& !_isDemoExpired) ? Colors.blue[700] : Colors.grey),
+                  title: Text('Business Logo'.tr()),
+                  subtitle: Text(_hasLogo ? 'Logo uploaded'.tr() : 'No logo uploaded'.tr()),
+                  trailing: (!(_isRegularUser && _isLicenseExpired)&& !_isDemoExpired) ? const Icon(Icons.arrow_forward_ios, size: 16) : null,
+                  onTap: ((!(_isRegularUser && _isLicenseExpired)&& !_isDemoExpired)) ? _showLogoDialog : null,
+                  enabled: (!(_isRegularUser && _isLicenseExpired) && !_isDemoExpired),
+                  tileColor: (!(_isRegularUser && _isLicenseExpired) && !_isDemoExpired) ? null : Colors.grey.shade100,
+                ),
 
                 // Only show other sections if demo is not expired
                 if (!_isDemoExpired && !(_isRegularUser && _isLicenseExpired)) ...[

@@ -12,6 +12,8 @@ import '../models/order_history.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/order_item.dart';
 import 'cross_platform_pdf_service.dart'; // Import the new service
+import '../services/logo_service.dart';
+
 
 class BillService {
   static Future<bool> savePdfDocument(pw.Document pdf, {String? fileName}) async {
@@ -140,7 +142,16 @@ class BillService {
   }) async {
     final pdf = pw.Document();
     final businessInfo = await getBusinessInfo();
-    
+
+     // Load logo BEFORE creating page
+    pw.ImageProvider? logoImage;
+    final logoEnabled = await LogoService.isLogoEnabled();
+    if (logoEnabled) {
+      final logoBytes = await LogoService.getLogoBytes();
+      if (logoBytes != null) {
+        logoImage = pw.MemoryImage(logoBytes);
+      }
+    }
     final effectiveTaxRate = taxRate ?? 0.0;
     
     // Load fonts
@@ -164,21 +175,32 @@ class BillService {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
+              // Logo (if available)
+              if (logoImage != null) ...[
+                pw.Center(
+                  child: pw.Container(
+                    width: 60,
+                    height: 60,
+                    child: pw.Image(logoImage, fit: pw.BoxFit.contain),
+                  ),
+                ),
+                pw.SizedBox(height: 8),
+              ],
               // Header
               pw.Center(
                 child: pw.Column(
                   children: [
-                    _createText(
-                      'RECEIPT',
-                      arabicFont: arabicFont,
-                      fallbackFont: fallbackFont,
-                      style: pw.TextStyle(
-                        fontSize: 13,
-                        fontWeight: pw.FontWeight.bold,
-                      ),
-                      textAlign: pw.TextAlign.center,
-                    ),
-                    pw.SizedBox(height: 3),
+                    // _createText(
+                    //   'RECEIPT',
+                    //   arabicFont: arabicFont,
+                    //   fallbackFont: fallbackFont,
+                    //   style: pw.TextStyle(
+                    //     fontSize: 13,
+                    //     fontWeight: pw.FontWeight.bold,
+                    //   ),
+                    //   textAlign: pw.TextAlign.center,
+                    // ),
+                    // pw.SizedBox(height: 3),
                     _createText(
                       businessInfo['name']!,
                       arabicFont: arabicFont,

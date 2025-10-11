@@ -1,3 +1,4 @@
+import 'package:cafeapp/services/logo_service.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -315,7 +316,15 @@ class _ReportScreenState extends State<ReportScreen> {
 // Also update the PDF generation method
 Future<pw.Document> _generateReportPdf() async {
   final pdf = pw.Document();
-  
+  // Load logo
+  pw.ImageProvider? logoImage;
+  final logoEnabled = await LogoService.isLogoEnabled();
+  if (logoEnabled) {
+    final logoBytes = await LogoService.getLogoBytes();
+    if (logoBytes != null) {
+      logoImage = pw.MemoryImage(logoBytes);
+    }
+  }
   // Load fonts
   final arabicFont = await _loadArabicFont();
   pw.Font? fallbackFont;
@@ -364,6 +373,17 @@ Future<pw.Document> _generateReportPdf() async {
         return pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.center,
           children: [
+             // Logo
+            if (logoImage != null) ...[
+              pw.Center(
+                child: pw.Container(
+                  width: 70,
+                  height: 70,
+                  child: pw.Image(logoImage, fit: pw.BoxFit.contain),
+                ),
+              ),
+              pw.SizedBox(height: 8),
+            ],
             _createText(
               restaurantName,
               arabicFont: arabicFont,

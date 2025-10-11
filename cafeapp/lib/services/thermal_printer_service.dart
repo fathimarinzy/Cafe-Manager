@@ -1,5 +1,5 @@
 
-import 'dart:ui' as ui show Canvas, ImageByteFormat, Paint, PaintingStyle, PictureRecorder, Rect, TextDirection;
+import 'dart:ui' as ui show Canvas, ImageByteFormat, Paint, PaintingStyle, PictureRecorder, Rect, TextDirection, instantiateImageCodec;
 import 'package:flutter/material.dart' show TextAlign, TextPainter, TextSpan, TextStyle, FontWeight, Colors, debugPrint;
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/menu_item.dart';
 import '../models/order_item.dart';
+import '../services/logo_service.dart';
 
 class ThermalPrinterService {
   // Printer settings constants
@@ -301,7 +302,67 @@ static double _drawTotalRow(ui.Canvas canvas, String label, String value, double
   
   return y + actualFontSize + 10;
 }
+static Future<double> _drawLogo(ui.Canvas canvas, double y) async {
+  try {
+    final logoEnabled = await LogoService.isLogoEnabled();
+    if (!logoEnabled) return y;
 
+    final logoBytes = await LogoService.getLogoForPrinting();
+    if (logoBytes == null) return y;
+
+    final image = img.decodeImage(logoBytes);
+    if (image == null) return y;
+
+    // Resize to fit thermal printer width (max 180px)
+    final resized = img.copyResize(image, width: 180);
+    
+    // Convert to PNG bytes
+    final pngBytes = img.encodePng(resized);
+    
+    // Decode as Flutter image
+    final codec = await ui.instantiateImageCodec(Uint8List.fromList(pngBytes));
+    final frame = await codec.getNextFrame();
+    final logoImage = frame.image;
+
+    // Center the logo
+    final logoX = (_thermalPrinterWidth - resized.width) / 2;
+    
+    // Draw the logo
+    canvas.drawImage(
+      logoImage,
+      Offset(logoX, y),
+      ui.Paint(),
+    );
+
+    // Return new Y position with spacing
+    return y + resized.height + 12;
+  } catch (e) {
+    debugPrint('Error drawing logo: $e');
+    return y;
+  }
+}
+// Add this new helper method to calculate logo height WITHOUT drawing:
+static Future<double> _calculateLogoHeight() async {
+  try {
+    final logoEnabled = await LogoService.isLogoEnabled();
+    if (!logoEnabled) return 0;
+
+    final logoBytes = await LogoService.getLogoForPrinting();
+    if (logoBytes == null) return 0;
+
+    final image = img.decodeImage(logoBytes);
+    if (image == null) return 0;
+
+    // Resize to fit thermal printer width (max 180px)
+    final resized = img.copyResize(image, width: 180);
+    
+    // Return height with spacing (same as _drawLogo)
+    return resized.height.toDouble() + 12;
+  } catch (e) {
+    debugPrint('Error calculating logo height: $e');
+    return 0;
+  }
+}
   // Receipt Image Generation
 static Future<Uint8List?> _generateReceiptImage({
   required List<MenuItem> items,
@@ -331,15 +392,9 @@ static Future<Uint8List?> _generateReceiptImage({
     
     // First pass: Calculate exact content height
     double contentHeight = _padding; // Top padding
-    
-    // Header section
-    // final receiptPainter = _createTextPainter(
-    //   'RECEIPT',
-    //   fontSize: _largeFontSize - 6,
-    //   fontWeight: FontWeight.bold,
-    // );
-    // contentHeight += receiptPainter.height + 2; // Title + spacing + extra
-    
+    // ADD THIS LINE - Calculate logo height if enabled:
+    contentHeight += await _calculateLogoHeight();
+
     final businessNamePainter = _createTextPainter(
       businessInfo['name']!,
       fontSize: _smallFontSize + 2,
@@ -376,16 +431,6 @@ static Future<Uint8List?> _generateReceiptImage({
     }
     
     contentHeight += 1; // Space after business info
-    
-    // EDITED marker
-    // if (isEdited) {
-    //   final editedPainter = _createTextPainter(
-    //     'EDITED',
-    //     fontSize: _fontSize - 4,
-    //     fontWeight: FontWeight.bold,
-    //   );
-    //   contentHeight += editedPainter.height + 6 + 2; // Text + border padding + spacing
-    // }
     
     // Order details
     final orderPainter = _createTextPainter(
@@ -496,19 +541,8 @@ static Future<Uint8List?> _generateReceiptImage({
     );
     
     double currentY = _padding;
-    
-    // Header
-    // currentY = _drawText(
-    //   canvas,
-    //   'RECEIPT',
-    //   x: _padding,
-    //   y: currentY,
-    //   fontSize: _largeFontSize - 6,
-    //   fontWeight: FontWeight.bold,
-    //   textAlign: TextAlign.center,
-    // );
-    
-    // currentY -= 5;
+    // Draw logo if available
+    currentY = await _drawLogo(canvas, currentY);
     
     // Business name
     currentY = _drawText(
@@ -562,42 +596,6 @@ static Future<Uint8List?> _generateReceiptImage({
     }
     
     currentY += 6;
-    
-    // EDITED marker
-    // if (isEdited) {
-    //   final editedPainter = _createTextPainter(
-    //     'EDITED',
-    //     fontSize: _fontSize - 4,
-    //     fontWeight: FontWeight.bold,
-    //   );
-      
-    //   final editedX = (_thermalPrinterWidth - editedPainter.width) / 2;
-    //   final borderRect = Rect.fromLTWH(
-    //     editedX - 10,
-    //     currentY - 5,
-    //     editedPainter.width + 20,
-    //     editedPainter.height + 10,
-    //   );
-
-    //   final borderPaint = ui.Paint()
-    //     ..color = Colors.black
-    //     ..style = ui.PaintingStyle.stroke
-    //     ..strokeWidth = 2.0;
-      
-    //   canvas.drawRect(borderRect, borderPaint);
-      
-    //   currentY = _drawText(
-    //     canvas,
-    //     'EDITED',
-    //     x: _padding,
-    //     y: currentY,
-    //     fontSize: _fontSize - 4,
-    //     fontWeight: FontWeight.bold,
-    //     textAlign: TextAlign.center,
-    //   );
-
-    //   currentY -= 6;
-    // }
     
     // Order details
     currentY = _drawText(
@@ -1531,7 +1529,8 @@ static Future<Uint8List?> _generateKotImage({
 
         // Calculate exact content height with more padding
         double contentHeight = _padding ; // Start with more top padding
-
+           // ADD THIS LINE - Calculate logo height if enabled:
+          contentHeight += await _calculateLogoHeight();
         // Business header
         final businessNamePainter = _createTextPainter(
           businessInfo['name']!,
@@ -1661,6 +1660,9 @@ static Future<Uint8List?> _generateKotImage({
       
       double currentY = _padding;
       
+      // Draw logo if available
+      currentY = await _drawLogo(canvas, currentY);
+
       // Draw business header
       currentY = _drawText(
         canvas,
