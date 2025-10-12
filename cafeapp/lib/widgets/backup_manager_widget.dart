@@ -1,4 +1,8 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import '../services/backup_service.dart';
 import 'package:intl/intl.dart';
 import '../utils/app_localization.dart';
@@ -22,6 +26,164 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
     super.initState();
     _loadBackups();
   }
+  Future<void> _importBackupFromFile() async {
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+
+      // Use file_picker to select a backup file
+      final FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        dialogTitle: 'Select Backup File'.tr(),
+      );
+
+      if (result == null || result.files.isEmpty) {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final file = result.files.first;
+      String? filePath;
+
+      // Get the file path based on platform
+      if (file.path != null) {
+        filePath = file.path;
+      } else if (file.bytes != null) {
+        // For web or if path is null, save bytes to temp file
+        final tempDir = await getTemporaryDirectory();
+        final tempFile = File('${tempDir.path}/temp_backup.json');
+        await tempFile.writeAsBytes(file.bytes!);
+        filePath = tempFile.path;
+      }
+
+      if (filePath == null) {
+        setState(() {
+          _isLoading = false;
+        });
+        _showErrorSnackBar('Could not read backup file'.tr());
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      // Show preview of backup before restoring
+      await _showBackupPreview(filePath);
+
+    } catch (e) {
+      debugPrint('Error importing backup: $e');
+      setState(() {
+        _isLoading = false;
+      });
+      _showErrorSnackBar('Error importing backup file'.tr());
+    }
+  }
+  Future<void> _showBackupPreview(String filePath) async {
+  try {
+    // Read and parse the backup file
+    final file = File(filePath);
+    final jsonData = await file.readAsString();
+    final backupData = jsonDecode(jsonData) as Map<String, dynamic>;
+
+    final timestamp = backupData['timestamp'] as String?;
+    final version = backupData['version'] as String?;
+    final platform = backupData['platform'] as String?;
+    final hasDatabases = backupData.containsKey('databases');
+    final hasPreferences = backupData.containsKey('preferences');
+
+    if (!mounted) return;
+
+    // Show preview dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Backup Preview'.tr()),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildPreviewRow('Date:', timestamp != null 
+                ? _formatBackupDate(timestamp) 
+                : 'Unknown'.tr()),
+              const SizedBox(height: 8),
+              _buildPreviewRow('Version:', version ?? 'Unknown'.tr()),
+              const SizedBox(height: 8),
+              _buildPreviewRow('Platform:', platform ?? 'Unknown'.tr()),
+              const SizedBox(height: 8),
+              _buildPreviewRow('Contains:', 
+                hasDatabases 
+                  ? 'Full backup (Settings + Data)'.tr() 
+                  : hasPreferences 
+                    ? 'Settings only'.tr() 
+                    : 'Unknown'.tr()),
+              const Divider(height: 24),
+              Text(
+                'Restoring will overwrite all current data. This action cannot be undone.'.tr(),
+                style: const TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('Cancel'.tr()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.blue,
+            ),
+            child: Text('Restore'.tr()),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      await _restoreBackup(filePath);
+    }
+  } catch (e) {
+    debugPrint('Error previewing backup: $e');
+    if (mounted) {
+      _showErrorSnackBar('Invalid backup file'.tr());
+    }
+  }
+}
+Widget _buildPreviewRow(String label, String value) {
+  return Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      SizedBox(
+        width: 80,
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+          ),
+        ),
+      ),
+      Expanded(
+        child: Text(
+          value,
+          style: const TextStyle(fontSize: 13),
+        ),
+      ),
+    ],
+  );
+}
+
   
   Future<void> _loadBackups() async {
     if (!mounted) return;
@@ -767,6 +929,13 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
       appBar: AppBar(
         title: Text('Backup & Restore'.tr()),
         actions: [
+          // Import button - now properly connected!
+          IconButton(
+            icon: const Icon(Icons.file_upload),
+            tooltip: 'Import Backup'.tr(),
+            onPressed: _importBackupFromFile,
+          ),
+
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: _showManageBackupsOptions,
