@@ -2955,9 +2955,10 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
     }
   } else {
     if (_selectedPaymentMethod == 'Bank') {
-      if (amount > widget.order.total) {
-        change = amount - widget.order.total;
-      }
+      final discountedTotal = _getDiscountedTotal(); // ✅ Get the discounted total
+    if (amount > discountedTotal) {
+      change = amount - discountedTotal; // ✅ Use discounted total for calculation
+    }
     } else {
       if (amount > _balanceAmount) {
         change = amount - _balanceAmount;
