@@ -2048,24 +2048,24 @@ class _ModifierScreenState extends State<ModifierScreen> {
 
                 // NEW: Tax Exempt switch
                 Row(
-  children: [
-    Text('Tax Exempt'.tr()),
-    const SizedBox(width: 8),
-    Tooltip(
-      message: 'Enable this to exclude tax for this item'.tr(),
-      child: Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
-    ),
-    Switch(
-      value: _isTaxExempt,
-      onChanged: (value) {
-        setState(() {
-          _isTaxExempt = value;
-          debugPrint('Tax Exempt checkbox changed to: $_isTaxExempt'); // ADD THIS LINE
-        });
-      },
-    ),
-  ],
-),
+                  children: [
+                    Text('Tax Exempt'.tr()),
+                    const SizedBox(width: 8),
+                    Tooltip(
+                      message: 'Enable this to exclude tax for this item'.tr(),
+                      child: Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
+                    ),
+                    Switch(
+                      value: _isTaxExempt,
+                      onChanged: (value) {
+                        setState(() {
+                          _isTaxExempt = value;
+                          debugPrint('Tax Exempt checkbox changed to: $_isTaxExempt'); // ADD THIS LINE
+                        });
+                      },
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 32), // Add extra space at bottom
 
                 // Form buttons

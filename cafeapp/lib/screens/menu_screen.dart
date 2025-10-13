@@ -1991,15 +1991,25 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
           // For Cash or Tender button - navigate to TenderScreen
           if (text == "Cash".tr() || text == "Tender".tr()) {
             // Convert cart items to order items
-            final orderItems = orderProvider.cartItems.map((menuItem) => 
-              OrderItem(
-                id: int.parse(menuItem.id),
+            final orderItems = orderProvider.cartItems.map((menuItem) {
+              int parsedId;
+              try {
+                parsedId = int.parse(menuItem.id);
+              } catch (e) {
+                // If parsing fails, use a hash of the string as fallback
+                parsedId = menuItem.id.hashCode.abs();
+                // Ensure it's a valid positive integer
+                if (parsedId == 0) parsedId = 1;
+              }
+              
+              return OrderItem(
+                id: parsedId,
                 name: menuItem.name,
                 price: menuItem.price,
                 quantity: menuItem.quantity,
                 kitchenNote: menuItem.kitchenNote,
-              )
-            ).toList();
+              );
+            }).toList();
 
             // Calculate totals based on VAT type
             double itemPricesSum = orderProvider.cartItems.fold(

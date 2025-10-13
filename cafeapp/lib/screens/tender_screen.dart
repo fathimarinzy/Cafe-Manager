@@ -66,6 +66,8 @@ class _TenderScreenState extends State<TenderScreen> {
   bool _isCashSelected = false;
   Person? _currentCustomer;
 
+  bool _shouldReopenBankDialog = false; // Add this flag
+
   final Map<String, Map<String, double>> _serviceTotals = {};
   final String _currentServiceType = '';
 
@@ -183,6 +185,19 @@ class _TenderScreenState extends State<TenderScreen> {
         ),
       );
     });
+     // Force update the received amount controller
+    final discountedTotal = _getDiscountedTotal();
+    _receivedAmountController.text = discountedTotal.toStringAsFixed(3);
+  // Reopen bank dialog if we came from there
+    if (_shouldReopenBankDialog) {
+      _shouldReopenBankDialog = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _showBankPaymentDialog();
+        }
+      });
+    }
+
   }
    // Add this method to calculate subtotal and tax based on VAT type
  Map<String, double> _calculateAmounts() {
@@ -956,7 +971,7 @@ Future<void> _showMobileBillPreview(pw.Document pdf) async {
     }
   }
 
-  void _showDiscountDialog() {
+  Future<void> _showDiscountDialog() async{
     final currentTotal = widget.order.total;
     
     showDialog(
@@ -1415,8 +1430,9 @@ Future<void> _showMobileBillPreview(pw.Document pdf) async {
     builder: (BuildContext context) {
       return StatefulBuilder(
         builder: (context, setState) {
-          final currentDiscountedTotal = _getDiscountedTotal();
-          
+          double getCurrentDiscountedTotal() => _getDiscountedTotal();
+          double currentDiscountedTotal = getCurrentDiscountedTotal();   
+
           final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
           final screenWidth = MediaQuery.of(context).size.width;
           final screenHeight = MediaQuery.of(context).size.height;
@@ -1454,8 +1470,19 @@ Future<void> _showMobileBillPreview(pw.Document pdf) async {
                       ElevatedButton.icon(
                         icon: const Icon(Icons.discount, size: 16),
                         label: Text('Discount'.tr()),
-                        onPressed: () {
-                          _showDiscountDialog();
+                         onPressed: () {
+                          // Set a flag to indicate we're coming from bank dialog
+                          _shouldReopenBankDialog = true;
+                          
+                          // Close the bank dialog
+                          Navigator.of(context).pop();
+                          
+                          // Show discount dialog after a brief delay
+                          Future.delayed(const Duration(milliseconds: 100), () {
+                            if (mounted) {
+                              _showDiscountDialog();
+                            }
+                          });
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.purple.shade100,
@@ -1472,8 +1499,8 @@ Future<void> _showMobileBillPreview(pw.Document pdf) async {
                   // Content - Different layout for portrait vs landscape
                   Expanded(
                     child: isPortrait 
-                      ? _buildPortraitLayout(setState, currentDiscountedTotal)
-                      : _buildLandscapeLayout(setState, currentDiscountedTotal),
+                      ? _buildPortraitLayout(setState, currentDiscountedTotal,getCurrentDiscountedTotal)
+                      : _buildLandscapeLayout(setState, currentDiscountedTotal,getCurrentDiscountedTotal),
                   ),
                 ],
               ),
@@ -2113,7 +2140,10 @@ Widget build(BuildContext context) {
 }
 
 // Add all remaining methods from the original file
-Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
+Widget _buildPortraitLayout(StateSetter setState, double initialDiscountedTotal, Function getCurrentDiscountedTotal) {
+    // Use the function to get current value instead of initial value
+  double currentDiscountedTotal = getCurrentDiscountedTotal();
+  
   return SingleChildScrollView(
     child: Column(
       children: [
@@ -2140,7 +2170,7 @@ Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
                   Expanded(
                     flex: 4,
                     child: Text(
-                      NumberFormat.currency(symbol: '', decimalDigits: 3).format(discountedTotal),
+                      NumberFormat.currency(symbol: '', decimalDigits: 3).format(currentDiscountedTotal),
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -2183,6 +2213,12 @@ Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
                       textAlign: TextAlign.right,
                       onChanged: (value) {
                         setState(() {}); // Trigger rebuild when typing
+                      },
+                          onTap: () {
+                        // Update received amount to current discounted total when tapped
+                        setState(() {
+                          _receivedAmountController.text = currentDiscountedTotal.toStringAsFixed(3);
+                        });
                       },
                     ),
                   ),
@@ -2450,7 +2486,9 @@ Widget _buildPortraitLayout(StateSetter setState, double discountedTotal) {
   );
 }
 
-Widget _buildLandscapeLayout(StateSetter setState, double discountedTotal) {
+Widget _buildLandscapeLayout(StateSetter setState, double initialDiscountedTotal, Function getCurrentDiscountedTotal) {
+   double currentDiscountedTotal = getCurrentDiscountedTotal();
+  
   return Row(
     children: [
       Expanded(
@@ -2470,7 +2508,7 @@ Widget _buildLandscapeLayout(StateSetter setState, double discountedTotal) {
                 Expanded(
                   flex: 6,
                   child: Text(
-                    NumberFormat.currency(symbol: '', decimalDigits: 3).format(discountedTotal),
+                    NumberFormat.currency(symbol: '', decimalDigits: 3).format(currentDiscountedTotal),
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -2509,6 +2547,12 @@ Widget _buildLandscapeLayout(StateSetter setState, double discountedTotal) {
                     ),
                     onChanged: (value) {
                       setState(() {}); // Trigger rebuild when typing
+                    },
+                     onTap: () {
+                      // Update received amount to current discounted total when tapped
+                      setState(() {
+                        _receivedAmountController.text = currentDiscountedTotal.toStringAsFixed(3);
+                      });
                     },
                   ),
                 ),
