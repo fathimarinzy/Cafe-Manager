@@ -143,19 +143,19 @@ class _ModifierScreenState extends State<ModifierScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '📄 menu_items.xlsx - Excel file with all menu items',
+                      '📄 menu_items.xlsx - Excel file with all menu items'.tr(),
                       style: TextStyle(fontSize: 12, color: Colors.blue[900]),
                     ),
                     Text(
-                      '📁 images/ - Folder with all item images',
+                      '📁 images/ - Folder with all item images'.tr(),
                       style: TextStyle(fontSize: 12, color: Colors.blue[900]),
                     ),
                     Text(
-                      '📋 README sheet - Import instructions',
+                      '📋 README sheet - Import instructions'.tr(),
                       style: TextStyle(fontSize: 12, color: Colors.blue[900]),
                     ),
                     Text(
-                      '📊 Summary sheet - Statistics',
+                      '📊 Summary sheet - Statistics'.tr(),
                       style: TextStyle(fontSize: 12, color: Colors.blue[900]),
                     ),
                   ],
@@ -175,7 +175,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
               _performExport();
             },
             icon: const Icon(Icons.folder),
-            label: Text('Export Now'.tr()),
+            label: Text('Export'.tr()),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blue[700],
             ),
@@ -262,11 +262,11 @@ class _ModifierScreenState extends State<ModifierScreen> {
               ),
               const SizedBox(height: 12),
               
-              _buildResultRow('Items Exported:', '${result['itemsExported']}'),
-              _buildResultRow('Images Exported:', '${result['imagesExported']}', Colors.green),
+              _buildResultRow('Items Exported:'.tr(), '${result['itemsExported'.tr()]}'),
+              _buildResultRow('Images Exported:'.tr(), '${result['imagesExported'.tr()]}', Colors.green),
               if (result['imagesFailed'] > 0)
-                _buildResultRow('Images Failed:', '${result['imagesFailed']}', Colors.orange),
-              
+                _buildResultRow('Images Failed:'.tr(), '${result['imagesFailed'.tr()]}', Colors.orange),
+
               const SizedBox(height: 16),
               
               Container(
@@ -322,11 +322,11 @@ class _ModifierScreenState extends State<ModifierScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Text('📄 menu_items.xlsx', style: TextStyle(fontSize: 12)),
-                    Text('📁 images/ (${result['imagesExported']} files)', style: TextStyle(fontSize: 12)),
+                    Text('📄 menu_items.xlsx'.tr(), style: TextStyle(fontSize: 12)),
+                    Text('📁 images/ (${result['imagesExported'.tr()]} files)', style: TextStyle(fontSize: 12)),
                     const SizedBox(height: 8),
                     Text(
-                      'Keep these files together for reimport',
+                      'Keep these files together for reimport'.tr(),
                       style: TextStyle(fontSize: 11, color: Colors.green[700], fontStyle: FontStyle.italic),
                     ),
                   ],

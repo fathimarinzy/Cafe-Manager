@@ -171,7 +171,7 @@ Future<void> _showLogoDialog() async {
                             context: context,
                             builder: (ctx) => AlertDialog(
                               title: Text('Remove Logo'.tr()),
-                              content: Text('Are you sure you want to remove the business logo?'.tr()),
+                              content: Text('Are you sure you want to remove the logo?'.tr()),
                               actions: [
                                 TextButton(
                                   onPressed: () => Navigator.pop(ctx, false),
@@ -1679,10 +1679,7 @@ Future<void> _performFirstTimeReset() async {
               onPressed: () {
                 // Navigate to the app initializer (which will show device registration)
                 Navigator.of(ctx).pop();
-                
-                // Import your main.dart file at the top first:
-                // import '../main.dart';
-                
+            
                 Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(builder: (context) => const AppInitializer()),
                   (route) => false,

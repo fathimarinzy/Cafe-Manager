@@ -612,19 +612,19 @@ Future<void> _showDesktopBillPreview(pw.Document pdf) async {
                     const Icon(Icons.picture_as_pdf, size: 80, color: Colors.grey),
                     const SizedBox(height: 24),
                     Text(
-                      'Receipt #${widget.order.orderNumber}',
+                      'Receipt #${widget.order.orderNumber}'.tr(),
                       style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Click "Open PDF" to view in your default PDF viewer',
+                      'Click "Open PDF" to view in your default PDF viewer'.tr(),
                       style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 24),
                     ElevatedButton.icon(
                       icon: const Icon(Icons.open_in_new),
-                      label: const Text('Open PDF'),
+                      label:  Text('Open PDF'.tr()),
                       onPressed: () async {
                         try {
                           final tempDir = await getTemporaryDirectory();
@@ -638,7 +638,7 @@ Future<void> _showDesktopBillPreview(pw.Document pdf) async {
                           } else {
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Could not open PDF viewer')),
+                                SnackBar(content: Text('Could not open PDF viewer'.tr())),
                               );
                             }
                           }
@@ -1851,7 +1851,7 @@ Widget _buildPaymentSummary() {
   Widget _buildOrderInfoBar() {
     final formatCurrency = NumberFormat.currency(symbol: '', decimalDigits: 3);
     final discount = _getCurrentDiscount();
-    final settingsProvider = Provider.of<SettingsProvider>(context);
+    // final settingsProvider = Provider.of<SettingsProvider>(context);
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -1913,17 +1913,17 @@ Widget _buildPaymentSummary() {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                       decoration: BoxDecoration(
-                        color: Colors.blue.shade100,
+                        // color: Colors.blue.shade100,
                         borderRadius: BorderRadius.circular(3),
                       ),
-                      child: Text(
-                        settingsProvider.isVatInclusive ? 'Incl.' : 'Excl.',
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue.shade800,
-                        ),
-                      ),
+                      // child: Text(
+                      //   settingsProvider.isVatInclusive ? 'Incl.' : 'Excl.',
+                      //   style: TextStyle(
+                      //     fontSize: 9,
+                      //     fontWeight: FontWeight.bold,
+                      //     color: Colors.blue.shade800,
+                      //   ),
+                      // ),
                     ),
                   ],
                 ),

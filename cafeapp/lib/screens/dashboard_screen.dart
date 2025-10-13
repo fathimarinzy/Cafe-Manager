@@ -457,7 +457,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   color: Colors.white,
                 ),
               ),
-              tooltip: 'Toggle UI Style',
+              tooltip: 'Toggle UI Style'.tr(),
               onPressed: _toggleUIMode,
             ),
           ),

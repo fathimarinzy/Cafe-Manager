@@ -40,6 +40,7 @@ class AppLocalization {
     },
     'ar': {
       // Dashboard
+      'Toggle UI Style': 'تبديل نمط واجهة المستخدم',
       'appTitle': 'مقهى سيمز ريستو',
       'dashboard': 'لوحة التحكم',
       'dining': 'تناول الطعام',
@@ -194,10 +195,87 @@ class AppLocalization {
       'Delete row':'حذف الصف',
 
       //Modifier Screen 
-      'Could not access the selected image':"لم يتمكن من الوصول إلى الصورة المحددة",
-      'Error selecting image':'خطأ في اختيار الصورة',
-      'Could not access the captured photo':"لم أتمكن من الوصول إلى الصورة الملتقطة",
-      'Error taking photo':'خطأ أثناء التقاط الصورة',
+      'Tax Exempt':'معفى من الضرائب',
+       'Enable this to exclude tax for this item': 'قم بتمكين هذا لاستبعاد الضريبة عن هذا العنصر',
+       'Import Menu': 'قائمة الاستيراد',
+       'Export Menu': 'قائمة التصدير',
+       'Import from Excel': 'استيراد من Excel',
+       'Choose category handling:': 'اختر معالجة الفئة:',
+       'Use category from Excel file': 'استخدام الفئة من ملف Excel',
+       'Each item will use its own category from the file': 'سيستخدم كل عنصر فئته الخاصة من الملف',
+       'Assign all items to one category': 'تعيين جميع العناصر إلى فئة واحدة',
+       'All imported items will use the selected category': 'ستستخدم جميع العناصر المستوردة الفئة المحددة',
+       'Select Category': 'اختر الفئة',
+       'Download Template': 'تنزيل القالب',
+       'Excel Format:': 'تنسيق Excel:',
+      '• Columns: Name | Price | Category | Available | Image File':'• الأعمدة: الاسم | السعر | الفئة | متاح | ملف الصورة',
+       '• Available values: Yes/No or True/False':'• القيم المتاحة: نعم/لا أو صحيح/خطأ',
+       '• images/ folder must be in same location as Excel file. So the images loaded automatically':'• يجب أن يكون مجلد images/ في نفس موقع ملف Excel. لذا يتم تحميل الصور تلقائيًا',
+       '• Image files must match names in "Image File" column':'• يجب أن تتطابق أسماء ملفات الصور مع الأسماء في عمود "ملف الصورة"',
+       'Select File':'اختر ملف',
+       "Reading Excel file...":"جارٍ قراءة ملف Excel...",
+       'Import cancelled or file not selected':'تم إلغاء الاستيراد أو لم يتم تحديد ملف',
+
+       'No valid items found in Excel file':'لم يتم العثور على عناصر صالحة في ملف Excel',
+
+       'Confirm Import':'تأكيد الاستيراد',
+       'items with images':'عناصر مع صور',
+       'Found':'تم العثور على',
+       'items to import:':'عناصر للاستيراد:',
+       'items':'عناصر',
+       'This will add all items to menu. Existing items not affected.':'سيؤدي ذلك إلى إضافة جميع العناصر إلى القائمة. العناصر الموجودة غير متأثرة.',
+       'Import': 'يستورد',
+       "Importing items...":"جارٍ استيراد العناصر...",
+       "Creating template...":"جارٍ إنشاء القالب...",
+       'Template saved successfully!':'تم حفظ القالب بنجاح!',
+       'Template download cancelled':'تم إلغاء تنزيل القالب',
+       'Edit Category':'تحرير الفئة',
+       'Category Name':'اسم الفئة',
+       'Category name cannot be empty':'لا يمكن أن يكون اسم الفئة فارغًا',
+       "Updating category...":"جارٍ تحديث الفئة...",
+       'Category updated successfully':'تم تحديث الفئة بنجاح',
+       'Failed to update category. Name may already exist.':'فشل في تحديث الفئة. قد يكون الاسم موجودًا بالفعل.',
+       'Delete Category':'حذف الفئة',
+       'Are you sure you want to delete category':'هل أنت متأكد أنك تريد حذف الفئة',
+       'This will delete':'سيؤدي ذلك إلى حذف',
+       'items in this category':'العناصر في هذه الفئة',
+       "Deleting category...":"جارٍ حذف الفئة...",
+       'Category deleted successfully':'تم حذف الفئة بنجاح',
+       'Failed to delete category. Please try again.':'فشل في حذف الفئة. يُرجى المحاولة مرة أخرى.',
+       'Could not access the selected image':"لم يتمكن من الوصول إلى الصورة المحددة",
+       'Error selecting image':'خطأ في اختيار الصورة',
+       'Could not access the captured photo':"لم أتمكن من الوصول إلى الصورة الملتقطة",
+       'Error taking photo':'خطأ أثناء التقاط الصورة',
+       'No items to export. Please add items first.':'لا توجد عناصر للتصدير. يرجى إضافة عناصر أولاً.',
+
+       'Export Menu Items':'تصدير عناصر القائمة',
+       'Export Statistics':'إحصائيات التصدير',
+       
+       'Exporting items...':'جارٍ تصدير العناصر...',
+       'Items exported successfully!':'تم تصدير العناصر بنجاح!',
+       'Failed to export items. Please try again.':'فشل في تصدير العناصر. يُرجى المحاولة مرة أخرى.',
+      'Total Items:':'إجمالي العناصر:',
+      'Categories:':'الفئات:',
+      'What will be exported:':'ما سيتم تصديره:',
+      '📄 menu_items.xlsx - Excel file with all menu items':'📄 menu_items.xlsx - ملف Excel يحتوي على جميع عناصر القائمة',
+      '📁 images/ - Folder with all item images':'📁 images/ - مجلد يحتوي على جميع صور العناصر',
+      '📋 README sheet - Import instructions':'📋 ورقة README - تعليمات الاستيراد',
+      '📊 Summary sheet - Statistics':'📊 ورقة الملخص - الإحصائيات',
+      'Export':'تصدير',
+      "Exporting menu items ...":"جارٍ تصدير عناصر القائمة ...",
+      'This may take a moment for large menus':'قد يستغرق هذا بعض الوقت للقوائم الكبيرة',
+      'Export cancelled':'تم إلغاء التصدير',
+      'Export Successful!':'تم التصدير بنجاح!',
+      'Export Summary:':'ملخص التصدير:',
+      'Items Exported:':'العناصر المصدرة:',
+      'itemsExported':'العناصر المصدرة',
+      'imagesExported':'صور المصدرة',
+      'Images Exported:':'صور المصدرة:',
+      'Images Failed:':'فشل الصور:',
+      'Export Location:':'موقع التصدير:',
+      'Folder Contents:':'محتويات المجلد:',
+      '📄 menu_items.xlsx':'📄 menu_items.xlsx',
+      'Keep these files together for reimport':'احتفظ بهذه الملفات معًا لإعادة الاستيراد',
       'Delete Item':'حذف العنصر',
       'Are you sure you want to delete':'هل أنت متأكد أنك تريد الحذف',
       "Deleting item...":"حذف العنصر...",
@@ -466,6 +544,20 @@ class AppLocalization {
     'Error printing report':'خطأ في طباعة التقرير',
 
     // Settings screen 
+    'Reset to First Time Setup':'إعادة التعيين إلى الإعداد الأولي',
+    'Clear registration and restart app':'مسح التسجيل وإعادة تشغيل التطبيق',
+    'Reset Data':'إعادة تعيين البيانات',
+    'Clear all app data':'مسح جميع بيانات التطبيق',
+    'This will:':'سيؤدي هذا إلى:',
+    'Reset to Setup':'إعادة تعيين إلى الإعدادات',
+    '• Clear all app data':'• مسح جميع بيانات التطبيق',
+    '• Reset device registration':'• إعادة تعيين تسجيل الجهاز',
+    '• Reset company registration':'• إعادة تعيين تسجيل الشركة',
+    '• Return to device registration screen':'• العودة إلى شاشة تسجيل الجهاز',
+    'This action cannot be undone!':'لا يمكن التراجع عن هذا الإجراء!',
+    'Resetting app... Please wait.':'إعادة تعيين التطبيق... يرجى الانتظار.',
+    'Reset Complete':'إعادة التعيين مكتملة',
+    'The app has been reset to first-time setup. Press OK to restart the registration process.':'تم إعادة تعيين التطبيق إلى الإعداد الأولي. اضغط على "موافق" لإعادة بدء عملية التسجيل.',
     'Settings': 'الإعدادات',
     'Owner': 'المالك',
     'Business Information': 'معلومات العمل',
@@ -509,8 +601,6 @@ class AppLocalization {
     'Table layout saved': 'تم حفظ تخطيط الطاولة',
     'Backup & Restore': 'النسخ الاحتياطي والاستعادة',
     'Create, restore, and manage backups': 'إنشاء واستعادة وإدارة النسخ الاحتياطية',
-    'Reset Data': 'إعادة تعيين البيانات',
-    'Clear all app data': 'مسح جميع بيانات التطبيق',
     'Reset All Data': 'إعادة تعيين جميع البيانات',
     'This will delete all app data. This action cannot be undone. Are you sure you want to continue?': 'سيؤدي هذا إلى حذف جميع بيانات التطبيق. لا يمكن التراجع عن هذا الإجراء. هل أنت متأكد أنك تريد المتابعة؟',
     'No': 'لا',
@@ -521,7 +611,6 @@ class AppLocalization {
     'Verify': 'تحقق',
     'Resetting data... Please wait.': 'إعادة تعيين البيانات... يرجى الانتظار.',
     'This may take a moment. Do not close the app.': 'قد يستغرق هذا لحظة. لا تغلق التطبيق.',
-    'Reset Complete': 'اكتملت إعادة التعيين',
     'All data has been reset successfully. You must restart the app for changes to take effect completely.': 'تم إعادة تعيين جميع البيانات بنجاح. يجب إعادة تشغيل التطبيق لتصبح التغييرات سارية المفعول بالكامل.',
     'Error loading settings': 'خطأ في تحميل الإعدادات',
     'Settings saved successfully': 'تم حفظ الإعدادات بنجاح',
@@ -548,6 +637,38 @@ class AppLocalization {
     'Email Address': 'عنوان البريد الإلكتروني',
     'Enter your email address': 'أدخل عنوان بريدك الإلكتروني',
     'Contact support for assistance:': 'اتصل بالدعم للمساعدة:',
+    'Show Logo in Receipts': 'إظهار الشعار في الإيصالات',
+    'Display logo on printed and PDF receipts': 'عرض الشعار على الإيصالات المطبوعة وملفات PDF',
+    'Logo will appear in receipts': 'سيظهر الشعار في الإيصالات',
+     'Logo will not appear in receipts': 'لن يظهر الشعار في الإيصالات',
+     'Remove Logo': 'إزالة الشعار',
+    'Are you sure you want to remove the logo?': 'هل أنت متأكد أنك تريد إزالة الشعار؟',
+     'Logo removed successfully': 'تمت إزالة الشعار بنجاح',
+    'Upload Logo': 'رفع الشعار',
+    'Change Logo': 'تغيير الشعار',
+    'Logo updated successfully': 'تم تحديث الشعار بنجاح',
+    'No logo uploaded': 'لا يوجد شعار تم رفعه',
+    'Business Logo Settings': 'إعدادات شعار العمل',
+    'Business Logo': 'شعار العمل',
+    'Logo uploaded': 'تم رفع الشعار',
+     'VAT Type': 'نوع ضريبة القيمة المضافة',
+     'Exclusive VAT': 'ضريبة القيمة المضافة الحصرية',
+    'Tax added on top of price': 'الضريبة مضافة على السعر',
+    'Inclusive VAT': 'ضريبة القيمة المضافة الشاملة',
+    'Tax included in price': 'الضريبة مشمولة في السعر',
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     // Settings Password Dialog
     'Enter Password': 'أدخل كلمة المرور',
@@ -665,6 +786,10 @@ class AppLocalization {
 
 
     // Tender Screen
+    'Receipt #': 'إيصال #',
+    'Click "Open PDF" to view in your default PDF viewer': 'انقر على "فتح PDF" للعرض في عارض PDF الافتراضي الخاص بك',
+    'Open PDF': 'فتح PDF',
+    'Could not open PDF viewer': 'تعذر فتح عارض PDF',
     'Cancel Order': 'إلغاء الطلب',
     'Processing payment...': 'جاري معالجة الدفع...',
     'Please select a payment method': 'الرجاء اختيار طريقة دفع',
