@@ -2950,9 +2950,11 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
     double change = 0.0;
     // Calculate change differently for credit completion
   if (widget.isCreditCompletion) {
-    if (amount > widget.order.total) {
-      change = amount - widget.order.total;
-    }
+  // FIX: Use discounted total for credit completion
+  final discountedTotal = _getDiscountedTotal();
+  if (amount > discountedTotal) {
+    change = amount - discountedTotal;
+  }
   } else {
     if (_selectedPaymentMethod == 'Bank') {
       final discountedTotal = _getDiscountedTotal(); // ✅ Get the discounted total
@@ -3023,7 +3025,12 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       return;
     }
       setState(() {
-        if (_selectedPaymentMethod == 'Cash') {
+        if (widget.isCreditCompletion) {
+          // For credit completion, we don't modify balance/paid amounts
+          // since it's a different payment flow
+          debugPrint('Credit completion payment - Amount: $amount, Change: $change');
+        }
+        else if (_selectedPaymentMethod == 'Cash') {
           double amountToDeduct = _balanceAmount < amount ? _balanceAmount : amount;
           
           _balanceAmount -= amountToDeduct;
@@ -3031,7 +3038,8 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
           
           _paidAmount += amountToDeduct;
         } else {
-          _paidAmount = widget.order.total;
+          final discountedTotal = _getDiscountedTotal();
+          _paidAmount = discountedTotal;
           _balanceAmount = 0;
         }
         
@@ -3925,6 +3933,8 @@ Future<void> _processCreditCompletionPayment(double amount, String paymentMethod
   }
 
   try {
+    // FIX: Use discounted total for credit completion
+    final discountedTotal = _getDiscountedTotal();
    // Get the credit transaction details
     final creditRepo = CreditTransactionRepository();
     final creditTransaction = await creditRepo.getCreditTransactionById(widget.creditTransactionId!);
@@ -3962,7 +3972,7 @@ Future<void> _processCreditCompletionPayment(double amount, String paymentMethod
             widget.order, 
             isEdited: widget.isEdited, 
             taxRate: widget.taxRate, 
-            discount: 0.0,
+            discount: _getCurrentDiscount(), // Include discount
           );
         } catch (e) {
           debugPrint('Printing error: $e');
@@ -3992,7 +4002,7 @@ Future<void> _processCreditCompletionPayment(double amount, String paymentMethod
           );
 
           // Show balance message (like normal payments)
-          await _showBalanceMessageDialog();
+         await _showBalanceMessageDialog(amount > discountedTotal ? amount - discountedTotal : 0.0);
         }
       } else {
         throw Exception('Failed to update customer credit balance');
