@@ -8,6 +8,7 @@ class MenuItem {
   final bool isAvailable;
   int quantity;
   String kitchenNote;
+  final bool taxExempt; // NEW: Add this field
 
   MenuItem({
     required this.id,
@@ -17,19 +18,21 @@ class MenuItem {
     required this.category,
     this.isAvailable = true,
     this.quantity = 1,
-    String? kitchenNote, // Accept nullable parameter
-  }) : kitchenNote = kitchenNote ?? ''; // Removed unnecessary 'this.'
+    String? kitchenNote,
+    this.taxExempt = false, // NEW: Default to false (tax included)
+  }) : kitchenNote = kitchenNote ?? '';
 
   factory MenuItem.fromJson(Map<String, dynamic> json) {
     return MenuItem(
       id: json['id'].toString(),
       name: json['name'],
       price: (json['price'] as num).toDouble(),
-      imageUrl: json['image'] ?? '', // Handle null image
+      imageUrl: json['image'] ?? '',
       category: json['category'],
       isAvailable: json['available'] ?? true,
       quantity: json.containsKey('quantity') ? json['quantity'] : 1,
-      kitchenNote: json['kitchenNote'] ?? '', // Handle null kitchenNote
+      kitchenNote: json['kitchenNote'] ?? '',
+      taxExempt: json['taxExempt'] ?? false, // NEW: Parse from JSON
     );
   }
 
@@ -42,11 +45,11 @@ class MenuItem {
       'category': category,
       'available': isAvailable,
       'quantity': quantity,
-      'kitchenNote': kitchenNote, // Include kitchen note in JSON
+      'kitchenNote': kitchenNote,
+      'taxExempt': taxExempt, // NEW: Include in JSON
     };
   }
 
-  // Create a copy with modified attributes
   MenuItem copyWith({
     String? id,
     String? name,
@@ -56,6 +59,7 @@ class MenuItem {
     bool? isAvailable,
     int? quantity,
     String? kitchenNote,
+    bool? taxExempt, // NEW: Add to copyWith
   }) {
     return MenuItem(
       id: id ?? this.id,
@@ -66,6 +70,7 @@ class MenuItem {
       isAvailable: isAvailable ?? this.isAvailable,
       quantity: quantity ?? this.quantity,
       kitchenNote: kitchenNote ?? this.kitchenNote,
+      taxExempt: taxExempt ?? this.taxExempt, // NEW
     );
   }
 }

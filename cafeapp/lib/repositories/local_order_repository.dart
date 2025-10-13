@@ -24,7 +24,7 @@ class LocalOrderRepository {
     
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         // Create orders table with simplified fields
         await db.execute('''
@@ -52,12 +52,28 @@ class LocalOrderRepository {
             price REAL NOT NULL,
             quantity INTEGER NOT NULL,
             kitchen_note TEXT,
+            tax_exempt INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE
           )
         ''');
 
         // Create indices for faster lookups
         await db.execute('CREATE INDEX idx_order_items_order_id ON order_items (order_id)');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        debugPrint('Upgrading orders database from version $oldVersion to $newVersion');
+        
+        if (oldVersion < 2) {
+          // Add tax_exempt column to order_items table
+          try {
+            await db.execute('''
+              ALTER TABLE order_items ADD COLUMN tax_exempt INTEGER NOT NULL DEFAULT 0
+            ''');
+            debugPrint('Added tax_exempt column to order_items table');
+          } catch (e) {
+            debugPrint('Error adding tax_exempt column (may already exist): $e');
+          }
+        }
       },
     );
   }
@@ -173,6 +189,7 @@ class LocalOrderRepository {
           'price': item.price,
           'quantity': item.quantity,
           'kitchen_note': item.kitchenNote,
+          'tax_exempt': item.taxExempt ? 1 : 0, // NEW
         });
       }
       
@@ -231,6 +248,7 @@ class LocalOrderRepository {
           price: (item['price'] as num).toDouble(),
           quantity: item['quantity'] as int,
           kitchenNote: item['kitchen_note'] as String? ?? '',
+          taxExempt: (item['tax_exempt'] as int?) == 1, // NEW
         )).toList();
         
         // Extract and verify important fields for debugging
@@ -291,6 +309,7 @@ class LocalOrderRepository {
         price: (item['price'] as num).toDouble(),
         quantity: item['quantity'] as int,
         kitchenNote: item['kitchen_note'] as String? ?? '',
+        taxExempt: (item['tax_exempt'] as int?) == 1, // NEW
       )).toList();
       
       return Order(
@@ -349,25 +368,25 @@ Future<void> printDatabaseContents() async {
   debugPrint('\n======== DATABASE CONTENTS DUMP ========');
   
   // Print Orders database tables
-  try {
-    final orderDb = await LocalOrderRepository().database;
+  // try {
+  //   final orderDb = await LocalOrderRepository().database;
     
-    debugPrint('\n====== ORDERS TABLE ======');
-    final orders = await orderDb.query('orders');
-    debugPrint('Found ${orders.length} orders');
-    for (var order in orders) {
-      debugPrint(order.toString());
-    }
+  //   debugPrint('\n====== ORDERS TABLE ======');
+  //   final orders = await orderDb.query('orders');
+  //   debugPrint('Found ${orders.length} orders');
+  //   for (var order in orders) {
+  //     debugPrint(order.toString());
+  //   }
     
-    debugPrint('\n====== ORDER ITEMS TABLE ======');
-    final orderItems = await orderDb.query('order_items');
-    debugPrint('Found ${orderItems.length} order items');
-    for (var item in orderItems) {
-      debugPrint(item.toString());
-    }
-  } catch (e) {
-    debugPrint('Error printing order database: $e');
-  }
+  //   debugPrint('\n====== ORDER ITEMS TABLE ======');
+  //   final orderItems = await orderDb.query('order_items');
+  //   debugPrint('Found ${orderItems.length} order items');
+  //   for (var item in orderItems) {
+  //     debugPrint(item.toString());
+  //   }
+  // } catch (e) {
+  //   debugPrint('Error printing order database: $e');
+  // }
   
   // Print Menu database tables
   try {

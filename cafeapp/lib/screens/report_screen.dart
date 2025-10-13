@@ -1082,152 +1082,168 @@ pw.Widget _buildPdfBalanceRow(Map<String, dynamic> paymentTotals, NumberFormat f
       return false;
     }).toList();
   }
-Map<String, dynamic> _createReportFromData(List<Order> orders, List<Map<String, dynamic>> expenses) {
-  debugPrint('Creating report from ${orders.length} orders and ${expenses.length} expenses');
-  
-  final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-  
-  final totalOrders = orders.length;
-  final totalRevenue = orders.fold(0.0, (sum, order) => sum + order.total);
-  final totalItemsSold = orders.fold(0, (sum, order) => sum + order.items.length);
-
-  final Map<String, List<Order>> ordersByServiceType = {};
-  for (final order in orders) {
-    String normalizedServiceType = _normalizeServiceType(order.serviceType);
-    ordersByServiceType.putIfAbsent(normalizedServiceType, () => []).add(order);
-  }  
-  
-  // Calculate subtotal, tax, and discount based on VAT type
-  double subtotal = 0.0;
-  double tax = 0.0;
-  double discount = 0.0;
-  
-  for (final order in orders) {
-    discount += order.discount;
+  Map<String, dynamic> _createReportFromData(List<Order> orders, List<Map<String, dynamic>> expenses) {
+    debugPrint('Creating report from ${orders.length} orders and ${expenses.length} expenses');
     
-    if (settingsProvider.isVatInclusive) {
-      // Inclusive VAT: extract tax from total
-      final orderTotal = order.total - order.discount;
-      final orderTax = orderTotal - (orderTotal / (1 + (settingsProvider.taxRate / 100)));
-      final orderSubtotal = orderTotal - orderTax;
-      
-      subtotal += orderSubtotal;
-      tax += orderTax;
-    } else {
-      // Exclusive VAT: calculate separately
-      final orderSubtotal = (order.total - order.discount) / (1 + (settingsProvider.taxRate / 100));
-      final orderTax = orderSubtotal * (settingsProvider.taxRate / 100);
-      
-      subtotal += orderSubtotal;
-      tax += orderTax;
-    }
-  }
-  
-  final Map<String, Map<String, double>> paymentTotals = {
-    'cash': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
-    'bank': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
-    'other': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
-    'total': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
-  };
-  
-  for (final order in orders) {
-    final paymentMethod = (order.paymentMethod ?? 'cash').toLowerCase();
-    if (paymentMethod == 'customer_credit') {
-      continue;
-    } else if (paymentMethod == 'cash') {
-      paymentTotals['cash']!['sales'] = (paymentTotals['cash']!['sales'] ?? 0.0) + order.total;
-    } else if (paymentMethod == 'bank') {
-      paymentTotals['bank']!['sales'] = (paymentTotals['bank']!['sales'] ?? 0.0) + order.total;
-    } else {
-      paymentTotals['other']!['sales'] = (paymentTotals['other']!['sales'] ?? 0.0) + order.total;
-    }
+    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
     
-    if (paymentMethod != 'customer_credit') {
-      paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + order.total;
-    }
-  }
-  
-  for (final expense in expenses) {
-    final accountType = (expense['accountType'] as String? ?? '').toLowerCase();
-    final total = (expense['grandTotal'] as num? ?? 0).toDouble();
-    
-    if (accountType.contains('cash')) {
-      paymentTotals['cash']!['expenses'] = (paymentTotals['cash']!['expenses'] ?? 0.0) + total;
-    } else if (accountType.contains('bank')) {
-      paymentTotals['bank']!['expenses'] = (paymentTotals['bank']!['expenses'] ?? 0.0) + total;
-    } else {
-      paymentTotals['other']!['expenses'] = (paymentTotals['other']!['expenses'] ?? 0.0) + total;
-    }
-    paymentTotals['total']!['expenses'] = (paymentTotals['total']!['expenses'] ?? 0.0) + total;
-  }
-  
-  for (final key in paymentTotals.keys) {
-    paymentTotals[key]!['net'] = (paymentTotals[key]!['sales'] ?? 0.0) - (paymentTotals[key]!['expenses'] ?? 0.0);
-  }
-  
-  final Map<String, Map<String, dynamic>> itemSales = {};
-  
-  for (final order in orders) {
-    for (final item in order.items) {
-      final itemId = item.id.toString();
-      final itemName = item.name;
-      
-      if (!itemSales.containsKey(itemId)) {
-        itemSales[itemId] = {
-          'name': itemName,
-          'quantity': 0,
-          'price': item.price,
-          'total_revenue': 0.0,
-        };
-      }
-      
-      itemSales[itemId]!['quantity'] = (itemSales[itemId]!['quantity'] as int) + item.quantity;
-      itemSales[itemId]!['total_revenue'] = (itemSales[itemId]!['total_revenue'] as double) + (item.price * item.quantity);
-    }
-  }
-  
-  final topItems = itemSales.values.toList()
-    ..sort((a, b) => (b['total_revenue'] as double).compareTo(a['total_revenue'] as double));
-  
-  final serviceTypeSales = ordersByServiceType.entries.map((entry) {
-    final serviceType = entry.key;
-    final orders = entry.value;
     final totalOrders = orders.length;
     final totalRevenue = orders.fold(0.0, (sum, order) => sum + order.total);
+    final totalItemsSold = orders.fold(0, (sum, order) => sum + order.items.length);
+
+    final Map<String, List<Order>> ordersByServiceType = {};
+    for (final order in orders) {
+      String normalizedServiceType = _normalizeServiceType(order.serviceType);
+      ordersByServiceType.putIfAbsent(normalizedServiceType, () => []).add(order);
+    }  
+    
+    // ⭐ UPDATED: Calculate subtotal, tax, and discount based on VAT type and tax-exempt items
+    double subtotal = 0.0;
+    double tax = 0.0;
+    double discount = 0.0;
+    
+    for (final order in orders) {
+      discount += order.discount;
+      
+      // Separate taxable and tax-exempt items for this order
+      double orderTaxableTotal = 0.0;
+      double orderTaxExemptTotal = 0.0;
+      
+      for (var item in order.items) {
+        final itemTotal = item.price * item.quantity;
+        if (item.taxExempt) {
+          orderTaxExemptTotal += itemTotal;
+        } else {
+          orderTaxableTotal += itemTotal;
+        }
+      }
+      
+      // Calculate tax based on VAT type
+      if (settingsProvider.isVatInclusive) {
+        // Inclusive VAT: extract tax only from taxable items
+        final taxableAmount = orderTaxableTotal / (1 + (settingsProvider.taxRate / 100));
+        final orderTax = orderTaxableTotal - taxableAmount;
+        final orderSubtotal = taxableAmount + orderTaxExemptTotal;
+        
+        subtotal += orderSubtotal;
+        tax += orderTax;
+      } else {
+        // Exclusive VAT: add tax on top of taxable items only
+        final orderSubtotal = orderTaxableTotal + orderTaxExemptTotal;
+        final orderTax = orderTaxableTotal * (settingsProvider.taxRate / 100);
+        
+        subtotal += orderSubtotal;
+        tax += orderTax;
+      }
+    }
+    
+    // Apply discount to subtotal
+    subtotal -= discount;
+    
+    final Map<String, Map<String, double>> paymentTotals = {
+      'cash': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
+      'bank': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
+      'other': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
+      'total': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
+    };
+    
+    for (final order in orders) {
+      final paymentMethod = (order.paymentMethod ?? 'cash').toLowerCase();
+      if (paymentMethod == 'customer_credit') {
+        continue;
+      } else if (paymentMethod == 'cash') {
+        paymentTotals['cash']!['sales'] = (paymentTotals['cash']!['sales'] ?? 0.0) + order.total;
+      } else if (paymentMethod == 'bank') {
+        paymentTotals['bank']!['sales'] = (paymentTotals['bank']!['sales'] ?? 0.0) + order.total;
+      } else {
+        paymentTotals['other']!['sales'] = (paymentTotals['other']!['sales'] ?? 0.0) + order.total;
+      }
+      
+      if (paymentMethod != 'customer_credit') {
+        paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + order.total;
+      }
+    }
+    
+    for (final expense in expenses) {
+      final accountType = (expense['accountType'] as String? ?? '').toLowerCase();
+      final total = (expense['grandTotal'] as num? ?? 0).toDouble();
+      
+      if (accountType.contains('cash')) {
+        paymentTotals['cash']!['expenses'] = (paymentTotals['cash']!['expenses'] ?? 0.0) + total;
+      } else if (accountType.contains('bank')) {
+        paymentTotals['bank']!['expenses'] = (paymentTotals['bank']!['expenses'] ?? 0.0) + total;
+      } else {
+        paymentTotals['other']!['expenses'] = (paymentTotals['other']!['expenses'] ?? 0.0) + total;
+      }
+      paymentTotals['total']!['expenses'] = (paymentTotals['total']!['expenses'] ?? 0.0) + total;
+    }
+    
+    for (final key in paymentTotals.keys) {
+      paymentTotals[key]!['net'] = (paymentTotals[key]!['sales'] ?? 0.0) - (paymentTotals[key]!['expenses'] ?? 0.0);
+    }
+    
+    final Map<String, Map<String, dynamic>> itemSales = {};
+    
+    for (final order in orders) {
+      for (final item in order.items) {
+        final itemId = item.id.toString();
+        final itemName = item.name;
+        
+        if (!itemSales.containsKey(itemId)) {
+          itemSales[itemId] = {
+            'name': itemName,
+            'quantity': 0,
+            'price': item.price,
+            'total_revenue': 0.0,
+          };
+        }
+        
+        itemSales[itemId]!['quantity'] = (itemSales[itemId]!['quantity'] as int) + item.quantity;
+        itemSales[itemId]!['total_revenue'] = (itemSales[itemId]!['total_revenue'] as double) + (item.price * item.quantity);
+      }
+    }
+    
+    final topItems = itemSales.values.toList()
+      ..sort((a, b) => (b['total_revenue'] as double).compareTo(a['total_revenue'] as double));
+    
+    final serviceTypeSales = ordersByServiceType.entries.map((entry) {
+      final serviceType = entry.key;
+      final orders = entry.value;
+      final totalOrders = orders.length;
+      final totalRevenue = orders.fold(0.0, (sum, order) => sum + order.total);
+      
+      return {
+        'serviceType': serviceType,
+        'totalOrders': totalOrders,
+        'totalRevenue': totalRevenue,
+      };
+    }).toList();
     
     return {
-      'serviceType': serviceType,
-      'totalOrders': totalOrders,
-      'totalRevenue': totalRevenue,
+      'summary': {
+        'totalOrders': totalOrders,
+        'totalRevenue': totalRevenue,
+        'totalItemsSold': totalItemsSold,
+      },
+      'revenue': {
+        'subtotal': subtotal,
+        'tax': tax,
+        'discounts': discount,
+        'total': totalRevenue,
+        'isVatInclusive': settingsProvider.isVatInclusive,
+      },
+      'paymentTotals': paymentTotals,
+      'serviceTypeSales': serviceTypeSales,
+      'topItems': topItems,
+      'orders': orders.map((order) => {
+        'id': order.id,
+        'serviceType': order.serviceType,
+        'total': order.total,
+        'status': order.status,
+        'createdAt': order.createdAt,
+      }).toList(),
     };
-  }).toList();
-  
-  return {
-    'summary': {
-      'totalOrders': totalOrders,
-      'totalRevenue': totalRevenue,
-      'totalItemsSold': totalItemsSold,
-    },
-    'revenue': {
-      'subtotal': subtotal,
-      'tax': tax,
-      'discounts': discount,
-      'total': totalRevenue,
-      'isVatInclusive': settingsProvider.isVatInclusive,
-    },
-    'paymentTotals': paymentTotals,
-    'serviceTypeSales': serviceTypeSales,
-    'topItems': topItems,
-    'orders': orders.map((order) => {
-      'id': order.id,
-      'serviceType': order.serviceType,
-      'total': order.total,
-      'status': order.status,
-      'createdAt': order.createdAt,
-    }).toList(),
-  };
-}
-
+  }
   Future<void> _selectDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,

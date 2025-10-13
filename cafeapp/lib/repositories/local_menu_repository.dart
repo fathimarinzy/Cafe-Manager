@@ -41,7 +41,7 @@ class LocalMenuRepository {
         // Open the database with explicit version and onCreate handler
         return await openDatabase(
           path,
-          version: 1,
+          version: 2,
           onCreate: (db, version) async {
             debugPrint('Creating menu_items table...');
             await db.execute('''
@@ -53,11 +53,27 @@ class LocalMenuRepository {
                 category TEXT NOT NULL,
                 isAvailable INTEGER NOT NULL,
                 isDeleted INTEGER NOT NULL DEFAULT 0,
-                lastUpdated TEXT NOT NULL
+                lastUpdated TEXT NOT NULL,
+                taxExempt INTEGER NOT NULL DEFAULT 0
               )
             ''');
             debugPrint('menu_items table created successfully');
           },
+          onUpgrade: (db, oldVersion, newVersion) async {
+          debugPrint('Upgrading menu database from version $oldVersion to $newVersion');
+          
+          if (oldVersion < 2) {
+            // Add taxExempt column if upgrading from version 1
+            try {
+              await db.execute('''
+                ALTER TABLE menu_items ADD COLUMN taxExempt INTEGER NOT NULL DEFAULT 0
+              ''');
+              debugPrint('Added taxExempt column to menu_items table');
+            } catch (e) {
+              debugPrint('Error adding taxExempt column (may already exist): $e');
+            }
+          }
+        },
           onOpen: (db) {
             debugPrint('Menu database opened successfully');
           },
@@ -109,6 +125,7 @@ class LocalMenuRepository {
             'isAvailable': item.isAvailable ? 1 : 0,
             'isDeleted': 0,
             'lastUpdated': DateTime.now().toIso8601String(),
+            'taxExempt': item.taxExempt ? 1 : 0,
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
@@ -155,6 +172,7 @@ class LocalMenuRepository {
             imageUrl: maps[i]['imageUrl'] as String,
             category: maps[i]['category'] as String,
             isAvailable: maps[i]['isAvailable'] == 1,
+            taxExempt: maps[i]['taxExempt'] == 1,
           );
         });
       } catch (e) {
@@ -206,8 +224,12 @@ class LocalMenuRepository {
           imageUrl: item.imageUrl,
           category: item.category,
           isAvailable: item.isAvailable,
+          taxExempt: item.taxExempt,
         );
-        
+         // ⭐ CRITICAL: Ensure the boolean is converted to int correctly
+        final int taxExemptValue = newItem.taxExempt ? 1 : 0;
+        debugPrint('🔍 Repository - taxExempt converted to int: $taxExemptValue');
+
         // Insert the new item
         await db.insert(
           'menu_items',
@@ -220,6 +242,7 @@ class LocalMenuRepository {
             'isAvailable': newItem.isAvailable ? 1 : 0,
             'isDeleted': 0,
             'lastUpdated': timestamp,
+            'taxExempt': taxExemptValue,
           },
         );
         
@@ -273,6 +296,7 @@ class LocalMenuRepository {
             'category': item.category,
             'isAvailable': item.isAvailable ? 1 : 0,
             'lastUpdated': timestamp,
+            'taxExempt': item.taxExempt ? 1 : 0,
           },
           where: 'id = ?',
           whereArgs: [item.id],

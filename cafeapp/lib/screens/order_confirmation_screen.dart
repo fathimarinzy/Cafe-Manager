@@ -39,6 +39,49 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
  
   bool _isProcessing = false;
 
+  // NEW: Calculate taxable amounts with tax-exempt handling
+  Map<String, double> _calculateTaxableAmounts() {
+    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+    
+    double taxableTotal = 0.0;
+    double taxExemptTotal = 0.0;
+    
+    for (var item in orderProvider.cartItems) {
+      final itemTotal = item.price * item.quantity;
+      if (item.taxExempt) {
+        taxExemptTotal += itemTotal;
+      } else {
+        taxableTotal += itemTotal;
+      }
+    }
+    
+    double tax;
+    double subtotal;
+    double total;
+    
+    if (settingsProvider.isVatInclusive) {
+      // Inclusive VAT: extract tax only from taxable items
+      final taxableAmount = taxableTotal / (1 + (settingsProvider.taxRate / 100));
+      tax = taxableTotal - taxableAmount;
+      subtotal = taxableAmount + taxExemptTotal;
+      total = taxableTotal + taxExemptTotal;
+    } else {
+      // Exclusive VAT: add tax on top of taxable items only
+      subtotal = taxableTotal + taxExemptTotal;
+      tax = taxableTotal * (settingsProvider.taxRate / 100);
+      total = subtotal + tax;
+    }
+    
+    return {
+      'subtotal': subtotal,
+      'tax': tax,
+      'total': total,
+      'taxableTotal': taxableTotal,
+      'taxExemptTotal': taxExemptTotal,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final orderProvider = Provider.of<OrderProvider>(context);
@@ -50,6 +93,9 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
     final now = DateTime.now();
     final formattedDate = dateFormatter.format(now);
     final formattedTime = timeFormatter.format(now);
+    
+    // NEW: Get calculated amounts
+    final amounts = _calculateTaxableAmounts();
     
     return Scaffold(
       appBar: AppBar(
@@ -192,7 +238,30 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                                   children: [
                                     Expanded(
                                       flex: 5,
-                                      child: Text(item.name),
+                                      child: Row(
+                                        children: [
+                                          Expanded(child: Text(item.name)),
+                                          // NEW: Show tax-exempt indicator
+                                          if (item.taxExempt)
+                                            Container(
+                                              margin: const EdgeInsets.only(left: 4),
+                                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: Colors.orange[100],
+                                                borderRadius: BorderRadius.circular(4),
+                                                border: Border.all(color: Colors.orange[300]!),
+                                              ),
+                                              child: Text(
+                                                'Tax Free'.tr(),
+                                                style: TextStyle(
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.orange[800],
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
                                     ),
                                     Expanded(
                                       flex: 2,
@@ -262,7 +331,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                               Expanded(
                                 flex: 3,
                                 child: Text(
-                                  orderProvider.subtotal.toStringAsFixed(3),
+                                  amounts['subtotal']!.toStringAsFixed(3),
                                   textAlign: TextAlign.right,
                                   style: const TextStyle(fontWeight: FontWeight.w500),
                                 ),
@@ -283,12 +352,47 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                             Expanded(
                               flex: 3,
                               child: Text(
-                                orderProvider.tax.toStringAsFixed(3),
+                                amounts['tax']!.toStringAsFixed(3),
                                 textAlign: TextAlign.right,
                               ),
                             ),
                           ],
                         ),
+                        // NEW: Show tax-exempt total if any
+                        // if (amounts['taxExemptTotal']! > 0) ...[
+                        //   const SizedBox(height: 4),
+                        //   Row(
+                        //     children: [
+                        //       Expanded(
+                        //         flex: 7,
+                        //         child: Row(
+                        //           mainAxisAlignment: MainAxisAlignment.end,
+                        //           children: [
+                        //             Text(
+                        //               'Tax-Free Items'.tr(),
+                        //               textAlign: TextAlign.right,
+                        //               style: TextStyle(
+                        //                 fontSize: 12,
+                        //                 color: Colors.orange[700],
+                        //               ),
+                        //             ),
+                        //           ],
+                        //         ),
+                        //       ),
+                        //       Expanded(
+                        //         flex: 3,
+                        //         child: Text(
+                        //           amounts['taxExemptTotal']!.toStringAsFixed(3),
+                        //           textAlign: TextAlign.right,
+                        //           style: TextStyle(
+                        //             fontSize: 12,
+                        //             color: Colors.orange[700],
+                        //           ),
+                        //         ),
+                        //       ),
+                        //     ],
+                        //   ),
+                        // ],
                         if (orderProvider.discount > 0) ...[
                           const SizedBox(height: 4),
                           Row(
@@ -329,7 +433,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                             Expanded(
                               flex: 3,
                               child: Text(
-                                orderProvider.total.toStringAsFixed(3),
+                                (amounts['total']! - orderProvider.discount).toStringAsFixed(3),
                                 textAlign: TextAlign.right,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
@@ -435,29 +539,34 @@ Future<void> _processOrder() async {
       
       // If we have a customer selected, update the order with customer info
       if (orderProvider.selectedPerson != null && processedOrder != null) {
-        // Calculate tax and subtotal based on VAT type
+        // Calculate tax and subtotal based on VAT type with tax-exempt handling
         double subtotal;
         double tax;
         double total;
         
-        // Get the sum of all item prices
-        double itemPricesSum = processedOrder.items.fold(
-          0.0, 
-          (sum, item) => sum + (item.price * item.quantity)
-        );
+        // Separate taxable and tax-exempt items
+        double taxableTotal = 0.0;
+        double taxExemptTotal = 0.0;
+        
+        for (var item in processedOrder.items) {
+          final itemTotal = item.price * item.quantity;
+          if (item.taxExempt) {
+            taxExemptTotal += itemTotal;
+          } else {
+            taxableTotal += itemTotal;
+          }
+        }
         
         if (settingsProvider.isVatInclusive) {
-          // Inclusive VAT: item prices already include tax
-          // Total stays as the sum of item prices (tax is already in the prices)
-          total = itemPricesSum - processedOrder.discount;
-          // Extract the tax component from the total
-          tax = total - (total / (1 + (settingsProvider.taxRate / 100)));
-          // Subtotal is the amount without tax
-          subtotal = total - tax;
+          // Inclusive VAT: extract tax only from taxable items
+          final taxableAmount = taxableTotal / (1 + (settingsProvider.taxRate / 100));
+          tax = taxableTotal - taxableAmount;
+          subtotal = taxableAmount + taxExemptTotal;
+          total = (taxableTotal + taxExemptTotal) - processedOrder.discount;
         } else {
-          // Exclusive VAT: add tax on top of item prices
-          subtotal = itemPricesSum - processedOrder.discount;
-          tax = subtotal * (settingsProvider.taxRate / 100);
+          // Exclusive VAT: add tax on top of taxable items only
+          subtotal = (taxableTotal + taxExemptTotal) - processedOrder.discount;
+          tax = taxableTotal * (settingsProvider.taxRate / 100);
           total = subtotal + tax;
         }
         
@@ -481,6 +590,7 @@ Future<void> _processOrder() async {
         await localOrderRepo.saveOrder(updatedOrder);
         debugPrint('Updated order with customer ID and VAT type: ${orderProvider.selectedPerson!.id}');
         debugPrint('Inclusive VAT: ${settingsProvider.isVatInclusive}, Total: $total, Tax: $tax, Subtotal: $subtotal');
+        debugPrint('Taxable: $taxableTotal, Tax-Exempt: $taxExemptTotal');
       }
 
       if (mounted) {

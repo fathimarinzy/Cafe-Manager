@@ -185,34 +185,45 @@ class _TenderScreenState extends State<TenderScreen> {
     });
   }
    // Add this method to calculate subtotal and tax based on VAT type
-  Map<String, double> _calculateAmounts() {
-    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-    final discountAmount = _getCurrentDiscount();
-    
-    double subtotal;
-    double tax;
-    double total;
-    
-    if (settingsProvider.isVatInclusive) {
-      // Inclusive VAT: prices already include tax, so total stays the same
-      total = widget.order.total - discountAmount;
-      // Extract the tax component from the total
-      tax = total - (total / (1 + (settingsProvider.taxRate / 100)));
-      // Subtotal is the amount without tax
-      subtotal = total - tax;
+ Map<String, double> _calculateAmounts() {
+  final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+  final discountAmount = _getCurrentDiscount();
+  
+  double taxableTotal = 0.0;
+  double taxExemptTotal = 0.0;
+  
+  for (var item in widget.order.items) {
+    final itemTotal = item.price * item.quantity;
+    // Check if the menu item is tax exempt
+    // You'll need to pass this information through the order
+    if (item.taxExempt) {
+      taxExemptTotal += itemTotal;
     } else {
-      // Exclusive VAT: add tax on top of prices
-      subtotal = widget.order.total - discountAmount;
-      tax = subtotal * (widget.taxRate / 100.0);
-      total = subtotal + tax;
+      taxableTotal += itemTotal;
     }
-    
-    return {
-      'subtotal': subtotal,
-      'tax': tax,
-      'total': total,
-    };
   }
+  
+  double subtotal;
+  double tax;
+  double total;
+  
+  if (settingsProvider.isVatInclusive) {
+    final taxableAmount = taxableTotal / (1 + (settingsProvider.taxRate / 100));
+    tax = taxableTotal - taxableAmount;
+    subtotal = taxableAmount + taxExemptTotal - discountAmount;
+    total = taxableTotal + taxExemptTotal - discountAmount;
+  } else {
+    subtotal = (taxableTotal + taxExemptTotal) - discountAmount;
+    tax = taxableTotal * (settingsProvider.taxRate / 100);
+    total = subtotal + tax;
+  }
+  
+  return {
+    'subtotal': subtotal,
+    'tax': tax,
+    'total': total,
+  };
+}
 // Replace the existing _saveWithAndroidIntent method
 // Future<bool> _saveWithCrossPlatform(pw.Document pdf, String orderNumber) async {
 //   try {

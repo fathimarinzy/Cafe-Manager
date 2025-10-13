@@ -55,6 +55,10 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
   // Add these new variables for KOT printer functionality
   bool _isKotPrinterEnabled = true;
   bool _isCheckingKotPrinter = false;
+  // Helper method to check if there are any tax-exempt items in the cart
+  bool _hasTaxExemptItems(OrderProvider orderProvider) {
+    return orderProvider.cartItems.any((item) => item.taxExempt);
+  }
    
 
   @override
@@ -1102,6 +1106,24 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                                       ),
                                     ),
                                   ),
+                                   // Show tax-exempt indicator if there are tax-exempt items
+                                  if (_hasTaxExemptItems(orderProvider))
+                                    Container(
+                                      margin: const EdgeInsets.only(left: 2),
+                                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.shade100,
+                                        borderRadius: BorderRadius.circular(3),
+                                      ),
+                                      child: Tooltip(
+                                        message: 'Some items are tax-exempt'.tr(),
+                                        child: Icon(
+                                          Icons.info_outline,
+                                          size: 10,
+                                          color: Colors.orange.shade800,
+                                        ),
+                                      ),
+                                    ),
                                 ],
                               ),
                               Text(orderProvider.tax.toStringAsFixed(3)),
@@ -1400,6 +1422,24 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                                     ),
                                   ),
                                 ),
+                                // Show tax-exempt indicator if there are tax-exempt items
+                                if (_hasTaxExemptItems(orderProvider))
+                                  Container(
+                                    margin: const EdgeInsets.only(left: 4),
+                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange.shade100,
+                                      borderRadius: BorderRadius.circular(3),
+                                    ),
+                                    child: Tooltip(
+                                      message: 'Some items are tax-exempt'.tr(),
+                                      child: Icon(
+                                        Icons.info_outline,
+                                        size: 12,
+                                        color: Colors.orange.shade800,
+                                      ),
+                                    ),
+                                  ),
                               ],
                             ),
                              Text(orderProvider.tax.toStringAsFixed(3)),

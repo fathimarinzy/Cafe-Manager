@@ -139,6 +139,7 @@ void addToCart(MenuItem item) {
       isAvailable: item.isAvailable,
       quantity: existingItem.quantity + 1, // Increment quantity
       kitchenNote: noteToUse,
+      taxExempt: item.taxExempt,
     );
     
     // Insert the updated item at the beginning of the list
@@ -154,6 +155,7 @@ void addToCart(MenuItem item) {
       isAvailable: item.isAvailable,
       quantity: 1,
       kitchenNote: item.kitchenNote,
+      taxExempt: item.taxExempt,
     );
     _serviceTypeCarts[_currentServiceType]!.insert(0, newItem);
   }
@@ -229,55 +231,64 @@ void addToCart(MenuItem item) {
   }
 
   // Update _updateTotals to use the tax rate from settings
-  void _updateTotals(String serviceType) {
-    if (!_serviceTypeCarts.containsKey(serviceType)) return;
+ void _updateTotals(String serviceType) {
+  if (!_serviceTypeCarts.containsKey(serviceType)) return;
 
-    final cartItems = _serviceTypeCarts[serviceType]!;
-    
-    // Calculate the sum of all item prices (item price × quantity)
-    final itemPricesSum = cartItems.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
-    
-    // Get tax rate and VAT type from SettingsProvider
-    final BuildContext? context = _context;
-    double taxRate = 0.0;
-    bool isVatInclusive = false;
-    
-    if (context != null && context.mounted) {
-      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-      taxRate = settingsProvider.taxRate;
-      isVatInclusive = settingsProvider.isVatInclusive;
-    }
-    
-    double subtotal;
-    double tax;
-    double total;
-    
-    if (isVatInclusive) {
-      // Inclusive VAT: item prices already include tax
-      // Total = sum of item prices (tax is already included)
-      total = itemPricesSum;
-      // Extract the tax component from the total
-      tax = total - (total / (1 + (taxRate / 100)));
-      // Subtotal is the amount without tax
-      subtotal = total - tax;
+  final cartItems = _serviceTypeCarts[serviceType]!;
+  
+  // Separate taxable and tax-exempt items
+  double taxableTotal = 0.0;
+  double taxExemptTotal = 0.0;
+  
+  for (var item in cartItems) {
+    final itemTotal = item.price * item.quantity;
+    if (item.taxExempt) {
+      taxExemptTotal += itemTotal;
     } else {
-      // Exclusive VAT: add tax on top of item prices
-      subtotal = itemPricesSum;
-      tax = subtotal * (taxRate / 100);
-      total = subtotal + tax;
+      taxableTotal += itemTotal;
     }
-    
-    final discount = _serviceTotals[serviceType]?['discount'] ?? 0.0;
-
-    _serviceTotals[serviceType] = {
-      'subtotal': subtotal,
-      'tax': tax,
-      'discount': discount,
-      'total': total - discount, // Apply discount to final total
-    };
-    
-    debugPrint('Order totals updated - Inclusive: $isVatInclusive, ItemSum: $itemPricesSum, Subtotal: $subtotal, Tax: $tax, Total: $total');
   }
+  
+  // Get tax rate and VAT type from SettingsProvider
+  final BuildContext? context = _context;
+  double taxRate = 0.0;
+  bool isVatInclusive = false;
+  
+  if (context != null && context.mounted) {
+    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+    taxRate = settingsProvider.taxRate;
+    isVatInclusive = settingsProvider.isVatInclusive;
+  }
+  
+  double subtotal;
+  double tax;
+  double total;
+  
+  if (isVatInclusive) {
+    // Inclusive VAT: tax is already in the price for taxable items
+    // Extract tax only from taxable items
+    final taxableAmount = taxableTotal / (1 + (taxRate / 100));
+    tax = taxableTotal - taxableAmount;
+    subtotal = taxableAmount + taxExemptTotal;
+    total = taxableTotal + taxExemptTotal;
+  } else {
+    // Exclusive VAT: add tax on top of taxable items only
+    subtotal = taxableTotal + taxExemptTotal;
+    tax = taxableTotal * (taxRate / 100);
+    total = subtotal + tax;
+  }
+  
+  final discount = _serviceTotals[serviceType]?['discount'] ?? 0.0;
+
+  _serviceTotals[serviceType] = {
+    'subtotal': subtotal,
+    'tax': tax,
+    'discount': discount,
+    'total': total - discount,
+  };
+  
+  debugPrint('Order totals updated - Taxable: $taxableTotal, Tax-Exempt: $taxExemptTotal, Tax: $tax, Total: $total');
+}
   
   // For this to work, we need to store the BuildContext
   BuildContext? _context;
@@ -372,6 +383,7 @@ void addToCart(MenuItem item) {
             price: item.price,
             quantity: item.quantity,
             kitchenNote: item.kitchenNote,
+            taxExempt: item.taxExempt, // FIX: Copy taxExempt from MenuItem
           )
         ).toList();
         
@@ -402,6 +414,7 @@ void addToCart(MenuItem item) {
             price: item.price,
             quantity: item.quantity,
             kitchenNote: item.kitchenNote,
+            taxExempt: item.taxExempt, // FIX: Copy taxExempt from MenuItem
           )
         ).toList();
         
@@ -531,6 +544,7 @@ void addToCart(MenuItem item) {
         isAvailable: item.isAvailable,
         quantity: item.quantity,
         kitchenNote: note,
+        taxExempt: item.taxExempt,
       );
       
       // Replace the item in the cart

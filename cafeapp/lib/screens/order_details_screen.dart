@@ -15,8 +15,6 @@ import '../utils/app_localization.dart';
 import '../utils/service_type_utils.dart';
 import '../repositories/local_person_repository.dart';
 import '../models/person.dart';
-// import '../providers/person_provider.dart';
-// import 'search_person_screen.dart'; 
 
 class OrderDetailsScreen extends StatefulWidget {
   final int orderId;
@@ -35,8 +33,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   List<OrderItem>? _originalItems;
   double _taxRate = 0.0;
   double _discountAmount = 0.0; 
-  Person? _customer; // Add this property
-
+  Person? _customer;
 
   @override
   void initState() {
@@ -52,11 +49,11 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       }
     });
   }
+  
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     
-    // Check if we're coming back from another screen and reload if needed
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _loadOrderDetails();
@@ -75,7 +72,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       final order = await orderProvider.getOrderDetails(widget.orderId);
       
       if (mounted && order != null) {
-        // Load customer information if customerId exists
         Person? customer;
         if (order.customerId != null && order.customerId!.isNotEmpty) {
           try {
@@ -87,7 +83,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           }
         }
         
-        // Check if the order has a discount
         double discount = 0.0;
         if (order.id > 0) {
           final localOrderRepo = LocalOrderRepository();
@@ -96,6 +91,10 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
             if (orderFromDb != null) {
               discount = orderFromDb.discount;
               debugPrint('Loaded discount from DB: $discount');
+                // DEBUG: Print tax-exempt status of items
+               for (var item in orderFromDb.items) {
+              debugPrint('Item: ${item.name}, TaxExempt: ${item.taxExempt}');
+            }
             }
           } catch (e) {
             debugPrint('Error getting order discount from DB: $e');
@@ -104,7 +103,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         
         setState(() {
           _order = order;
-          _customer = customer; // Set the customer
+          _customer = customer;
           _discountAmount = discount;
           _originalItems = order.items.map((item) => 
             OrderItem(
@@ -113,6 +112,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
               price: item.price,
               quantity: item.quantity,
               kitchenNote: item.kitchenNote,
+              taxExempt: item.taxExempt,
             )
           ).toList();
           _isLoading = false;
@@ -131,20 +131,13 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   void _navigateToTender() {
     if (_order == null) return;
     
-    // if (_wasEdited) {
-    //   _saveOrderChangesToBackend().catchError((error) {
-    //     debugPrint('Error saving before tender: $error');
-    //     throw error;
-    //   });
-    // }
-    
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => TenderScreen(
           order: _order!,
           isEdited: _wasEdited,
           taxRate: _taxRate,
-          customer: _customer, // Pass the customer info
+          customer: _customer,
         ),
       ),
     ).then((result) {
@@ -153,402 +146,464 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       }
     });
   }
-Future<bool> _saveOrderChangesToBackend() async {
-  if (_order == null) return false;
-  
-  setState(() {
-    _isLoading = true;
-  });
-  
-  try {
-    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-    
-    // Calculate the new totals based on VAT type
-    double subtotal = _calculateSubtotal(_order!.items);
-    double tax;
-    double total;
-    
-    if (settingsProvider.isVatInclusive) {
-      // Inclusive VAT: item prices already include tax
-      total = subtotal - _discountAmount;
-      // Extract the tax component
-      tax = total - (total / (1 + (settingsProvider.taxRate / 100)));
-      // Recalculate subtotal without tax
-      subtotal = total - tax;
-    } else {
-      // Exclusive VAT: add tax on top
-      tax = subtotal * (settingsProvider.taxRate / 100.0);
-      total = subtotal + tax - _discountAmount;
-    }
 
-    // Convert OrderHistory items to OrderItem objects
-    final orderItems = _order!.items.map((item) => 
-      OrderItem(
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        kitchenNote: item.kitchenNote,
-      )
-    ).toList();
+  Future<bool> _saveOrderChangesToBackend() async {
+    if (_order == null) return false;
     
-    // Create a local Order object from our OrderHistory
-    final localOrder = Order(
-      id: _order!.id,
-      serviceType: _order!.serviceType,
-      items: orderItems,
-      subtotal: subtotal,
-      tax: tax,
-      discount: _discountAmount,
-      total: total,
-      status: _order!.status,
-      createdAt: _order!.createdAt.toIso8601String(),
-    );
+    setState(() {
+      _isLoading = true;
+    });
     
-    // Get the local repository
-    final localOrderRepo = LocalOrderRepository();
-    
-    // Save the order locally
-    final updatedOrder = await localOrderRepo.saveOrder(localOrder);
-    
-    debugPrint('Order updated locally with VAT type: ${updatedOrder.id}');
-    debugPrint('Subtotal: $subtotal, Tax: $tax, Total: $total, Is Inclusive: ${settingsProvider.isVatInclusive}');
-    await LocalOrderRepository().printDatabaseContents();
-
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-        if (_order != null) {
-          // Update the UI with the new totals, but preserve the creation date
-          _order = OrderHistory(
-            id: _order!.id,
-            serviceType: _order!.serviceType,
-            total: total,
-            status: _order!.status,
-            createdAt: _order!.createdAt,
-            items: _order!.items,
-          );
+    try {
+      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+      
+      // NEW: Calculate amounts with tax-exempt handling
+      double taxableTotal = 0.0;
+      double taxExemptTotal = 0.0;
+      
+      for (var item in _order!.items) {
+        final itemTotal = item.price * item.quantity;
+        if (item.taxExempt) {
+          taxExemptTotal += itemTotal;
+        } else {
+          taxableTotal += itemTotal;
         }
-      });
-    }
-    
-    // Print kitchen receipt after successful update
-    await _printKitchenReceipt();
+      }
       
-    // Force a refresh of the OrderHistoryProvider to update other screens
-    if (mounted) {
-      final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
-      historyProvider.loadOrders();
-    }
-    
-    // ignore: unnecessary_null_comparison
-    return updatedOrder != null;
-  } catch (e) {
-    debugPrint('Error saving order changes: $e');
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+      double calculatedSubtotal;
+      double calculatedTax;
+      double calculatedTotal;
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error updating order'.tr()),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-    return false;
-  }
-}
+      if (settingsProvider.isVatInclusive) {
+        // Inclusive VAT: extract tax only from taxable items
+        final taxableAmount = taxableTotal / (1 + (settingsProvider.taxRate / 100));
+        calculatedTax = taxableTotal - taxableAmount;
+        calculatedSubtotal = taxableAmount + taxExemptTotal;
+        calculatedTotal = (taxableTotal + taxExemptTotal) - _discountAmount;
+      } else {
+        // Exclusive VAT: add tax on top of taxable items only
+        calculatedSubtotal = (taxableTotal + taxExemptTotal) - _discountAmount;
+        calculatedTax = taxableTotal * (settingsProvider.taxRate / 100);
+        calculatedTotal = calculatedSubtotal + calculatedTax;
+      }
 
-Future<void> _printKitchenReceipt() async {
-  if (_order == null) return;
-  
-  try {
-    // Convert order items to MenuItem objects
-    final items = _order!.items.map((item) => 
-      MenuItem(
-        id: item.id.toString(),
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        imageUrl: '',
-        category: '',
-        kitchenNote: item.kitchenNote,
-      )
-    ).toList();
-    
-    // Extract tableInfo if this is a dining order
-    String? tableInfo;
-    if (_order!.serviceType.startsWith('Dining - Table')) {
-      tableInfo = _order!.serviceType;
-    }
-    
-    // Print kitchen receipt
-    final printed = await BillService.printKitchenOrderReceipt(
-      items: items,
-      serviceType: _order!.serviceType,
-      tableInfo: tableInfo,
-      orderNumber: _order!.orderNumber,
-      isEdited: _wasEdited, // Add this parameter
-      originalItems: _originalItems, 
-      context: mounted ? context : null, // Add mounted check before using context
-    );
-    
-    if (!printed['success'] && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to print kitchen receipt: ${printed['message']}'.tr()),
-          backgroundColor: Colors.red,
-        ),
+      final orderItems = _order!.items.map((item) => 
+        OrderItem(
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          kitchenNote: item.kitchenNote,
+          taxExempt: item.taxExempt,
+        )
+      ).toList();
+      
+      final localOrder = Order(
+        id: _order!.id,
+        serviceType: _order!.serviceType,
+        items: orderItems,
+        subtotal: calculatedSubtotal,
+        tax: calculatedTax,
+        discount: _discountAmount,
+        total: calculatedTotal,
+        status: _order!.status,
+        createdAt: _order!.createdAt.toIso8601String(),
       );
-    }
-  } catch (e) {
-    debugPrint('Error printing kitchen receipt: $e');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error printing kitchen receipt'.tr()),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-}
+      
+      final localOrderRepo = LocalOrderRepository();
+      final updatedOrder = await localOrderRepo.saveOrder(localOrder);
+      
+      debugPrint('Order updated locally with VAT type: ${updatedOrder.id}');
+      debugPrint('Taxable: $taxableTotal, Tax-Exempt: $taxExemptTotal');
+      debugPrint('Subtotal: $calculatedSubtotal, Tax: $calculatedTax, Total: $calculatedTotal');
 
-  double _calculateSubtotal(List<OrderItem> items) {
-    return items.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          if (_order != null) {
+            _order = OrderHistory(
+              id: _order!.id,
+              serviceType: _order!.serviceType,
+              total: calculatedTotal,
+              status: _order!.status,
+              createdAt: _order!.createdAt,
+              items: _order!.items,
+            );
+          }
+        });
+      }
+      
+      await _printKitchenReceipt();
+      
+      if (mounted) {
+        final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
+        historyProvider.loadOrders();
+      }
+      
+      return updatedOrder.id != null;
+    } catch (e) {
+      debugPrint('Error saving order changes: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating order'.tr()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return false;
+    }
   }
-void _showEditOrderItemsDialog() {
-  if (_order == null) return;
-  
-  List<OrderItem> editedItems = List.from(_order!.items);
-  
-  showDialog(
-    context: context,
-    builder: (BuildContext context) {
-      return StatefulBuilder(
-        builder: (context, setState) {
-          final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
-          
-          return AlertDialog(
-            title: Text('Edit Order Items'.tr()),
-            content: SizedBox(
-              width: MediaQuery.of(context).size.width * (isPortrait ? 0.9 : 0.7),
-              height: MediaQuery.of(context).size.height * 0.6,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          flex: isPortrait ? 4 : 5,
-                          child:  Text(
-                            'Item'.tr(), 
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child:  Text(
-                            'Qty'.tr(), 
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                        Expanded(
-                          flex: isPortrait ? 2 : 3,
-                          child:  Text(
-                            'Price'.tr(), 
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.right,
-                          ),
-                        ),
-                        SizedBox(width: isPortrait ? 40 : 70),
-                      ],
-                    ),
-                  ),
-                  
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: editedItems.length,
-                      itemBuilder: (context, index) {
-                        final item = editedItems[index];
-                        return Container(
-                          decoration: BoxDecoration(
-                            border: Border(
-                              bottom: BorderSide(color: Colors.grey.shade300, width: 1),
+
+  Future<void> _printKitchenReceipt() async {
+    if (_order == null) return;
+    
+    try {
+      final items = _order!.items.map((item) => 
+        MenuItem(
+          id: item.id.toString(),
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          imageUrl: '',
+          category: '',
+          kitchenNote: item.kitchenNote,
+          taxExempt: item.taxExempt,
+        )
+      ).toList();
+      
+      String? tableInfo;
+      if (_order!.serviceType.startsWith('Dining - Table')) {
+        tableInfo = _order!.serviceType;
+      }
+      
+      final printed = await BillService.printKitchenOrderReceipt(
+        items: items,
+        serviceType: _order!.serviceType,
+        tableInfo: tableInfo,
+        orderNumber: _order!.orderNumber,
+        isEdited: _wasEdited,
+        originalItems: _originalItems, 
+        context: mounted ? context : null,
+      );
+      
+      if (!printed['success'] && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to print kitchen receipt: ${printed['message']}'.tr()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error printing kitchen receipt: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error printing kitchen receipt'.tr()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // double _calculateSubtotal(List<OrderItem> items) {
+  //   return items.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
+  // }
+
+  void _showEditOrderItemsDialog() {
+    if (_order == null) return;
+    
+    List<OrderItem> editedItems = List.from(_order!.items);
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
+            
+            return AlertDialog(
+              title: Text('Edit Order Items'.tr()),
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width * (isPortrait ? 0.9 : 0.7),
+                height: MediaQuery.of(context).size.height * 0.6,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: isPortrait ? 4 : 5,
+                            child:  Text(
+                              'Item'.tr(), 
+                              style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ),
-                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                flex: isPortrait ? 4 : 5,
-                                child: Text(
-                                  item.name,
-                                  style: const TextStyle(fontWeight: FontWeight.w500),
-                                ),
+                          Expanded(
+                            flex: 2,
+                            child:  Text(
+                              'Qty'.tr(), 
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          Expanded(
+                            flex: isPortrait ? 2 : 3,
+                            child:  Text(
+                              'Price'.tr(), 
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                              textAlign: TextAlign.right,
+                            ),
+                          ),
+                          SizedBox(width: isPortrait ? 40 : 70),
+                        ],
+                      ),
+                    ),
+                    
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: editedItems.length,
+                        itemBuilder: (context, index) {
+                          final item = editedItems[index];
+                          return Container(
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(color: Colors.grey.shade300, width: 1),
                               ),
-                              Expanded(
-                                flex: 2,
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.remove, size: 16),
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      onPressed: () {
-                                        if (item.quantity > 1) {
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  flex: isPortrait ? 4 : 5,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              item.name,
+                                              style: const TextStyle(fontWeight: FontWeight.w500),
+                                            ),
+                                          ),
+                                          // NEW: Show tax-exempt indicator
+                                          if (item.taxExempt)
+                                            Container(
+                                              margin: const EdgeInsets.only(left: 4),
+                                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: Colors.orange[100],
+                                                borderRadius: BorderRadius.circular(4),
+                                                border: Border.all(color: Colors.orange[300]!),
+                                              ),
+                                              child: Text(
+                                                'Tax Free'.tr(),
+                                                style: TextStyle(
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.orange[800],
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 2,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.remove, size: 16),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        onPressed: () {
+                                          if (item.quantity > 1) {
+                                            setState(() {
+                                              editedItems[index] = OrderItem(
+                                                id: item.id,
+                                                name: item.name,
+                                                price: item.price,
+                                                quantity: item.quantity - 1,
+                                                kitchenNote: item.kitchenNote,
+                                                taxExempt: item.taxExempt,
+                                              );
+                                            });
+                                          }
+                                        },
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        '${item.quantity}',
+                                        style: const TextStyle(fontWeight: FontWeight.bold),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      IconButton(
+                                        icon: const Icon(Icons.add, size: 16),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        onPressed: () {
                                           setState(() {
                                             editedItems[index] = OrderItem(
                                               id: item.id,
                                               name: item.name,
                                               price: item.price,
-                                              quantity: item.quantity - 1,
+                                              quantity: item.quantity + 1,
                                               kitchenNote: item.kitchenNote,
+                                              taxExempt: item.taxExempt,
                                             );
                                           });
-                                        }
-                                      },
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      '${item.quantity}',
-                                      style: const TextStyle(fontWeight: FontWeight.bold),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    IconButton(
-                                      icon: const Icon(Icons.add, size: 16),
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      onPressed: () {
-                                        setState(() {
-                                          editedItems[index] = OrderItem(
-                                            id: item.id,
-                                            name: item.name,
-                                            price: item.price,
-                                            quantity: item.quantity + 1,
-                                            kitchenNote: item.kitchenNote,
-                                          );
-                                        });
-                                      },
-                                    ),
-                                  ],
+                                        },
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              Expanded(
-                                flex: isPortrait ? 2 : 3,
-                                child: Text(
-                                  NumberFormat.currency(symbol: '', decimalDigits: 3).format(item.price),
-                                  textAlign: TextAlign.right,
+                                Expanded(
+                                  flex: isPortrait ? 2 : 3,
+                                  child: Text(
+                                    NumberFormat.currency(symbol: '', decimalDigits: 3).format(item.price),
+                                    textAlign: TextAlign.right,
+                                  ),
                                 ),
-                              ),
-                              SizedBox(
-                                width: isPortrait ? 40 : 70,
-                                child: IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                                  onPressed: () {
-                                    setState(() {
-                                      editedItems.removeAt(index);
-                                    });
-                                  },
+                                SizedBox(
+                                  width: isPortrait ? 40 : 70,
+                                  child: IconButton(
+                                    icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                                    onPressed: () {
+                                      setState(() {
+                                        editedItems.removeAt(index);
+                                      });
+                                    },
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        _showAddItemDialog(context, editedItems, setState);
-                      },
-                      icon: const Icon(Icons.add),
-                      label: Text('Add Item'.tr()),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
+                              ],
+                            ),
+                          );
+                        },
                       ),
                     ),
-                  ),
-                ],
+                    
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          _showAddItemDialog(context, editedItems, setState);
+                        },
+                        icon: const Icon(Icons.add),
+                        label: Text('Add Item'.tr()),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child:  Text('Cancel'.tr()),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  bool isChanged = _orderItemsChanged(_originalItems ?? [], editedItems);
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child:  Text('Cancel'.tr()),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    bool isChanged = _orderItemsChanged(_originalItems ?? [], editedItems);
 
-                  if (!context.mounted || _order == null || !isChanged) {
+                    if (!context.mounted || _order == null || !isChanged) {
+                      if (context.mounted) Navigator.of(context).pop();
+                      return;
+                    }
+
+                    // NEW: Calculate with tax-exempt handling
+                    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+                    
+                    double taxableTotal = 0.0;
+                    double taxExemptTotal = 0.0;
+                    
+                    for (var item in editedItems) {
+                      final itemTotal = item.price * item.quantity;
+                      if (item.taxExempt) {
+                        taxExemptTotal += itemTotal;
+                      } else {
+                        taxableTotal += itemTotal;
+                      }
+                    }
+                    
+                    double newSubtotal;
+                    double newTax;
+                    double newTotal;
+                    
+                    if (settingsProvider.isVatInclusive) {
+                      final taxableAmount = taxableTotal / (1 + (settingsProvider.taxRate / 100));
+                      newTax = taxableTotal - taxableAmount;
+                      newSubtotal = taxableAmount + taxExemptTotal;
+                      newTotal = (taxableTotal + taxExemptTotal) - _discountAmount;
+                    } else {
+                      newSubtotal = (taxableTotal + taxExemptTotal) - _discountAmount;
+                      newTax = taxableTotal * (settingsProvider.taxRate / 100);
+                      newTotal = newSubtotal + newTax;
+                    }
+
+                    setState(() {
+                      _order = OrderHistory(
+                        id: _order!.id,
+                        serviceType: _order!.serviceType,
+                        total: newTotal,
+                        status: _order!.status,
+                        createdAt: _order!.createdAt,
+                        items: editedItems,
+                      );
+                      _wasEdited = true;
+                    });
+
+                    bool success = false;
+                    try {
+                      success = await _saveOrderChangesToBackend();
+                    } catch (error) {
+                      debugPrint('Error when saving order: $error');
+                    }
+
+                    if (success && context.mounted) {
+                      final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
+                      historyProvider.loadOrders();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Order updated successfully'.tr()),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    }
+
                     if (context.mounted) Navigator.of(context).pop();
-                    return;
-                  }
-
-                  double newSubtotal = _calculateSubtotal(editedItems);
-                  double newTax = newSubtotal * (_taxRate / 100.0);
-                  double newTotal = newSubtotal + newTax - _discountAmount;
-
-                  setState(() {
-                    _order = OrderHistory(
-                      id: _order!.id,
-                      serviceType: _order!.serviceType,
-                      total: newTotal,
-                      status: _order!.status,
-                      createdAt: _order!.createdAt,
-                      items: editedItems,
-                    );
-                    _wasEdited = true;
-                  });
-
-                  bool success = false;
-                  try {
-                    success = await _saveOrderChangesToBackend();
-                  } catch (error) {
-                    debugPrint('Error when saving order: $error');
-                  }
-
-                  if (success && context.mounted) {
-                    final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
-                    historyProvider.loadOrders();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Order updated successfully'.tr()),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                  }
-
-                  if (context.mounted) Navigator.of(context).pop();
-                },                    
-                child:  Text('Save'.tr()),
-              ),
-            ],
-          );
-        },
-      );
-    },
-  ).then((_) {
-    if (mounted) {
-      setState(() {});
-    }
-  });
-}
+                  },                    
+                  child:  Text('Save'.tr()),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then((_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
  
   bool _orderItemsChanged(List<OrderItem> original, List<OrderItem> edited) {
     if (original.length != edited.length) return true;
@@ -666,9 +721,33 @@ void _showEditOrderItemsDialog() {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                selectedItem!.name,
-                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      selectedItem!.name,
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                  // NEW: Show tax-exempt indicator
+                                  if (selectedItem!.taxExempt)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange[100],
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(color: Colors.orange[300]!),
+                                      ),
+                                      child: Text(
+                                        'Tax Free'.tr(),
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.orange[800],
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                               Text('${'Price'.tr()}: ${NumberFormat.currency(symbol: '', decimalDigits: 3).format(selectedItem!.price)}'),
                               Text('${'Category'.tr()}: ${selectedItem!.category.tr()}'),
@@ -692,11 +771,35 @@ void _showEditOrderItemsDialog() {
                                   elevation: isSelected ? 4 : 1,
                                   color: isSelected ? Colors.blue.shade100 : Colors.white,
                                   child: ListTile(
-                                    title: Text(
-                                      item.name,
-                                      style: TextStyle(
-                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                      ),
+                                    title: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            item.name,
+                                            style: TextStyle(
+                                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                            ),
+                                          ),
+                                        ),
+                                        // NEW: Show tax-exempt badge
+                                        if (item.taxExempt)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.orange[100],
+                                              borderRadius: BorderRadius.circular(4),
+                                              border: Border.all(color: Colors.orange[300]!),
+                                            ),
+                                            child: Text(
+                                              'Tax Free'.tr(),
+                                              style: TextStyle(
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.orange[800],
+                                              ),
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                     subtitle: Text(
                                       '${NumberFormat.currency(symbol: '', decimalDigits: 3).format(item.price)} - ${item.category}',
@@ -762,6 +865,7 @@ void _showEditOrderItemsDialog() {
                       price: selectedItem!.price,
                       quantity: quantity,
                       kitchenNote: selectedItem!.kitchenNote,
+                      taxExempt: selectedItem!.taxExempt, // NEW: Include tax-exempt status
                     );
                     
                     setState(() {
@@ -781,74 +885,71 @@ void _showEditOrderItemsDialog() {
   }
 
   Future<void> _reprintReceipt() async {
-  if (_order == null) return;
+    if (_order == null) return;
     
-  try {
-    // Convert order items to MenuItem objects
-    final items = _order!.items.map((item) => 
-      MenuItem(
-        id: item.id.toString(),
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        imageUrl: '',
-        category: '',
-        kitchenNote: item.kitchenNote,
-      )
-    ).toList();
-    
-    // Extract tableInfo if this is a dining order
-    String? tableInfo;
-    if (_order!.serviceType.startsWith('Dining - Table')) {
-      tableInfo = _order!.serviceType;
-    }
-    
-    // Print KOT receipt instead of main receipt
-    final result = await BillService.printKitchenOrderReceipt(
-      items: items,
-      serviceType: _order!.serviceType,
-      tableInfo: tableInfo,
-      orderNumber: _order!.orderNumber,
-      context: mounted ? context : null,
-    );
-    
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+    try {
+      final items = _order!.items.map((item) => 
+        MenuItem(
+          id: item.id.toString(),
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          imageUrl: '',
+          category: '',
+          kitchenNote: item.kitchenNote,
+          taxExempt: item.taxExempt,
+        )
+      ).toList();
       
-      // Check if result is not null and has expected structure
-      if (result['success'] == true) {
+      String? tableInfo;
+      if (_order!.serviceType.startsWith('Dining - Table')) {
+        tableInfo = _order!.serviceType;
+      }
+      
+      final result = await BillService.printKitchenOrderReceipt(
+        items: items,
+        serviceType: _order!.serviceType,
+        tableInfo: tableInfo,
+        orderNumber: _order!.orderNumber,
+        context: mounted ? context : null,
+      );
+      
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        
+        if (result['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? 'KOT receipt reprinted successfully'.tr()),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? 'Failed to reprint KOT receipt'.tr()),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error reprinting KOT receipt: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result['message'] ?? 'KOT receipt reprinted successfully'.tr()),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message'] ?? 'Failed to reprint KOT receipt'.tr()),
+            content: Text('Error reprinting KOT receipt: ${e.toString()}'.tr()),
             backgroundColor: Colors.red,
           ),
         );
       }
-        }
-  } catch (e) {
-    debugPrint('Error reprinting KOT receipt: $e');
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error reprinting KOT receipt: ${e.toString()}'.tr()),
-          backgroundColor: Colors.red,
-        ),
-      );
     }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -856,11 +957,9 @@ void _showEditOrderItemsDialog() {
       canPop: true,
       onPopInvokedWithResult: (bool didPop, dynamic result) async { 
         if (didPop) {
-          // If didPop is true, the pop was already handled (no edits)
           return;
         }
         
-        // Just navigate back without asking to save
         if (mounted) {
           Navigator.of(context).pop();
         }
@@ -875,14 +974,6 @@ void _showEditOrderItemsDialog() {
             onPressed: () => Navigator.of(context).pop(),
           ),
           actions: [
-              //  TextButton.icon(
-              //   icon: const Icon(Icons.receipt),
-              //   label: Text('Receipt'.tr()),
-              //   onPressed: _navigateToPersonSearchForReceipt,
-              //   style: TextButton.styleFrom(
-              //     foregroundColor: Colors.green[800],
-              //   ),
-              // ),
             if (_order != null)
               TextButton.icon(
                 icon: const Icon(Icons.payment),
@@ -956,24 +1047,31 @@ void _showEditOrderItemsDialog() {
     final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
     final settingsProvider = Provider.of<SettingsProvider>(context);
     
-    // Calculate the sum of item prices first
-    final itemPricesSum = _calculateSubtotal(_order!.items);
+    // NEW: Calculate with tax-exempt handling
+    double taxableTotal = 0.0;
+    double taxExemptTotal = 0.0;
+    
+    for (var item in _order!.items) {
+      final itemTotal = item.price * item.quantity;
+      if (item.taxExempt) {
+        taxExemptTotal += itemTotal;
+      } else {
+        taxableTotal += itemTotal;
+      }
+    }
     
     double subtotal;
     double tax;
     double total;
     
     if (settingsProvider.isVatInclusive) {
-      // Inclusive: item prices already include tax
-      total = itemPricesSum - _discountAmount;
-      // Extract tax from the total
-      tax = total - (total / (1 + (settingsProvider.taxRate / 100)));
-      // Calculate subtotal without tax
-      subtotal = total - tax;
+      final taxableAmount = taxableTotal / (1 + (settingsProvider.taxRate / 100));
+      tax = taxableTotal - taxableAmount;
+      subtotal = taxableAmount + taxExemptTotal;
+      total = (taxableTotal + taxExemptTotal) - _discountAmount;
     } else {
-      // Exclusive: add tax on top
-      subtotal = itemPricesSum - _discountAmount;
-      tax = subtotal * (settingsProvider.taxRate / 100.0);
+      subtotal = (taxableTotal + taxExemptTotal) - _discountAmount;
+      tax = taxableTotal * (settingsProvider.taxRate / 100);
       total = subtotal + tax;
     }
 
@@ -1016,7 +1114,6 @@ void _showEditOrderItemsDialog() {
                     'Service Type'.tr(),
                     _getTranslatedServiceType(_order!.serviceType)                  ),
                   const SizedBox(height: 8),
-                  // Add customer info row
                   _buildInfoRow(
                     Icons.person,
                     'Customer'.tr(),
@@ -1133,6 +1230,29 @@ void _showEditOrderItemsDialog() {
                       Text(currencyFormat.format(tax)),
                     ],
                   ),
+                  // NEW: Show tax-exempt total if any
+                  // if (taxExemptTotal > 0) ...[
+                  //   const SizedBox(height: 4),
+                  //   Row(
+                  //     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  //     children: [
+                  //       Text(
+                  //         'Tax-Free Items:'.tr(),
+                  //         style: TextStyle(
+                  //           fontSize: 12,
+                  //           color: Colors.orange[700],
+                  //         ),
+                  //       ),
+                  //       Text(
+                  //         currencyFormat.format(taxExemptTotal),
+                  //         style: TextStyle(
+                  //           fontSize: 12,
+                  //           color: Colors.orange[700],
+                  //         ),
+                  //       ),
+                  //     ],
+                  //   ),
+                  // ],
                   if (_discountAmount > 0 || total > 0) ...[
                     const SizedBox(height: 4),
                     if (_discountAmount > 0)
@@ -1185,7 +1305,7 @@ void _showEditOrderItemsDialog() {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12), // Space between buttons
+                      const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton.icon(
                           icon: const Icon(Icons.print),
@@ -1242,7 +1362,30 @@ void _showEditOrderItemsDialog() {
         children: [
           Expanded(
             flex: 5,
-            child: Text(item.name),
+            child: Row(
+              children: [
+                Expanded(child: Text(item.name)),
+                // NEW: Show tax-exempt indicator
+                if (item.taxExempt)
+                  Container(
+                    margin: const EdgeInsets.only(left: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.orange[100],
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.orange[300]!),
+                    ),
+                    child: Text(
+                      'Tax Free'.tr(),
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange[800],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
           Expanded(
             flex: 2,
@@ -1270,7 +1413,7 @@ void _showEditOrderItemsDialog() {
     );
   }
   
-  Widget _buildTotalRow(String label, double amount, NumberFormat formatter, {bool isTotal = false ,bool isDiscount  = false}) {
+  Widget _buildTotalRow(String label, double amount, NumberFormat formatter, {bool isTotal = false, bool isDiscount = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -1291,34 +1434,12 @@ void _showEditOrderItemsDialog() {
       ],
     );
   }
-  // Replace the existing _getServiceTypeIcon method with:
+
 IconData _getServiceTypeIcon(String serviceType) {
   return ServiceTypeUtils.getIcon(serviceType);
 }
-  
- // The OrderDetailsScreen doesn't seem to have a color method, but if you need one:
-// Color _getServiceTypeColor(String serviceType) {
-//   return ServiceTypeUtils.getColor(serviceType);
-// }
 
-// // If you need translated service type display in OrderDetailsScreen:
 String _getTranslatedServiceType(String serviceType) {
   return ServiceTypeUtils.getTranslated(serviceType);
 }
-
-// Add this method to OrderDetailsScreen
-// Future<void> _navigateToPersonSearchForReceipt() async {
-//   final selectedPerson = await Navigator.push<Person>(
-//     context,
-//     MaterialPageRoute(
-//       builder: (context) => const SearchPersonScreen(isForCreditReceipt: true),
-//     ),
-//   );
-  
-//   if (selectedPerson != null) {
-//     // Handle the selected person if needed
-//     debugPrint('Selected person for credit receipt: ${selectedPerson.name}');
-//   }
-// }
-
 }

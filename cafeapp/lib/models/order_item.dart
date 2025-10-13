@@ -1,18 +1,19 @@
-// Update the OrderItem class in lib/models/order_item.dart
-
+// In OrderItem class:
 class OrderItem {
   final int id;
   final String name;
   final double price;
   final int quantity;
-  final String kitchenNote; // Add this field
+  final String kitchenNote;
+  final bool taxExempt; // NEW: Add this field
 
   OrderItem({
     required this.id,
     required this.name,
     required this.price,
     required this.quantity,
-    this.kitchenNote = '', // Default to empty string
+    this.kitchenNote = '',
+    this.taxExempt = false, // NEW: Default to false
   });
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
@@ -21,7 +22,8 @@ class OrderItem {
       name: json['name'],
       price: json['price'].toDouble(),
       quantity: json['quantity'],
-      kitchenNote: json['kitchenNote'] ?? '', // Parse from JSON
+      kitchenNote: json['kitchenNote'] ?? '',
+      taxExempt: json['taxExempt'] ?? false, // NEW
     );
   }
 
@@ -31,7 +33,8 @@ class OrderItem {
       'name': name,
       'price': price,
       'quantity': quantity,
-      'kitchenNote': kitchenNote, // Include in JSON
+      'kitchenNote': kitchenNote,
+      'taxExempt': taxExempt, // NEW
     };
   }
 }

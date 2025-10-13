@@ -1,3 +1,4 @@
+// import 'package:cafeapp/repositories/local_order_repository.dart';
 import 'package:cafeapp/services/excel_import_service.dart';
 import 'package:cafeapp/utils/camera_helper.dart';
 import 'package:flutter/material.dart';
@@ -29,6 +30,8 @@ class _ModifierScreenState extends State<ModifierScreen> {
   final _priceController = TextEditingController();
   bool _isAvailable = true;
   bool _isAddingNewCategory = false;
+  bool _isTaxExempt = false;
+
   
   MenuItem? _editingItem;
   
@@ -1036,6 +1039,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
     _categoryController.clear();
     setState(() {
       _isAvailable = true;
+      _isTaxExempt = false;
       _editingItem = null;
       _isAddingNewCategory = false;
       _selectedImage = null;
@@ -1057,6 +1061,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
       _priceController.text = item.price.toString();
       _selectedCategory = item.category;
       _isAvailable = item.isAvailable;
+      _isTaxExempt = item.taxExempt; // NEW
       _isAddingNewCategory = false;
       _selectedImage = null;
       
@@ -1421,7 +1426,12 @@ class _ModifierScreenState extends State<ModifierScreen> {
   // Improved save function with more robust image handling
   void _saveItemToDatabase() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
+      // ADD THIS DEBUG LOG RIGHT HERE
+      debugPrint('=== SAVING ITEM ===');
+      debugPrint('Current _isTaxExempt state: $_isTaxExempt');
+      debugPrint('Is editing: ${_editingItem != null}');
+
     // Validate category
     if (_selectedCategory.isEmpty && !_isAddingNewCategory) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1432,7 +1442,15 @@ class _ModifierScreenState extends State<ModifierScreen> {
       );
       return;
     }
+    // IMPORTANT: Capture the state values BEFORE any async operations
+    final bool capturedTaxExempt = _isTaxExempt;
+    final bool capturedIsAvailable = _isAvailable;
+    final String capturedName = _nameController.text.trim();
+    final double capturedPrice = double.parse(_priceController.text);
 
+    // Add debug log to verify
+    debugPrint('💾 Saving item - taxExempt: $capturedTaxExempt, isAvailable: $capturedIsAvailable');
+  
     final menuProvider = Provider.of<MenuProvider>(context, listen: false);
     
     // Show saving dialog
@@ -1509,13 +1527,15 @@ class _ModifierScreenState extends State<ModifierScreen> {
     // Create the item with proper data
     final item = MenuItem(
       id: _editingItem?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-      name: _nameController.text.trim(),
-      price: double.parse(_priceController.text),
+      name: capturedName,           // ← Use captured value
+      price: capturedPrice,          // ← Use captured value
       category: categoryToUse,
       imageUrl: imageUrl,
-      isAvailable: _isAvailable,
+      isAvailable: capturedIsAvailable,  // ← Use captured value
+      taxExempt: capturedTaxExempt, 
     );
-
+     // Debug log to verify the item being saved
+     debugPrint('💾 MenuItem created - taxExempt: ${item.taxExempt}');
     // Save to database
     bool success = false;
     try {
@@ -1525,6 +1545,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
         await menuProvider.updateMenuItem(item);
       }
       success = true;
+      // await LocalOrderRepository().printDatabaseContents(); // Debug log
     } catch (e) {
       success = false;
     }
@@ -2023,7 +2044,28 @@ class _ModifierScreenState extends State<ModifierScreen> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 8), // NEW: Add spacing
 
+                // NEW: Tax Exempt switch
+                Row(
+  children: [
+    Text('Tax Exempt'.tr()),
+    const SizedBox(width: 8),
+    Tooltip(
+      message: 'Enable this to exclude tax for this item'.tr(),
+      child: Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
+    ),
+    Switch(
+      value: _isTaxExempt,
+      onChanged: (value) {
+        setState(() {
+          _isTaxExempt = value;
+          debugPrint('Tax Exempt checkbox changed to: $_isTaxExempt'); // ADD THIS LINE
+        });
+      },
+    ),
+  ],
+),
                 const SizedBox(height: 32), // Add extra space at bottom
 
                 // Form buttons
