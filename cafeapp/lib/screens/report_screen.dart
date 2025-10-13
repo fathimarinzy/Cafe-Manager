@@ -7,9 +7,6 @@ import '../repositories/local_order_repository.dart';
 import '../repositories/local_expense_repository.dart';
 import '../models/order.dart';
 import '../services/thermal_printer_service.dart';
-// import 'package:esc_pos_printer/esc_pos_printer.dart';
-// import 'package:esc_pos_utils/esc_pos_utils.dart';
-// import 'dart:io';
 import 'package:flutter/services.dart';
 // import 'package:path_provider/path_provider.dart';
 import '../utils/app_localization.dart';
@@ -45,6 +42,11 @@ class _ReportScreenState extends State<ReportScreen> {
   bool _isPrinting = false;
   bool _isSavingPdf = false; // Add PDF saving state
 
+  bool _useTimeFilter = false;
+  TimeOfDay _startTime = const TimeOfDay(hour: 0, minute: 0);
+  TimeOfDay _endTime = const TimeOfDay(hour: 23, minute: 59);
+
+
   @override
   void initState() {
     super.initState();
@@ -52,6 +54,21 @@ class _ReportScreenState extends State<ReportScreen> {
     _startDate = DateTime(now.year, now.month, 1);
     _endDate = DateTime.now();
     _loadReport();
+  }
+ // Helper method to format time range text for display
+  String _getTimeRangeText() {
+    if (_useTimeFilter) {
+      // Format time with AM/PM manually
+      String formatTimeWithAmPm(TimeOfDay time) {
+        final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
+        final minute = time.minute.toString().padLeft(2, '0');
+        final period = time.period == DayPeriod.am ? 'AM' : 'PM';
+        return '$hour:$minute $period';
+      }
+      
+      return ' (${formatTimeWithAmPm(_startTime)} - ${formatTimeWithAmPm(_endTime)})';
+    }
+    return '';
   }
 
   // Check if text contains Arabic characters
@@ -290,13 +307,13 @@ class _ReportScreenState extends State<ReportScreen> {
       
       if (_selectedReportType == 'daily') {
         reportTitle = 'Daily Report';
-        dateRangeText = DateFormat('dd MMM yyyy').format(_selectedDate);
+        dateRangeText = DateFormat('dd MMM yyyy').format(_selectedDate)+_getTimeRangeText();
       } else if (_selectedReportType == 'monthly') {
         reportTitle = 'Monthly Report';
-        dateRangeText = DateFormat('MMMM yyyy').format(_startDate);
+        dateRangeText = DateFormat('MMMM yyyy').format(_startDate)+_getTimeRangeText();
       } else {
         reportTitle = 'Monthly Report';
-        dateRangeText = '${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}';
+        dateRangeText = '${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}${_getTimeRangeText()}';
       }
       
       // Use the new image-based printing
@@ -351,13 +368,13 @@ Future<pw.Document> _generateReportPdf() async {
   
   if (_selectedReportType == 'daily') {
     reportTitle = 'Daily Report'.tr();
-    dateRangeText = DateFormat('dd MMM yyyy').format(_selectedDate);
+    dateRangeText = DateFormat('dd MMM yyyy').format(_selectedDate) + _getTimeRangeText();
   } else if (_selectedReportType == 'monthly') {
     reportTitle = 'Monthly Report'.tr();
-    dateRangeText = DateFormat('MMMM yyyy').format(_startDate);
+    dateRangeText = DateFormat('MMMM yyyy').format(_startDate) + _getTimeRangeText();
   } else {
     reportTitle = 'Monthly Report'.tr();
-    dateRangeText = '${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}';
+    dateRangeText = '${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}${_getTimeRangeText()}';
   }
   
   final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
@@ -930,14 +947,23 @@ pw.Widget _buildPdfBalanceRow(Map<String, dynamic> paymentTotals, NumberFormat f
   }
 
   // All the remaining helper and UI methods remain the same as your original code...
+  // Updated _getCacheKey method to include time when filtering
   String _getCacheKey(String reportType, DateTime date, {DateTime? endDate}) {
+    String baseKey;
     if (reportType == 'daily') {
-      return 'daily_${DateFormat('yyyy-MM-dd').format(date)}';
+      baseKey = 'daily_${DateFormat('yyyy-MM-dd').format(date)}';
     } else if (reportType == 'monthly') {
-      return 'monthly_${DateFormat('yyyy-MM').format(date)}';
+      baseKey = 'monthly_${DateFormat('yyyy-MM').format(date)}';
     } else {
-      return 'custom_${DateFormat('yyyy-MM-dd').format(date)}_${DateFormat('yyyy-MM-dd').format(endDate ?? date)}';
+      baseKey = 'custom_${DateFormat('yyyy-MM-dd').format(date)}_${DateFormat('yyyy-MM-dd').format(endDate ?? date)}';
     }
+    
+    // Add time information to cache key if time filter is enabled
+    if (_useTimeFilter) {
+      baseKey += '_time_${_startTime.hour}${_startTime.minute}_${_endTime.hour}${_endTime.minute}';
+    }
+    
+    return baseKey;
   }
 
   double _getPaymentValue(Map<String, dynamic> paymentTotals, String method, String type) {
@@ -960,20 +986,64 @@ pw.Widget _buildPdfBalanceRow(Map<String, dynamic> paymentTotals, NumberFormat f
       DateTime startDate, endDate;
       
       if (_selectedReportType == 'daily') {
+        if (_useTimeFilter) {
+          startDate = DateTime(
+              _selectedDate.year, 
+              _selectedDate.month, 
+              _selectedDate.day,
+              _startTime.hour,
+              _startTime.minute,
+            );        
+          endDate = DateTime(
+            _selectedDate.year, 
+            _selectedDate.month, 
+            _selectedDate.day,
+            _endTime.hour,
+            _endTime.minute,
+          );      
+        }else {
         startDate = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
         endDate = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, 23, 59, 59);
-      } else if (_selectedReportType == 'monthly') {
+          }
+        }  
+        else if (_selectedReportType == 'monthly') {
+      if (_useTimeFilter) {
+        startDate = DateTime(
+          _startDate.year, 
+          _startDate.month, 
+          1,
+          _startTime.hour,
+          _startTime.minute,
+        );
+        if (_startDate.month < 12) {
+          endDate = DateTime(
+            _startDate.year, 
+            _startDate.month + 1, 
+            0,
+            _endTime.hour,
+            _endTime.minute,
+          );
+        } else {
+          endDate = DateTime(
+            _startDate.year + 1, 
+            1, 
+            0,
+            _endTime.hour,
+            _endTime.minute,
+          );
+        }
+      } else {
         startDate = DateTime(_startDate.year, _startDate.month, 1);
         if (_startDate.month < 12) {
           endDate = DateTime(_startDate.year, _startDate.month + 1, 0, 23, 59, 59);
         } else {
           endDate = DateTime(_startDate.year + 1, 1, 0, 23, 59, 59);
         }
-      } else {
-        startDate = DateTime(_startDate.year, _startDate.month, _startDate.day);
-        endDate = DateTime(_endDate.year, _endDate.month, _endDate.day, 23, 59, 59);
       }
-      
+    } else {
+      startDate = DateTime(_startDate.year, _startDate.month, _startDate.day);
+      endDate = DateTime(_endDate.year, _endDate.month, _endDate.day, 23, 59, 59);
+    }
       final String cacheKey = _getCacheKey(
         _selectedReportType, 
         startDate,
@@ -1011,6 +1081,33 @@ pw.Widget _buildPdfBalanceRow(Map<String, dynamic> paymentTotals, NumberFormat f
       }
     }
   }
+ // Add time picker method (with AM/PM support):
+Future<void> _selectTime(bool isStartTime) async {
+  final TimeOfDay? picked = await showTimePicker(
+    context: context,
+    initialTime: isStartTime ? _startTime : _endTime,
+    initialEntryMode: TimePickerEntryMode.input, // Start with input mode
+    builder: (BuildContext context, Widget? child) {
+      return MediaQuery(
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: false),
+        child: child!,
+      );
+    },
+  );
+  
+  if (picked != null) {
+    setState(() {
+      if (isStartTime) {
+        _startTime = picked;
+      } else {
+        _endTime = picked;
+      }
+    });
+    if (_useTimeFilter) {
+      _loadReport();
+    }
+  }
+}
 
   Future<Map<String, dynamic>> _generateLocalReport(DateTime startDate, DateTime endDate) async {
     final List<Order> allOrders = await _orderRepo.getAllOrders();
@@ -1022,37 +1119,43 @@ pw.Widget _buildPdfBalanceRow(Map<String, dynamic> paymentTotals, NumberFormat f
     final reportData = _createReportFromData(filteredOrders, filteredExpenses);
     return reportData;
   }
-
-  List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, DateTime endDate) {
-    return orders.where((order) {
-      if (order.createdAt == null) return false;
-      
-      DateTime orderDate;
-      try {
-        if (order.createdAt!.contains('local_')) {
-          final parts = order.createdAt!.split('_');
-          if (parts.length > 1) {
-            final timestamp = int.parse(parts.last);
-            orderDate = DateTime.fromMillisecondsSinceEpoch(timestamp);
-          } else {
-            orderDate = DateTime.now();
-            return false;
-          }
+List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, DateTime endDate) {
+  debugPrint('Filtering orders from ${DateFormat('yyyy-MM-dd HH:mm:ss').format(startDate)} to ${DateFormat('yyyy-MM-dd HH:mm:ss').format(endDate)}');
+  
+  return orders.where((order) {
+    if (order.createdAt == null) return false;
+    
+    DateTime orderDate;
+    try {
+      if (order.createdAt!.contains('local_')) {
+        final parts = order.createdAt!.split('_');
+        if (parts.length > 1) {
+          final timestamp = int.parse(parts.last);
+          orderDate = DateTime.fromMillisecondsSinceEpoch(timestamp);
         } else {
-          orderDate = DateTime.parse(order.createdAt!);
+          orderDate = DateTime.now();
+          return false;
         }
-        
-        return (orderDate.isAfter(startDate.subtract(const Duration(seconds: 1))) || 
-                orderDate.isAtSameMomentAs(startDate)) && 
-               (orderDate.isBefore(endDate.add(const Duration(seconds: 1))) || 
-                orderDate.isAtSameMomentAs(endDate));
-               
-      } catch (e) {
-        debugPrint('Error parsing date for order ${order.id}: ${order.createdAt} - $e');
-        return false;
+      } else {
+        orderDate = DateTime.parse(order.createdAt!);
       }
-    }).toList();
-  }
+      
+      // Compare with time precision
+      final isAfterStart = orderDate.isAfter(startDate) || orderDate.isAtSameMomentAs(startDate);
+      final isBeforeEnd = orderDate.isBefore(endDate) || orderDate.isAtSameMomentAs(endDate);
+      
+      if (isAfterStart && isBeforeEnd) {
+        debugPrint('Order ${order.id} at ${DateFormat('yyyy-MM-dd HH:mm:ss').format(orderDate)} - INCLUDED');
+      }
+      
+      return isAfterStart && isBeforeEnd;
+               
+    } catch (e) {
+      debugPrint('Error parsing date for order ${order.id}: ${order.createdAt} - $e');
+      return false;
+    }
+  }).toList();
+}
 
   List<Map<String, dynamic>> _filterExpensesByDateRange(
     List<Map<String, dynamic>> expenses, 
@@ -1453,63 +1556,241 @@ pw.Widget _buildPdfBalanceRow(Map<String, dynamic> paymentTotals, NumberFormat f
     );
   }
 
-  Widget _buildDateSelector() {
-    return InkWell(
-      onTap: _selectDate,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.calendar_today, color: Colors.grey.shade600),
-                const SizedBox(width: 8),
-                Text(
-                  '${'Selected Date:'.tr()} ${DateFormat('dd-MM-yyyy').format(_selectedDate)}',
-                  style: const TextStyle(fontSize: 16),
-                ),
-              ],
-            ),
-            Icon(Icons.arrow_drop_down, color: Colors.grey.shade600),
-          ],
+ Widget _buildDateSelector() {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      InkWell(
+        onTap: _selectDate,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(8),
+            color: Colors.white,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.calendar_today, color: Colors.grey.shade600, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${'Selected Date:'.tr()} ${DateFormat('dd MMM yyyy').format(_selectedDate)}',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ],
+              ),
+              // Time filter checkbox on the right
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Checkbox(
+                    value: _useTimeFilter,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        _useTimeFilter = value ?? false;
+                      });
+                      _loadReport();
+                    },
+                  ),
+                  Icon(Icons.access_time, color: Colors.grey.shade600, size: 20),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
-    );
-  }
+      // Time selection (shown when checkbox is enabled)
+      if (_useTimeFilter) ...[
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: InkWell(
+                onTap: () => _selectTime(true),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(4),
+                    color: Colors.white,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.access_time, color: Colors.grey.shade600, size: 16),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${'From:'.tr()} ${_startTime.format(context)}',
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ],
+                      ),
+                      Icon(Icons.arrow_drop_down, color: Colors.grey.shade600, size: 16),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: InkWell(
+                onTap: () => _selectTime(false),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(4),
+                    color: Colors.white,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.access_time, color: Colors.grey.shade600, size: 16),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${'To:'.tr()} ${_endTime.format(context)}',
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ],
+                      ),
+                      Icon(Icons.arrow_drop_down, color: Colors.grey.shade600, size: 16),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    ],
+  );
+}
 
-  Widget _buildMonthSelector() {
-    return InkWell(
-      onTap: _selectMonth,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.calendar_month, color: Colors.grey.shade600),
-                const SizedBox(width: 8),
-                Text(
-                  '${'Month'.tr()}: ${DateFormat('MMMM yyyy').format(_startDate)}',
-                  style: const TextStyle(fontSize: 16),
+Widget _buildMonthSelector() {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+    decoration: BoxDecoration(
+      border: Border.all(color: Colors.grey.shade300),
+      borderRadius: BorderRadius.circular(8),
+      color: Colors.white,
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: _selectMonth,
+          child: Row(
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    Icon(Icons.calendar_month, color: Colors.grey.shade600, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      DateFormat('MMMM yyyy').format(_startDate),
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            Icon(Icons.arrow_drop_down, color: Colors.grey.shade600),
-          ],
+              ),
+              const SizedBox(width: 8),
+              // Time filter checkbox on the right
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Checkbox(
+                    value: _useTimeFilter,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        _useTimeFilter = value ?? false;
+                      });
+                      _loadReport();
+                    },
+                  ),
+                  Icon(Icons.access_time, color: Colors.grey.shade600, size: 20),
+                ],
+              ),
+            ],
+          ),
         ),
-      ),
-    );
-  }
+        // Time selection (shown when checkbox is enabled)
+        if (_useTimeFilter) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: () => _selectTime(true),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(4),
+                      color: Colors.white,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.access_time, color: Colors.grey.shade600, size: 16),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${'From:'.tr()} ${_startTime.format(context)}',
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ],
+                        ),
+                        Icon(Icons.arrow_drop_down, color: Colors.grey.shade600, size: 16),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: InkWell(
+                  onTap: () => _selectTime(false),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(4),
+                      color: Colors.white,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.access_time, color: Colors.grey.shade600, size: 16),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${'To:'.tr()} ${_endTime.format(context)}',
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ],
+                        ),
+                        Icon(Icons.arrow_drop_down, color: Colors.grey.shade600, size: 16),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    ),
+  );
+}
 
   Future<void> _selectMonth() async {
     final DateTime? picked = await showDatePicker(
@@ -1529,74 +1810,157 @@ pw.Widget _buildPdfBalanceRow(Map<String, dynamic> paymentTotals, NumberFormat f
     }
   }
 
-  Widget _buildDateRangeSelector() {
-    return InkWell(
-      onTap: _selectDateRange,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: _isCustomDateRange ? Colors.blue.shade300 : Colors.grey.shade300,
-            width: _isCustomDateRange ? 2 : 1,
-          ),
-          borderRadius: BorderRadius.circular(8),
-          color: _isCustomDateRange ? Colors.blue.shade50 : Colors.white,
+Widget _buildDateRangeSelector() {
+  return InkWell(
+    onTap: _selectDateRange,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: _isCustomDateRange ? Colors.blue.shade300 : Colors.grey.shade300,
+          width: _isCustomDateRange ? 2 : 1,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 8),
+        borderRadius: BorderRadius.circular(8),
+        color: _isCustomDateRange ? Colors.blue.shade50 : Colors.white,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(4),
+                    color: Colors.white,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${'From:'.tr()} ${DateFormat('dd MMM yyyy').format(_startDate)}',
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      const Icon(Icons.calendar_today, size: 16),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(4),
+                    color: Colors.white,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${'To:'.tr()} ${DateFormat('dd MMM yyyy').format(_endDate)}',
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      const Icon(Icons.calendar_today, size: 16),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Time filter checkbox on the right
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Checkbox(
+                    value: _useTimeFilter,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        _useTimeFilter = value ?? false;
+                      });
+                      _loadReport();
+                    },
+                  ),
+                  Icon(Icons.access_time, color: Colors.grey.shade600, size: 20),
+                ],
+              ),
+            ],
+          ),
+          // Time selection (shown when checkbox is enabled)
+          if (_useTimeFilter) ...[
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(4),
-                      color: Colors.white,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '${'From:'.tr()} ${DateFormat('dd MMM yyyy').format(_startDate)}',
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        const Icon(Icons.calendar_today, size: 16),
-                      ],
+                  child: InkWell(
+                    onTap: () => _selectTime(true),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(4),
+                        color: Colors.white,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.access_time, color: Colors.grey.shade600, size: 16),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${'From:'.tr()} ${_startTime.format(context)}',
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            ],
+                          ),
+                          Icon(Icons.arrow_drop_down, color: Colors.grey.shade600, size: 16),
+                        ],
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(4),
-                      color: Colors.white,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '${'To:'.tr()} ${DateFormat('dd MMM yyyy').format(_endDate)}',
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        const Icon(Icons.calendar_today, size: 16),
-                      ],
+                  child: InkWell(
+                    onTap: () => _selectTime(false),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(4),
+                        color: Colors.white,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.access_time, color: Colors.grey.shade600, size: 16),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${'To:'.tr()} ${_endTime.format(context)}',
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            ],
+                          ),
+                          Icon(Icons.arrow_drop_down, color: Colors.grey.shade600, size: 16),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
           ],
-        ),
+        ],
       ),
-    );
-  }
-
+    ),
+  );
+}
   Widget _buildReportContent() {
     if (_reportData == null) return const SizedBox();
 
