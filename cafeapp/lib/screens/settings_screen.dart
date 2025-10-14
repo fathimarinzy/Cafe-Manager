@@ -1,5 +1,5 @@
 import 'package:cafeapp/main.dart';
-import 'package:cafeapp/utils/database_helper.dart';
+// import 'package:cafeapp/utils/database_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
@@ -16,7 +16,6 @@ import '../screens/expense_screen.dart';
 import '../screens/report_screen.dart';
 import '../widgets/backup_manager_widget.dart';
 import '../utils/database_reset_service.dart';
-// import 'package:flutter/services.dart';
 import '../services/license_service.dart';
 import 'renewal_screen.dart';
 import '../services/offline_sync_service.dart';
@@ -675,10 +674,6 @@ Future<void> _checkLicenseStatus() async {
           ),
         );
       }
-      // Close all databases first
-      final dbHelper = DatabaseHelper();
-      await dbHelper.closeAllDatabases();
-    
       // Clear ALL SharedPreferences (including registration)
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();

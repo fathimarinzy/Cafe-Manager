@@ -18,119 +18,76 @@ class DatabaseResetService {
     'cafe_expenses.db'
   ];
   
-  // Keep track of opened databases to ensure proper closing
-  final Map<String, Database?> _openDatabases = {};
-  
   // Force close all databases and delete database files
   Future<void> forceResetAllDatabases() async {
     try {
-      debugPrint('🔄 Starting force reset of all databases...');
+      debugPrint('Starting force reset of all databases...');
       
       // 1. Get the database path
       final dbPath = await getDatabasesPath();
-      debugPrint('📁 Database path: $dbPath');
+      debugPrint('Database path: $dbPath');
       
-      // 2. Force close all database connections
+      // 2. Make sure all databases are closed by SQLite
       await _forceCloseDatabases();
       
-      // 3. Wait to ensure all file handles are released
-      await Future.delayed(const Duration(milliseconds: 500));
+      // 3. Delay to ensure all connections are closed
+      await Future.delayed(const Duration(seconds: 1));
       
       // 4. Delete each database file with retry logic
-      int successCount = 0;
-      int failCount = 0;
-      
       for (final dbFile in _dbFiles) {
-        final success = await _safelyDeleteDatabaseFile(dbPath, dbFile);
-        if (success) {
-          successCount++;
-        } else {
-          failCount++;
-        }
+        await _safelyDeleteDatabaseFile(dbPath, dbFile);
       }
       
-      debugPrint('✅ Database reset complete: $successCount deleted, $failCount failed');
-      
-      // 5. Clear app cache files (optional, but helps with fresh start)
+      // 5. Clear app cache files as well (optional, but helps with fresh start)
       await _clearAppCache();
       
-      // 6. Clear any WAL (Write-Ahead Logging) and SHM files
-      await _clearDatabaseAuxiliaryFiles(dbPath);
-      
-      debugPrint('✅ All databases have been force reset');
+      debugPrint('All databases have been force reset');
     } catch (e) {
-      debugPrint('❌ Error in forceResetAllDatabases: $e');
+      debugPrint('Error in forceResetAllDatabases: $e');
       rethrow;
     }
   }
   
-  // Force close all database connections
+  // Force close all database connections by closing SQLite
   Future<void> _forceCloseDatabases() async {
     try {
-      debugPrint('🔒 Force closing all database connections...');
+      debugPrint('Force closing all database connections...');
       
+      // This will close all database connections managed by sqflite
+      await databaseFactory.deleteDatabase('dummy.db');
+      
+      // For extra safety, try to individually close databases 
       final dbPath = await getDatabasesPath();
       
-      // Close any databases we're tracking
-      for (final dbName in _openDatabases.keys.toList()) {
-        try {
-          final db = _openDatabases[dbName];
-          if (db != null && db.isOpen) {
-            await db.close();
-            debugPrint('  ✓ Closed tracked database: $dbName');
-          }
-          _openDatabases.remove(dbName);
-        } catch (e) {
-          debugPrint('  ⚠️ Error closing tracked database $dbName: $e');
-        }
-      }
-      
-      // Try to close any databases that might be open
       for (final dbFile in _dbFiles) {
         try {
           final fullPath = path.join(dbPath, dbFile);
-          
           if (await File(fullPath).exists()) {
-            // Try to open and immediately close the database
-            // This ensures any lingering connections are closed
-            try {
-              final db = await databaseFactory.openDatabase(
-                fullPath,
-                options: OpenDatabaseOptions(
-                  readOnly: true,
-                  singleInstance: false,
-                ),
-              );
-              await db.close();
-              debugPrint('  ✓ Closed database: $dbFile');
-            } catch (e) {
-              debugPrint('  ⚠️ Could not close $dbFile: $e');
-            }
+            // Try to close specific database connections
+            final db = await openDatabase(fullPath, readOnly: true);
+            await db.close();
+            debugPrint('Closed database: $dbFile');
           }
         } catch (e) {
-          debugPrint('  ⚠️ Error processing $dbFile: $e');
+          // Ignore errors here, we're just trying to close everything
+          debugPrint('Note: Could not close $dbFile: $e');
         }
       }
-      
-      // Extra safety: wait a bit for file system to release handles
-      await Future.delayed(const Duration(milliseconds: 200));
-      
-      debugPrint('✅ Database closing complete');
     } catch (e) {
-      debugPrint('❌ Error in forceCloseDatabases: $e');
-      // Continue anyway - we'll try to delete files regardless
+      debugPrint('Error in forceCloseDatabases: $e');
+      // Continue anyway
     }
   }
   
   // Safely delete a database file with retry logic
-  Future<bool> _safelyDeleteDatabaseFile(String dbPath, String dbFile) async {
+  Future<void> _safelyDeleteDatabaseFile(String dbPath, String dbFile) async {
     final fullPath = path.join(dbPath, dbFile);
     final file = File(fullPath);
     
     // Check if the file exists
     if (!await file.exists()) {
-      debugPrint('  ℹ️ Database file does not exist: $dbFile');
-      return true; // Not existing is considered success
+      debugPrint('Database file does not exist: $dbFile');
+      return;
     }
     
     // Try to delete with retry logic
@@ -139,213 +96,63 @@ class DatabaseResetService {
     
     while (retryCount < maxRetries) {
       try {
-        // Method 1: Direct file deletion
+        // Try to delete the file
         await file.delete();
-        debugPrint('  ✅ Successfully deleted database file: $dbFile');
-        return true;
+        debugPrint('Successfully deleted database file: $dbFile');
+        return;
       } catch (e) {
         retryCount++;
-        debugPrint('  ⚠️ Attempt $retryCount to delete $dbFile failed: $e');
-        
-        // Method 2: Try using sqflite's deleteDatabase
-        if (retryCount == 2) {
-          try {
-            await databaseFactory.deleteDatabase(fullPath);
-            debugPrint('  ✅ Deleted database using databaseFactory: $dbFile');
-            return true;
-          } catch (e2) {
-            debugPrint('  ⚠️ Alternative delete method failed for $dbFile: $e2');
-          }
-        }
-        
-        // Method 3: Try to rename first, then delete
-        if (retryCount == 3) {
-          try {
-            final tempPath = '$fullPath.old';
-            await file.rename(tempPath);
-            await File(tempPath).delete();
-            debugPrint('  ✅ Deleted via rename for $dbFile');
-            return true;
-          } catch (e3) {
-            debugPrint('  ⚠️ Rename-delete method failed for $dbFile: $e3');
-          }
-        }
+        debugPrint('Attempt $retryCount to delete $dbFile failed: $e');
         
         if (retryCount >= maxRetries) {
-          debugPrint('  ❌ Maximum retries reached for $dbFile');
+          debugPrint('Maximum retries reached for $dbFile');
           break;
         }
         
-        // Wait progressively longer between retries
+        // Try an alternative approach - delete using databaseFactory
+        try {
+          await databaseFactory.deleteDatabase(fullPath);
+          debugPrint('Deleted database using databaseFactory: $dbFile');
+          return;
+        } catch (e2) {
+          debugPrint('Alternative delete method failed for $dbFile: $e2');
+        }
+        
+        // Wait before retrying
         await Future.delayed(Duration(milliseconds: 500 * retryCount));
       }
     }
     
     // If we get here, all delete attempts failed
-    debugPrint('  ❌ FAILED to delete database file: $dbFile');
-    return false;
-  }
-  
-  // Clear WAL (Write-Ahead Logging) and SHM (Shared Memory) files
-  Future<void> _clearDatabaseAuxiliaryFiles(String dbPath) async {
-    try {
-      debugPrint('🧹 Clearing database auxiliary files...');
-      
-      final dbDir = Directory(dbPath);
-      if (!await dbDir.exists()) {
-        return;
-      }
-      
-      final entities = await dbDir.list().toList();
-      int deletedCount = 0;
-      
-      for (final entity in entities) {
-        if (entity is File) {
-          final fileName = path.basename(entity.path);
-          
-          // Delete WAL, SHM, and journal files
-          if (fileName.endsWith('-wal') || 
-              fileName.endsWith('-shm') || 
-              fileName.endsWith('-journal')) {
-            try {
-              await entity.delete();
-              deletedCount++;
-              debugPrint('  ✓ Deleted auxiliary file: $fileName');
-            } catch (e) {
-              debugPrint('  ⚠️ Could not delete auxiliary file $fileName: $e');
-            }
-          }
-        }
-      }
-      
-      if (deletedCount > 0) {
-        debugPrint('✅ Deleted $deletedCount auxiliary files');
-      } else {
-        debugPrint('  ℹ️ No auxiliary files to delete');
-      }
-    } catch (e) {
-      debugPrint('❌ Error clearing auxiliary files: $e');
-      // Continue anyway
-    }
+    debugPrint('WARNING: Failed to delete database file: $dbFile');
   }
   
   // Clear application cache
   Future<void> _clearAppCache() async {
     try {
-      debugPrint('🧹 Clearing app cache...');
-      
       final cacheDir = await getTemporaryDirectory();
       
-      if (!await cacheDir.exists()) {
-        debugPrint('  ℹ️ Cache directory does not exist');
-        return;
-      }
-      
-      // Delete cache directory contents
-      final entities = await cacheDir.list().toList();
-      int deletedCount = 0;
-      
-      for (final entity in entities) {
-        try {
-          if (entity is File) {
-            await entity.delete();
-            deletedCount++;
-          } else if (entity is Directory) {
-            await entity.delete(recursive: true);
-            deletedCount++;
-          }
-        } catch (e) {
-          debugPrint('  ⚠️ Error deleting cache entity ${path.basename(entity.path)}: $e');
-        }
-      }
-      
-      if (deletedCount > 0) {
-        debugPrint('✅ App cache cleared: $deletedCount items deleted');
-      } else {
-        debugPrint('  ℹ️ Cache was already empty');
-      }
-    } catch (e) {
-      debugPrint('❌ Error clearing app cache: $e');
-      // Continue anyway
-    }
-  }
-  
-  // Optional: Method to reset only specific database
-  Future<bool> resetSpecificDatabase(String dbName) async {
-    try {
-      debugPrint('🔄 Resetting specific database: $dbName');
-      
-      final dbPath = await getDatabasesPath();
-      final fullPath = path.join(dbPath, dbName);
-      
-      // Close the database if it's open
-      try {
-        final db = await databaseFactory.openDatabase(
-          fullPath,
-          options: OpenDatabaseOptions(readOnly: true, singleInstance: false),
-        );
-        await db.close();
-      } catch (e) {
-        debugPrint('  ⚠️ Could not close $dbName: $e');
-      }
-      
-      await Future.delayed(const Duration(milliseconds: 200));
-      
-      // Delete the database
-      final success = await _safelyDeleteDatabaseFile(dbPath, dbName);
-      
-      // Delete auxiliary files
-      await _deleteAuxiliaryFilesForDatabase(dbPath, dbName);
-      
-      return success;
-    } catch (e) {
-      debugPrint('❌ Error resetting database $dbName: $e');
-      return false;
-    }
-  }
-  
-  // Delete auxiliary files for a specific database
-  Future<void> _deleteAuxiliaryFilesForDatabase(String dbPath, String dbName) async {
-    final baseName = dbName.replaceAll('.db', '');
-    final auxFiles = [
-      '$baseName.db-wal',
-      '$baseName.db-shm',
-      '$baseName.db-journal',
-    ];
-    
-    for (final auxFile in auxFiles) {
-      try {
-        final file = File(path.join(dbPath, auxFile));
-        if (await file.exists()) {
-          await file.delete();
-          debugPrint('  ✓ Deleted auxiliary file: $auxFile');
-        }
-      } catch (e) {
-        debugPrint('  ⚠️ Could not delete auxiliary file $auxFile: $e');
-      }
-    }
-  }
-  
-  // Check database status (useful for debugging)
-  Future<Map<String, dynamic>> getDatabaseStatus() async {
-    try {
-      final dbPath = await getDatabasesPath();
-      final status = <String, dynamic>{};
-      
-      for (final dbFile in _dbFiles) {
-        final fullPath = path.join(dbPath, dbFile);
-        final file = File(fullPath);
+      if (await cacheDir.exists()) {
+        // Delete cache directory contents
+        final entities = await cacheDir.list().toList();
         
-        status[dbFile] = {
-          'exists': await file.exists(),
-          'size': await file.exists() ? await file.length() : 0,
-        };
+        for (final entity in entities) {
+          try {
+            if (entity is File) {
+              await entity.delete();
+            } else if (entity is Directory) {
+              await entity.delete(recursive: true);
+            }
+          } catch (e) {
+            debugPrint('Error deleting cache entity ${entity.path}: $e');
+          }
+        }
+        
+        debugPrint('App cache cleared');
       }
-      
-      return status;
     } catch (e) {
-      debugPrint('❌ Error getting database status: $e');
-      return {};
+      debugPrint('Error clearing app cache: $e');
+      // Continue anyway
     }
   }
 }
