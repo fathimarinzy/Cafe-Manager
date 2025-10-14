@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:cafeapp/repositories/local_menu_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,6 +14,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'desktop_google_drive_service.dart'; // Import the desktop service
+import 'package:device_info_plus/device_info_plus.dart';
 
 class BackupService {
   static const String backupFileName = 'backup';
@@ -45,7 +47,7 @@ class BackupService {
       return false;
     }
   }
-  
+
   static Future<String?> backupData() async {
     try {
       if (Platform.isAndroid) {
@@ -214,7 +216,23 @@ class BackupService {
   static Future<String?> exportBackupToDownloads(String backupPath) async {
   try {
     if (Platform.isAndroid) {
-      await _requestStoragePermission();
+      // Request storage permission
+      final status = await Permission.storage.request();
+      
+      // For Android 13+ (API 33+), we need different permissions
+      if (Platform.isAndroid) {
+        final androidInfo = await DeviceInfoPlugin().androidInfo;
+        if (androidInfo.version.sdkInt >= 33) {
+          // Android 13+ doesn't need storage permission for app-specific directories
+          // But we'll use MediaStore or SAF instead
+          debugPrint('Android 13+ detected, using alternative storage method');
+        }
+      }
+      
+      if (!status.isGranted && !status.isLimited) {
+        debugPrint('⚠️ Storage permission denied');
+        // Continue anyway - we'll try to use available directories
+      }
     }
     
     final backupFile = File(backupPath);
@@ -223,67 +241,97 @@ class BackupService {
       return null;
     }
     
-    Directory? downloadsDir;
+    Directory? targetDir;
     
     if (Platform.isAndroid) {
-      downloadsDir = Directory('/storage/emulated/0/Download');
-      
-      if (!await downloadsDir.exists()) {
-        debugPrint('⚠️ Downloads directory not found, trying alternate path');
+      try {
+        // Try multiple approaches for Android
         
-        final externalDir = await getExternalStorageDirectory();
-        if (externalDir != null) {
-          downloadsDir = Directory('${externalDir.path}/../../Download');
-          
-          if (!await downloadsDir.exists()) {
-            debugPrint('❌ Could not find Downloads directory');
-            return null;
+        // Approach 1: Try the standard Download directory
+        final downloadDir = Directory('/storage/emulated/0/Download');
+        if (await downloadDir.exists()) {
+          try {
+            // Test if we can write to this directory
+            final testFile = File('${downloadDir.path}/.test_write');
+            await testFile.writeAsString('test');
+            await testFile.delete();
+            targetDir = downloadDir;
+            debugPrint('✅ Using standard Download directory');
+          } catch (e) {
+            debugPrint('⚠️ Cannot write to Download directory: $e');
           }
-        } else {
-          debugPrint('❌ External storage not available');
-          return null;
+        }
+        
+        // Approach 2: Use getExternalStorageDirectory (app-specific, doesn't need permission)
+        if (targetDir == null) {
+          final externalDir = await getExternalStorageDirectory();
+          if (externalDir != null) {
+            // Create a "Downloads" folder in app-specific directory
+            targetDir = Directory('${externalDir.path}/Downloads');
+            if (!await targetDir.exists()) {
+              await targetDir.create(recursive: true);
+            }
+            debugPrint('✅ Using app-specific Downloads directory: ${targetDir.path}');
+          }
+        }
+        
+        // Approach 3: Use Documents directory as fallback
+        if (targetDir == null) {
+          final docsDir = await getApplicationDocumentsDirectory();
+          targetDir = Directory('${docsDir.path}/Exports');
+          if (!await targetDir.exists()) {
+            await targetDir.create(recursive: true);
+          }
+          debugPrint('✅ Using app Documents/Exports directory: ${targetDir.path}');
+        }
+      } catch (e) {
+        debugPrint('❌ Error finding Android directory: $e');
+        // Fallback to app directory
+        final appDir = await getApplicationDocumentsDirectory();
+        targetDir = Directory('${appDir.path}/Exports');
+        if (!await targetDir.exists()) {
+          await targetDir.create(recursive: true);
         }
       }
     } else if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
-      // FIXED: Desktop platforms - use proper path handling
+      // Desktop platforms
       final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
       if (home != null) {
-        // Use path.join for proper path handling
-        downloadsDir = Directory(join(home, 'Downloads'));
+        targetDir = Directory(join(home, 'Downloads'));
         
-        if (!await downloadsDir.exists()) {
-          // Fallback to Documents/SIMS_CAFE_Backups
-          downloadsDir = Directory(join(home, 'Documents', 'SIMS_CAFE_Backups'));
+        if (!await targetDir.exists()) {
+          targetDir = Directory(join(home, 'Documents', 'SIMS_CAFE_Backups'));
           
-          // Create if it doesn't exist
-          if (!await downloadsDir.exists()) {
-            await downloadsDir.create(recursive: true);
+          if (!await targetDir.exists()) {
+            await targetDir.create(recursive: true);
           }
         }
       } else {
-        // Fallback to app documents directory
         final docsDir = await getApplicationDocumentsDirectory();
-        downloadsDir = Directory(join(docsDir.path, 'Exports'));
+        targetDir = Directory(join(docsDir.path, 'Exports'));
         
-        if (!await downloadsDir.exists()) {
-          await downloadsDir.create(recursive: true);
+        if (!await targetDir.exists()) {
+          await targetDir.create(recursive: true);
         }
       }
     } else {
       // iOS or other platforms
       final docsDir = await getApplicationDocumentsDirectory();
-      downloadsDir = Directory(join(docsDir.path, 'Downloads'));
+      targetDir = Directory(join(docsDir.path, 'Downloads'));
       
-      if (!await downloadsDir.exists()) {
-        await downloadsDir.create(recursive: true);
+      if (!await targetDir.exists()) {
+        await targetDir.create(recursive: true);
       }
     }
     
-    // FIXED: Get just the filename without directory
+    // Get just the filename
     final fileName = basename(backupPath);
     
-    // FIXED: Use path.join for proper path construction
-    final destPath = join(downloadsDir.path, fileName);
+    // Use path.join for proper path construction
+    final destPath = join(targetDir.path, fileName);
+    
+    debugPrint('📁 Copying from: $backupPath');
+    debugPrint('📁 Copying to: $destPath');
     
     // Copy the file
     await backupFile.copy(destPath);
@@ -806,169 +854,261 @@ class BackupService {
 
   // UPDATED: Works on ALL platforms now!
   static Future<Map<String, dynamic>> deleteBackupFromDrive(String fileId) async {
-    try {
-      // Desktop platforms use REST API
-      if (isDesktopPlatform) {
-        if (!await DesktopGoogleDriveService.isAuthenticated()) {
-          return {'success': false, 'error': 'Not authenticated'};
-        }
-
-        final success = await DesktopGoogleDriveService.deleteFile(fileId);
-        return {
-          'success': success,
-          'error': success ? null : 'Delete failed',
-        };
+  try {
+    // Desktop platforms use REST API
+    if (isDesktopPlatform) {
+      if (!await DesktopGoogleDriveService.isAuthenticated()) {
+        return {'success': false, 'error': 'Not authenticated'};
       }
 
-      // Mobile platforms use google_sign_in plugin
-      if (isMobilePlatform) {
-        final GoogleSignIn googleSignIn = GoogleSignIn.standard(
-          scopes: [drive.DriveApi.driveFileScope],
-        );
-        
-        GoogleSignInAccount? account;
-        try {
-          account = await googleSignIn.signInSilently();
-        } catch (e) {
-          debugPrint('Silent sign-in failed: $e');
-        }
-        
-        if (account == null) {
-          try {
-            account = await googleSignIn.signIn();
-          } catch (e) {
-            debugPrint('Interactive sign-in failed: $e');
-            return {'success': false, 'error': 'Sign-in failed'};
-          }
-        }
-        
-        if (account == null) {
-          debugPrint('❌ Google Sign-In failed: user canceled');
-          return {'success': false, 'error': 'User canceled'};
-        }
-        
-        final authHeaders = await account.authHeaders;
-        final authenticateClient = GoogleAuthClient(authHeaders);
-        
-        final driveApi = drive.DriveApi(authenticateClient);
-        
-        final fileMetadata = await driveApi.files.get(fileId) as drive.File;
-        final fileName = fileMetadata.name ?? 'downloaded_backup.json';
-        
-        final fileContent = await driveApi.files.get(fileId, downloadOptions: drive.DownloadOptions.fullMedia) as drive.Media;
-        
-        final backupPath = await _createBackupDirectory();
-        final localFilePath = '$backupPath/$fileName';
-        
-        final file = File(localFilePath);
-        final fileStream = file.openWrite();
-        
-        final completer = Completer<void>();
-        
-        fileContent.stream.listen(
-          (data) {
-            fileStream.add(data);
-          },
-          onDone: () async {
-            await fileStream.flush();
-            await fileStream.close();
-            completer.complete();
-          },
-          onError: (error) {
-            completer.completeError(error);
-          },
-          cancelOnError: true,
-        );
-        
-        await completer.future;
-        
-        debugPrint('✅ Downloaded backup from Drive to: $localFilePath');
-        return {'success': true, 'path': localFilePath};
-      }
-
-      return {'success': false, 'error': 'Unsupported platform'};
-    } catch (e) {
-      debugPrint('❌ Error downloading backup from Drive: $e');
-      return {'success': false, 'error': e.toString()};
+      final success = await DesktopGoogleDriveService.deleteFile(fileId);
+      return {
+        'success': success,
+        'error': success ? null : 'Delete failed',
+      };
     }
+
+    // Mobile platforms use google_sign_in plugin
+    if (isMobilePlatform) {
+      final GoogleSignIn googleSignIn = GoogleSignIn.standard(
+        scopes: [drive.DriveApi.driveFileScope],
+      );
+      
+      GoogleSignInAccount? account;
+      try {
+        account = await googleSignIn.signInSilently();
+      } catch (e) {
+        debugPrint('Silent sign-in failed: $e');
+      }
+      
+      if (account == null) {
+        try {
+          account = await googleSignIn.signIn();
+        } catch (e) {
+          debugPrint('Interactive sign-in failed: $e');
+          return {'success': false, 'error': 'Sign-in failed'};
+        }
+      }
+      
+      if (account == null) {
+        debugPrint('❌ Google Sign-In failed: user canceled');
+        return {'success': false, 'error': 'User canceled'};
+      }
+      
+      final authHeaders = await account.authHeaders;
+      final authenticateClient = GoogleAuthClient(authHeaders);
+      
+      final driveApi = drive.DriveApi(authenticateClient);
+      
+      // DELETE the file from Google Drive
+      await driveApi.files.delete(fileId);
+      
+      debugPrint('✅ Deleted backup from Google Drive: $fileId');
+      return {'success': true};
+    }
+
+    return {'success': false, 'error': 'Unsupported platform'};
+  } catch (e) {
+    debugPrint('❌ Error deleting backup from Drive: $e');
+    return {'success': false, 'error': e.toString()};
   }
+}
 
   // UPDATED: Works on ALL platforms now!
   static Future<Map<String, dynamic>> downloadBackupFromDrive(String fileId) async {
-    try {
-      // Desktop platforms use REST API
-      if (isDesktopPlatform) {
-        if (!await DesktopGoogleDriveService.isAuthenticated()) {
-          return {'success': false, 'error': 'Not authenticated'};
-        }
-
-        final backupPath = await _createBackupDirectory();
-        final localPath = '$backupPath/drive_backup_${DateTime.now().millisecondsSinceEpoch}.json';
-
-        final downloadedPath = await DesktopGoogleDriveService.downloadFile(fileId, localPath);
-
-        if (downloadedPath != null) {
-          return {'success': true, 'path': downloadedPath};
-        } else {
-          return {'success': false, 'error': 'Download failed'};
-        }
+  try {
+    // Desktop platforms use REST API
+    if (isDesktopPlatform) {
+      if (!await DesktopGoogleDriveService.isAuthenticated()) {
+        return {'success': false, 'error': 'Not authenticated'};
       }
 
-      // Mobile platforms use google_sign_in plugin
-      if (isMobilePlatform) {
-        final GoogleSignIn googleSignIn = GoogleSignIn.standard(
-          scopes: [drive.DriveApi.driveFileScope],
-        );
-        
-        GoogleSignInAccount? account;
-        try {
-          account = await googleSignIn.signInSilently();
-        } catch (e) {
-          debugPrint('Silent sign-in failed: $e');
-        }
-        
-        if (account == null) {
-          try {
-            account = await googleSignIn.signIn();
-          } catch (e) {
-            debugPrint('Interactive sign-in failed: $e');
-            return {'success': false, 'error': 'Sign-in failed'};
-          }
-        }
-        
-        if (account == null) {
-          debugPrint('❌ Google Sign-In failed: user canceled');
-          return {'success': false, 'error': 'User canceled'};
-        }
-        
-        final authHeaders = await account.authHeaders;
-        final authenticateClient = GoogleAuthClient(authHeaders);
-        
-        final driveApi = drive.DriveApi(authenticateClient);
-        
-        await driveApi.files.delete(fileId);
-        
-        debugPrint('✅ Deleted backup from Google Drive: $fileId');
-        return {'success': true};
-      }
+      final backupPath = await _createBackupDirectory();
+      final localPath = '$backupPath/drive_backup_${DateTime.now().millisecondsSinceEpoch}.json';
 
-      return {'success': false, 'error': 'Unsupported platform'};
-    } catch (e) {
-      debugPrint('❌ Error deleting backup from Drive: $e');
-      return {'success': false, 'error': e.toString()};
+      final downloadedPath = await DesktopGoogleDriveService.downloadFile(fileId, localPath);
+
+      if (downloadedPath != null) {
+        return {'success': true, 'path': downloadedPath};
+      } else {
+        return {'success': false, 'error': 'Download failed'};
+      }
     }
+
+    // Mobile platforms use google_sign_in plugin
+    if (isMobilePlatform) {
+      final GoogleSignIn googleSignIn = GoogleSignIn.standard(
+        scopes: [drive.DriveApi.driveFileScope],
+      );
+      
+      GoogleSignInAccount? account;
+      try {
+        account = await googleSignIn.signInSilently();
+      } catch (e) {
+        debugPrint('Silent sign-in failed: $e');
+      }
+      
+      if (account == null) {
+        try {
+          account = await googleSignIn.signIn();
+        } catch (e) {
+          debugPrint('Interactive sign-in failed: $e');
+          return {'success': false, 'error': 'Sign-in failed'};
+        }
+      }
+      
+      if (account == null) {
+        debugPrint('❌ Google Sign-In failed: user canceled');
+        return {'success': false, 'error': 'User canceled'};
+      }
+      
+      final authHeaders = await account.authHeaders;
+      final authenticateClient = GoogleAuthClient(authHeaders);
+      
+      final driveApi = drive.DriveApi(authenticateClient);
+      
+      // Get file metadata to get the filename
+      final fileMetadata = await driveApi.files.get(fileId) as drive.File;
+      final fileName = fileMetadata.name ?? 'downloaded_backup.json';
+      
+      // Download the file content
+      final fileContent = await driveApi.files.get(
+        fileId, 
+        downloadOptions: drive.DownloadOptions.fullMedia
+      ) as drive.Media;
+      
+      // Save to local directory
+      final backupPath = await _createBackupDirectory();
+      final localFilePath = '$backupPath/$fileName';
+      
+      final file = File(localFilePath);
+      final fileStream = file.openWrite();
+      
+      // Use a completer to handle the async stream
+      final completer = Completer<void>();
+      
+      fileContent.stream.listen(
+        (data) {
+          fileStream.add(data);
+        },
+        onDone: () async {
+          await fileStream.flush();
+          await fileStream.close();
+          completer.complete();
+        },
+        onError: (error) {
+          completer.completeError(error);
+        },
+        cancelOnError: true,
+      );
+      
+      // Wait for download to complete
+      await completer.future;
+      
+      debugPrint('✅ Downloaded backup from Drive to: $localFilePath');
+      return {'success': true, 'path': localFilePath};
+    }
+
+    return {'success': false, 'error': 'Unsupported platform'};
+  } catch (e) {
+    debugPrint('❌ Error downloading backup from Drive: $e');
+    return {'success': false, 'error': e.toString()};
   }
+}
   // UPDATED: Works on ALL platforms now!
   static Future<Map<String, dynamic>> restoreFromGoogleDrive(String fileId) async {
     try {
+      debugPrint('🔄 Starting restore from Google Drive...');
+      
       final downloadResult = await downloadBackupFromDrive(fileId);
       
       if (downloadResult['success'] != true) {
+        debugPrint('❌ Download failed: ${downloadResult['error']}');
         return downloadResult;
       }
       
       final localFilePath = downloadResult['path'];
+      
+      if (localFilePath == null || localFilePath.isEmpty) {
+        debugPrint('❌ No file path returned from download');
+        return {
+          'success': false,
+          'error': 'Failed to download backup file',
+        };
+      }
+      
+      debugPrint('📥 Downloaded backup to: $localFilePath');
+      
+      // Verify file exists
+      final file = File(localFilePath);
+      if (!await file.exists()) {
+        debugPrint('❌ Downloaded file does not exist: $localFilePath');
+        return {
+          'success': false,
+          'error': 'Downloaded file not found',
+        };
+      }
+      
+      // Verify file has content
+      final fileSize = await file.length();
+      debugPrint('📊 Downloaded file size: $fileSize bytes');
+      
+      if (fileSize == 0) {
+        debugPrint('❌ Downloaded file is empty');
+        return {
+          'success': false,
+          'error': 'Downloaded file is empty',
+        };
+      }
+      
+      // Read and verify the backup data
+      try {
+        final jsonData = await file.readAsString();
+        final backupData = jsonDecode(jsonData) as Map<String, dynamic>;
+        
+        debugPrint('📋 Backup verification:');
+        debugPrint('  - Version: ${backupData['version']}');
+        debugPrint('  - Platform: ${backupData['platform']}');
+        debugPrint('  - Has databases: ${backupData.containsKey('databases')}');
+        
+        if (backupData.containsKey('databases')) {
+          final databases = backupData['databases'] as Map<String, dynamic>;
+          debugPrint('  - Database count: ${databases.length}');
+          
+          // Check for menu database
+          if (databases.containsKey('cafe_menu.db')) {
+            debugPrint('  ✅ Menu database found');
+          } else {
+            debugPrint('  ⚠️ Menu database not found');
+          }
+        }
+      } catch (e) {
+        debugPrint('❌ Error verifying backup: $e');
+        return {
+          'success': false,
+          'error': 'Invalid backup file format: $e',
+        };
+      }
+      
+      // Restore the backup
+      debugPrint('🔄 Starting restore process...');
       final restoreSuccess = await restoreData(localFilePath);
+      
+      if (restoreSuccess) {
+        debugPrint('✅ Restore completed successfully');
+        
+        // Verify menu items were restored
+        try {
+          final menuRepo = LocalMenuRepository();
+          final items = await menuRepo.getMenuItems();
+          final itemsWithImages = items.where((item) => item.imageUrl.isNotEmpty).length;
+          debugPrint('📊 Restored ${items.length} menu items, $itemsWithImages with images');
+        } catch (e) {
+          debugPrint('⚠️ Could not verify restored items: $e');
+        }
+      } else {
+        debugPrint('❌ Restore failed');
+      }
       
       return {
         'success': restoreSuccess,

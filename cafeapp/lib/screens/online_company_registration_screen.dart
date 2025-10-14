@@ -1273,7 +1273,96 @@ Future<void> _loadLogo() async {
                     prefixIcon: const Icon(Icons.email),
                   ),
                 ),
-                
+                const SizedBox(height: 16),
+
+                // Logo Upload Section
+                Text(
+                  'Business Logo (Optional):'.tr(),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey[300]!),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    children: [
+                      if (_hasLogo) ...[
+                        FutureBuilder<Widget?>(
+                          future: LogoService.getLogoWidget(
+                            height: 100,
+                            width: 100,
+                          ),
+                          builder: (context, snapshot) {
+                            if (snapshot.hasData && snapshot.data != null) {
+                              return Column(
+                                children: [
+                                  snapshot.data!,
+                                  const SizedBox(height: 8),
+                                  TextButton.icon(
+                                    onPressed: () async {
+                                      final confirm = await showDialog<bool>(
+                                        context: context,
+                                        builder: (ctx) => AlertDialog(
+                                          title: Text('Remove Logo'.tr()),
+                                          content: Text('Are you sure you want to remove the logo?'.tr()),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(ctx, false),
+                                              child: Text('Cancel'.tr()),
+                                            ),
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(ctx, true),
+                                              child: Text('Remove'.tr()),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                      
+                                      if (confirm == true) {
+                                        await LogoService.deleteLogo();
+                                        setState(() {
+                                          _hasLogo = false;
+                                        });
+                                      }
+                                    },
+                                    icon: const Icon(Icons.delete, color: Colors.red),
+                                    label: Text('Remove Logo'.tr()),
+                                  ),
+                                ],
+                              );
+                            }
+                            return const CircularProgressIndicator();
+                          },
+                        ),
+                      ] else ...[
+                        Icon(Icons.image, size: 64, color: Colors.grey[400]),
+                        const SizedBox(height: 8),
+                        Text(
+                          'No logo uploaded'.tr(),
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      ElevatedButton.icon(
+                        onPressed: _pickLogo,
+                        icon: Icon(_hasLogo ? Icons.edit : Icons.upload),
+                        label: Text(_hasLogo ? 'Change Logo'.tr() : 'Upload Logo'.tr()),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue[700],
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                      
                 const SizedBox(height: 40),
                 
                 // Register Button

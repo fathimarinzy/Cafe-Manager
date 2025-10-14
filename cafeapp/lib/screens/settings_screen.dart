@@ -16,7 +16,7 @@ import '../screens/expense_screen.dart';
 import '../screens/report_screen.dart';
 import '../widgets/backup_manager_widget.dart';
 import '../utils/database_reset_service.dart';
-import 'package:flutter/services.dart';
+// import 'package:flutter/services.dart';
 import '../services/license_service.dart';
 import 'renewal_screen.dart';
 import '../services/offline_sync_service.dart';
@@ -675,35 +675,23 @@ Future<void> _checkLicenseStatus() async {
           ),
         );
       }
-      
+      // Close all databases first
+      final dbHelper = DatabaseHelper();
+      await dbHelper.closeAllDatabases();
+    
+      // Clear ALL SharedPreferences (including registration)
       final prefs = await SharedPreferences.getInstance();
-      final deviceRegistered = prefs.getBool('device_registered') ?? false;
-      final deviceId = prefs.getString('device_id');
-      final companyName = prefs.getString('company_name');
-      final deviceName = prefs.getString('device_name');
-      final registrationDate = prefs.getString('registration_date');
+      await prefs.clear();
       
       final dbResetService = DatabaseResetService();
       await dbResetService.forceResetAllDatabases();
       
+        // Reset settings provider
       if (!mounted) return;
       final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
       await settingsProvider.resetSettings();
-      
-      if (deviceRegistered) {
-        await prefs.setBool('device_registered', true);
-        if (deviceId != null) await prefs.setString('device_id', deviceId);
-        if (companyName != null) await prefs.setString('company_name', companyName);
-        if (deviceName != null) await prefs.setString('device_name', deviceName);
-        if (registrationDate != null) await prefs.setString('registration_date', registrationDate);
         
-        debugPrint('✅ Device registration preserved after reset');
-      }
-      
-      if (!mounted) return;
-      final tableProvider = Provider.of<TableProvider>(context, listen: false);
-      await tableProvider.refreshTables();
-      
+        // Close loading dialog
       if (mounted) Navigator.of(context).pop();
       
       if (mounted) {
@@ -713,16 +701,17 @@ Future<void> _checkLicenseStatus() async {
           builder: (ctx) => AlertDialog(
             title: Text('Reset Complete'.tr()),
             content: Text(
-              'All data has been reset successfully. You must restart the app for changes to take effect completely.'.tr(),
+              'All data has been reset successfully.'.tr(),
             ),
             actions: [
               TextButton(
                 onPressed: () {
                   Navigator.of(ctx).pop();
-                  _loadSettings();
-                  if (!deviceRegistered) {
-                    SystemNavigator.pop();
-                  } 
+                  
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const AppInitializer()),
+                  (route) => false,
+                );
                },
                 child: Text('OK'.tr()),
               ),
@@ -1530,14 +1519,14 @@ Widget _buildDataBackupSection() {
         ),
         const Divider(height: 1, indent: 70),
         // NEW: Add this reset button
-        ListTile(
-          leading: Icon(Icons.refresh, color: _isDemoExpired ? Colors.grey : Colors.orange[700]),
-          title: Text('Reset to First Time Setup'.tr()),
-          subtitle: Text('Clear registration and restart app'.tr()),
-          onTap: _isDemoExpired ? null : _showFirstTimeResetConfirmation,
-          enabled: !_isDemoExpired,
-        ),
-        const Divider(height: 1, indent: 70),
+        // ListTile(
+        //   leading: Icon(Icons.refresh, color: _isDemoExpired ? Colors.grey : Colors.orange[700]),
+        //   title: Text('Reset to First Time Setup'.tr()),
+        //   subtitle: Text('Clear registration and restart app'.tr()),
+        //   onTap: _isDemoExpired ? null : _showFirstTimeResetConfirmation,
+        //   enabled: !_isDemoExpired,
+        // ),
+        // const Divider(height: 1, indent: 70),
         ListTile(
           leading: Icon(Icons.delete_forever, color: _isDemoExpired ? Colors.grey : Colors.red[700]),
           title: Text('Reset Data'.tr()),
@@ -1551,170 +1540,170 @@ Widget _buildDataBackupSection() {
 }
 
 // Add this new method for first-time reset
-void _showFirstTimeResetConfirmation() {
-  showDialog(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Row(
-        children: [
-          Icon(Icons.warning, color: Colors.orange[700]),
-          const SizedBox(width: 8),
-          Text('Reset to First Time Setup'.tr()),
-        ],
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'This will:'.tr(),
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          Text('• Clear all app data'.tr()),
-          Text('• Reset device registration'.tr()),
-          Text('• Reset company registration'.tr()),
-          Text('• Return to device registration screen'.tr()),
-          const SizedBox(height: 16),
-          Text(
-            'This action cannot be undone!'.tr(),
-            style: const TextStyle(
-              color: Colors.red,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(),
-          style: TextButton.styleFrom(
-            foregroundColor: Colors.grey,
-          ),
-          child: Text('Cancel'.tr()),
-        ),
-        TextButton(
-          onPressed: () {
-            Navigator.of(ctx).pop();
-            _performFirstTimeReset();
-          },
-          style: TextButton.styleFrom(
-            foregroundColor: Colors.orange,
-          ),
-          child: Text('Reset to Setup'.tr()),
-        ),
-      ],
-    ),
-  );
-}
+// void _showFirstTimeResetConfirmation() {
+//   showDialog(
+//     context: context,
+//     builder: (ctx) => AlertDialog(
+//       title: Row(
+//         children: [
+//           Icon(Icons.warning, color: Colors.orange[700]),
+//           const SizedBox(width: 8),
+//           Text('Reset to First Time Setup'.tr()),
+//         ],
+//       ),
+//       content: Column(
+//         mainAxisSize: MainAxisSize.min,
+//         crossAxisAlignment: CrossAxisAlignment.start,
+//         children: [
+//           Text(
+//             'This will:'.tr(),
+//             style: const TextStyle(fontWeight: FontWeight.bold),
+//           ),
+//           const SizedBox(height: 8),
+//           Text('• Clear all app data'.tr()),
+//           Text('• Reset device registration'.tr()),
+//           Text('• Reset company registration'.tr()),
+//           Text('• Return to device registration screen'.tr()),
+//           const SizedBox(height: 16),
+//           Text(
+//             'This action cannot be undone!'.tr(),
+//             style: const TextStyle(
+//               color: Colors.red,
+//               fontWeight: FontWeight.bold,
+//             ),
+//           ),
+//         ],
+//       ),
+//       actions: [
+//         TextButton(
+//           onPressed: () => Navigator.of(ctx).pop(),
+//           style: TextButton.styleFrom(
+//             foregroundColor: Colors.grey,
+//           ),
+//           child: Text('Cancel'.tr()),
+//         ),
+//         TextButton(
+//           onPressed: () {
+//             Navigator.of(ctx).pop();
+//             _performFirstTimeReset();
+//           },
+//           style: TextButton.styleFrom(
+//             foregroundColor: Colors.orange,
+//           ),
+//           child: Text('Reset to Setup'.tr()),
+//         ),
+//       ],
+//     ),
+//   );
+// }
 
 // Add this new method to perform the reset
-Future<void> _performFirstTimeReset() async {
-  if (!mounted) return;
+// Future<void> _performFirstTimeReset() async {
+//   if (!mounted) return;
   
-  setState(() {
-    _isLoading = true;
-  });
+//   setState(() {
+//     _isLoading = true;
+//   });
 
-  try {
-    // Show loading dialog
-    if (mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => PopScope(
-          canPop: false,
-          child: AlertDialog(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircularProgressIndicator(),
-                const SizedBox(height: 16),
-                Text('Resetting app... Please wait.'.tr()),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
+//   try {
+//     // Show loading dialog
+//     if (mounted) {
+//       showDialog(
+//         context: context,
+//         barrierDismissible: false,
+//         builder: (ctx) => PopScope(
+//           canPop: false,
+//           child: AlertDialog(
+//             content: Column(
+//               mainAxisSize: MainAxisSize.min,
+//               children: [
+//                 const CircularProgressIndicator(),
+//                 const SizedBox(height: 16),
+//                 Text('Resetting app... Please wait.'.tr()),
+//               ],
+//             ),
+//           ),
+//         ),
+//       );
+//     }
     
-    // Close all databases first
-    final dbHelper = DatabaseHelper();
-    await dbHelper.closeAllDatabases();
+//     // Close all databases first
+//     final dbHelper = DatabaseHelper();
+//     await dbHelper.closeAllDatabases();
     
-    // Clear ALL SharedPreferences (including registration)
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+//     // Clear ALL SharedPreferences (including registration)
+//     final prefs = await SharedPreferences.getInstance();
+//     await prefs.clear();
     
-    // Reset all databases
-    final dbResetService = DatabaseResetService();
-    await dbResetService.forceResetAllDatabases();
+//     // Reset all databases
+//     final dbResetService = DatabaseResetService();
+//     await dbResetService.forceResetAllDatabases();
     
-    // Reset settings provider
-    if (!mounted) return;
-    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-    await settingsProvider.resetSettings();
+//     // Reset settings provider
+//     if (!mounted) return;
+//     final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+//     await settingsProvider.resetSettings();
     
-    // Close loading dialog
-    if (mounted) Navigator.of(context).pop();
+//     // Close loading dialog
+//     if (mounted) Navigator.of(context).pop();
     
-    // Show success message
-    if (mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.green[700]),
-              const SizedBox(width: 8),
-              Text('Reset Complete'.tr()),
-            ],
-          ),
-          content: Text(
-            'The app has been reset to first-time setup. Press OK to restart the registration process.'.tr(),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                // Navigate to the app initializer (which will show device registration)
-                Navigator.of(ctx).pop();
+//     // Show success message
+//     if (mounted) {
+//       showDialog(
+//         context: context,
+//         barrierDismissible: false,
+//         builder: (ctx) => AlertDialog(
+//           title: Row(
+//             children: [
+//               Icon(Icons.check_circle, color: Colors.green[700]),
+//               const SizedBox(width: 8),
+//               Text('Reset Complete'.tr()),
+//             ],
+//           ),
+//           content: Text(
+//             'The app has been reset to first-time setup. Press OK to restart the registration process.'.tr(),
+//           ),
+//           actions: [
+//             TextButton(
+//               onPressed: () {
+//                 // Navigate to the app initializer (which will show device registration)
+//                 Navigator.of(ctx).pop();
             
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => const AppInitializer()),
-                  (route) => false,
-                );
-              },
-              style: TextButton.styleFrom(
-                backgroundColor: Colors.blue[700],
-                foregroundColor: Colors.white,
-              ),
-              child: Text('OK'.tr()),
-            ),
-          ],
-        ),
-      );
-    }
-  } catch (e) {
-    if (mounted) Navigator.of(context).pop();
+//                 Navigator.of(context).pushAndRemoveUntil(
+//                   MaterialPageRoute(builder: (context) => const AppInitializer()),
+//                   (route) => false,
+//                 );
+//               },
+//               style: TextButton.styleFrom(
+//                 backgroundColor: Colors.blue[700],
+//                 foregroundColor: Colors.white,
+//               ),
+//               child: Text('OK'.tr()),
+//             ),
+//           ],
+//         ),
+//       );
+//     }
+//   } catch (e) {
+//     if (mounted) Navigator.of(context).pop();
     
-    debugPrint('Error resetting to first time: $e');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${'Error resetting app'.tr()}: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  } finally {
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-}
+//     debugPrint('Error resetting to first time: $e');
+//     if (mounted) {
+//       ScaffoldMessenger.of(context).showSnackBar(
+//         SnackBar(
+//           content: Text('${'Error resetting app'.tr()}: $e'),
+//           backgroundColor: Colors.red,
+//         ),
+//       );
+//     }
+//   } finally {
+//     if (mounted) {
+//       setState(() {
+//         _isLoading = false;
+//       });
+//     }
+//   }
+// }
   Widget _buildTaxSettingsSection() {
     return Card(
       child: ListTile(

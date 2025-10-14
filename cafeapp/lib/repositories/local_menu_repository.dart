@@ -151,56 +151,72 @@ class LocalMenuRepository {
   }
 
   // Get all menu items from local database with retry logic
-  Future<List<MenuItem>> getMenuItems() async {
-    int retryCount = 0;
-    const maxRetries = 3;
-    
-    while (retryCount < maxRetries) {
-      try {
-        final db = await database;
-        final maps = await db.query(
-          'menu_items',
-          where: 'isDeleted = ?',
-          whereArgs: [0],
-        );
+Future<List<MenuItem>> getMenuItems() async {
+  int retryCount = 0;
+  const maxRetries = 3;
+  
+  while (retryCount < maxRetries) {
+    try {
+      final db = await database;
+      final maps = await db.query(
+        'menu_items',
+        where: 'isDeleted = ?',
+        whereArgs: [0],
+      );
+      
+      debugPrint('📊 Loading ${maps.length} menu items from database');
+      
+      final items = List.generate(maps.length, (i) {
+        final imageUrl = maps[i]['imageUrl'] as String;
         
-        return List.generate(maps.length, (i) {
-          return MenuItem(
-            id: maps[i]['id'] as String,
-            name: maps[i]['name'] as String,
-            price: maps[i]['price'] as double,
-            imageUrl: maps[i]['imageUrl'] as String,
-            category: maps[i]['category'] as String,
-            isAvailable: maps[i]['isAvailable'] == 1,
-            taxExempt: maps[i]['taxExempt'] == 1,
-          );
-        });
-      } catch (e) {
-        retryCount++;
-        debugPrint('Error getting menu items (Attempt $retryCount): $e');
-        
-        if (retryCount >= maxRetries) {
-          debugPrint('Maximum retries reached for getting menu items');
-          return []; // Return empty list instead of throwing
-        }
-        
-        // Reset database connection
-        try {
-          if (_database != null) {
-            await _database!.close();
-            _database = null;
+        // Log image status
+        if (imageUrl.isNotEmpty) {
+          if (imageUrl.startsWith('data:image')) {
+            debugPrint('✅ Item "${maps[i]['name']}" has base64 image (${imageUrl.length} chars)');
+          } else {
+            debugPrint('📎 Item "${maps[i]['name']}" has URL image: ${imageUrl.substring(0, 50)}...');
           }
-        } catch (closeError) {
-          debugPrint('Error closing database after error: $closeError');
+        } else {
+          debugPrint('⚠️ Item "${maps[i]['name']}" has no image');
         }
         
-        // Wait before retrying
-        await Future.delayed(Duration(milliseconds: 500 * retryCount));
+        return MenuItem(
+          id: maps[i]['id'] as String,
+          name: maps[i]['name'] as String,
+          price: maps[i]['price'] as double,
+          imageUrl: imageUrl,
+          category: maps[i]['category'] as String,
+          isAvailable: maps[i]['isAvailable'] == 1,
+          taxExempt: maps[i]['taxExempt'] == 1,
+        );
+      });
+      
+      return items;
+    } catch (e) {
+      retryCount++;
+      debugPrint('❌ Error getting menu items (Attempt $retryCount): $e');
+      
+      if (retryCount >= maxRetries) {
+        debugPrint('Maximum retries reached for getting menu items');
+        return [];
       }
+      
+      // Reset database connection
+      try {
+        if (_database != null) {
+          await _database!.close();
+          _database = null;
+        }
+      } catch (closeError) {
+        debugPrint('Error closing database after error: $closeError');
+      }
+      
+      await Future.delayed(Duration(milliseconds: 500 * retryCount));
     }
-    
-    return []; // This is a fallback that should rarely be reached
   }
+  
+  return [];
+}
   
   // Add a new menu item locally with improved error handling
   Future<MenuItem> addMenuItem(MenuItem item) async {

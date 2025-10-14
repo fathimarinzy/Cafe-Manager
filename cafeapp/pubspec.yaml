@@ -40,6 +40,7 @@ dependencies:
   cross_file: ^0.3.4+1
   flutter_dotenv: ^5.2.1
   excel: ^4.0.3 
+  device_info_plus: ^10.1.2
 
   # Desktop-specific
   window_manager: ^0.4.2
