@@ -1530,13 +1530,16 @@ Widget _buildPaymentMethodSelection() {
 
 Widget _buildPaymentMethodOption(String method, IconData icon) {
   final isSelected = _selectedPaymentMethod == method;
+  final isCreditOption = method == 'Customer Credit'.tr();
+    // Prevent selecting Customer Credit during credit completion
+  final isDisabled = isCreditOption && widget.isCreditCompletion;
   
   return Container(
     margin: const EdgeInsets.only(bottom: 25),
     decoration: BoxDecoration(
       color: isSelected ? Colors.blue.shade200 : Colors.white,
       border: Border.all(
-        color: isSelected ? Colors.blue.shade400 : Colors.grey.shade300, 
+        color: isSelected ? isDisabled ? Colors.grey.shade400 : Colors.blue.shade400 : Colors.grey.shade300,
         width: 1,
       ),
       borderRadius: BorderRadius.circular(4),
@@ -1546,7 +1549,7 @@ Widget _buildPaymentMethodOption(String method, IconData icon) {
         backgroundColor: isSelected ? Colors.blue.shade100 : Colors.grey.shade100,
         child: Icon(
           icon,
-          color: isSelected ? Colors.blue.shade800 : Colors.grey,
+          color: isSelected ?  Colors.blue.shade800 : Colors.grey,
           size: 20,
         ),
       ),
@@ -1561,6 +1564,14 @@ Widget _buildPaymentMethodOption(String method, IconData icon) {
       dense: true,
       selected: isSelected,
       onTap: () {
+        if (isDisabled) {
+            // Reset payment method selection
+              setState(() {
+                _selectedPaymentMethod = null;
+              });
+              return;
+            }
+            
         setState(() {
           _selectedPaymentMethod = method;
           _isCashSelected = (method == 'Cash'.tr());
@@ -2922,6 +2933,10 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No remaining balance to pay'.tr())),
       );
+        // Reset payment method selection
+      setState(() {
+        _selectedPaymentMethod = null;
+      });
       return;
     }
 
@@ -2944,6 +2959,10 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No remaining balance to pay'.tr())),
       );
+       // Reset payment method selection
+      setState(() {
+        _selectedPaymentMethod = null;
+      });
       return;
     }
     
@@ -3512,7 +3531,21 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
       );
       return;
     }
-    
+     // Check if order is already completed
+    if (_orderStatus.toLowerCase() == 'completed') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No remaining balance to pay'.tr())
+        ),
+      );
+      
+      // Reset payment method and amount
+      setState(() {
+        _selectedPaymentMethod = null;
+        _amountInput = '0.000';
+      });
+      return;
+    }
     if (value == 'C') {
       setState(() {
         _amountInput = '0.000';
@@ -3882,6 +3915,23 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
   }
   // Add this method to handle customer credit
 Future<void> _handleCustomerCreditPayment() async {
+   // Check if order is already completed
+  if (_orderStatus.toLowerCase() == 'completed') {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No remaining balance to pay'.tr()),
+        ),
+      );
+    }
+    
+    // Reset payment method selection
+    setState(() {
+      _selectedPaymentMethod = null;
+    });
+    return;
+  }
+  
   // Check if customer is selected
   if (_currentCustomer  == null) {
     // Navigate to search person screen
