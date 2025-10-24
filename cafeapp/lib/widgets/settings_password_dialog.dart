@@ -180,7 +180,7 @@ class _SettingsPasswordDialogState extends State<SettingsPasswordDialog> {
                           strokeWidth: 2,
                         ),
                       )
-                    : Text('Verify'.tr()),
+                    : Text('OK'.tr()),
               ),
             ],
           ),

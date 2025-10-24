@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/menu_provider.dart';
 import '../providers/order_provider.dart';
 import '../models/menu_item.dart';
@@ -55,11 +56,23 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
   // Add these new variables for KOT printer functionality
   bool _isKotPrinterEnabled = true;
   bool _isCheckingKotPrinter = false;
+  int _menuRows = 4;
+  int _menuColumns = 5;
+
   // Helper method to check if there are any tax-exempt items in the cart
   bool _hasTaxExemptItems(OrderProvider orderProvider) {
     return orderProvider.cartItems.any((item) => item.taxExempt);
   }
-   
+
+  final List<Map<String, dynamic>> _menuLayoutOptions = [
+      {'label': '3x4 Layout', 'rows': 3, 'columns': 4},
+      {'label': '4x4 Layout', 'rows': 4, 'columns': 4},
+      {'label': '4x5 Layout', 'rows': 4, 'columns': 5},
+      {'label': '4x6 Layout', 'rows': 4, 'columns': 6},
+      {'label': '5x5 Layout', 'rows': 5, 'columns': 5},
+      {'label': '5x6 Layout', 'rows': 5, 'columns': 6},
+      {'label': '6x6 Layout', 'rows': 6, 'columns': 6},
+  ];
 
   @override
   void initState() {
@@ -68,6 +81,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
     _loadMenu();
     _updateTime();
     _loadKotPrinterSettings(); // Add this line
+    _loadMenuLayoutSettings(); // Load saved menu layout settings
 
     
    // Set the current service type and order ID in OrderProvider
@@ -103,6 +117,90 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
       }
     }
   });
+}
+Future<void> _loadMenuLayoutSettings() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _menuRows = prefs.getInt('menu_item_rows') ?? 4;
+      _menuColumns = prefs.getInt('menu_item_columns') ?? 5;
+    });
+  } catch (e) {
+    debugPrint('Error loading menu layout settings: $e');
+  }
+}
+
+void _showMenuLayoutDialog() {
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      final screenWidth = MediaQuery.of(context).size.width;
+      
+      return AlertDialog(
+        title: Text(
+          'Select Menu Layout'.tr(),
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+        content: SizedBox(
+          width: screenWidth * 0.65,
+          child: ListView(
+            shrinkWrap: true,
+            children: _menuLayoutOptions.map((option) {
+              return ListTile(
+                dense: true,
+                title: Text(
+                  option['label'],
+                  style: const TextStyle(
+                    fontSize: 14,
+                  ),
+                ),
+                onTap: () {
+                  setState(() {
+                    _menuRows = option['rows'];
+                    _menuColumns = option['columns'];
+                  });
+                  _saveMenuLayout(option['rows'], option['columns']);
+                  Navigator.pop(context);
+                },
+                trailing: (_menuRows == option['rows'] && _menuColumns == option['columns']) 
+                  ? const Icon(Icons.check, color: Colors.green, size: 18)
+                  : null,
+              );
+            }).toList(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel'.tr(),
+              style: const TextStyle(fontSize: 14),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+Future<void> _saveMenuLayout(int rows, int columns) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('menu_item_rows', rows);
+    await prefs.setInt('menu_item_columns', columns);
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Menu layout saved'.tr())),
+      );
+    }
+  } catch (e) {
+    debugPrint('Error saving menu layout settings: $e');
+  }
 }
    // Add this new method to load KOT printer settings
   Future<void> _loadKotPrinterSettings() async {
@@ -418,6 +516,17 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
             style: const TextStyle(color: Colors.black),
           ),
           actions: [
+            // Menu Layout Button
+            IconButton(
+              onPressed: _showMenuLayoutDialog,
+              icon: Icon(
+                Icons.grid_view,
+                color: Colors.blue.shade700,
+                size: 24,
+              ),
+              tooltip: 'Menu Layout'.tr(),
+            ),
+            const SizedBox(width: 8),
             // Kitchen Printer Toggle Button
             IconButton(
               onPressed: _isCheckingKotPrinter ? null : _toggleKotPrinterConnection,
@@ -518,7 +627,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
                     Expanded(
                       child: _isLoading
                           ? const Center(child: CircularProgressIndicator())
-                          : _buildProductGrid(displayedItems, orderProvider, crossAxisCount: 4), // Fewer columns in portrait
+                          : _buildProductGrid(displayedItems, orderProvider, crossAxisCount: _menuColumns), // Fewer columns in portrait
                     ),
                   ],
                 ),
@@ -539,7 +648,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
     );
   }
 
-  // Landscape layout - same as current (horizontal layout)
+  // Landscape layout 
   Widget _buildLandscapeLayout(MenuProvider menuProvider, OrderProvider orderProvider, List<MenuItem> displayedItems) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -564,7 +673,7 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
               Expanded(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
-                    : _buildProductGrid(displayedItems, orderProvider, crossAxisCount: 5), // More columns in landscape
+                    : _buildProductGrid(displayedItems, orderProvider, crossAxisCount: _menuColumns), // More columns in landscape
               ),
             ],
           ),
@@ -686,6 +795,8 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildProductGrid(List<MenuItem> items, OrderProvider orderProvider, {required int crossAxisCount}) {
+  // Use the passed crossAxisCount directly (which will now be _menuColumns)
+  final int responsiveColumns = crossAxisCount;
   return Container(
     color: Colors.grey.shade100,
     child: Padding(
@@ -696,38 +807,34 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
               builder: (context, constraints) {
                 // Calculate responsive column count based on available width
                 final availableWidth = constraints.maxWidth;
-                
-                // Define ideal card width range (min and max)
-                const double minCardWidth = 180.0; // Minimum card width
-                const double maxCardWidth = 250.0; // Maximum card width
+                // // Define ideal card width range (min and max)
+                // const double minCardWidth = 180.0; // Minimum card width
+                // const double maxCardWidth = 250.0; // Maximum card width
                 const double spacing = 8.0;
-                
+                final itemWidth = (availableWidth - (spacing * (responsiveColumns + 1))) / responsiveColumns;
+                // Calculate responsive heights
+                final imageHeight = itemWidth * 0.6;
+                final contentHeight = itemWidth * 0.4;
+                final totalItemHeight = imageHeight + contentHeight + 16;
+                // Calculate aspect ratio
+                final aspectRatio = itemWidth / totalItemHeight;
+
                 // Calculate optimal number of columns
-                int responsiveColumns = crossAxisCount;
+                // int responsiveColumns = crossAxisCount;
                 
                 // For desktop screens, calculate columns dynamically
-                if (availableWidth > 800) {
-                  // Calculate how many columns can fit with ideal card width
-                  int maxPossibleColumns = ((availableWidth + spacing) / (minCardWidth + spacing)).floor();
-                  int minPossibleColumns = ((availableWidth + spacing) / (maxCardWidth + spacing)).floor();
+                // if (availableWidth > 800) {
+                //   // Calculate how many columns can fit with ideal card width
+                //   int maxPossibleColumns = ((availableWidth + spacing) / (minCardWidth + spacing)).floor();
+                //   int minPossibleColumns = ((availableWidth + spacing) / (maxCardWidth + spacing)).floor();
                   
-                  // Use a column count that gives cards between min and max width
-                  responsiveColumns = maxPossibleColumns.clamp(minPossibleColumns, 8); // Max 8 columns
+                //   // Use a column count that gives cards between min and max width
+                //   responsiveColumns = maxPossibleColumns.clamp(minPossibleColumns, 8); // Max 8 columns
                   
-                  // Ensure at least 3 columns on desktop
-                  if (responsiveColumns < 3) responsiveColumns = 3;
-                }
+                //   // Ensure at least 3 columns on desktop
+                //   if (responsiveColumns < 3) responsiveColumns = 3;
+                // }
                 
-                // Calculate actual card dimensions
-                final itemWidth = (availableWidth - (spacing * (responsiveColumns + 1))) / responsiveColumns;
-                
-                // Calculate responsive heights - maintain good proportions
-                final imageHeight = itemWidth * 0.6; // 60% of item width for image
-                final contentHeight = itemWidth * 0.4; // 40% of item width for content
-                final totalItemHeight = imageHeight + contentHeight + 16; // Add padding
-                
-                // Calculate aspect ratio dynamically
-                final aspectRatio = itemWidth / totalItemHeight;
                 
                 return GridView.builder(
                   padding: EdgeInsets.zero,

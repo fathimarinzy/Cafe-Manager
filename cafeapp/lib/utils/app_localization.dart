@@ -70,6 +70,7 @@ class AppLocalization {
       'Invalid username or password':'اسم المستخدم أو كلمة المرور غير صالحة',
 
        // Menu screen
+      'Select Menu Layout':'اختر تخطيط القائمة',
       'Failed to load menu. Please try again.':'فشل تحميل القائمة. يُرجى المحاولة مرة أخرى.',
       'Please select an item first':'الرجاء تحديد العنصر أولاً',
       'Kitchen note added':'تمت إضافة ملاحظة المطبخ',

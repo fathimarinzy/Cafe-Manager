@@ -10,8 +10,9 @@ import '../widgets/settings_password_dialog.dart';
 import '../providers/settings_provider.dart';
 import '../services/license_service.dart';
 import 'renewal_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Add this import
-
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
+import '../services/logo_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -25,11 +26,16 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _isDemoExpired = false;
   bool _isLicenseExpired = false;
   bool _isRegularUser = false;
-  bool _isModernUI = true; // Toggle between modern and classic UI
+  int _currentUIMode = 0; // 0: Modern, 1: Classic, 2: Sidebar
   late AnimationController _animationController;
   late AnimationController _fabAnimationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
+  
+  // System uptime tracking
+  DateTime? _systemStartTime;
+  Timer? _uptimeTimer;
+  Duration _systemUptime = Duration.zero;
 
   @override
   void initState() {
@@ -59,7 +65,9 @@ class _DashboardScreenState extends State<DashboardScreen>
       curve: Curves.easeOutCubic,
     ));
     
-    _loadUIPreference(); // Load UI preference first
+    _loadUIPreference();
+    _loadSystemStartTime();
+    _startUptimeTimer();
     _checkDemoStatus();
     _checkLicenseStatus();
     _animationController.forward();
@@ -70,35 +78,76 @@ class _DashboardScreenState extends State<DashboardScreen>
   void dispose() {
     _animationController.dispose();
     _fabAnimationController.dispose();
+    _uptimeTimer?.cancel();
     super.dispose();
   }
-    // Add method to load UI preference from SharedPreferences
+
+  Future<void> _loadSystemStartTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    final startTimeMillis = prefs.getInt('system_start_time');
+    
+    if (startTimeMillis == null) {
+      _systemStartTime = DateTime.now();
+      await prefs.setInt('system_start_time', _systemStartTime!.millisecondsSinceEpoch);
+    } else {
+      _systemStartTime = DateTime.fromMillisecondsSinceEpoch(startTimeMillis);
+    }
+    
+    _calculateUptime();
+  }
+
+  void _calculateUptime() {
+    if (_systemStartTime != null) {
+      setState(() {
+        _systemUptime = DateTime.now().difference(_systemStartTime!);
+      });
+    }
+  }
+
+  void _startUptimeTimer() {
+    _uptimeTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      _calculateUptime();
+    });
+  }
+
+  String _formatUptime() {
+    final days = _systemUptime.inDays;
+    final hours = _systemUptime.inHours % 24;
+    final minutes = _systemUptime.inMinutes % 60;
+    final seconds = _systemUptime.inSeconds % 60;
+    
+    if (days > 0) {
+      return '${days}d ${hours}h ${minutes}m';
+    } else if (hours > 0) {
+      return '${hours}h ${minutes}m ${seconds}s';
+    } else {
+      return '${minutes}m ${seconds}s';
+    }
+  }
+
   Future<void> _loadUIPreference() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final savedUIMode = prefs.getBool('is_modern_ui') ?? true; // Default to modern UI if not set
+      final savedUIMode = prefs.getInt('ui_mode') ?? 0;
       
       if (mounted) {
         setState(() {
-          _isModernUI = savedUIMode;
+          _currentUIMode = savedUIMode;
         });
       }
     } catch (e) {
       debugPrint('Error loading UI preference: $e');
-      // Keep default value if there's an error
     }
   }
 
-  // Add method to save UI preference to SharedPreferences
-  Future<void> _saveUIPreference(bool isModern) async {
+  Future<void> _saveUIPreference(int mode) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('is_modern_ui', isModern);
+      await prefs.setInt('ui_mode', mode);
     } catch (e) {
       debugPrint('Error saving UI preference: $e');
     }
   }
-
 
   Future<void> _checkLicenseStatus() async {
     final licenseStatus = await LicenseService.getLicenseStatus();
@@ -346,21 +395,477 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   void _toggleUIMode() {
-      final newUIMode = !_isModernUI;
-
+    final newUIMode = (_currentUIMode + 1) % 3;
     setState(() {
-      _isModernUI = newUIMode;
+      _currentUIMode = newUIMode;
     });
-    // Save the preference
     _saveUIPreference(newUIMode);
-    // Restart animation when switching UI modes
     _animationController.reset();
     _animationController.forward();
   }
 
   @override
   Widget build(BuildContext context) {
-    return _isModernUI ? _buildModernUI() : _buildClassicUI();
+    switch (_currentUIMode) {
+      case 1:
+        return _buildClassicUI();
+      case 2:
+        return _buildSidebarUI();
+      default:
+        return _buildModernUI();
+    }
+  }
+
+  Widget _buildSidebarUI() {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final String businessName = settingsProvider.businessName;
+    final String secondBusinessName = settingsProvider.secondBusinessName;
+    final String businessAddress = settingsProvider.businessAddress;
+    final String businessPhone = settingsProvider.businessPhone;
+    final orderProvider = Provider.of<OrderProvider>(context);
+    
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isTablet = screenWidth > 600;
+    final sidebarWidth = isTablet ? 320.0 : 280.0;
+
+    return Scaffold(
+      resizeToAvoidBottomInset: false, // This prevents keyboard from resizing the UI
+      body: Row(
+        children: [
+          // Left Sidebar
+          Container(
+            width: sidebarWidth,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  const Color(0xFF667eea),
+                  const Color(0xFFF5F7FA),
+                ],
+              ),
+            ),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    SizedBox(height: screenHeight * 0.05),
+                    // Logo/Icon
+                    FutureBuilder<Widget?>(
+                      future: LogoService.getLogoWidget(
+                        height: isTablet ? 100 : 80,
+                        width: isTablet ? 100 : 80,
+                      ),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasData && snapshot.data != null) {
+                          return Container(
+                            width: isTablet ? 100 : 80,
+                            height: isTablet ? 100 : 80,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withAlpha(26),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: snapshot.data!,
+                            ),
+                          );
+                        } else {
+                          return Container(
+                            width: isTablet ? 100 : 80,
+                            height: isTablet ? 100 : 80,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withAlpha(26),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.local_cafe,
+                              size: isTablet ? 50 : 40,
+                              color: const Color(0xFF667eea),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                    SizedBox(height: screenHeight * 0.025),
+                    // Business Name
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        businessName.isNotEmpty ? businessName : 'SIMS CAFE',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: isTablet ? 28 : 22,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    SizedBox(height: screenHeight * 0.01),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        secondBusinessName.isNotEmpty ? secondBusinessName : '',
+                        style: TextStyle(
+                          color: Colors.white.withAlpha(204),
+                          fontSize: isTablet ? 14 : 12,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    SizedBox(height: screenHeight * 0.04),
+                    // Info Cards
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: isTablet ? 20 : 16),
+                      child: Column(
+                        children: [
+                          _buildInfoCard(
+                            Icons.location_on,
+                            'Location',
+                            businessAddress.isNotEmpty ? businessAddress : '',
+                            Colors.blue.shade50,
+                            isTablet,
+                          ),
+                          SizedBox(height: isTablet ? 16 : 12),
+                          _buildInfoCard(
+                            Icons.phone,
+                            'Contact',
+                            businessPhone.isNotEmpty ? businessPhone : '',
+                            Colors.green.shade50,
+                            isTablet,
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: screenHeight * 0.02),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // Main Content Area
+          Expanded(
+            child: Container(
+              color: const Color(0xFFF5F7FA),
+              child: Column(
+                children: [
+                  // Top Bar with System Uptime
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isTablet ? 32 : 16, 
+                      vertical: isTablet ? 20 : 16
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withAlpha(13),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.access_time,
+                          color: const Color(0xFF667eea),
+                          size: isTablet ? 24 : 20,
+                        ),
+                        SizedBox(width: isTablet ? 12 : 8),
+                        Text(
+                          _formatUptime(),
+                          style: TextStyle(
+                            fontSize: isTablet ? 18 : 14,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF2D3748),
+                          ),
+                        ),
+                        const Spacer(),
+                        // UI Toggle
+                        IconButton(
+                          icon: Icon(
+                            Icons.dashboard_customize,
+                            color: const Color(0xFF667eea),
+                            size: isTablet ? 24 : 20,
+                          ),
+                          onPressed: _toggleUIMode,
+                          tooltip: 'Toggle UI Style',
+                          style: IconButton.styleFrom(
+                            backgroundColor: const Color(0xFFF5F7FA),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: isTablet ? 12 : 8),
+                        // Settings
+                        IconButton(
+                          icon: Icon(
+                            Icons.settings,
+                            color: const Color(0xFF667eea),
+                            size: isTablet ? 24 : 20,
+                          ),
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (_) => const SettingsPasswordDialog(),
+                            );
+                          },
+                          tooltip: 'Settings',
+                          style: IconButton.styleFrom(
+                            backgroundColor: const Color(0xFFF5F7FA),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Service Cards Grid
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.all(isTablet ? 32 : 16),
+                      child: _buildSidebarServiceCards(orderProvider, screenWidth, screenHeight, isTablet),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoCard(IconData icon, String title, String subtitle, Color bgColor, bool isTablet) {
+    return Container(
+      padding: EdgeInsets.all(isTablet ? 16 : 12),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(isTablet ? 16 : 12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(isTablet ? 12 : 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              color: const Color(0xFF667eea),
+              size: isTablet ? 20 : 18,
+            ),
+          ),
+          SizedBox(width: isTablet ? 16 : 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: isTablet ? 14 : 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: isTablet ? 12 : 10,
+                    color: Colors.grey.shade600,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSidebarServiceCards(OrderProvider orderProvider, double screenWidth, double screenHeight, bool isTablet) {
+    final services = [
+      SidebarServiceItem('dining', Icons.restaurant, const Color(0xFFE63946),  'Manage dine-in orders', true),
+      SidebarServiceItem('delivery', Icons.delivery_dining, const Color(0xFF1D9BF0),  'Track delivery orders'),
+      SidebarServiceItem('driveThrough', Icons.drive_eta, const Color(0xFF9333EA),  'Quick drive-through service'),
+      SidebarServiceItem('catering', Icons.cake, const Color(0xFFF97316),  'Large event orders'),
+      SidebarServiceItem('takeout', Icons.takeout_dining, const Color(0xFF10B981),  'Pickup orders ready'),
+      SidebarServiceItem('orderList', Icons.list_alt, const Color(0xFF4B5563),  'View all orders'),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Calculate card dimensions similar to modern UI
+        const int crossAxisCount = 3;
+        const int mainAxisCount = 2;
+        const double horizontalSpacing = 24.0;
+        const double verticalSpacing = 24.0;
+        
+        return Column(
+          children: List.generate(mainAxisCount, (rowIndex) {
+            return Expanded(
+              child: Row(
+                children: List.generate(crossAxisCount, (colIndex) {
+                  final serviceIndex = (rowIndex * crossAxisCount) + colIndex;
+                  if (serviceIndex >= services.length) {
+                    return Expanded(child: Container());
+                  }
+                  
+                  return Expanded(
+                    child: Container(
+                      margin: EdgeInsets.only(
+                        right: colIndex < crossAxisCount - 1 ? horizontalSpacing : 0,
+                        bottom: rowIndex < mainAxisCount - 1 ? verticalSpacing : 0,
+                      ),
+                      child: _buildSidebarServiceCard(services[serviceIndex], orderProvider, isTablet),
+                    ),
+                  );
+                }),
+              ),
+            );
+          }),
+        );
+      },
+    );
+  }
+
+  Widget _buildSidebarServiceCard(SidebarServiceItem service, OrderProvider orderProvider, bool isTablet) {
+    final bool shouldDisable = _isDemoExpired || (_isRegularUser && _isLicenseExpired);
+
+    return InkWell(
+      onTap: shouldDisable ? _showDisabledMessage : () => _navigateToServiceFromSidebar(service, orderProvider),
+      borderRadius: BorderRadius.circular(isTablet ? 20 : 16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(isTablet ? 20 : 16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(13),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return Padding(
+              padding: EdgeInsets.all(isTablet ? 24 : 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(isTablet ? 12 : 10),
+                        decoration: BoxDecoration(
+                          color: service.color.withAlpha(26),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          service.icon,
+                          color: service.color,
+                          size: isTablet ? 24 : 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  Text(
+                    service.title.tr(),
+                    style: TextStyle(
+                      fontSize: isTablet ? 18 : 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade900,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  SizedBox(height: isTablet ? 4 : 2),
+                  Flexible(
+                    child: Text(
+                      service.subtitle,
+                      style: TextStyle(
+                        fontSize: isTablet ? 12 : 11,
+                        color: Colors.grey.shade600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  SizedBox(height: isTablet ? 12 : 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Container(
+                      padding: EdgeInsets.all(isTablet ? 8 : 6),
+                      decoration: BoxDecoration(
+                        // color: Colors.grey.shade900,
+                        color: Colors.grey.shade100,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.arrow_forward,
+                        // color: Colors.white,
+                        color: Colors.black,
+                        size: isTablet ? 16 : 14,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  void _navigateToServiceFromSidebar(SidebarServiceItem service, OrderProvider orderProvider) {
+    if (service.isDining) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (context) => const DiningTableScreen()),
+      );
+    } else if (service.title == 'orderList') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (context) => const OrderListScreen()),
+      );
+    } else {
+      orderProvider.setCurrentServiceType(service.title.tr());
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => MenuScreen(serviceType: service.title.tr(), serviceColor: service.color),
+        ),
+      );
+    }
   }
 
   Widget _buildModernUI() {
@@ -369,6 +874,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     final String appTitle = businessName.isNotEmpty ? businessName : 'appTitle'.tr();
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -417,70 +923,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildClassicUI() {
-    const Color primaryColor = Color(0xFF2E3B4E);
-    const Color backgroundColor = Color(0xFFF5F7FA);
-
-    final settingsProvider = Provider.of<SettingsProvider>(context);
-    final String businessName = settingsProvider.businessName;
-    final String appTitle = businessName.isNotEmpty ? businessName : 'appTitle'.tr();
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          appTitle,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        backgroundColor: primaryColor,
-        elevation: 2,
-        iconTheme: const IconThemeData(color: Colors.white),
-        actions: [
-          // UI Toggle Icon
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            child: IconButton(
-              icon: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                transitionBuilder: (Widget child, Animation<double> animation) {
-                  return RotationTransition(
-                    turns: animation,
-                    child: child,
-                  );
-                },
-                child: Icon(
-                  _isModernUI ? Icons.dashboard_outlined : Icons.dashboard,
-                  key: ValueKey<bool>(_isModernUI),
-                  color: Colors.white,
-                ),
-              ),
-              tooltip: 'Toggle UI Style'.tr(),
-              onPressed: _toggleUIMode,
-            ),
-          ),
-          // Settings Icon
-          IconButton(
-            icon: const Icon(Icons.settings),
-            tooltip: 'settings'.tr(),
-            onPressed: () async {
-              showDialog(
-                context: context,
-                builder: (_) => const SettingsPasswordDialog(),
-              );
-            },
-          ),
-        ],
-      ),
-      backgroundColor: backgroundColor,
-      body: SafeArea(
-        child: _buildClassicGrid(),
-      ),
-    );
-  }
-
   Widget _buildModernAppBar(String appTitle) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
@@ -502,7 +944,6 @@ class _DashboardScreenState extends State<DashboardScreen>
               ],
             ),
           ),
-          // UI Toggle Icon
           Container(
             margin: const EdgeInsets.only(right: 12),
             decoration: BoxDecoration(
@@ -510,25 +951,10 @@ class _DashboardScreenState extends State<DashboardScreen>
               borderRadius: BorderRadius.circular(15),
             ),
             child: IconButton(
-              icon: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                transitionBuilder: (Widget child, Animation<double> animation) {
-                  return RotationTransition(
-                    turns: animation,
-                    child: child,
-                  );
-                },
-                child: Icon(
-                  _isModernUI ? Icons.dashboard_outlined : Icons.dashboard,
-                  key: ValueKey<bool>(_isModernUI),
-                  color: Colors.white,
-                  size: 24,
-                ),
-              ),
+              icon: const Icon(Icons.dashboard_customize, color: Colors.white, size: 24),
               onPressed: _toggleUIMode,
             ),
           ),
-          // Settings Icon
           Container(
             decoration: BoxDecoration(
               color: Colors.white.withAlpha(51),
@@ -607,24 +1033,21 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 right: colIndex < crossAxisCount - 1 ? horizontalPadding : 0,
                                 bottom: rowIndex < mainAxisCount - 1 ? verticalPadding : 0,
                               ),
-                              // ignore: unnecessary_null_comparison
-                              child: _animationController != null
-                                  ? AnimatedBuilder(
-                                      animation: _animationController,
-                                      builder: (context, child) {
-                                        final animationValue = Curves.easeOutCubic.transform(
-                                          (_animationController.value - (serviceIndex * 0.1)).clamp(0.0, 1.0),
-                                        );
-                                        return Transform.translate(
-                                          offset: Offset(0, 30 * (1 - animationValue)),
-                                          child: Opacity(
-                                            opacity: animationValue,
-                                            child: _buildModernServiceCard(services[serviceIndex], serviceIndex),
-                                          ),
-                                        );
-                                      },
-                                    )
-                                  : _buildModernServiceCard(services[serviceIndex], serviceIndex),
+                              child: AnimatedBuilder(
+                                animation: _animationController,
+                                builder: (context, child) {
+                                  final animationValue = Curves.easeOutCubic.transform(
+                                    (_animationController.value - (serviceIndex * 0.1)).clamp(0.0, 1.0),
+                                  );
+                                  return Transform.translate(
+                                    offset: Offset(0, 30 * (1 - animationValue)),
+                                    child: Opacity(
+                                      opacity: animationValue,
+                                      child: _buildModernServiceCard(services[serviceIndex], serviceIndex),
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
                           );
                         }),
@@ -637,105 +1060,6 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildClassicGrid() {
-    const Color diningColor = Color(0xFF1565C0);
-    const Color takeoutColor = Color(0xFF4CAF50);
-    const Color deliveryColor = Color(0xFFFF9800);
-    const Color driveThroughColor = Color(0xFFE57373);
-    const Color cateringColor = Color(0xFFFFEB3B);
-    const Color orderListColor = Color(0xFF607D8B);
-
-    final screenSize = MediaQuery.of(context).size;
-    final isLandscape = screenSize.width > screenSize.height;
-    
-    final crossAxisCount = isLandscape ? 3 : 2;
-    
-    final double aspectRatio = isLandscape 
-        ? (screenSize.width / crossAxisCount) / ((screenSize.height - 120) / 2) 
-        : (screenSize.width / crossAxisCount) / ((screenSize.height - 120) / 3);
-    
-    final horizontalPadding = screenSize.width * 0.03;
-    final verticalPadding = screenSize.height * 0.02;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Container(
-          width: double.infinity,
-          height: double.infinity,
-          padding: EdgeInsets.symmetric(
-            horizontal: horizontalPadding,
-            vertical: verticalPadding,
-          ),
-          child: Column(
-            children: [
-              Expanded(
-                child: GridView.count(
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: crossAxisCount,
-                  childAspectRatio: aspectRatio,
-                  crossAxisSpacing: horizontalPadding * 0.8,
-                  mainAxisSpacing: verticalPadding * 0.8,
-                  shrinkWrap: true,
-                  children: [
-                    _buildClassicServiceCard(
-                      context: context,
-                      title: 'dining',
-                      icon: Icons.restaurant,
-                      color: diningColor,
-                      isDining: true,
-                      screenSize: screenSize,
-                      isDisabled: _isDemoExpired,
-                    ),
-                    _buildClassicServiceCard(
-                      context: context,
-                      title: 'takeout',
-                      icon: Icons.takeout_dining,
-                      color: takeoutColor,
-                      screenSize: screenSize,
-                      isDisabled: _isDemoExpired,
-                    ),
-                    _buildClassicServiceCard(
-                      context: context,
-                      title: 'delivery',
-                      icon: Icons.delivery_dining,
-                      color: deliveryColor,
-                      screenSize: screenSize,
-                      isDisabled: _isDemoExpired,
-                    ),
-                    _buildClassicServiceCard(
-                      context: context,
-                      title: 'driveThrough',
-                      icon: Icons.drive_eta,
-                      color: driveThroughColor,
-                      screenSize: screenSize,
-                      isDisabled: _isDemoExpired,
-                    ),
-                    _buildClassicServiceCard(
-                      context: context,
-                      title: 'catering',
-                      icon: Icons.cake,
-                      color: cateringColor,
-                      screenSize: screenSize,
-                      isDisabled: _isDemoExpired,
-                    ),
-                    _buildClassicServiceCard(
-                      context: context,
-                      title: 'orderList',
-                      icon: Icons.list_alt,
-                      color: orderListColor,
-                      screenSize: screenSize,
-                      isDisabled: _isDemoExpired,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 
@@ -845,6 +1169,155 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  Widget _buildClassicUI() {
+    const Color primaryColor = Color(0xFF2E3B4E);
+    const Color backgroundColor = Color(0xFFF5F7FA);
+
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final String businessName = settingsProvider.businessName;
+    final String appTitle = businessName.isNotEmpty ? businessName : 'appTitle'.tr();
+
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      appBar: AppBar(
+        title: Text(
+          appTitle,
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        backgroundColor: primaryColor,
+        elevation: 2,
+        iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            child: IconButton(
+              icon: const Icon(Icons.dashboard_customize, color: Colors.white),
+              tooltip: 'Toggle UI Style'.tr(),
+              onPressed: _toggleUIMode,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            tooltip: 'settings'.tr(),
+            onPressed: () async {
+              showDialog(
+                context: context,
+                builder: (_) => const SettingsPasswordDialog(),
+              );
+            },
+          ),
+        ],
+      ),
+      backgroundColor: backgroundColor,
+      body: SafeArea(
+        child: _buildClassicGrid(),
+      ),
+    );
+  }
+
+  Widget _buildClassicGrid() {
+    const Color diningColor = Color(0xFF1565C0);
+    const Color takeoutColor = Color(0xFF4CAF50);
+    const Color deliveryColor = Color(0xFFFF9800);
+    const Color driveThroughColor = Color(0xFFE57373);
+    const Color cateringColor = Color(0xFFFFEB3B);
+    const Color orderListColor = Color(0xFF607D8B);
+
+    final screenSize = MediaQuery.of(context).size;
+    final isLandscape = screenSize.width > screenSize.height;
+    
+    final crossAxisCount = isLandscape ? 3 : 2;
+    
+    final double aspectRatio = isLandscape 
+        ? (screenSize.width / crossAxisCount) / ((screenSize.height - 120) / 2) 
+        : (screenSize.width / crossAxisCount) / ((screenSize.height - 120) / 3);
+    
+    final horizontalPadding = screenSize.width * 0.03;
+    final verticalPadding = screenSize.height * 0.02;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Container(
+          width: double.infinity,
+          height: double.infinity,
+          padding: EdgeInsets.symmetric(
+            horizontal: horizontalPadding,
+            vertical: verticalPadding,
+          ),
+          child: Column(
+            children: [
+              Expanded(
+                child: GridView.count(
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: crossAxisCount,
+                  childAspectRatio: aspectRatio,
+                  crossAxisSpacing: horizontalPadding * 0.8,
+                  mainAxisSpacing: verticalPadding * 0.8,
+                  shrinkWrap: true,
+                  children: [
+                    _buildClassicServiceCard(
+                      context: context,
+                      title: 'dining',
+                      icon: Icons.restaurant,
+                      color: diningColor,
+                      isDining: true,
+                      screenSize: screenSize,
+                      isDisabled: _isDemoExpired,
+                    ),
+                    _buildClassicServiceCard(
+                      context: context,
+                      title: 'takeout',
+                      icon: Icons.takeout_dining,
+                      color: takeoutColor,
+                      screenSize: screenSize,
+                      isDisabled: _isDemoExpired,
+                    ),
+                    _buildClassicServiceCard(
+                      context: context,
+                      title: 'delivery',
+                      icon: Icons.delivery_dining,
+                      color: deliveryColor,
+                      screenSize: screenSize,
+                      isDisabled: _isDemoExpired,
+                    ),
+                    _buildClassicServiceCard(
+                      context: context,
+                      title: 'driveThrough',
+                      icon: Icons.drive_eta,
+                      color: driveThroughColor,
+                      screenSize: screenSize,
+                      isDisabled: _isDemoExpired,
+                    ),
+                    _buildClassicServiceCard(
+                      context: context,
+                      title: 'catering',
+                      icon: Icons.cake,
+                      color: cateringColor,
+                      screenSize: screenSize,
+                      isDisabled: _isDemoExpired,
+                    ),
+                    _buildClassicServiceCard(
+                      context: context,
+                      title: 'orderList',
+                      icon: Icons.list_alt,
+                      color: orderListColor,
+                      screenSize: screenSize,
+                      isDisabled: _isDemoExpired,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildClassicServiceCard({
     required BuildContext context,
     required String title,
@@ -862,7 +1335,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         ? screenSize.width * 0.016
         : screenSize.width * 0.03;
 
-    Provider.of<OrderProvider>(context, listen: false);
     final bool shouldDisable = _isDemoExpired || (_isRegularUser && _isLicenseExpired);
 
     return Opacity(
@@ -1032,4 +1504,20 @@ class ServiceItem {
   final bool isDining;
 
   ServiceItem(this.title, this.icon, this.color, [this.isDining = false]);
+}
+
+class SidebarServiceItem {
+  final String title;
+  final IconData icon;
+  final Color color;
+  final String subtitle;
+  final bool isDining;
+
+  SidebarServiceItem(
+    this.title,
+    this.icon,
+    this.color,
+    this.subtitle, [
+    this.isDining = false,
+  ]);
 }

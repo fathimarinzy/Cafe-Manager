@@ -2,6 +2,7 @@
 import 'package:cafeapp/services/excel_import_service.dart';
 import 'package:cafeapp/utils/camera_helper.dart';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -66,6 +67,162 @@ class _ModifierScreenState extends State<ModifierScreen> {
     _categoryController.dispose();
     super.dispose();
   }
+  /// Export menu with proper permission handling and user feedback
+Future<void> exportMenuWithPermissionHandling(
+  BuildContext context,
+  List<MenuItem> items,
+) async {
+  // Show loading dialog
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => AlertDialog(
+      content: Row(
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(width: 20),
+          Expanded(child: Text("Preparing export...")),
+        ],
+      ),
+    ),
+  );
+
+  try {
+    // Call the export function (which now handles permissions internally)
+    final result = await ExcelImportService.exportMenuItemsWithImages(items);
+
+    if (!context.mounted) return;
+    Navigator.of(context).pop(); // Close loading dialog
+
+    if (result == null) {
+      _showErrorDialog(context, 'Export failed', 'Unable to export menu items.');
+      return;
+    }
+
+    // Check if export was successful
+    if (result['success'] == true) {
+      // SUCCESS!
+      _showSuccessDialog(
+        context,
+        'Export Successful!',
+        'Exported ${result['itemsExported']} items\n'
+        '${result['imagesExported']} images exported\n'
+        '${result['imagesFailed']} images failed\n\n'
+        'Location: ${result['folderPath']}',
+      );
+    } else {
+      // Handle specific error types
+      String error = result['error'] ?? 'unknown';
+      String message = result['message'] ?? 'An error occurred';
+
+      if (error == 'permission_denied') {
+        // Permission was denied - show dialog to open settings
+        _showPermissionDeniedDialog(context);
+      } else if (error == 'cancelled') {
+        // User cancelled - just show a brief message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export cancelled'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } else {
+        // Other errors
+        _showErrorDialog(context, 'Export Failed', message);
+      }
+    }
+  } catch (e) {
+    if (!context.mounted) return;
+    Navigator.of(context).pop(); // Close loading dialog
+    
+    _showErrorDialog(
+      context,
+      'Export Error',
+      'An unexpected error occurred: $e',
+    );
+  }
+}
+
+/// Show success dialog
+void _showSuccessDialog(BuildContext context, String title, String message) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.check_circle, color: Colors.green, size: 32),
+          SizedBox(width: 12),
+          Text(title),
+        ],
+      ),
+      content: Text(message),
+      actions: [
+        ElevatedButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: Text('OK'),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Show error dialog
+void _showErrorDialog(BuildContext context, String title, String message) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.error, color: Colors.red, size: 32),
+          SizedBox(width: 12),
+          Text(title),
+        ],
+      ),
+      content: Text(message),
+      actions: [
+        ElevatedButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: Text('OK'),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Show permission denied dialog with option to open settings
+void _showPermissionDeniedDialog(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.warning, color: Colors.orange, size: 32),
+          SizedBox(width: 12),
+          Text('Permission Required'),
+        ],
+      ),
+      content: Text(
+        'Storage permission is required to export files.\n\n'
+        'Please grant "All files access" or "Storage" permission in app settings.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: Text('Cancel'),
+        ),
+        ElevatedButton.icon(
+          onPressed: () async {
+            Navigator.of(ctx).pop();
+            // Open app settings
+            await openAppSettings();
+          },
+          icon: Icon(Icons.settings),
+          label: Text('Open Settings'),
+        ),
+      ],
+    ),
+  );
+}
   
   /// Start export process
   void _exportMenuWithImages() async {
@@ -522,8 +679,8 @@ class _ModifierScreenState extends State<ModifierScreen> {
     );
 
     try {
-      final items = await ExcelImportService.importMenuItemsWithImages(
-        category: useExcelCategory ? null : defaultCategory,
+      final items = await ExcelImportService.importMenuItemsFromExcelWithImages(
+        useExcelCategory ? null : defaultCategory,
       );
 
       if (!mounted) return;
