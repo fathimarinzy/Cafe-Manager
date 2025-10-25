@@ -1,4 +1,7 @@
 import 'package:cafeapp/models/order.dart';
+import 'package:cafeapp/providers/auth_provider.dart';
+import 'package:cafeapp/screens/login_screen.dart';
+import 'package:cafeapp/screens/report_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/order_provider.dart';
@@ -621,6 +624,25 @@ class _DashboardScreenState extends State<DashboardScreen>
                           ),
                         ),
                         SizedBox(width: isTablet ? 12 : 8),
+                        IconButton(
+                          icon: Icon(
+                            Icons.logout,
+                            color: const Color(0xFF667eea),
+                            size: isTablet ? 24 : 20,
+                          ),
+                          onPressed: () {
+                            _showLogoutDialogWithReport();
+                           
+                          },
+                          tooltip: 'Logout',
+                          style: IconButton.styleFrom(
+                            backgroundColor: const Color(0xFFF5F7FA),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: isTablet ? 12 : 8),
                         // Settings
                         IconButton(
                           icon: Icon(
@@ -958,7 +980,21 @@ class _DashboardScreenState extends State<DashboardScreen>
               onPressed: _toggleUIMode,
             ),
           ),
+           Container(
+            margin: const EdgeInsets.only(right: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(51),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.logout, color: Colors.white, size: 24),
+              onPressed: () {
+                _showLogoutDialogWithReport();
+              },
+            ),
+          ),
           Container(
+            margin: const EdgeInsets.only(right: 12),
             decoration: BoxDecoration(
               color: Colors.white.withAlpha(51),
               borderRadius: BorderRadius.circular(15),
@@ -1204,6 +1240,13 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
           ),
           IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Logout'.tr(),
+            onPressed: () async {
+              _showLogoutDialogWithReport();
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.settings),
             tooltip: 'settings'.tr(),
             onPressed: () async {
@@ -1425,6 +1468,11 @@ Widget _buildCardStyleUI() {
           tooltip: 'Toggle UI Style',
         ),
         IconButton(
+            icon: const Icon(Icons.logout, color: Colors.black87),
+            onPressed: _showLogoutDialogWithReport,
+            tooltip: 'Logout',
+          ),
+        IconButton(
           icon: const Icon(Icons.settings, color: Colors.black87),
           onPressed: () {
             showDialog(
@@ -1441,7 +1489,126 @@ Widget _buildCardStyleUI() {
     ),
   );
 }
-
+void _showLogoutDialogWithReport() {
+  showDialog(
+    context: context,
+    builder: (ctx) => Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          maxWidth: 450,
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // X Close Button at top right
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    iconSize: 24,
+                    color: Colors.grey.shade600,
+                  ),
+                ],
+              ),
+              Icon(
+                Icons.logout,
+                size: 35,
+                color: Colors.blue.shade700,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Logout'.tr(),
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue.shade900,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Are you sure you want to logout?'.tr(),
+                style: const TextStyle(
+                  fontSize: 16,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Do you want to see the report before logging out?'.tr(),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade700,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  // View Report Button
+                  Flexible(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const ReportScreen(),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue.shade700,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      ),
+                      child: Text('Report'.tr()),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Logout Button
+                  Flexible(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                        authProvider.logout();
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(builder: (_) => const LoginScreen()),
+                          (route) => false,
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red.shade600,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      ),
+                      child: Text('Logout'.tr()),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
 Widget _buildCardStyleContent() {
   return LayoutBuilder(
     builder: (context, constraints) {
