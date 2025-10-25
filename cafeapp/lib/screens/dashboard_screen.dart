@@ -26,7 +26,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _isDemoExpired = false;
   bool _isLicenseExpired = false;
   bool _isRegularUser = false;
-  int _currentUIMode = 0; // 0: Modern, 1: Classic, 2: Sidebar
+  int _currentUIMode = 0; // 0: Modern, 1: Classic, 2: Sidebar , 3: Card Style
   late AnimationController _animationController;
   late AnimationController _fabAnimationController;
   late Animation<double> _fadeAnimation;
@@ -395,7 +395,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   void _toggleUIMode() {
-    final newUIMode = (_currentUIMode + 1) % 3;
+    final newUIMode = (_currentUIMode + 1) % 4;
     setState(() {
       _currentUIMode = newUIMode;
     });
@@ -411,6 +411,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         return _buildClassicUI();
       case 2:
         return _buildSidebarUI();
+      case 3:
+        return _buildCardStyleUI();
       default:
         return _buildModernUI();
     }
@@ -1393,6 +1395,327 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
     );
   }
+  // New Card Style UI (4th UI Mode)
+Widget _buildCardStyleUI() {
+  final settingsProvider = Provider.of<SettingsProvider>(context);
+  final String businessName = settingsProvider.businessName;
+  final String appTitle = businessName.isNotEmpty ? businessName : 'SIMS CAFE';
+
+  return Scaffold(
+    resizeToAvoidBottomInset: false,
+    backgroundColor: Colors.white,
+    appBar: AppBar(
+      title: Text(
+        appTitle,
+        style: const TextStyle(
+          fontSize: 28,
+          fontWeight: FontWeight.bold,
+          color: Colors.black87,
+          letterSpacing: 2,
+        ),
+      ),
+      backgroundColor: Colors.white,
+      elevation: 0,
+      centerTitle: false,
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.dashboard_customize, color: Colors.black87),
+          onPressed: _toggleUIMode,
+          tooltip: 'Toggle UI Style',
+        ),
+        IconButton(
+          icon: const Icon(Icons.settings, color: Colors.black87),
+          onPressed: () {
+            showDialog(
+              context: context,
+              builder: (_) => const SettingsPasswordDialog(),
+            );
+          },
+          tooltip: 'Settings',
+        ),
+      ],
+    ),
+    body: SafeArea(
+      child: _buildCardStyleContent(),
+    ),
+  );
+}
+
+Widget _buildCardStyleContent() {
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      
+      return Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(40),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Top row with Dining, Delivery, and Pie Chart
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildCardStyleButton(
+                    'dining',
+                    Icons.restaurant,
+                    const Color(0xFFFF8C42),
+                    200,
+                    200,
+                    true,
+                  ),
+                  const SizedBox(width: 20),
+                  _buildCardStyleButton(
+                    'delivery',
+                    Icons.moped,
+                    const Color(0xFF4A6FA5),
+                    200,
+                    200,
+                    false,
+                  ),
+                  const SizedBox(width: 20),
+                  _buildPieChart(),
+                ],
+              ),
+              const SizedBox(height: 20),
+              // Second row with Takeout and Drive Through
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildCardStyleButton(
+                    'takeout',
+                    Icons.shopping_bag,
+                    const Color(0xFF4CAF50),
+                    200,
+                    200,
+                    false,
+                  ),
+                  const SizedBox(width: 20),
+                  _buildCardStyleButton(
+                    'driveThrough',
+                    Icons.drive_eta,
+                    const Color(0xFF757575),
+                    200,
+                    200,
+                    false,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              // Third row with Order List and Catering
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildCardStyleButton(
+                    'orderList',
+                    Icons.list_alt,
+                   const Color(0xFF9E9E9E),
+                    420,
+                    120,
+                    false,
+                  ),
+                  const SizedBox(width: 20),
+                  _buildCardStyleButton(
+                    'catering',
+                    Icons.cake,
+                    const Color(0xFFFFA726),
+                    200,
+                    120,
+                    false,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+Widget _buildCardStyleButton(
+  String title,
+  IconData icon,
+  Color color,
+  double width,
+  double height,
+  bool isDining,
+) {
+  final bool shouldDisable = _isDemoExpired || (_isRegularUser && _isLicenseExpired);
+   // Adjust padding and icon size based on height
+    final isShortCard = height <= 120;
+    final iconSize = isShortCard ? 40.0 : 50.0;
+    final padding = isShortCard ? 16.0 : 24.0;
+    final fontSize = isShortCard ? 20.0 : 24.0;
+    final spacing = isShortCard ? 8.0 : 12.0;
+
+  return InkWell(
+    onTap: shouldDisable ? _showDisabledMessage : () => _navigateToServiceCardStyle(title, color, isDining),
+    borderRadius: BorderRadius.circular(20),
+    child: Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: shouldDisable ? Colors.grey.shade300 : color,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: shouldDisable ? [] : [
+          BoxShadow(
+            color: Colors.black.withAlpha(51),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Padding(
+            padding: EdgeInsets.all(padding),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: iconSize,
+                  color: Colors.white,
+                ),
+                SizedBox(height: spacing),
+               
+                Flexible(
+                 child: Text(
+                  title.tr(),
+                  style: TextStyle(
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                 ),
+                ),
+              ],
+            ),
+          ),
+          if (shouldDisable)
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                color: Colors.black.withAlpha(77),
+              ),
+              child: const Center(
+                child: Icon(
+                  Icons.lock,
+                  color: Colors.white,
+                  size: 40,
+                ),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _buildPieChart() {
+  return Container(
+    width: 200,
+    height: 200,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withAlpha(51),
+          blurRadius: 15,
+          offset: const Offset(0, 8),
+        ),
+      ],
+    ),
+    child: CustomPaint(
+      painter: PieChartPainter(),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFF8C42),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Text(
+                  'Dining',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF4A6FA5),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Text(
+                  'Delivery',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+void _navigateToServiceCardStyle(String title, Color color, bool isDining) {
+  final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+
+  if (isDining) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => const DiningTableScreen(),
+      ),
+    );
+  } else if (title == 'orderList') {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => const OrderListScreen(),
+      ),
+    );
+  } else {
+    orderProvider.setCurrentServiceType(title.tr());
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => MenuScreen(serviceType: title.tr(), serviceColor: color),
+      ),
+    );
+  }
+}
 
   void _showDisabledMessage() {
     String message;
@@ -1496,7 +1819,40 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 }
+// Custom Painter for Pie Chart (ADD THIS OUTSIDE THE CLASS)
+class PieChartPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..style = PaintingStyle.fill;
 
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+
+    // Draw Dining segment (60% - Orange)
+    paint.color = const Color(0xFFFF8C42);
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -3.14159 / 2, // Start from top
+      3.14159 * 1.2, // 60% of circle
+      true,
+      paint,
+    );
+
+    // Draw Delivery segment (40% - Blue)
+    paint.color = const Color(0xFF4A6FA5);
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -3.14159 / 2 + 3.14159 * 1.2, // Start where orange ends
+      3.14159 * 0.8, // 40% of circle
+      true,
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
 class ServiceItem {
   final String title;
   final IconData icon;
