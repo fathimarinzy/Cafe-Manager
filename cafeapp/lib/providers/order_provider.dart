@@ -107,6 +107,15 @@ class OrderProvider with ChangeNotifier {
   double get total {
     return _serviceTotals[_currentServiceType]?['total'] ?? 0;
   }
+  // Add this getter after the existing getters (around line 70-100)
+Future<List<Order>> get orders async {
+  try {
+    return await _localOrderRepo.getAllOrders();
+  } catch (error) {
+    debugPrint('Error fetching orders: $error');
+    return [];
+  }
+}
 
   // Add item to cart for current service type
 void addToCart(MenuItem item) {

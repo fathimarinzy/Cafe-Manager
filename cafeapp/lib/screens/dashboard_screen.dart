@@ -1,3 +1,4 @@
+import 'package:cafeapp/models/order.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/order_provider.dart';
@@ -1619,6 +1620,35 @@ Widget _buildCardStyleButton(
 }
 
 Widget _buildPieChart() {
+  return FutureBuilder<List<Order>>(
+      future: Provider.of<OrderProvider>(context, listen: false).fetchOrders(),
+      builder: (context, snapshot) {
+        int diningCount = 0;
+        int takeoutCount = 0;
+        int deliveryCount = 0;
+        int cateringCount = 0;
+        int driveThroughCount = 0;
+        
+        if (snapshot.hasData && snapshot.data != null) {
+          // Calculate order counts for each service type
+          for (var order in snapshot.data!) {
+            final serviceType = order.serviceType.toLowerCase();
+            if (serviceType.contains('dining')) {
+              diningCount++;
+            } else if (serviceType.contains('takeout')) {
+              takeoutCount++;
+            } else if (serviceType.contains('delivery')) {
+              deliveryCount++;
+            } else if (serviceType.contains('catering')) {
+              cateringCount++;
+            } else if (serviceType.contains('drive') || serviceType.contains('through')) {
+              driveThroughCount++;
+            }
+          }
+        }
+        
+        final totalOrders = diningCount + takeoutCount + deliveryCount + cateringCount + driveThroughCount;
+        
   return Container(
     width: 200,
     height: 200,
@@ -1633,65 +1663,60 @@ Widget _buildPieChart() {
       ],
     ),
     child: CustomPaint(
-      painter: PieChartPainter(),
+      painter: PieChartPainter(
+         diningCount: diningCount,
+        takeoutCount: takeoutCount,
+        deliveryCount: deliveryCount,
+        cateringCount: cateringCount,
+        driveThroughCount: driveThroughCount,
+        totalOrders: totalOrders,
+      ),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 12,
-                  height: 12,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFFF8C42),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                const Text(
-                  'Dining',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 12,
-                  height: 12,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF4A6FA5),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                const Text(
-                  'Delivery',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
+            _buildLegendItem(const Color(0xFFFF8C42), 'Dining', diningCount),
+                  const SizedBox(height: 4),
+                  _buildLegendItem(const Color(0xFF4CAF50), 'Takeout', takeoutCount),
+                  const SizedBox(height: 4),
+                  _buildLegendItem(const Color(0xFF4A6FA5), 'Delivery', deliveryCount),
+                  const SizedBox(height: 4),
+                  _buildLegendItem(const Color(0xFFFFA726), 'Catering', cateringCount),
+                  const SizedBox(height: 4),
+                  _buildLegendItem(const Color(0xFF757575), 'Drive', driveThroughCount),
           ],
         ),
       ),
     ),
   );
+},
+);
 }
-
+  Widget _buildLegendItem(Color color, String label, int count) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$label: $count',
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+      ],
+    );
+  }
 void _navigateToServiceCardStyle(String title, Color color, bool isDining) {
   final orderProvider = Provider.of<OrderProvider>(context, listen: false);
 
@@ -1821,37 +1846,86 @@ void _navigateToServiceCardStyle(String title, Color color, bool isDining) {
 }
 // Custom Painter for Pie Chart (ADD THIS OUTSIDE THE CLASS)
 class PieChartPainter extends CustomPainter {
+  final int diningCount;
+  final int takeoutCount;
+  final int deliveryCount;
+  final int cateringCount;
+  final int driveThroughCount;
+  final int totalOrders;
+
+  PieChartPainter({
+    required this.diningCount,
+    required this.takeoutCount,
+    required this.deliveryCount,
+    required this.cateringCount,
+    required this.driveThroughCount,
+    required this.totalOrders,
+  });
+
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..style = PaintingStyle.fill;
+    if (totalOrders == 0) {
+      // Draw a gray circle if no orders
+      final paint = Paint()
+        ..style = PaintingStyle.fill
+        ..color = Colors.grey.shade300;
+      final center = Offset(size.width / 2, size.height / 2);
+      final radius = size.width / 2;
+      canvas.drawCircle(center, radius, paint);
+      return;
+    }
 
+    final paint = Paint()..style = PaintingStyle.fill;
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2;
 
-    // Draw Dining segment (60% - Orange)
-    paint.color = const Color(0xFFFF8C42);
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      -3.14159 / 2, // Start from top
-      3.14159 * 1.2, // 60% of circle
-      true,
-      paint,
-    );
+    double startAngle = -3.14159 / 2; // Start from top
 
-    // Draw Delivery segment (40% - Blue)
-    paint.color = const Color(0xFF4A6FA5);
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      -3.14159 / 2 + 3.14159 * 1.2, // Start where orange ends
-      3.14159 * 0.8, // 40% of circle
-      true,
-      paint,
-    );
+    // Define colors for each service type
+    final colors = [
+      const Color(0xFFFF8C42), // Dining - Orange
+      const Color(0xFF4CAF50), // Takeout - Green
+      const Color(0xFF4A6FA5), // Delivery - Blue
+      const Color(0xFFFFA726), // Catering - Light Orange
+      const Color(0xFF757575), // Drive Through - Gray
+    ];
+
+    final counts = [
+      diningCount,
+      takeoutCount,
+      deliveryCount,
+      cateringCount,
+      driveThroughCount,
+    ];
+
+    // Draw each segment
+    for (int i = 0; i < counts.length; i++) {
+      if (counts[i] > 0) {
+        paint.color = colors[i];
+        final sweepAngle = (counts[i] / totalOrders) * 2 * 3.14159;
+        
+        canvas.drawArc(
+          Rect.fromCircle(center: center, radius: radius),
+          startAngle,
+          sweepAngle,
+          true,
+          paint,
+        );
+        
+        startAngle += sweepAngle;
+      }
+    }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant PieChartPainter oldDelegate) {
+    return oldDelegate.diningCount != diningCount ||
+        oldDelegate.takeoutCount != takeoutCount ||
+        oldDelegate.deliveryCount != deliveryCount ||
+        oldDelegate.cateringCount != cateringCount ||
+        oldDelegate.driveThroughCount != driveThroughCount ||
+        oldDelegate.totalOrders != totalOrders;
+  }
 }
 class ServiceItem {
   final String title;
