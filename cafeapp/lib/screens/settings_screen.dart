@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:cafeapp/main.dart';
+import 'package:cafeapp/providers/logo_provider.dart';
 // import 'package:cafeapp/utils/database_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -46,8 +49,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int _remainingLicenseDays = 0;
   bool _isRegularUser = false;
 
-  bool _hasLogo = false;
-  
   // Business Information
   final _businessNameController = TextEditingController();
   final _secondBusinessNameController = TextEditingController();
@@ -80,53 +81,94 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   void initState() {
-    _loadLogo();
     super.initState();
     _loadSettings();
     _checkDemoStatus();
     _checkLicenseStatus(); 
   }
-    Future<void> _loadLogo() async {
-  final hasLogo = await LogoService.hasLogo();
-  setState(() {
-    _hasLogo = hasLogo;
-  });
-}
 
 Future<void> _showLogoDialog() async {
   final logoEnabled = await LogoService.isLogoEnabled();
   if (!mounted) return;
+  
   showDialog(
     context: context,
     builder: (BuildContext context) {
       return StatefulBuilder(
-        builder: (context, setState) {
+        builder: (context, setDialogState) {
           return AlertDialog(
             title: Text('Business Logo Settings'.tr()),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Logo Preview
-                  FutureBuilder<Widget?>(
-                    future: LogoService.getLogoWidget(
-                      height: 120,
-                      width: 120,
-                    ),
-                    builder: (context, snapshot) {
-                      if (snapshot.hasData && snapshot.data != null) {
+                  // Logo Preview with timestamp-based key to force refresh
+                  Consumer<LogoProvider>(
+                    builder: (context, logoProvider, child) {
+                      if (logoProvider.hasLogo && logoProvider.logoPath != null) {
                         return Column(
                           children: [
-                            snapshot.data!,
+                            Container(
+                              height: 120,
+                              width: 120,
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade300),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.file(
+                                  File(logoProvider.logoPath!),
+                                  // CRITICAL: Use ValueKey with timestamp to force rebuild
+                                  key: ValueKey('logo_${logoProvider.lastUpdateTimestamp}'),
+                                  height: 120,
+                                  width: 120,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.broken_image, 
+                                          size: 60, 
+                                          color: Colors.grey[400]
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text('Error loading logo'.tr(),
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
                             const SizedBox(height: 16),
                           ],
                         );
                       }
+                      
+                      // No logo state
                       return Column(
                         children: [
-                          Icon(Icons.image, size: 80, color: Colors.grey[400]),
-                          const SizedBox(height: 8),
-                          Text('No logo uploaded'.tr()),
+                          Container(
+                            height: 120,
+                            width: 120,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(8),
+                              color: Colors.grey.shade50,
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.image, size: 60, color: Colors.grey[400]),
+                                const SizedBox(height: 8),
+                                Text('No logo uploaded'.tr(),
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
                           const SizedBox(height: 16),
                         ],
                       );
@@ -136,103 +178,225 @@ Future<void> _showLogoDialog() async {
                   // Upload/Change Logo Button
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        final success = await LogoService.pickAndSaveLogo();
-                        if (success) {
-                          _loadLogo();
-                          setState(() {});
-                        
-                          if (mounted) {
+                    child: Consumer<LogoProvider>(
+                      builder: (context, logoProvider, child) {
+                        return ElevatedButton.icon(
+                          onPressed: () async {
+                            // Show loading indicator
                             if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Logo updated successfully'.tr())),
+                            showDialog(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (ctx) => const Center(
+                                child: CircularProgressIndicator(),
+                              ),
                             );
-                          }
-                        }
+
+                            try {
+                              final success = await LogoService.pickAndSaveLogo();
+                              
+                              // Close loading dialog
+                              if (context.mounted) {
+                                Navigator.of(context).pop();
+                              }
+
+                              if (success) {
+                                // CRITICAL: Update the logo provider immediately
+                                await logoProvider.updateLogo();
+                                
+                                // Force dialog to rebuild
+                                setDialogState(() {});
+                                
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Logo updated successfully'.tr()),
+                                      backgroundColor: Colors.green,
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              } else {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Failed to update logo'.tr()),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
+                            } catch (e) {
+                              // Close loading dialog if still open
+                              if (context.mounted) {
+                                Navigator.of(context).pop();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Error: $e'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          icon: Icon(logoProvider.hasLogo ? Icons.edit : Icons.upload),
+                          label: Text(logoProvider.hasLogo ? 'Change Logo'.tr() : 'Upload Logo'.tr()),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue[700],
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        );
                       },
-                      icon: Icon(_hasLogo ? Icons.edit : Icons.upload),
-                      label: Text(_hasLogo ? 'Change Logo'.tr() : 'Upload Logo'.tr()),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue[700],
-                        foregroundColor: Colors.white,
-                      ),
                     ),
                   ),
                   
-                  if (_hasLogo) ...[
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () async {
-                          final confirm = await showDialog<bool>(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              title: Text('Remove Logo'.tr()),
-                              content: Text('Are you sure you want to remove the logo?'.tr()),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx, false),
-                                  child: Text('Cancel'.tr()),
-                                ),
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx, true),
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: Colors.red,
+                  // Remove Logo Button
+                  Consumer<LogoProvider>(
+                    builder: (context, logoProvider, child) {
+                      if (!logoProvider.hasLogo) return const SizedBox();
+
+                      return Column(
+                        children: [
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: Text('Remove Logo'.tr()),
+                                    content: Text('Are you sure you want to remove the logo?'.tr()),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(ctx, false),
+                                        child: Text('Cancel'.tr()),
+                                      ),
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(ctx, true),
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: Colors.red,
+                                        ),
+                                        child: Text('Remove'.tr()),
+                                      ),
+                                    ],
                                   ),
-                                  child: Text('Remove'.tr()),
-                                ),
-                              ],
+                                );
+
+                                if (confirm == true && context.mounted) {
+                                  // Show loading
+                                  showDialog(
+                                    context: context,
+                                    barrierDismissible: false,
+                                    builder: (ctx) => const Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  );
+
+                                  try {
+                                    await logoProvider.removeLogo();
+                                    
+                                    // Close loading
+                                    if (context.mounted) {
+                                      Navigator.of(context).pop();
+                                    }
+                                    
+                                    // Force dialog rebuild
+                                    setDialogState(() {});
+                                    
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Logo removed successfully'.tr()),
+                                          backgroundColor: Colors.green,
+                                        ),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    if (context.mounted) {
+                                      Navigator.of(context).pop();
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Error removing logo: $e'),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                }
+                              },
+                              icon: const Icon(Icons.delete),
+                              label: Text('Remove Logo'.tr()),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.red,
+                                side: const BorderSide(color: Colors.red),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
                             ),
-                          );
-                          
-                          if (confirm == true) {
-                            await LogoService.deleteLogo();
-                            _loadLogo();
-                            setState(() {});
-                            if (mounted) {
-                              if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Logo removed successfully'.tr())),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  
+                  // Logo in Receipts Toggle
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Show Logo in Receipts'.tr(),
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ),
+                      Consumer<LogoProvider>(
+                        builder: (context, logoProvider, child) {
+                          return FutureBuilder<bool>(
+                            future: LogoService.isLogoEnabled(),
+                            builder: (context, snapshot) {
+                              final isEnabled = snapshot.data ?? true;
+                              return Switch(
+                                value: isEnabled && logoProvider.hasLogo,
+                                onChanged: logoProvider.hasLogo
+                                    ? (value) async {
+                                        await LogoService.setLogoEnabled(value);
+                                        setDialogState(() {});
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                value
+                                                    ? 'Logo will be shown in receipts'.tr()
+                                                    : 'Logo will be hidden in receipts'.tr(),
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    : null,
                               );
-                            }
-                          }
+                            },
+                          );
                         },
-                        icon: const Icon(Icons.delete),
-                        label: Text('Remove Logo'.tr()),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.red,
+                      ),
+                    ],
+                  ),
+                  
+                  if (logoEnabled)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Display logo on printed and PDF receipts'.tr(),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
                         ),
                       ),
                     ),
-                  ],
-                  
-                  const SizedBox(height: 24),
-                  const Divider(),
-                  const SizedBox(height: 16),
-                  
-                  // Enable/Disable in Receipts
-                  SwitchListTile(
-                    title: Text('Show Logo in Receipts'.tr()),
-                    subtitle: Text('Display logo on printed and PDF receipts'.tr()),
-                    value: logoEnabled,
-                    onChanged: (bool value) async {
-                      await LogoService.setLogoEnabled(value);
-                      setState(() {});
-                      if (mounted) {
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(value 
-                              ? 'Logo will appear in receipts'.tr() 
-                              : 'Logo will not appear in receipts'.tr()),
-                          ),
-                        );
-                      }
-                    },
-                    activeColor: Colors.blue[700],
-                  ),
                 ],
               ),
             ),
@@ -248,6 +412,7 @@ Future<void> _showLogoDialog() async {
     },
   );
 }
+
   // Add this method
 Future<void> _checkLicenseStatus() async {
   final licenseStatus = await LicenseService.getLicenseStatus();
@@ -885,19 +1050,6 @@ Future<void> _checkLicenseStatus() async {
                   _buildBusinessInfoSection(),
                   const Divider(),
                 ],
-                const Divider(height: 1),
-
-                // Logo Settings
-                ListTile(
-                  leading: Icon(Icons.image, color: (!(_isRegularUser && _isLicenseExpired)&& !_isDemoExpired) ? Colors.blue[700] : Colors.grey),
-                  title: Text('Business Logo'.tr()),
-                  subtitle: Text(_hasLogo ? 'Logo uploaded'.tr() : 'No logo uploaded'.tr()),
-                  trailing: (!(_isRegularUser && _isLicenseExpired)&& !_isDemoExpired) ? const Icon(Icons.arrow_forward_ios, size: 16) : null,
-                  onTap: ((!(_isRegularUser && _isLicenseExpired)&& !_isDemoExpired)) ? _showLogoDialog : null,
-                  enabled: (!(_isRegularUser && _isLicenseExpired) && !_isDemoExpired),
-                  tileColor: (!(_isRegularUser && _isLicenseExpired) && !_isDemoExpired) ? null : Colors.grey.shade100,
-                ),
-
                 // Only show other sections if demo is not expired
                 if (!_isDemoExpired && !(_isRegularUser && _isLicenseExpired)) ...[
                   _buildSectionHeader('Expense'.tr()),
@@ -1492,8 +1644,21 @@ Future<void> _checkLicenseStatus() async {
     }
   }
 
-// Find the _buildDataBackupSection() method and update it:
-
+ Widget _buildLogoListTile() {
+    return Consumer<LogoProvider>(
+      builder: (context, logoProvider, child) {
+        return ListTile(
+          leading: Icon(Icons.image, color: (!(_isRegularUser && _isLicenseExpired)&& !_isDemoExpired) ? Colors.blue[700] : Colors.grey),
+          title: Text('Business Logo'.tr()),
+          subtitle: Text(logoProvider.hasLogo ? 'Logo uploaded'.tr() : 'No logo uploaded'.tr()),
+          trailing: (!(_isRegularUser && _isLicenseExpired)&& !_isDemoExpired) ? const Icon(Icons.arrow_forward_ios, size: 16) : null,
+          onTap: ((!(_isRegularUser && _isLicenseExpired)&& !_isDemoExpired)) ? _showLogoDialog : null,
+          enabled: (!(_isRegularUser && _isLicenseExpired) && !_isDemoExpired),
+          tileColor: (!(_isRegularUser && _isLicenseExpired) && !_isDemoExpired) ? null : Colors.grey.shade100,
+        );
+      },
+    );
+  }
 Widget _buildDataBackupSection() {
   return Card(
     child: Column(
@@ -1933,18 +2098,24 @@ void _showTaxSettingsDialog() {
   
   Widget _buildBusinessInfoSection() {
     return Card(
-      child: ListTile(
-        leading: Icon(Icons.business, color: (_isOwner && !_isDemoExpired) ? Colors.blue[700] : Colors.grey),
-        title: Text('Business Information'.tr()),
-        subtitle: Text((_isOwner && !_isDemoExpired)
-            ? (_businessNameController.text.isNotEmpty 
+     child: Column(
+        children: [
+          ListTile(
+            leading: Icon(Icons.business, color: (_isOwner && !_isDemoExpired) ? Colors.blue[700] : Colors.grey),
+            title: Text('Business Information'.tr()),
+            subtitle: Text((_isOwner && !_isDemoExpired)
+                ? (_businessNameController.text.isNotEmpty
                 ? _businessNameController.text 
                 : 'Configure restaurant details'.tr())
-            : 'Configure restaurant details'.tr()),
-        trailing: (_isOwner && !_isDemoExpired) ? const Icon(Icons.arrow_forward_ios, size: 16) : null,
-        onTap: (_isOwner && !_isDemoExpired) ? _showBusinessInfoDialog : null,
-        enabled: (_isOwner && !_isDemoExpired),
-        tileColor: (_isOwner && !_isDemoExpired) ? null : Colors.grey.shade100,
+                : 'Configure restaurant details'.tr()),
+            trailing: (_isOwner && !_isDemoExpired) ? const Icon(Icons.arrow_forward_ios, size: 16) : null,
+            onTap: (_isOwner && !_isDemoExpired) ? _showBusinessInfoDialog : null,
+            enabled: (_isOwner && !_isDemoExpired),
+            tileColor: (_isOwner && !_isDemoExpired) ? null : Colors.grey.shade100,
+          ),
+          const Divider(height: 1, indent: 70),
+          _buildLogoListTile(),
+        ],
       ),
     );
   }

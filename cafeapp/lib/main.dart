@@ -1,3 +1,4 @@
+import 'package:cafeapp/providers/logo_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -256,6 +257,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (ctx) => TableProvider()),
         ChangeNotifierProvider(create: (ctx) => OrderHistoryProvider()),
         ChangeNotifierProvider(create: (ctx) => SettingsProvider()),
+        ChangeNotifierProvider(create: (ctx) => LogoProvider()),
       ],
       child: Consumer<SettingsProvider>(
         builder: (ctx, settingsProvider, _) {

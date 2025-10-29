@@ -1,3 +1,4 @@
+import 'package:cafeapp/providers/logo_provider.dart';
 import 'package:cafeapp/services/connectivity_monitor.dart';
 import 'package:cafeapp/services/firebase_service.dart';
 import 'package:flutter/material.dart';
@@ -43,7 +44,6 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
   bool _isLoading = false;
   bool _showWarning = false;
 
-  bool _hasLogo = false;
   
 // SECURE: Get keys from environment variables with fallbacks
   List<String> get _correctKeys {
@@ -78,7 +78,6 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
   @override
   void initState() {
     super.initState();
-    _loadLogo();
      // Add listeners to business info fields to show warning
     _businessNameController.addListener(_onBusinessInfoChanged);
     _secondBusinessNameController.addListener(_onBusinessInfoChanged);
@@ -144,22 +143,8 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
     }
     return true;
   }
-  Future<void> _pickLogo() async {
-  final success = await LogoService.pickAndSaveLogo();
-  if (success) {
-    setState(() {
-      _hasLogo = true;
-    });
-    _loadLogo();
-  }
-}
 
-Future<void> _loadLogo() async {
-  final hasLogo = await LogoService.hasLogo();
-  setState(() {
-    _hasLogo = hasLogo;
-  });
-}
+
 
 Future<void> _registerCompany() async {
   debugPrint('=== REGISTRATION DEBUG START ===');
@@ -646,27 +631,52 @@ Future<void> _verifyFirestoreSync() async {
               ),
               const SizedBox(height: 8),
 
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey[300]!),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  children: [
-                    if (_hasLogo) ...[
-                      FutureBuilder<Widget?>(
-                        future: LogoService.getLogoWidget(
-                          height: 100,
-                          width: 100,
-                        ),
-                        builder: (context, snapshot) {
-                          if (snapshot.hasData && snapshot.data != null) {
-                            return Column(
-                              children: [
-                                snapshot.data!,
-                                const SizedBox(height: 8),
-                                TextButton.icon(
+             // WRAP IN CONSUMER TO LISTEN TO LOGO CHANGES
+              Consumer<LogoProvider>(
+                builder: (context, logoProvider, child) {
+                  return Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey[300]!),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        // Logo preview or placeholder
+                        if (logoProvider.hasLogo && logoProvider.logoPath != null) ...[
+                          // Use the logoPath directly with timestamp key to force refresh
+                          Image.file(
+                            File(logoProvider.logoPath!),
+                            key: ValueKey('logo_${logoProvider.lastUpdateTimestamp}'),
+                            height: 100,
+                            width: 100,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) {
+                              debugPrint('Error loading logo: $error');
+                              return Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.broken_image, size: 60, color: Colors.grey[400]),
+                                  const SizedBox(height: 8),
+                                  Text('Error loading logo'.tr(), style: const TextStyle(fontSize: 12)),
+                                ],
+                              );
+                            },
+                          ),
+                        ] else ...[
+                          Icon(Icons.image, size: 64, color: Colors.grey[400]),
+                          const SizedBox(height: 8),
+                          Text(
+                            'No logo uploaded'.tr(),
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                        ],
+                        
+                        const SizedBox(height: 12),
+                        
+                         // Upload or Remove button (centered, normal width)
+                          logoProvider.hasLogo
+                              ? OutlinedButton.icon(
                                   onPressed: () async {
                                     final confirm = await showDialog<bool>(
                                       context: context,
@@ -680,6 +690,9 @@ Future<void> _verifyFirestoreSync() async {
                                           ),
                                           TextButton(
                                             onPressed: () => Navigator.pop(ctx, true),
+                                            style: TextButton.styleFrom(
+                                              foregroundColor: Colors.red,
+                                            ),
                                             child: Text('Remove'.tr()),
                                           ),
                                         ],
@@ -687,43 +700,39 @@ Future<void> _verifyFirestoreSync() async {
                                     );
                                     
                                     if (confirm == true) {
-                                      await LogoService.deleteLogo();
-                                      setState(() {
-                                        _hasLogo = false;
-                                      });
+                                      // Use LogoProvider's removeLogo method
+                                      await logoProvider.removeLogo();
                                     }
                                   },
-                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                  icon: const Icon(Icons.delete),
                                   label: Text('Remove Logo'.tr()),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.red,
+                                    side: const BorderSide(color: Colors.red),
+                                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                  ),
+                                )
+                              : ElevatedButton.icon(
+                                  onPressed: () async {
+                                    final success = await LogoService.pickAndSaveLogo();
+                                    if (success) {
+                                      // Update LogoProvider to trigger UI refresh
+                                      await logoProvider.updateLogo();
+                                    }
+                                  },
+                                  icon: const Icon(Icons.upload),
+                                  label: Text('Upload Logo'.tr()),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blue[700],
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                  ),
                                 ),
-                              ],
-                            );
-                          }
-                          return const CircularProgressIndicator();
-                        },
+                        ],
                       ),
-                    ] else ...[
-                      Icon(Icons.image, size: 64, color: Colors.grey[400]),
-                      const SizedBox(height: 8),
-                      Text(
-                        'No logo uploaded'.tr(),
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                    ],
-                    const SizedBox(height: 12),
-                    ElevatedButton.icon(
-                      onPressed: _pickLogo,
-                      icon: Icon(_hasLogo ? Icons.edit : Icons.upload),
-                      label: Text(_hasLogo ? 'Change Logo'.tr() : 'Upload Logo'.tr()),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue[700],
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-                            
+                    );
+                  },
+                ),   
               const SizedBox(height: 40),
               
               // Register Button

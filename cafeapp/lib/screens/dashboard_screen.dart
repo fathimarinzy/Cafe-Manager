@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:cafeapp/models/order.dart';
 import 'package:cafeapp/providers/auth_provider.dart';
+import 'package:cafeapp/providers/logo_provider.dart';
 import 'package:cafeapp/screens/login_screen.dart';
 import 'package:cafeapp/screens/report_screen.dart';
 import 'package:flutter/material.dart';
@@ -175,6 +178,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
+          backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Row(
             children: [
@@ -315,6 +319,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
+          backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Row(
             children: [
@@ -457,54 +462,58 @@ class _DashboardScreenState extends State<DashboardScreen>
                 child: Column(
                   children: [
                     SizedBox(height: screenHeight * 0.05),
-                    // Logo/Icon
-                    FutureBuilder<Widget?>(
-                      future: LogoService.getLogoWidget(
-                        height: isTablet ? 100 : 80,
-                        width: isTablet ? 100 : 80,
-                      ),
-                      builder: (context, snapshot) {
-                        if (snapshot.hasData && snapshot.data != null) {
-                          return Container(
-                            width: isTablet ? 100 : 80,
+                    // Logo/Icon                
+                    Consumer<LogoProvider>(
+                      builder: (context, logoProvider, child) {
+                        return FutureBuilder<Widget?>(
+                          future: LogoService.getLogoWidget(
                             height: isTablet ? 100 : 80,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withAlpha(26),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 10),
-                                ),
-                              ],
-                            ),
-                            child: ClipOval(
-                              child: snapshot.data!,
-                            ),
-                          );
-                        } else {
-                          return Container(
                             width: isTablet ? 100 : 80,
-                            height: isTablet ? 100 : 80,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withAlpha(26),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 10),
+                          ),
+                          builder: (context, snapshot) {
+                            if (snapshot.hasData && snapshot.data != null) {
+                              return Container(
+                                width: isTablet ? 100 : 80,
+                                height: isTablet ? 100 : 80,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withAlpha(26),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 10),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                            child: Icon(
-                              Icons.local_cafe,
-                              size: isTablet ? 50 : 40,
-                              color: const Color(0xFF667eea),
-                            ),
-                          );
-                        }
+                                child: ClipOval(
+                                  child: snapshot.data!,
+                                ),
+                              );
+                            } else {
+                              return Container(
+                                width: isTablet ? 100 : 80,
+                                height: isTablet ? 100 : 80,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withAlpha(26),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 10),
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  Icons.local_cafe,
+                                  size: isTablet ? 50 : 40,
+                                  color: const Color(0xFF667eea),
+                                ),
+                              );
+                            }
+                          },
+                        );
                       },
                     ),
                     SizedBox(height: screenHeight * 0.025),
@@ -546,7 +555,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         children: [
                           _buildInfoCard(
                             Icons.location_on,
-                            'Location',
+                            'Location'.tr(),
                             businessAddress.isNotEmpty ? businessAddress : '',
                             Colors.blue.shade50,
                             isTablet,
@@ -554,7 +563,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           SizedBox(height: isTablet ? 16 : 12),
                           _buildInfoCard(
                             Icons.phone,
-                            'Contact',
+                            'Contact'.tr(),
                             businessPhone.isNotEmpty ? businessPhone : '',
                             Colors.green.shade50,
                             isTablet,
@@ -737,12 +746,12 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildSidebarServiceCards(OrderProvider orderProvider, double screenWidth, double screenHeight, bool isTablet) {
     final services = [
-      SidebarServiceItem('dining', Icons.restaurant, const Color(0xFFE63946),  'Manage dine-in orders', true),
-      SidebarServiceItem('delivery', Icons.delivery_dining, const Color(0xFF1D9BF0),  'Track delivery orders'),
-      SidebarServiceItem('driveThrough', Icons.drive_eta, const Color(0xFF9333EA),  'Quick drive-through service'),
-      SidebarServiceItem('catering', Icons.cake, const Color(0xFFF97316),  'Large event orders'),
-      SidebarServiceItem('takeout', Icons.takeout_dining, const Color(0xFF10B981),  'Pickup orders ready'),
-      SidebarServiceItem('orderList', Icons.list_alt, const Color(0xFF4B5563),  'View all orders'),
+      SidebarServiceItem('dining', Icons.restaurant, const Color(0xFFE63946),  'Manage dine-in orders'.tr(), true),
+      SidebarServiceItem('delivery', Icons.delivery_dining, const Color(0xFF1D9BF0),  'Track delivery orders'.tr()),
+      SidebarServiceItem('driveThrough', Icons.drive_eta, const Color(0xFF9333EA),  'Quick drive-through service'.tr()),
+      SidebarServiceItem('catering', Icons.cake, const Color(0xFFF97316),  'Large event orders'.tr()),
+      SidebarServiceItem('takeout', Icons.takeout_dining, const Color(0xFF10B981),  'Pickup orders ready'.tr()),
+      SidebarServiceItem('orderList', Icons.list_alt, const Color(0xFF4B5563),  'View all orders'.tr()),
     ];
 
     return LayoutBuilder(
@@ -789,7 +798,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       borderRadius: BorderRadius.circular(isTablet ? 20 : 16),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          // color: Colors.white,
+          color: shouldDisable ? Colors.grey.shade300 : Colors.white,
           borderRadius: BorderRadius.circular(isTablet ? 20 : 16),
           boxShadow: [
             BoxShadow(
@@ -1193,11 +1203,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                       color: Colors.black.withAlpha(77),
                     ),
                     child: const Center(
-                      child: Icon(
-                        Icons.lock,
-                        color: Colors.white,
-                        size: 30,
-                      ),
+                      // child: Icon(
+                      //   Icons.lock,
+                      //   color: Colors.white,
+                      //   size: 30,
+                      // ),
                     ),
                   ),
               ],
@@ -1396,7 +1406,8 @@ class _DashboardScreenState extends State<DashboardScreen>
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
-              color: Colors.white,
+              // color: Colors.white,
+              color: shouldDisable ? Colors.grey.shade300 : Colors.white,
               boxShadow: shouldDisable ? [] : [
                 BoxShadow(
                   color: color.withAlpha(20),
@@ -1485,10 +1496,71 @@ Widget _buildCardStyleUI() {
       ],
     ),
     body: SafeArea(
-      child: _buildCardStyleContent(),
-    ),
-  );
-}
+     child: LayoutBuilder(
+        builder: (context, constraints) {
+          final screenWidth = constraints.maxWidth;
+          final isTablet = screenWidth > 600;
+          final logoSize = isTablet ? 80.0 : 70.0; 
+        return Stack(
+          children: [
+            // Main Content
+            _buildCardStyleContent(),
+            // Business Logo in top left corner
+           Positioned(
+  top: isTablet ? 5 : 9,
+  left: isTablet ? 55 : 45,
+  child: Consumer<LogoProvider>(
+    builder: (context, logoProvider, child) {
+      return Container(
+        width: logoSize,
+        height: logoSize,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(25),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipOval(
+          child: logoProvider.hasLogo && logoProvider.logoPath != null
+              ? Image.file(
+                  File(logoProvider.logoPath!),
+                  // CRITICAL: ValueKey with timestamp to force rebuild
+                  key: ValueKey('dashboard_logo_${logoProvider.lastUpdateTimestamp}'),
+                  width: logoSize,
+                  height: logoSize,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    // Fallback to default icon on error
+                    return Icon(
+                      Icons.business,
+                      size: logoSize * 0.5,
+                      color: Colors.blue[700],
+                    );
+                  },
+                )
+              : Icon(
+                  Icons.local_cafe,
+                  size: logoSize * 0.5,
+                  color: Colors.blue[700],
+                ),
+        ),
+      );
+    },
+  ),
+),
+
+          ],
+        );
+        },
+        ),
+      ),
+    );
+  }
 void _showLogoutDialogWithReport() {
   showDialog(
     context: context,
@@ -1773,11 +1845,11 @@ Widget _buildCardStyleButton(
                 color: Colors.black.withAlpha(77),
               ),
               child: const Center(
-                child: Icon(
-                  Icons.lock,
-                  color: Colors.white,
-                  size: 40,
-                ),
+                // child: Icon(
+                //   Icons.lock,
+                //   color: Colors.white,
+                //   size: 40,
+                // ),
               ),
             ),
         ],
