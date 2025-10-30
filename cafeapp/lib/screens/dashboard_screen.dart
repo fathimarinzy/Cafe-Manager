@@ -1490,60 +1490,61 @@ Widget _buildCardStyleUI() {
             _buildCardStyleContent(),
             // Business Logo in top left corner
            Positioned(
-  top: isTablet ? 5 : 9,
-  left: isTablet ? 55 : 45,
-  child: Consumer<LogoProvider>(
-    builder: (context, logoProvider, child) {
-      return Container(
-        width: logoSize,
-        height: logoSize,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(25),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: ClipOval(
-          child: logoProvider.hasLogo && logoProvider.logoPath != null
-              ? Image.file(
-                  File(logoProvider.logoPath!),
-                  // CRITICAL: ValueKey with timestamp to force rebuild
-                  key: ValueKey('dashboard_logo_${logoProvider.lastUpdateTimestamp}'),
+            top: isTablet ? 5 : 9,
+            left: isTablet ? 55 : 45,
+            child: Consumer<LogoProvider>(
+              builder: (context, logoProvider, child) {
+                return Container(
                   width: logoSize,
                   height: logoSize,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    // Fallback to default icon on error
-                    return Icon(
-                      Icons.business,
-                      size: logoSize * 0.5,
-                      color: Colors.blue[700],
-                    );
-                  },
-                )
-              : Icon(
-                  Icons.local_cafe,
-                  size: logoSize * 0.5,
-                  color: Colors.blue[700],
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withAlpha(25),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ClipOval(
+                    child: logoProvider.hasLogo && logoProvider.logoPath != null
+                        ? Image.file(
+                            File(logoProvider.logoPath!),
+                            // CRITICAL: ValueKey with timestamp to force rebuild
+                            key: ValueKey('dashboard_logo_${logoProvider.lastUpdateTimestamp}'),
+                            width: logoSize,
+                            height: logoSize,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              // Fallback to default icon on error
+                              return Icon(
+                                Icons.business,
+                                size: logoSize * 0.5,
+                                color: Colors.blue[700],
+                              );
+                            },
+                          )
+                        : Icon(
+                            Icons.local_cafe,
+                            size: logoSize * 0.5,
+                            color: Colors.blue[700],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-        ),
-      );
-    },
-  ),
-),
 
-          ],
-        );
-        },
+              ],
+            );
+          },
         ),
       ),
     );
   }
+
 void _showLogoutDialogWithReport() {
   showDialog(
     context: context,
