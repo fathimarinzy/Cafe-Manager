@@ -1,5 +1,4 @@
 import 'dart:io';
-
 import 'package:cafeapp/models/order.dart';
 import 'package:cafeapp/providers/auth_provider.dart';
 import 'package:cafeapp/providers/logo_provider.dart';
@@ -39,10 +38,9 @@ class _DashboardScreenState extends State<DashboardScreen>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
   
-  // System uptime tracking
-  DateTime? _systemStartTime;
-  Timer? _uptimeTimer;
-  Duration _systemUptime = Duration.zero;
+  // Live clock for sidebar (replaces system uptime)
+  DateTime _currentTime = DateTime.now();
+  Timer? _clockTimer;
 
   @override
   void initState() {
@@ -73,8 +71,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     ));
     
     _loadUIPreference();
-    _loadSystemStartTime();
-    _startUptimeTimer();
+    _startClock();
     _checkDemoStatus();
     _checkLicenseStatus();
     _animationController.forward();
@@ -85,52 +82,38 @@ class _DashboardScreenState extends State<DashboardScreen>
   void dispose() {
     _animationController.dispose();
     _fabAnimationController.dispose();
-    _uptimeTimer?.cancel();
+    _clockTimer?.cancel();
     super.dispose();
   }
 
-  Future<void> _loadSystemStartTime() async {
-    final prefs = await SharedPreferences.getInstance();
-    final startTimeMillis = prefs.getInt('system_start_time');
-    
-    if (startTimeMillis == null) {
-      _systemStartTime = DateTime.now();
-      await prefs.setInt('system_start_time', _systemStartTime!.millisecondsSinceEpoch);
-    } else {
-      _systemStartTime = DateTime.fromMillisecondsSinceEpoch(startTimeMillis);
-    }
-    
-    _calculateUptime();
-  }
-
-  void _calculateUptime() {
-    if (_systemStartTime != null) {
-      setState(() {
-        _systemUptime = DateTime.now().difference(_systemStartTime!);
-      });
-    }
-  }
-
-  void _startUptimeTimer() {
-    _uptimeTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      _calculateUptime();
+  void _startClock() {
+    // initialize current time and update every second
+    setState(() {
+      _currentTime = DateTime.now();
+    });
+    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() {
+          _currentTime = DateTime.now();
+        });
+      }
     });
   }
 
-  String _formatUptime() {
-    final days = _systemUptime.inDays;
-    final hours = _systemUptime.inHours % 24;
-    final minutes = _systemUptime.inMinutes % 60;
-    final seconds = _systemUptime.inSeconds % 60;
-    
-    if (days > 0) {
-      return '${days}d ${hours}h ${minutes}m';
-    } else if (hours > 0) {
-      return '${hours}h ${minutes}m ${seconds}s';
-    } else {
-      return '${minutes}m ${seconds}s';
-    }
+  String _formatTime() {
+    // Format as hh:mm:ss AM/PM (12-hour)
+    final hour24 = _currentTime.hour;
+    final isPm = hour24 >= 12;
+    final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
+    final h = _twoDigits(hour12);
+    final m = _twoDigits(_currentTime.minute);
+    final s = _twoDigits(_currentTime.second);
+    final ampm = isPm ? 'PM' : 'AM';
+    return '$h:$m:$s $ampm';
   }
+
+  // Prefer a function declaration over assigning a closure to a variable
+  String _twoDigits(int n) => n.toString().padLeft(2, '0');
 
   Future<void> _loadUIPreference() async {
     try {
@@ -608,7 +591,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         ),
                         SizedBox(width: isTablet ? 12 : 8),
                         Text(
-                          _formatUptime(),
+                          _formatTime(),
                           style: TextStyle(
                             fontSize: isTablet ? 18 : 14,
                             fontWeight: FontWeight.w600,
