@@ -1,8 +1,7 @@
 import 'dart:io';
-
 import 'package:cafeapp/main.dart';
 import 'package:cafeapp/providers/logo_provider.dart';
-// import 'package:cafeapp/utils/database_helper.dart';
+import 'package:cafeapp/utils/database_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
@@ -1679,18 +1678,20 @@ Widget _buildDataBackupSection() {
         ),
         const Divider(height: 1, indent: 70),
         // NEW: Add this reset button
-        // ListTile(
-        //   leading: Icon(Icons.refresh, color: _isDemoExpired ? Colors.grey : Colors.orange[700]),
-        //   title: Text('Reset to First Time Setup'.tr()),
-        //   subtitle: Text('Clear registration and restart app'.tr()),
-        //   onTap: _isDemoExpired ? null : _showFirstTimeResetConfirmation,
-        //   enabled: !_isDemoExpired,
-        // ),
-        // const Divider(height: 1, indent: 70),
+        ListTile(
+          leading: Icon(Icons.refresh, color: _isDemoExpired ? Colors.grey : Colors.orange[700]),
+          title: Text('Reset to First Time Setup'.tr()),
+          subtitle: Text('Clear registration and restart app'.tr()),
+          trailing: _isDemoExpired ? null : const Icon(Icons.arrow_forward_ios, size: 16),
+          onTap: _isDemoExpired ? null : _showFirstTimeResetConfirmation,
+          enabled: !_isDemoExpired,
+        ),
+        const Divider(height: 1, indent: 70),
         ListTile(
           leading: Icon(Icons.delete_forever, color: _isDemoExpired ? Colors.grey : Colors.red[700]),
           title: Text('Reset Data'.tr()),
           subtitle: Text('Clear all app data'.tr()),
+          trailing: _isDemoExpired ? null : const Icon(Icons.arrow_forward_ios, size: 16),
           onTap: _isDemoExpired ? null : _showResetConfirmationDialog,
           enabled: !_isDemoExpired,
         ),
@@ -1700,170 +1701,170 @@ Widget _buildDataBackupSection() {
 }
 
 // Add this new method for first-time reset
-// void _showFirstTimeResetConfirmation() {
-//   showDialog(
-//     context: context,
-//     builder: (ctx) => AlertDialog(
-//       title: Row(
-//         children: [
-//           Icon(Icons.warning, color: Colors.orange[700]),
-//           const SizedBox(width: 8),
-//           Text('Reset to First Time Setup'.tr()),
-//         ],
-//       ),
-//       content: Column(
-//         mainAxisSize: MainAxisSize.min,
-//         crossAxisAlignment: CrossAxisAlignment.start,
-//         children: [
-//           Text(
-//             'This will:'.tr(),
-//             style: const TextStyle(fontWeight: FontWeight.bold),
-//           ),
-//           const SizedBox(height: 8),
-//           Text('• Clear all app data'.tr()),
-//           Text('• Reset device registration'.tr()),
-//           Text('• Reset company registration'.tr()),
-//           Text('• Return to device registration screen'.tr()),
-//           const SizedBox(height: 16),
-//           Text(
-//             'This action cannot be undone!'.tr(),
-//             style: const TextStyle(
-//               color: Colors.red,
-//               fontWeight: FontWeight.bold,
-//             ),
-//           ),
-//         ],
-//       ),
-//       actions: [
-//         TextButton(
-//           onPressed: () => Navigator.of(ctx).pop(),
-//           style: TextButton.styleFrom(
-//             foregroundColor: Colors.grey,
-//           ),
-//           child: Text('Cancel'.tr()),
-//         ),
-//         TextButton(
-//           onPressed: () {
-//             Navigator.of(ctx).pop();
-//             _performFirstTimeReset();
-//           },
-//           style: TextButton.styleFrom(
-//             foregroundColor: Colors.orange,
-//           ),
-//           child: Text('Reset to Setup'.tr()),
-//         ),
-//       ],
-//     ),
-//   );
-// }
+void _showFirstTimeResetConfirmation() {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.warning, color: Colors.orange[700]),
+          const SizedBox(width: 8),
+          Text('Reset to First Time Setup'.tr()),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'This will:'.tr(),
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text('• Clear all app data'.tr()),
+          Text('• Reset device registration'.tr()),
+          Text('• Reset company registration'.tr()),
+          Text('• Return to device registration screen'.tr()),
+          const SizedBox(height: 16),
+          Text(
+            'This action cannot be undone!'.tr(),
+            style: const TextStyle(
+              color: Colors.red,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.grey,
+          ),
+          child: Text('Cancel'.tr()),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.of(ctx).pop();
+            _performFirstTimeReset();
+          },
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.orange,
+          ),
+          child: Text('Reset to Setup'.tr()),
+        ),
+      ],
+    ),
+  );
+}
 
 // Add this new method to perform the reset
-// Future<void> _performFirstTimeReset() async {
-//   if (!mounted) return;
+Future<void> _performFirstTimeReset() async {
+  if (!mounted) return;
   
-//   setState(() {
-//     _isLoading = true;
-//   });
+  setState(() {
+    _isLoading = true;
+  });
 
-//   try {
-//     // Show loading dialog
-//     if (mounted) {
-//       showDialog(
-//         context: context,
-//         barrierDismissible: false,
-//         builder: (ctx) => PopScope(
-//           canPop: false,
-//           child: AlertDialog(
-//             content: Column(
-//               mainAxisSize: MainAxisSize.min,
-//               children: [
-//                 const CircularProgressIndicator(),
-//                 const SizedBox(height: 16),
-//                 Text('Resetting app... Please wait.'.tr()),
-//               ],
-//             ),
-//           ),
-//         ),
-//       );
-//     }
+  try {
+    // Show loading dialog
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => PopScope(
+          canPop: false,
+          child: AlertDialog(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text('Resetting app... Please wait.'.tr()),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     
-//     // Close all databases first
-//     final dbHelper = DatabaseHelper();
-//     await dbHelper.closeAllDatabases();
+    // Close all databases first
+    final dbHelper = DatabaseHelper();
+    await dbHelper.closeAllDatabases();
     
-//     // Clear ALL SharedPreferences (including registration)
-//     final prefs = await SharedPreferences.getInstance();
-//     await prefs.clear();
+    // Clear ALL SharedPreferences (including registration)
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
     
-//     // Reset all databases
-//     final dbResetService = DatabaseResetService();
-//     await dbResetService.forceResetAllDatabases();
+    // Reset all databases
+    final dbResetService = DatabaseResetService();
+    await dbResetService.forceResetAllDatabases();
     
-//     // Reset settings provider
-//     if (!mounted) return;
-//     final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-//     await settingsProvider.resetSettings();
+    // Reset settings provider
+    if (!mounted) return;
+    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+    await settingsProvider.resetSettings();
     
-//     // Close loading dialog
-//     if (mounted) Navigator.of(context).pop();
+    // Close loading dialog
+    if (mounted) Navigator.of(context).pop();
     
-//     // Show success message
-//     if (mounted) {
-//       showDialog(
-//         context: context,
-//         barrierDismissible: false,
-//         builder: (ctx) => AlertDialog(
-//           title: Row(
-//             children: [
-//               Icon(Icons.check_circle, color: Colors.green[700]),
-//               const SizedBox(width: 8),
-//               Text('Reset Complete'.tr()),
-//             ],
-//           ),
-//           content: Text(
-//             'The app has been reset to first-time setup. Press OK to restart the registration process.'.tr(),
-//           ),
-//           actions: [
-//             TextButton(
-//               onPressed: () {
-//                 // Navigate to the app initializer (which will show device registration)
-//                 Navigator.of(ctx).pop();
+    // Show success message
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.green[700]),
+              const SizedBox(width: 8),
+              Text('Reset Complete'.tr()),
+            ],
+          ),
+          content: Text(
+            'The app has been reset to first-time setup. Press OK to restart the registration process.'.tr(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                // Navigate to the app initializer (which will show device registration)
+                Navigator.of(ctx).pop();
             
-//                 Navigator.of(context).pushAndRemoveUntil(
-//                   MaterialPageRoute(builder: (context) => const AppInitializer()),
-//                   (route) => false,
-//                 );
-//               },
-//               style: TextButton.styleFrom(
-//                 backgroundColor: Colors.blue[700],
-//                 foregroundColor: Colors.white,
-//               ),
-//               child: Text('OK'.tr()),
-//             ),
-//           ],
-//         ),
-//       );
-//     }
-//   } catch (e) {
-//     if (mounted) Navigator.of(context).pop();
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const AppInitializer()),
+                  (route) => false,
+                );
+              },
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.blue[700],
+                foregroundColor: Colors.white,
+              ),
+              child: Text('OK'.tr()),
+            ),
+          ],
+        ),
+      );
+    }
+  } catch (e) {
+    if (mounted) Navigator.of(context).pop();
     
-//     debugPrint('Error resetting to first time: $e');
-//     if (mounted) {
-//       ScaffoldMessenger.of(context).showSnackBar(
-//         SnackBar(
-//           content: Text('${'Error resetting app'.tr()}: $e'),
-//           backgroundColor: Colors.red,
-//         ),
-//       );
-//     }
-//   } finally {
-//     if (mounted) {
-//       setState(() {
-//         _isLoading = false;
-//       });
-//     }
-//   }
-// }
+    debugPrint('Error resetting to first time: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${'Error resetting app'.tr()}: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+}
   Widget _buildTaxSettingsSection() {
     return Card(
       child: ListTile(

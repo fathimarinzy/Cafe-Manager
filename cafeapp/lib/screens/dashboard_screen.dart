@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:cafeapp/models/order.dart';
+// import 'package:cafeapp/models/order.dart';
 import 'package:cafeapp/providers/auth_provider.dart';
 import 'package:cafeapp/providers/logo_provider.dart';
 import 'package:cafeapp/screens/login_screen.dart';
@@ -41,6 +41,9 @@ class _DashboardScreenState extends State<DashboardScreen>
   // Live clock for sidebar (replaces system uptime)
   DateTime _currentTime = DateTime.now();
   Timer? _clockTimer;
+
+ // Dark mode for Card Style UI
+  bool _isCardStyleDarkMode = false;
 
   @override
   void initState() {
@@ -1435,39 +1438,69 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
   // New Card Style UI (4th UI Mode)
 Widget _buildCardStyleUI() {
-  final settingsProvider = Provider.of<SettingsProvider>(context);
-  final String businessName = settingsProvider.businessName;
-  final String appTitle = businessName.isNotEmpty ? businessName : 'SIMS CAFE';
 
+  final screenWidth = MediaQuery.of(context).size.width;
+  final isTablet = screenWidth > 600;
+
+   // Dark mode colors
+  final backgroundColor = _isCardStyleDarkMode ? Colors.black : Colors.white;
+  final appBarColor = _isCardStyleDarkMode ? Colors.black : Colors.white;
+  final iconColor = _isCardStyleDarkMode ? Colors.white : Colors.black87;
+  final textColor = _isCardStyleDarkMode ? Colors.white : Colors.black87;
+  
   return Scaffold(
     resizeToAvoidBottomInset: false,
-    backgroundColor: Colors.white,
+    backgroundColor: backgroundColor,
     appBar: AppBar(
-      title: Text(
-        appTitle,
-        style: const TextStyle(
-          fontSize: 28,
-          fontWeight: FontWeight.bold,
-          color: Colors.black87,
-          letterSpacing: 2,
-        ),
+      leading: SizedBox(width: isTablet ? 5 : 5),
+      title: Row(
+        children: [
+           Icon(
+            Icons.access_time,
+            color: iconColor,
+            size: isTablet ? 24 : 20,
+          ),
+         SizedBox(width: isTablet ? 8 : 12),
+          Text(
+            _formatTime(),
+            style: TextStyle(
+              fontSize: isTablet ? 20 : 16,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+              letterSpacing: 1,
+            ),
+          ),
+        ],
       ),
-      backgroundColor: Colors.white,
-      elevation: 0,
+      backgroundColor: appBarColor,
+      elevation: _isCardStyleDarkMode ? 2 : 0,
       centerTitle: false,
       actions: [
+         // Theme Toggle Icon
         IconButton(
-          icon: const Icon(Icons.dashboard_customize, color: Colors.black87),
+          icon: Icon(
+            _isCardStyleDarkMode ? Icons.light_mode : Icons.dark_mode,
+            color: iconColor,
+          ),
+          onPressed: () {
+            setState(() {
+              _isCardStyleDarkMode = !_isCardStyleDarkMode;
+            });
+          },
+          tooltip: _isCardStyleDarkMode ? 'Light Mode' : 'Dark Mode',
+        ),
+        IconButton(
+          icon:  Icon(Icons.dashboard_customize, color: iconColor),
           onPressed: _toggleUIMode,
           tooltip: 'Toggle UI Style',
         ),
         IconButton(
-            icon: const Icon(Icons.logout, color: Colors.black87),
+            icon: Icon(Icons.logout, color: iconColor),
             onPressed: _showLogoutDialogWithReport,
             tooltip: 'Logout',
           ),
         IconButton(
-          icon: const Icon(Icons.settings, color: Colors.black87),
+          icon: Icon(Icons.settings, color: iconColor),
           onPressed: () {
             showDialog(
               context: context,
@@ -1479,71 +1512,606 @@ Widget _buildCardStyleUI() {
       ],
     ),
     body: SafeArea(
-     child: LayoutBuilder(
-        builder: (context, constraints) {
-          final screenWidth = constraints.maxWidth;
-          final isTablet = screenWidth > 600;
-          final logoSize = isTablet ? 80.0 : 70.0; 
-        return Stack(
-          children: [
-            // Main Content
-            _buildCardStyleContent(),
-            // Business Logo in top left corner
-           Positioned(
-            top: isTablet ? 5 : 9,
-            left: isTablet ? 55 : 45,
-            child: Consumer<LogoProvider>(
-              builder: (context, logoProvider, child) {
-                return Container(
-                  width: logoSize,
-                  height: logoSize,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withAlpha(25),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: ClipOval(
-                    child: logoProvider.hasLogo && logoProvider.logoPath != null
-                        ? Image.file(
-                            File(logoProvider.logoPath!),
-                            // CRITICAL: ValueKey with timestamp to force rebuild
-                            key: ValueKey('dashboard_logo_${logoProvider.lastUpdateTimestamp}'),
-                            width: logoSize,
-                            height: logoSize,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              // Fallback to default icon on error
-                              return Icon(
-                                Icons.business,
-                                size: logoSize * 0.5,
-                                color: Colors.blue[700],
-                              );
-                            },
-                          )
-                        : Icon(
-                            Icons.local_cafe,
-                            size: logoSize * 0.5,
-                            color: Colors.blue[700],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-
-              ],
-            );
-          },
-        ),
+      child: _buildCardStyleContent(),
       ),
     );
   }
+
+Widget _buildCardStyleContent() {
+  final settingsProvider = Provider.of<SettingsProvider>(context);
+  final String businessName = settingsProvider.businessName;
+  final String secondBusinessName = settingsProvider.secondBusinessName;
+  final String businessAddress = settingsProvider.businessAddress;
+  final String businessPhone = settingsProvider.businessPhone;
+  final String businessEmail = settingsProvider.businessEmail;
+
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      final screenWidth = constraints.maxWidth;
+      final screenHeight = constraints.maxHeight;
+      final isSmallScreen = screenWidth < 1200;
+      
+      // Calculate responsive dimensions
+      final horizontalPadding = screenWidth * 0.04;
+      final verticalPadding = screenHeight * 0.04;
+      final cardSpacing = screenWidth * 0.02;
+      
+      // Business info card width - responsive (unchanged)
+      final infoCardWidth = isSmallScreen ? 320.0 : 380.0;
+      
+      return Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: horizontalPadding,
+          vertical: verticalPadding,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Business Info Card on the Left
+            SizedBox(
+              width: infoCardWidth,
+              child: _buildBusinessInfoCardStyleResponsive(
+                businessName,
+                secondBusinessName,
+                businessAddress,
+                businessPhone,
+                businessEmail,
+                isSmallScreen,
+                screenHeight,
+              ),
+            ),
+            SizedBox(width: cardSpacing * 1.5),
+            
+            // Service Cards Grid on the Right - fills remaining space
+            Expanded(
+              child: Column(
+                children: [
+                  // Top row with Dining and Delivery
+                  Expanded(
+                     flex: 3,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _buildCardStyleButtonResponsive(
+                            'dining',
+                            Icons.restaurant,
+                            const Color(0xFFFF8C42),
+                            true,
+                          ),
+                        ),
+                        SizedBox(width: cardSpacing),
+                        Expanded(
+                          child: _buildCardStyleButtonResponsive(
+                            'delivery',
+                            Icons.moped,
+                            const Color(0xFF4A6FA5),
+                            false,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: cardSpacing),
+                  
+                  // Second row with Takeout and Drive Through
+                  Expanded(
+                     flex: 3,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _buildCardStyleButtonResponsive(
+                            'takeout',
+                            Icons.shopping_bag,
+                            const Color(0xFF4CAF50),
+                            false,
+                          ),
+                        ),
+                        SizedBox(width: cardSpacing),
+                        Expanded(
+                          child: _buildCardStyleButtonResponsive(
+                            'driveThrough',
+                            Icons.drive_eta,
+                            // const Color(0xFF757575),
+                            // const Color(0xFFFFA726),
+                            const Color(0xFFE57373),
+                            false,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: cardSpacing),
+                  
+                  // Third row with Order List and Catering
+                  Expanded(
+                     flex: 2,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: _buildCardStyleButtonResponsive(
+                            'orderList',
+                            Icons.list_alt,
+                            const Color(0xFF9E9E9E),
+                            false,
+                          ),
+                        ),
+                        SizedBox(width: cardSpacing),
+                        Expanded(
+                          child: _buildCardStyleButtonResponsive(
+                            'catering',
+                            Icons.cake,
+                            const Color(0xFFFBC02D),
+                            false,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+Widget _buildBusinessInfoCardStyleResponsive(
+  String businessName,
+  String secondBusinessName,
+  String businessAddress,
+  String businessPhone,
+  String businessEmail,
+  bool isSmallScreen,
+  double screenHeight,
+) {
+  final cardPadding = isSmallScreen ? 16.0 : 20.0;
+  // final logoSize = isSmallScreen ? 70.0 : 90.0;
+  final titleFontSize = isSmallScreen ? 22.0 : 28.0;
+  final subtitleFontSize = isSmallScreen ? 12.0 : 14.0;
+  final iconSize = isSmallScreen ? 16.0 : 18.0;
+  final textFontSize = isSmallScreen ? 10.0 : 11.0;
+  final screenWidth = MediaQuery.of(context).size.width;
+  final screenHeight = MediaQuery.of(context).size.height;
+  final isTablet = screenWidth > 600;
+  // Dark mode colors
+  final cardColor = _isCardStyleDarkMode ? Colors.black : Colors.white;
+  final titleColor = _isCardStyleDarkMode ? Colors.white : Colors.black87;
+  final subtitleColor = _isCardStyleDarkMode ? Colors.grey.shade400 : Colors.grey.shade600;
+  final dividerColor = _isCardStyleDarkMode ? Colors.grey.shade700 : Colors.grey.shade200;
+  final logoBackgroundColor = _isCardStyleDarkMode ? const Color(0xFF0F3460) : Colors.grey.shade100;
+
+  return Container(
+    padding: EdgeInsets.all(cardPadding),
+    decoration: BoxDecoration(
+      color: cardColor,
+      borderRadius: BorderRadius.circular(20),
+      boxShadow: [
+        BoxShadow(
+          color: _isCardStyleDarkMode 
+              ? Colors.grey.shade900 
+              : Colors.black.withAlpha(100),
+          blurRadius: 15,
+          offset: const Offset(0, 8),
+        ),
+      ],
+    ),
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(height: screenHeight * 0.01),
+        // Logo Section
+        Consumer<LogoProvider>(
+          builder: (context, logoProvider, child) {
+            return Container(
+               height: isTablet ? 100 : 80,
+               width: isTablet ? 100 : 80,
+              decoration: BoxDecoration(
+                color: logoBackgroundColor,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(13),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: logoProvider.hasLogo && logoProvider.logoPath != null
+                    ? Image.file(
+                        File(logoProvider.logoPath!),
+                        key: ValueKey('dashboard_logo_${logoProvider.lastUpdateTimestamp}'),
+                        height: isTablet ? 100 : 80,
+                         width: isTablet ? 100 : 80,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Icon(
+                            Icons.local_cafe,
+                           size: isTablet ? 50 : 40,
+                            color: _isCardStyleDarkMode ? Colors.white70 : Colors.grey.shade400,
+                          );
+                        },
+                      )
+                    : Icon(
+                        Icons.local_cafe,
+                         size: isTablet ? 50 : 40,
+                        color: _isCardStyleDarkMode ? Colors.white70 : Colors.grey.shade400,
+                      ),
+              ),
+            );
+          },
+        ),
+        // SizedBox(height: isSmallScreen ? 20 : 28),
+        // Business Name
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Column(
+            children: [
+              Text(
+                businessName.isNotEmpty ? businessName : 'SIMS CAFE',
+                style: TextStyle(
+                  fontSize: titleFontSize,
+                  fontWeight: FontWeight.bold,
+                  color: titleColor,
+                  letterSpacing: 1.2,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (secondBusinessName.isNotEmpty) ...[
+                SizedBox(height: isSmallScreen ? 6 : 8),
+                Text(
+                  secondBusinessName,
+                  style: TextStyle(
+                    fontSize: subtitleFontSize,
+                    color: subtitleColor,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ],
+          ),
+        ),
+        
+        // SizedBox(height: isSmallScreen ? 24 : 32),
+        // Divider
+        Container(
+          height: 1,
+          margin: EdgeInsets.symmetric(vertical: isSmallScreen ? 12 : 16),
+          color: dividerColor,
+        ),
+        
+        // Location
+        if (businessAddress.isNotEmpty)
+          Container(
+            padding: EdgeInsets.all(isSmallScreen ? 14 : 16),
+            decoration: BoxDecoration(
+               color: _isCardStyleDarkMode 
+                  ? Colors.blue.shade900.withAlpha(100) 
+                  : Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(isSmallScreen ? 8 : 10),
+                  decoration: BoxDecoration(
+                    color: _isCardStyleDarkMode 
+                        ? const Color(0xFF0F3460) 
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.location_on,
+                    size: iconSize,
+                    color: Colors.blue.shade700,
+                  ),
+                ),
+                SizedBox(width: isSmallScreen ? 12 : 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Location'.tr(),
+                        style: TextStyle(
+                          fontSize: textFontSize,
+                          fontWeight: FontWeight.w600,
+                           color: _isCardStyleDarkMode 
+                              ? Colors.grey.shade400 
+                              : Colors.grey.shade700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        businessAddress,
+                        style: TextStyle(
+                          fontSize: textFontSize + 1,
+                           color: _isCardStyleDarkMode 
+                              ? Colors.grey.shade300 
+                              : Colors.grey.shade800,
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // if (businessAddress.isNotEmpty && businessPhone.isNotEmpty)
+          // SizedBox(height: isSmallScreen ? 12 : 16),
+        // Phone
+        if (businessPhone.isNotEmpty)
+          Container(
+            padding: EdgeInsets.all(isSmallScreen ? 14 : 16),
+            decoration: BoxDecoration(
+                color: _isCardStyleDarkMode 
+                  ? Colors.green.shade900.withAlpha(100) 
+                  : Colors.green.shade50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(isSmallScreen ? 8 : 10),
+                  decoration: BoxDecoration(
+                    color: _isCardStyleDarkMode 
+                        ? const Color(0xFF0F3460) 
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.phone,
+                    size: iconSize,
+                    color: Colors.green.shade700,
+                  ),
+                ),
+                SizedBox(width: isSmallScreen ? 12 : 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Contact'.tr(),
+                        style: TextStyle(
+                          fontSize: textFontSize,
+                          fontWeight: FontWeight.w600,
+                             color: _isCardStyleDarkMode 
+                              ? Colors.grey.shade400 
+                              : Colors.grey.shade700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        businessPhone,
+                        style: TextStyle(
+                          fontSize: textFontSize + 1,
+                          color: _isCardStyleDarkMode 
+                              ? Colors.grey.shade300 
+                              : Colors.grey.shade800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          //Email
+          if (businessEmail.isNotEmpty)
+          Container(
+            padding: EdgeInsets.all(isSmallScreen ? 14 : 16),
+            decoration: BoxDecoration(
+              color: _isCardStyleDarkMode 
+                  ? Colors.orange.shade900.withAlpha(100) 
+                  : Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(isSmallScreen ? 8 : 10),
+                  decoration: BoxDecoration(
+                    color: _isCardStyleDarkMode 
+                        ? const Color(0xFF0F3460) 
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.email,
+                    size: iconSize,
+                    color: Colors.orange.shade700,
+                  ),
+                ),
+                SizedBox(width: isSmallScreen ? 12 : 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Email'.tr(),
+                        style: TextStyle(
+                          fontSize: textFontSize,
+                          fontWeight: FontWeight.w600,
+                          color: _isCardStyleDarkMode 
+                              ? Colors.grey.shade400 
+                              : Colors.grey.shade700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        businessEmail,
+                        style: TextStyle(
+                          fontSize: textFontSize + 1,
+                           color: _isCardStyleDarkMode 
+                              ? Colors.grey.shade300 
+                              : Colors.grey.shade800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        
+        // Divider
+        Container(
+          height: 1,
+          margin: EdgeInsets.symmetric(vertical: isSmallScreen ? 8 : 12),
+          color: dividerColor,
+        ),
+        // Stack "Powered by" above "SIMS AI" with tight spacing
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Powered by'.tr(),
+              style: TextStyle(
+                fontSize: textFontSize,
+                fontWeight: FontWeight.w600,
+                color: subtitleColor,
+              ),
+            ),
+            const SizedBox(height: 2),
+            RichText(
+              textAlign: TextAlign.center,
+              text: TextSpan(
+                children: [
+                  TextSpan(
+                    text: 'SIMS ',
+                    style: TextStyle(
+                      fontSize: textFontSize,
+                      fontWeight: FontWeight.w600,
+                      fontStyle: FontStyle.italic,
+                      color: Colors.blue[900],
+                    ),
+                  ),
+                  TextSpan(
+                    text: 'AI',
+                    style: TextStyle(
+                      fontSize: textFontSize,
+                      fontWeight: FontWeight.w600,
+                      fontStyle: FontStyle.italic,
+                      color: Colors.red[700],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+Widget _buildCardStyleButtonResponsive(
+  String title,
+  IconData icon,
+  Color color,
+  bool isDining,
+) {
+  final bool shouldDisable = _isDemoExpired || (_isRegularUser && _isLicenseExpired);
+  final GlobalKey<_AnimatedDiningIconState> diningIconKey = GlobalKey<_AnimatedDiningIconState>();
+
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      final cardWidth = constraints.maxWidth;
+      final cardHeight = constraints.maxHeight;
+      final isSmallCard = cardWidth < 150 || cardHeight < 150;
+      
+      final iconSize = isSmallCard ? 35.0 : 50.0;
+      final fontSize = isSmallCard ? 16.0 : 22.0;
+      final padding = isSmallCard ? 16.0 : 20.0;
+      
+      return InkWell(
+        onTap: shouldDisable ? _showDisabledMessage : () {
+                // Trigger animation for dining card
+                // if (isDining) {
+                //   diningIconKey.currentState?.triggerAnimation();
+                // }
+                // Small delay before navigation to show animation
+                Future.delayed(
+                  Duration(milliseconds: isDining ? 300 : 0),
+                  () => _navigateToServiceCardStyle(title, color, isDining),
+                );
+              },
+
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          decoration: BoxDecoration(
+            color: shouldDisable ? Colors.grey.shade300 : color,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: shouldDisable ? [] : [
+              BoxShadow(
+                color: Colors.black.withAlpha(100),
+                blurRadius: 15,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              Padding(
+                padding: EdgeInsets.all(padding),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Use animated icon for Dining, regular icon for others
+                    if (isDining)
+                      AnimatedDiningIcon(
+                        key: diningIconKey,
+                        size: iconSize,
+                        color: Colors.white,
+                      )
+                    else
+                      Icon(
+                        icon,
+                        size: iconSize,
+                        color: Colors.white,
+                      ),
+                    SizedBox(height: isSmallCard ? 8 : 12),
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          title.tr(),
+                          style: TextStyle(
+                            fontSize: fontSize,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (shouldDisable)
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    color: Colors.black.withAlpha(77),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
 
 void _showLogoutDialogWithReport() {
   showDialog(
@@ -1665,281 +2233,106 @@ void _showLogoutDialogWithReport() {
     ),
   );
 }
-Widget _buildCardStyleContent() {
-  return LayoutBuilder(
-    builder: (context, constraints) {
-      
-      return Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(40),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Top row with Dining, Delivery, and Pie Chart
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildCardStyleButton(
-                    'dining',
-                    Icons.restaurant,
-                    const Color(0xFFFF8C42),
-                    200,
-                    200,
-                    true,
-                  ),
-                  const SizedBox(width: 20),
-                  _buildCardStyleButton(
-                    'delivery',
-                    Icons.moped,
-                    const Color(0xFF4A6FA5),
-                    200,
-                    200,
-                    false,
-                  ),
-                  const SizedBox(width: 20),
-                  _buildPieChart(),
-                ],
-              ),
-              const SizedBox(height: 20),
-              // Second row with Takeout and Drive Through
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildCardStyleButton(
-                    'takeout',
-                    Icons.shopping_bag,
-                    const Color(0xFF4CAF50),
-                    200,
-                    200,
-                    false,
-                  ),
-                  const SizedBox(width: 20),
-                  _buildCardStyleButton(
-                    'driveThrough',
-                    Icons.drive_eta,
-                    const Color(0xFF757575),
-                    200,
-                    200,
-                    false,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              // Third row with Order List and Catering
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildCardStyleButton(
-                    'orderList',
-                    Icons.list_alt,
-                   const Color(0xFF9E9E9E),
-                    420,
-                    120,
-                    false,
-                  ),
-                  const SizedBox(width: 20),
-                  _buildCardStyleButton(
-                    'catering',
-                    Icons.cake,
-                    const Color(0xFFFFA726),
-                    200,
-                    120,
-                    false,
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      );
-    },
-  );
-}
 
-Widget _buildCardStyleButton(
-  String title,
-  IconData icon,
-  Color color,
-  double width,
-  double height,
-  bool isDining,
-) {
-  final bool shouldDisable = _isDemoExpired || (_isRegularUser && _isLicenseExpired);
-   // Adjust padding and icon size based on height
-    final isShortCard = height <= 120;
-    final iconSize = isShortCard ? 40.0 : 50.0;
-    final padding = isShortCard ? 16.0 : 24.0;
-    final fontSize = isShortCard ? 20.0 : 24.0;
-    final spacing = isShortCard ? 8.0 : 12.0;
 
-  return InkWell(
-    onTap: shouldDisable ? _showDisabledMessage : () => _navigateToServiceCardStyle(title, color, isDining),
-    borderRadius: BorderRadius.circular(20),
-    child: Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: shouldDisable ? Colors.grey.shade300 : color,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: shouldDisable ? [] : [
-          BoxShadow(
-            color: Colors.black.withAlpha(51),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Padding(
-            padding: EdgeInsets.all(padding),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  icon,
-                  size: iconSize,
-                  color: Colors.white,
-                ),
-                SizedBox(height: spacing),
-               
-                Flexible(
-                 child: Text(
-                  title.tr(),
-                  style: TextStyle(
-                    fontSize: fontSize,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                 ),
-                ),
-              ],
-            ),
-          ),
-          if (shouldDisable)
-            Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                color: Colors.black.withAlpha(77),
-              ),
-              child: const Center(
-                // child: Icon(
-                //   Icons.lock,
-                //   color: Colors.white,
-                //   size: 40,
-                // ),
-              ),
-            ),
-        ],
-      ),
-    ),
-  );
-}
-
-Widget _buildPieChart() {
-  return FutureBuilder<List<Order>>(
-      future: Provider.of<OrderProvider>(context, listen: false).fetchOrders(),
-      builder: (context, snapshot) {
-        int diningCount = 0;
-        int takeoutCount = 0;
-        int deliveryCount = 0;
-        int cateringCount = 0;
-        int driveThroughCount = 0;
+// Widget _buildPieChart() {
+//   return FutureBuilder<List<Order>>(
+//       future: Provider.of<OrderProvider>(context, listen: false).fetchOrders(),
+//       builder: (context, snapshot) {
+//         int diningCount = 0;
+//         int takeoutCount = 0;
+//         int deliveryCount = 0;
+//         int cateringCount = 0;
+//         int driveThroughCount = 0;
         
-        if (snapshot.hasData && snapshot.data != null) {
-          // Calculate order counts for each service type
-          for (var order in snapshot.data!) {
-            final serviceType = order.serviceType.toLowerCase();
-            if (serviceType.contains('dining')) {
-              diningCount++;
-            } else if (serviceType.contains('takeout')) {
-              takeoutCount++;
-            } else if (serviceType.contains('delivery')) {
-              deliveryCount++;
-            } else if (serviceType.contains('catering')) {
-              cateringCount++;
-            } else if (serviceType.contains('drive') || serviceType.contains('through')) {
-              driveThroughCount++;
-            }
-          }
-        }
+//         if (snapshot.hasData && snapshot.data != null) {
+//           // Calculate order counts for each service type
+//           for (var order in snapshot.data!) {
+//             final serviceType = order.serviceType.toLowerCase();
+//             if (serviceType.contains('dining')) {
+//               diningCount++;
+//             } else if (serviceType.contains('takeout')) {
+//               takeoutCount++;
+//             } else if (serviceType.contains('delivery')) {
+//               deliveryCount++;
+//             } else if (serviceType.contains('catering')) {
+//               cateringCount++;
+//             } else if (serviceType.contains('drive') || serviceType.contains('through')) {
+//               driveThroughCount++;
+//             }
+//           }
+//         }
         
-        final totalOrders = diningCount + takeoutCount + deliveryCount + cateringCount + driveThroughCount;
+//         final totalOrders = diningCount + takeoutCount + deliveryCount + cateringCount + driveThroughCount;
         
-  return Container(
-    width: 200,
-    height: 200,
-    decoration: BoxDecoration(
-      shape: BoxShape.circle,
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withAlpha(51),
-          blurRadius: 15,
-          offset: const Offset(0, 8),
-        ),
-      ],
-    ),
-    child: CustomPaint(
-      painter: PieChartPainter(
-         diningCount: diningCount,
-        takeoutCount: takeoutCount,
-        deliveryCount: deliveryCount,
-        cateringCount: cateringCount,
-        driveThroughCount: driveThroughCount,
-        totalOrders: totalOrders,
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _buildLegendItem(const Color(0xFFFF8C42), 'Dining', diningCount),
-                  const SizedBox(height: 4),
-                  _buildLegendItem(const Color(0xFF4CAF50), 'Takeout', takeoutCount),
-                  const SizedBox(height: 4),
-                  _buildLegendItem(const Color(0xFF4A6FA5), 'Delivery', deliveryCount),
-                  const SizedBox(height: 4),
-                  _buildLegendItem(const Color(0xFFFFA726), 'Catering', cateringCount),
-                  const SizedBox(height: 4),
-                  _buildLegendItem(const Color(0xFF757575), 'Drive', driveThroughCount),
-          ],
-        ),
-      ),
-    ),
-  );
-},
-);
-}
-  Widget _buildLegendItem(Color color, String label, int count) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          '$label: $count',
-          style: const TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            color: Colors.black87,
-          ),
-        ),
-      ],
-    );
-  }
+//   return Container(
+//     width: 200,
+//     height: 200,
+//     decoration: BoxDecoration(
+//       shape: BoxShape.circle,
+//       boxShadow: [
+//         BoxShadow(
+//           color: Colors.black.withAlpha(51),
+//           blurRadius: 15,
+//           offset: const Offset(0, 8),
+//         ),
+//       ],
+//     ),
+//     child: CustomPaint(
+//       painter: PieChartPainter(
+//          diningCount: diningCount,
+//         takeoutCount: takeoutCount,
+//         deliveryCount: deliveryCount,
+//         cateringCount: cateringCount,
+//         driveThroughCount: driveThroughCount,
+//         totalOrders: totalOrders,
+//       ),
+//       child: Center(
+//         child: Column(
+//           mainAxisAlignment: MainAxisAlignment.center,
+//           children: [
+//             _buildLegendItem(const Color(0xFFFF8C42), 'Dining', diningCount),
+//                   const SizedBox(height: 4),
+//                   _buildLegendItem(const Color(0xFF4CAF50), 'Takeout', takeoutCount),
+//                   const SizedBox(height: 4),
+//                   _buildLegendItem(const Color(0xFF4A6FA5), 'Delivery', deliveryCount),
+//                   const SizedBox(height: 4),
+//                   _buildLegendItem(const Color(0xFFFFA726), 'Catering', cateringCount),
+//                   const SizedBox(height: 4),
+//                   _buildLegendItem(const Color(0xFF757575), 'Drive', driveThroughCount),
+//           ],
+//         ),
+//       ),
+//     ),
+//   );
+// },
+// );
+// }
+  // Widget _buildLegendItem(Color color, String label, int count) {
+  //   return Row(
+  //     mainAxisAlignment: MainAxisAlignment.center,
+  //     mainAxisSize: MainAxisSize.min,
+  //     children: [
+  //       Container(
+  //         width: 8,
+  //         height: 8,
+  //         decoration: BoxDecoration(
+  //           color: color,
+  //           shape: BoxShape.circle,
+  //         ),
+  //       ),
+  //       const SizedBox(width: 4),
+  //       Text(
+  //         '$label: $count',
+  //         style: const TextStyle(
+  //           fontSize: 10,
+  //           fontWeight: FontWeight.w600,
+  //           color: Colors.black87,
+  //         ),
+  //       ),
+  //     ],
+  //   );
+  // }
 void _navigateToServiceCardStyle(String title, Color color, bool isDining) {
   final orderProvider = Provider.of<OrderProvider>(context, listen: false);
 
@@ -2067,89 +2460,89 @@ void _navigateToServiceCardStyle(String title, Color color, bool isDining) {
     }
   }
 }
-// Custom Painter for Pie Chart (ADD THIS OUTSIDE THE CLASS)
-class PieChartPainter extends CustomPainter {
-  final int diningCount;
-  final int takeoutCount;
-  final int deliveryCount;
-  final int cateringCount;
-  final int driveThroughCount;
-  final int totalOrders;
+// // Custom Painter for Pie Chart (ADD THIS OUTSIDE THE CLASS)
+// class PieChartPainter extends CustomPainter {
+//   final int diningCount;
+//   final int takeoutCount;
+//   final int deliveryCount;
+//   final int cateringCount;
+//   final int driveThroughCount;
+//   final int totalOrders;
 
-  PieChartPainter({
-    required this.diningCount,
-    required this.takeoutCount,
-    required this.deliveryCount,
-    required this.cateringCount,
-    required this.driveThroughCount,
-    required this.totalOrders,
-  });
+//   PieChartPainter({
+//     required this.diningCount,
+//     required this.takeoutCount,
+//     required this.deliveryCount,
+//     required this.cateringCount,
+//     required this.driveThroughCount,
+//     required this.totalOrders,
+//   });
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (totalOrders == 0) {
-      // Draw a gray circle if no orders
-      final paint = Paint()
-        ..style = PaintingStyle.fill
-        ..color = Colors.grey.shade300;
-      final center = Offset(size.width / 2, size.height / 2);
-      final radius = size.width / 2;
-      canvas.drawCircle(center, radius, paint);
-      return;
-    }
+//   @override
+//   void paint(Canvas canvas, Size size) {
+//     if (totalOrders == 0) {
+//       // Draw a gray circle if no orders
+//       final paint = Paint()
+//         ..style = PaintingStyle.fill
+//         ..color = Colors.grey.shade300;
+//       final center = Offset(size.width / 2, size.height / 2);
+//       final radius = size.width / 2;
+//       canvas.drawCircle(center, radius, paint);
+//       return;
+//     }
 
-    final paint = Paint()..style = PaintingStyle.fill;
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2;
+//     final paint = Paint()..style = PaintingStyle.fill;
+//     final center = Offset(size.width / 2, size.height / 2);
+//     final radius = size.width / 2;
 
-    double startAngle = -3.14159 / 2; // Start from top
+//     double startAngle = -3.14159 / 2; // Start from top
 
-    // Define colors for each service type
-    final colors = [
-      const Color(0xFFFF8C42), // Dining - Orange
-      const Color(0xFF4CAF50), // Takeout - Green
-      const Color(0xFF4A6FA5), // Delivery - Blue
-      const Color(0xFFFFA726), // Catering - Light Orange
-      const Color(0xFF757575), // Drive Through - Gray
-    ];
+//     // Define colors for each service type
+//     final colors = [
+//       const Color(0xFFFF8C42), // Dining - Orange
+//       const Color(0xFF4CAF50), // Takeout - Green
+//       const Color(0xFF4A6FA5), // Delivery - Blue
+//       const Color(0xFFFFA726), // Catering - Light Orange
+//       const Color(0xFF757575), // Drive Through - Gray
+//     ];
 
-    final counts = [
-      diningCount,
-      takeoutCount,
-      deliveryCount,
-      cateringCount,
-      driveThroughCount,
-    ];
+//     final counts = [
+//       diningCount,
+//       takeoutCount,
+//       deliveryCount,
+//       cateringCount,
+//       driveThroughCount,
+//     ];
 
-    // Draw each segment
-    for (int i = 0; i < counts.length; i++) {
-      if (counts[i] > 0) {
-        paint.color = colors[i];
-        final sweepAngle = (counts[i] / totalOrders) * 2 * 3.14159;
+//     // Draw each segment
+//     for (int i = 0; i < counts.length; i++) {
+//       if (counts[i] > 0) {
+//         paint.color = colors[i];
+//         final sweepAngle = (counts[i] / totalOrders) * 2 * 3.14159;
         
-        canvas.drawArc(
-          Rect.fromCircle(center: center, radius: radius),
-          startAngle,
-          sweepAngle,
-          true,
-          paint,
-        );
+//         canvas.drawArc(
+//           Rect.fromCircle(center: center, radius: radius),
+//           startAngle,
+//           sweepAngle,
+//           true,
+//           paint,
+//         );
         
-        startAngle += sweepAngle;
-      }
-    }
-  }
+//         startAngle += sweepAngle;
+//       }
+//     }
+//   }
 
-  @override
-  bool shouldRepaint(covariant PieChartPainter oldDelegate) {
-    return oldDelegate.diningCount != diningCount ||
-        oldDelegate.takeoutCount != takeoutCount ||
-        oldDelegate.deliveryCount != deliveryCount ||
-        oldDelegate.cateringCount != cateringCount ||
-        oldDelegate.driveThroughCount != driveThroughCount ||
-        oldDelegate.totalOrders != totalOrders;
-  }
-}
+//   @override
+//   bool shouldRepaint(covariant PieChartPainter oldDelegate) {
+//     return oldDelegate.diningCount != diningCount ||
+//         oldDelegate.takeoutCount != takeoutCount ||
+//         oldDelegate.deliveryCount != deliveryCount ||
+//         oldDelegate.cateringCount != cateringCount ||
+//         oldDelegate.driveThroughCount != driveThroughCount ||
+//         oldDelegate.totalOrders != totalOrders;
+//   }
+// }
 class ServiceItem {
   final String title;
   final IconData icon;
@@ -2173,4 +2566,127 @@ class SidebarServiceItem {
     this.subtitle, [
     this.isDining = false,
   ]);
+}
+class AnimatedDiningIcon extends StatefulWidget {
+  final double size;
+  final Color color;
+
+  const AnimatedDiningIcon({
+    super.key,
+    required this.size,
+    required this.color,
+  });
+
+  @override
+  State<AnimatedDiningIcon> createState() => _AnimatedDiningIconState();
+}
+
+class _AnimatedDiningIconState extends State<AnimatedDiningIcon>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _forkSlideAnimation;
+  late Animation<double> _knifeSlideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+
+    _forkSlideAnimation = Tween<double>(
+      begin: 0.0,
+      end: -10.0,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutBack,
+    ));
+
+    _knifeSlideAnimation = Tween<double>(
+      begin: 0.0,
+      end: 10.0,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutBack,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void triggerAnimation() {
+    _controller.forward().then((_) {
+      Future.delayed(const Duration(milliseconds: 200), () {
+        if (mounted) {
+          _controller.reverse();
+        }
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return SizedBox(
+          width: widget.size,
+          height: widget.size,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Fork (left half) - clips and shows only left half
+              ClipRect(
+                clipper: LeftHalfClipper(),
+                child: Transform.translate(
+                  offset: Offset(_forkSlideAnimation.value, 0),
+                  child: Icon(
+                    Icons.restaurant,
+                    size: widget.size,
+                    color: widget.color,
+                  ),
+                ),
+              ),
+              // Knife (right half) - clips and shows only right half
+              ClipRect(
+                clipper: RightHalfClipper(),
+                child: Transform.translate(
+                  offset: Offset(_knifeSlideAnimation.value, 0),
+                  child: Icon(
+                    Icons.restaurant,
+                    size: widget.size,
+                    color: widget.color,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class LeftHalfClipper extends CustomClipper<Rect> {
+  @override
+  Rect getClip(Size size) {
+    return Rect.fromLTWH(0, 0, size.width / 2, size.height);
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Rect> oldClipper) => false;
+}
+
+class RightHalfClipper extends CustomClipper<Rect> {
+  @override
+  Rect getClip(Size size) {
+    return Rect.fromLTWH(size.width / 2, 0, size.width / 2, size.height);
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Rect> oldClipper) => false;
 }
