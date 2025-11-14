@@ -24,7 +24,7 @@ class LocalOrderRepository {
     
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: (db, version) async {
         // Create orders table with simplified fields
         await db.execute('''
@@ -38,7 +38,9 @@ class LocalOrderRepository {
             status TEXT NOT NULL,
             created_at TEXT NOT NULL,
             payment_method TEXT DEFAULT 'cash',
-            customer_id TEXT
+            customer_id TEXT,
+            cash_amount REAL,
+            bank_amount REAL
           )
         ''');
         
@@ -72,6 +74,26 @@ class LocalOrderRepository {
             debugPrint('Added tax_exempt column to order_items table');
           } catch (e) {
             debugPrint('Error adding tax_exempt column (may already exist): $e');
+          }
+        }
+         // ✅ NEW: Add cash_amount and bank_amount columns for split payments
+        if (oldVersion < 3) {
+          try {
+            await db.execute('''
+              ALTER TABLE orders ADD COLUMN cash_amount REAL
+            ''');
+            debugPrint('Added cash_amount column to orders table');
+          } catch (e) {
+            debugPrint('Error adding cash_amount column (may already exist): $e');
+          }
+          
+          try {
+            await db.execute('''
+              ALTER TABLE orders ADD COLUMN bank_amount REAL
+            ''');
+            debugPrint('Added bank_amount column to orders table');
+          } catch (e) {
+            debugPrint('Error adding bank_amount column (may already exist): $e');
           }
         }
       },
@@ -124,6 +146,8 @@ class LocalOrderRepository {
             // Do NOT update created_at field to preserve original timestamp
             'payment_method': order.paymentMethod ?? 'cash',
             'customer_id': order.customerId,
+            'cash_amount': order.cashAmount,
+            'bank_amount': order.bankAmount,
           };
           
           await db.update(
@@ -157,6 +181,8 @@ class LocalOrderRepository {
             'created_at': timestampToUse,
             'payment_method': order.paymentMethod ?? 'cash',
             'customer_id': order.customerId,
+            'cash_amount': order.cashAmount,
+            'bank_amount': order.bankAmount
           };
           
           orderId = await db.insert('orders', orderMap);
@@ -174,6 +200,8 @@ class LocalOrderRepository {
           'created_at': timestampToUse,
           'payment_method': order.paymentMethod ?? 'cash',
           'customer_id': order.customerId,
+          'cash_amount': order.cashAmount,
+          'bank_amount': order.bankAmount
         };
         
         orderId = await db.insert('orders', orderMap);
@@ -206,6 +234,8 @@ class LocalOrderRepository {
         createdAt: timestampToUse, // Use the preserved or new timestamp
         customerId: order.customerId,
         paymentMethod: order.paymentMethod,
+        cashAmount: order.cashAmount,
+        bankAmount: order.bankAmount,
       );
     } catch (e) {
       debugPrint('Error saving order to local database: $e');
@@ -255,6 +285,14 @@ class LocalOrderRepository {
         final serviceType = orderMap['service_type'] as String? ?? '';
         final status = orderMap['status'] as String? ?? 'pending';
         final createdAt = orderMap['created_at'] as String?;
+
+         // ✅ NEW: Read cash_amount and bank_amount from database
+        final cashAmount = orderMap['cash_amount'] != null 
+            ? (orderMap['cash_amount'] as num).toDouble() 
+            : null;
+        final bankAmount = orderMap['bank_amount'] != null 
+            ? (orderMap['bank_amount'] as num).toDouble() 
+            : null;
         
         // Add to result list
         result.add(Order(
@@ -269,6 +307,8 @@ class LocalOrderRepository {
           createdAt: createdAt,
           customerId: orderMap['customer_id'] as String?,
           paymentMethod: orderMap['payment_method'] as String? ?? 'cash',
+          cashAmount: cashAmount,
+          bankAmount: bankAmount,
         ));
         
         // Log the order for debugging
@@ -312,6 +352,13 @@ class LocalOrderRepository {
         taxExempt: (item['tax_exempt'] as int?) == 1, // NEW
       )).toList();
       
+       // ✅ NEW: Read cash_amount and bank_amount
+      final cashAmount = orderMap['cash_amount'] != null 
+          ? (orderMap['cash_amount'] as num).toDouble() 
+          : null;
+      final bankAmount = orderMap['bank_amount'] != null 
+          ? (orderMap['bank_amount'] as num).toDouble() 
+          : null;
       return Order(
         id: orderMap['id'] as int,
         serviceType: orderMap['service_type'] as String,
@@ -324,6 +371,8 @@ class LocalOrderRepository {
         createdAt: orderMap['created_at'] as String?,
         customerId: orderMap['customer_id'] as String?,
         paymentMethod: orderMap['payment_method'] as String?,
+        cashAmount: cashAmount,
+        bankAmount: bankAmount,
       );
     } catch (e) {
       debugPrint('Error getting order by ID: $e');

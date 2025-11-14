@@ -413,270 +413,322 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
-  Widget _buildSidebarUI() {
-    final settingsProvider = Provider.of<SettingsProvider>(context);
-    final String businessName = settingsProvider.businessName;
-    final String secondBusinessName = settingsProvider.secondBusinessName;
-    final String businessAddress = settingsProvider.businessAddress;
-    final String businessPhone = settingsProvider.businessPhone;
-    final orderProvider = Provider.of<OrderProvider>(context);
-    
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final isTablet = screenWidth > 600;
-    final sidebarWidth = isTablet ? 320.0 : 280.0;
+ Widget _buildSidebarUI() {
+  final settingsProvider = Provider.of<SettingsProvider>(context);
+  final String businessName = settingsProvider.businessName;
+  final String secondBusinessName = settingsProvider.secondBusinessName;
+  final String businessAddress = settingsProvider.businessAddress;
+  final String businessPhone = settingsProvider.businessPhone;
+  final String businessEmail = settingsProvider.businessEmail;
 
-    return Scaffold(
-      resizeToAvoidBottomInset: false, // This prevents keyboard from resizing the UI
-      body: Row(
-        children: [
-          // Left Sidebar
-          Container(
-            width: sidebarWidth,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  const Color(0xFF667eea),
-                  const Color(0xFFF5F7FA),
-                ],
-              ),
+  final orderProvider = Provider.of<OrderProvider>(context);
+  
+  final screenWidth = MediaQuery.of(context).size.width;
+  final screenHeight = MediaQuery.of(context).size.height;
+  final isTablet = screenWidth > 600;
+  final sidebarWidth = isTablet ? 320.0 : 280.0;
+
+  return Scaffold(
+    resizeToAvoidBottomInset: false,
+    body: Column(
+      children: [
+        // Top Bar with System Uptime - spans full width
+        SafeArea(
+          bottom: false,
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: isTablet ? 32 : 16, 
+              vertical: isTablet ? 20 : 16
             ),
-            child: SafeArea(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    SizedBox(height: screenHeight * 0.05),
-                    // Logo/Icon                
-                    Consumer<LogoProvider>(
-                      builder: (context, logoProvider, child) {
-                        return FutureBuilder<Widget?>(
-                          future: LogoService.getLogoWidget(
-                            height: isTablet ? 100 : 80,
-                            width: isTablet ? 100 : 80,
-                          ),
-                          builder: (context, snapshot) {
-                            if (snapshot.hasData && snapshot.data != null) {
-                              return Container(
-                                width: isTablet ? 100 : 80,
-                                height: isTablet ? 100 : 80,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withAlpha(26),
-                                      blurRadius: 20,
-                                      offset: const Offset(0, 10),
-                                    ),
-                                  ],
-                                ),
-                                child: ClipOval(
-                                  child: snapshot.data!,
-                                ),
-                              );
-                            } else {
-                              return Container(
-                                width: isTablet ? 100 : 80,
-                                height: isTablet ? 100 : 80,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withAlpha(26),
-                                      blurRadius: 20,
-                                      offset: const Offset(0, 10),
-                                    ),
-                                  ],
-                                ),
-                                child: Icon(
-                                  Icons.local_cafe,
-                                  size: isTablet ? 50 : 40,
-                                  color: const Color(0xFF667eea),
-                                ),
-                              );
-                            }
-                          },
-                        );
-                      },
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(13),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.access_time,
+                  color: const Color(0xFF667eea),
+                  size: isTablet ? 24 : 20,
+                ),
+                SizedBox(width: isTablet ? 12 : 8),
+                Text(
+                  _formatTime(),
+                  style: TextStyle(
+                    fontSize: isTablet ? 18 : 14,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF2D3748),
+                  ),
+                ),
+                const Spacer(),
+                // UI Toggle
+                IconButton(
+                  icon: Icon(
+                    Icons.dashboard_customize,
+                    color: const Color(0xFF667eea),
+                    size: isTablet ? 24 : 20,
+                  ),
+                  onPressed: _toggleUIMode,
+                  tooltip: 'Toggle UI Style',
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFFF5F7FA),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    SizedBox(height: screenHeight * 0.025),
-                    // Business Name
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        businessName.isNotEmpty ? businessName : 'SIMS CAFE',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: isTablet ? 28 : 22,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
-                        ),
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                  ),
+                ),
+                SizedBox(width: isTablet ? 12 : 8),
+                IconButton(
+                  icon: Icon(
+                    Icons.logout,
+                    color: const Color(0xFF667eea),
+                    size: isTablet ? 24 : 20,
+                  ),
+                  onPressed: () {
+                    _showLogoutDialogWithReport();
+                  },
+                  tooltip: 'Logout',
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFFF5F7FA),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    SizedBox(height: screenHeight * 0.01),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        secondBusinessName.isNotEmpty ? secondBusinessName : '',
-                        style: TextStyle(
-                          color: Colors.white.withAlpha(204),
-                          fontSize: isTablet ? 14 : 12,
-                        ),
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                  ),
+                ),
+                SizedBox(width: isTablet ? 12 : 8),
+                // Settings
+                IconButton(
+                  icon: Icon(
+                    Icons.settings,
+                    color: const Color(0xFF667eea),
+                    size: isTablet ? 24 : 20,
+                  ),
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (_) => const SettingsPasswordDialog(),
+                    );
+                  },
+                  tooltip: 'Settings',
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFFF5F7FA),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    SizedBox(height: screenHeight * 0.04),
-                    // Info Cards
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: isTablet ? 20 : 16),
-                      child: Column(
-                        children: [
-                          _buildInfoCard(
-                            Icons.location_on,
-                            'Location'.tr(),
-                            businessAddress.isNotEmpty ? businessAddress : '',
-                            Colors.blue.shade50,
-                            isTablet,
-                          ),
-                          SizedBox(height: isTablet ? 16 : 12),
-                          _buildInfoCard(
-                            Icons.phone,
-                            'Contact'.tr(),
-                            businessPhone.isNotEmpty ? businessPhone : '',
-                            Colors.green.shade50,
-                            isTablet,
-                          ),
-                        ],
-                      ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Main content row with sidebar and service cards at same height
+        Expanded(
+          child: Row(
+            children: [
+              // Left Sidebar
+              Container(
+                width: sidebarWidth,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      const Color(0xFFF5F7FA),
+                      const Color(0xFFF5F7FA),
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(90),
+                      blurRadius: 10,
+                      offset: const Offset(0, 0),
                     ),
-                    SizedBox(height: screenHeight * 0.02),
                   ],
                 ),
-              ),
-            ),
-          ),
-          // Main Content Area
-          Expanded(
-            child: Container(
-              color: const Color(0xFFF5F7FA),
-              child: Column(
-                children: [
-                  // Top Bar with System Uptime
-                  Container(
+                child: SingleChildScrollView(
+                  child: Padding(
                     padding: EdgeInsets.symmetric(
-                      horizontal: isTablet ? 32 : 16, 
-                      vertical: isTablet ? 20 : 16
+                      horizontal: isTablet ? 20 : 16,
+                      vertical: isTablet ? 32 : 16,
                     ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withAlpha(13),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
+                    child: Column(
                       children: [
-                        Icon(
-                          Icons.access_time,
-                          color: const Color(0xFF667eea),
-                          size: isTablet ? 24 : 20,
-                        ),
-                        SizedBox(width: isTablet ? 12 : 8),
-                        Text(
-                          _formatTime(),
-                          style: TextStyle(
-                            fontSize: isTablet ? 18 : 14,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF2D3748),
-                          ),
-                        ),
-                        const Spacer(),
-                        // UI Toggle
-                        IconButton(
-                          icon: Icon(
-                            Icons.dashboard_customize,
-                            color: const Color(0xFF667eea),
-                            size: isTablet ? 24 : 20,
-                          ),
-                          onPressed: _toggleUIMode,
-                          tooltip: 'Toggle UI Style',
-                          style: IconButton.styleFrom(
-                            backgroundColor: const Color(0xFFF5F7FA),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: isTablet ? 12 : 8),
-                        IconButton(
-                          icon: Icon(
-                            Icons.logout,
-                            color: const Color(0xFF667eea),
-                            size: isTablet ? 24 : 20,
-                          ),
-                          onPressed: () {
-                            _showLogoutDialogWithReport();
-                           
-                          },
-                          tooltip: 'Logout',
-                          style: IconButton.styleFrom(
-                            backgroundColor: const Color(0xFFF5F7FA),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: isTablet ? 12 : 8),
-                        // Settings
-                        IconButton(
-                          icon: Icon(
-                            Icons.settings,
-                            color: const Color(0xFF667eea),
-                            size: isTablet ? 24 : 20,
-                          ),
-                          onPressed: () {
-                            showDialog(
-                              context: context,
-                              builder: (_) => const SettingsPasswordDialog(),
+                        // Logo/Icon                
+                        Consumer<LogoProvider>(
+                          builder: (context, logoProvider, child) {
+                            return FutureBuilder<Widget?>(
+                              future: LogoService.getLogoWidget(
+                                height: isTablet ? 100 : 80,
+                                width: isTablet ? 100 : 80,
+                              ),
+                              builder: (context, snapshot) {
+                                if (snapshot.hasData && snapshot.data != null) {
+                                  return Container(
+                                    width: isTablet ? 100 : 80,
+                                    height: isTablet ? 100 : 80,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withAlpha(26),
+                                          blurRadius: 20,
+                                          offset: const Offset(0, 10),
+                                        ),
+                                      ],
+                                    ),
+                                    child: ClipOval(
+                                      child: snapshot.data!,
+                                    ),
+                                  );
+                                } else {
+                                  return Container(
+                                    width: isTablet ? 100 : 80,
+                                    height: isTablet ? 100 : 80,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withAlpha(26),
+                                          blurRadius: 20,
+                                          offset: const Offset(0, 10),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Icon(
+                                      Icons.local_cafe,
+                                      size: isTablet ? 50 : 40,
+                                      color: const Color(0xFF667eea),
+                                    ),
+                                  );
+                                }
+                              },
                             );
                           },
-                          tooltip: 'Settings',
-                          style: IconButton.styleFrom(
-                            backgroundColor: const Color(0xFFF5F7FA),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                        ),
+                        SizedBox(height: screenHeight * 0.025),
+                        // Business Name
+                        Text(
+                          businessName.isNotEmpty ? businessName : 'SIMS CAFE',
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontSize: isTablet ? 22 : 22,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: screenHeight * 0.01),
+                        Text(
+                          secondBusinessName.isNotEmpty ? secondBusinessName : '',
+                          style: TextStyle(
+                            color: Colors.black.withAlpha(204),
+                            fontSize: isTablet ? 14 : 12,
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: screenHeight * 0.04),
+                        // Info Cards
+                        _buildInfoCard(
+                          Icons.location_on,
+                          'Location'.tr(),
+                          businessAddress.isNotEmpty ? businessAddress : '',
+                          Colors.blue.shade50,
+                          isTablet,
+                        ),
+                        SizedBox(height: isTablet ? 16 : 12),
+                        _buildInfoCard(
+                          Icons.phone,
+                          'Contact'.tr(),
+                          businessPhone.isNotEmpty ? businessPhone : '',
+                          Colors.green.shade50,
+                          isTablet,
+                        ),
+                        SizedBox(height: isTablet ? 16 : 12),
+                        _buildInfoCard(
+                          Icons.email,
+                          'Email'.tr(),
+                          businessEmail.isNotEmpty ? businessEmail : '',
+                          Colors.orange.shade50,
+                          isTablet,
+                        ),
+                        SizedBox(height: screenHeight * 0.02),
+                        Container(
+                          height: 1,
+                          color: Colors.grey.shade200,
+                        ),
+                        SizedBox(height: screenHeight * 0.02),
+                        // Powered by SIMS AI
+                        Text(
+                          'Powered by',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: isTablet ? 10 : 11,
                           ),
                         ),
+                        RichText(
+                          textAlign: TextAlign.center,
+                          text: TextSpan(
+                            children: [
+                              TextSpan(
+                                text: 'SIMS',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  fontStyle: FontStyle.italic,
+                                  color: Colors.blue[900],
+                                ),
+                              ),
+                              WidgetSpan(
+                                child: SizedBox(width: 3),
+                                alignment: PlaceholderAlignment.middle,
+                              ),
+                              TextSpan(
+                                text: 'AI',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  fontStyle: FontStyle.italic,
+                                  color: Colors.red[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: screenHeight * 0.02),
                       ],
                     ),
                   ),
-                  // Service Cards Grid
-                  Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.all(isTablet ? 32 : 16),
-                      child: _buildSidebarServiceCards(orderProvider, screenWidth, screenHeight, isTablet),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+              // Service Cards Grid
+              Expanded(
+                child: Container(
+                  color: const Color(0xFFF5F7FA),
+                  child: Padding(
+                    padding: EdgeInsets.all(isTablet ? 32 : 16),
+                    child: _buildSidebarServiceCards(orderProvider, screenWidth, screenHeight, isTablet),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildInfoCard(IconData icon, String title, String subtitle, Color bgColor, bool isTablet) {
     return Container(

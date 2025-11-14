@@ -16,6 +16,8 @@ class Order {
   final String? customerId; // Add customer reference
   final String? paymentMethod; // Added payment method field
 
+  final double? cashAmount;  // Amount paid by cash in split payment
+  final double? bankAmount;
 
   Order({
     this.id,
@@ -29,6 +31,8 @@ class Order {
     this.createdAt,
     this.customerId,
     this.paymentMethod = 'cash', // Default to cash
+    this.cashAmount,
+    this.bankAmount,
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
@@ -46,6 +50,8 @@ class Order {
       createdAt: json['createdAt'] as String?,
       customerId: json['customerId'] as String?,
       paymentMethod: json['paymentMethod'] as String? ?? 'cash',
+      cashAmount: json['cashAmount'] != null ? (json['cashAmount'] as num).toDouble() : null,
+      bankAmount: json['bankAmount'] != null ? (json['bankAmount'] as num).toDouble() : null,
     );
   }
 
@@ -62,7 +68,8 @@ class Order {
       'customerId': customerId,
       'paymentMethod': paymentMethod,
       if (customerId != null) 'customerId': customerId,
-
+      if (cashAmount != null) 'cashAmount': cashAmount,
+      if (bankAmount != null) 'bankAmount': bankAmount,
     };
   }
   

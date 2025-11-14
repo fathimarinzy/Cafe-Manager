@@ -1186,6 +1186,7 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
     }).toList();
   }
   Map<String, dynamic> _createReportFromData(List<Order> orders, List<Map<String, dynamic>> expenses) {
+    debugPrint('=== REPORT GENERATION DEBUG ===');
     debugPrint('Creating report from ${orders.length} orders and ${expenses.length} expenses');
     
     final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
@@ -1240,32 +1241,68 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
       }
     }
     
-    // Apply discount to subtotal
-    subtotal -= discount;
-    
     final Map<String, Map<String, double>> paymentTotals = {
       'cash': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
       'bank': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
       'other': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
       'total': {'sales': 0.0, 'expenses': 0.0, 'net': 0.0},
     };
-    
+    debugPrint('\n--- Processing Orders for Payment Totals ---');
     for (final order in orders) {
       final paymentMethod = (order.paymentMethod ?? 'cash').toLowerCase();
+      
+    debugPrint('\nOrder ID: ${order.id}');
+    debugPrint('  Payment Method: "$paymentMethod"');
+    debugPrint('  Total: ${order.total}');
+    debugPrint('  Cash Amount: ${order.cashAmount}');
+    debugPrint('  Bank Amount: ${order.bankAmount}');
       if (paymentMethod == 'customer_credit') {
         continue;
-      } else if (paymentMethod == 'cash') {
-        paymentTotals['cash']!['sales'] = (paymentTotals['cash']!['sales'] ?? 0.0) + order.total;
-      } else if (paymentMethod == 'bank') {
-        paymentTotals['bank']!['sales'] = (paymentTotals['bank']!['sales'] ?? 0.0) + order.total;
-      } else {
-        paymentTotals['other']!['sales'] = (paymentTotals['other']!['sales'] ?? 0.0) + order.total;
+      } 
+      //Handle split payments properly
+       if (paymentMethod == 'bank+cash' || 
+        paymentMethod == 'bank + cash' || 
+        paymentMethod == 'cash+bank' ||
+        paymentMethod == 'cash + bank') {
+          debugPrint('  → SPLIT PAYMENT DETECTED');
+      // Add cash portion to cash sales
+      if (order.cashAmount != null && order.cashAmount! > 0) {
+        paymentTotals['cash']!['sales'] = (paymentTotals['cash']!['sales'] ?? 0.0) + order.cashAmount!;
+        debugPrint('  → Added ${order.cashAmount} to Cash Sales');
+
+      }else {
+        debugPrint('  → WARNING: cashAmount is null or zero!');
       }
       
-      if (paymentMethod != 'customer_credit') {
-        paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + order.total;
+      // Add bank portion to bank sales
+      if (order.bankAmount != null && order.bankAmount! > 0) {
+        paymentTotals['bank']!['sales'] = (paymentTotals['bank']!['sales'] ?? 0.0) + order.bankAmount!;
+        debugPrint('  → Added ${order.bankAmount} to Bank Sales');
+      }else {
+        debugPrint('  → WARNING: bankAmount is null or zero!');
       }
+      
+      // ✅ FIX: Add the SUM of cash and bank amounts to total, not order.total
+      final splitTotal = (order.cashAmount ?? 0.0) + (order.bankAmount ?? 0.0);
+      paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + splitTotal;
+      debugPrint('  → Added $splitTotal (cash + bank) to Total Sales');
+    } 
+
+    // Handle regular single payment methods
+    else if (paymentMethod == 'cash') {
+      paymentTotals['cash']!['sales'] = (paymentTotals['cash']!['sales'] ?? 0.0) + order.total;
+      paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + order.total;
+      debugPrint('  → Added ${order.total} to Cash Sales (regular cash payment)');
+    } else if (paymentMethod == 'bank') {
+      paymentTotals['bank']!['sales'] = (paymentTotals['bank']!['sales'] ?? 0.0) + order.total;
+      paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + order.total;
+      debugPrint('  → Added ${order.total} to Bank Sales (regular bank payment)');
+    } else {
+      paymentTotals['other']!['sales'] = (paymentTotals['other']!['sales'] ?? 0.0) + order.total;
+      paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + order.total;
+      debugPrint('  → Added ${order.total} to Other Sales (unrecognized payment method)');
     }
+  }
     
     for (final expense in expenses) {
       final accountType = (expense['accountType'] as String? ?? '').toLowerCase();
@@ -1284,6 +1321,11 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
     for (final key in paymentTotals.keys) {
       paymentTotals[key]!['net'] = (paymentTotals[key]!['sales'] ?? 0.0) - (paymentTotals[key]!['expenses'] ?? 0.0);
     }
+     // Debug output
+    debugPrint('Payment Totals Summary:');
+    debugPrint('Cash Sales: ${paymentTotals['cash']!['sales']}');
+    debugPrint('Bank Sales: ${paymentTotals['bank']!['sales']}');
+    debugPrint('Total Sales: ${paymentTotals['total']!['sales']}');
     
     final Map<String, Map<String, dynamic>> itemSales = {};
     

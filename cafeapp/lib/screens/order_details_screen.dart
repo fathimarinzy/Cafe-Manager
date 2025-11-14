@@ -182,9 +182,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         calculatedTotal = (taxableTotal + taxExemptTotal) - _discountAmount;
       } else {
         // Exclusive VAT: add tax on top of taxable items only
-        calculatedSubtotal = (taxableTotal + taxExemptTotal) - _discountAmount;
+        calculatedSubtotal = taxableTotal + taxExemptTotal;
         calculatedTax = taxableTotal * (settingsProvider.taxRate / 100);
-        calculatedTotal = calculatedSubtotal + calculatedTax;
+        calculatedTotal = calculatedSubtotal + calculatedTax - _discountAmount;
       }
 
       final orderItems = _order!.items.map((item) => 
@@ -197,6 +197,11 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           taxExempt: item.taxExempt,
         )
       ).toList();
+
+      // ✅ FIX: Get existing order to preserve payment details
+      final localOrderRepo = LocalOrderRepository();
+      final existingOrder = await localOrderRepo.getOrderById(_order!.id);
+    
       
       final localOrder = Order(
         id: _order!.id,
@@ -208,14 +213,20 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         total: calculatedTotal,
         status: _order!.status,
         createdAt: _order!.createdAt.toIso8601String(),
+        customerId: existingOrder?.customerId, // ✅ Preserve customer ID
+        paymentMethod: existingOrder?.paymentMethod, // ✅ Preserve payment method
+        cashAmount: existingOrder?.cashAmount, // ✅ Preserve cash amount
+        bankAmount: existingOrder?.bankAmount, // ✅ Preserve bank amount
       );
       
-      final localOrderRepo = LocalOrderRepository();
       final updatedOrder = await localOrderRepo.saveOrder(localOrder);
       
       debugPrint('Order updated locally with VAT type: ${updatedOrder.id}');
       debugPrint('Taxable: $taxableTotal, Tax-Exempt: $taxExemptTotal');
       debugPrint('Subtotal: $calculatedSubtotal, Tax: $calculatedTax, Total: $calculatedTotal');
+      debugPrint('Payment Method: ${updatedOrder.paymentMethod}');
+      debugPrint('Cash Amount: ${updatedOrder.cashAmount}, Bank Amount: ${updatedOrder.bankAmount}');
+
 
       if (mounted) {
         setState(() {
@@ -228,6 +239,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
               status: _order!.status,
               createdAt: _order!.createdAt,
               items: _order!.items,
+              customerId: existingOrder?.customerId,
             );
           }
         });
@@ -554,9 +566,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                       newSubtotal = taxableAmount + taxExemptTotal;
                       newTotal = (taxableTotal + taxExemptTotal) - _discountAmount;
                     } else {
-                      newSubtotal = (taxableTotal + taxExemptTotal) - _discountAmount;
+                      newSubtotal = taxableTotal + taxExemptTotal ;
                       newTax = taxableTotal * (settingsProvider.taxRate / 100);
-                      newTotal = newSubtotal + newTax;
+                      newTotal = newSubtotal + newTax - _discountAmount;
                     }
 
                     setState(() {
@@ -567,6 +579,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                         status: _order!.status,
                         createdAt: _order!.createdAt,
                         items: editedItems,
+                        customerId: _order!.customerId,
                       );
                       _wasEdited = true;
                     });
@@ -1070,9 +1083,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       subtotal = taxableAmount + taxExemptTotal;
       total = (taxableTotal + taxExemptTotal) - _discountAmount;
     } else {
-      subtotal = (taxableTotal + taxExemptTotal) - _discountAmount;
+      subtotal = taxableTotal + taxExemptTotal;
       tax = taxableTotal * (settingsProvider.taxRate / 100);
-      total = subtotal + tax;
+      total = subtotal + tax - _discountAmount;
     }
 
     return SingleChildScrollView(

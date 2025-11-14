@@ -1008,12 +1008,12 @@ Future<void> _checkLicenseStatus() async {
   }
   
   final List<Map<String, dynamic>> _layoutOptions = [
-    {'label': '3x4 Layout', 'rows': 3, 'columns': 4},
+    {'label': '3x3 Layout', 'rows': 3, 'columns': 3},
     {'label': '4x4 Layout', 'rows': 4, 'columns': 4},
     {'label': '4x5 Layout', 'rows': 4, 'columns': 5},
     {'label': '4x6 Layout', 'rows': 4, 'columns': 6},
-    {'label': '4x8 Layout', 'rows': 4, 'columns': 8},
-    {'label': '5x6 Layout', 'rows': 5, 'columns': 6},
+    {'label': '4x7 Layout', 'rows': 4, 'columns': 7},
+    {'label': '5x8 Layout', 'rows': 5, 'columns': 8},
   ];
 
   @override

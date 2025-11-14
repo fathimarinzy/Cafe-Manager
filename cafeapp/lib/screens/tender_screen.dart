@@ -14,7 +14,7 @@ import '../providers/order_history_provider.dart';
 import '../screens/order_list_screen.dart';
 import 'dashboard_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/services.dart';
+// import 'package:flutter/services.dart';
 import '../providers/table_provider.dart';
 // import 'package:flutter_pdfview/flutter_pdfview.dart';
 import '../providers/order_provider.dart';
@@ -67,13 +67,18 @@ class _TenderScreenState extends State<TenderScreen> {
   Person? _currentCustomer;
 
   bool _shouldReopenBankDialog = false; // Add this flag
+  bool _shouldReopenSplitDialog = false;
+
+  // NEW: Split payment state variables
+  double _cashAmount = 0.0;
+  double _bankAmount = 0.0;
 
   final Map<String, Map<String, double>> _serviceTotals = {};
   final String _currentServiceType = '';
 
   String _orderStatus = 'pending';
   final LocalOrderRepository _localOrderRepo = LocalOrderRepository();
-  final MethodChannel _channel = const MethodChannel('com.simsrestocafe/file_picker');
+  // final MethodChannel _channel = const MethodChannel('com.simsrestocafe/file_picker');
 
   String _selectedCardType = 'VISA';
   final TextEditingController _lastFourDigitsController = TextEditingController();
@@ -198,6 +203,16 @@ class _TenderScreenState extends State<TenderScreen> {
       });
     }
 
+    // Reopen split dialog if we came from there
+    if (_shouldReopenSplitDialog) {
+      _shouldReopenSplitDialog = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _showSplitPaymentDialog();
+        }
+      });
+    }
+
   }
    // Add this method to calculate subtotal and tax based on VAT type
  Map<String, double> _calculateAmounts() {
@@ -225,40 +240,48 @@ class _TenderScreenState extends State<TenderScreen> {
   if (settingsProvider.isVatInclusive) {
     final taxableAmount = taxableTotal / (1 + (settingsProvider.taxRate / 100));
     tax = taxableTotal - taxableAmount;
-    subtotal = taxableAmount + taxExemptTotal - discountAmount;
+    subtotal = taxableAmount + taxExemptTotal ;
     total = taxableTotal + taxExemptTotal - discountAmount;
   } else {
-    subtotal = (taxableTotal + taxExemptTotal) - discountAmount;
+    subtotal = taxableTotal + taxExemptTotal;
     tax = taxableTotal * (settingsProvider.taxRate / 100);
-    total = subtotal + tax;
+    total = subtotal + tax - discountAmount;
   }
   
   return {
     'subtotal': subtotal,
     'tax': tax,
     'total': total,
+    'discount': discountAmount,
   };
 }
-// Replace the existing _saveWithAndroidIntent method
-// Future<bool> _saveWithCrossPlatform(pw.Document pdf, String orderNumber) async {
-//   try {
-//     final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-//     final fileName = 'SIMS_receipt_${orderNumber}_reprint_$timestamp.pdf';
-    
-//     return await CrossPlatformPdfService.savePdf(pdf, suggestedFileName: fileName);
-//   } catch (e) {
-//     debugPrint('Error saving PDF: $e');
-//     return false;
-//   }
-// }
 Future<void> _reprintMainReceipt() async {
   setState(() {
     _isProcessing = true;
   });
   
   try {
+    // ✅ FIX: Load the actual order from database to get all items
+    Order? actualOrder;
+    if (widget.order.id != 0) {
+      actualOrder = await _localOrderRepo.getOrderById(widget.order.id);
+    }
+    
+    // Use the actual order if found, otherwise fall back to widget.order
+    final orderToUse = actualOrder ?? Order(
+      id: widget.order.id,
+      serviceType: widget.order.serviceType,
+      items: widget.order.items,
+      subtotal: _calculateSubtotal(widget.order.items),
+      tax: _calculateSubtotal(widget.order.items) * (widget.taxRate / 100.0),
+      discount: _getCurrentDiscount(),
+      total: widget.order.total,
+      status: 'completed',
+      createdAt: DateTime.now().toIso8601String(),
+      customerId: widget.customer?.id,
+    );
     // Convert order items to MenuItem objects
-    final items = widget.order.items.map((item) => 
+    final items = orderToUse.items.map((item) => 
       MenuItem(
         id: item.id.toString(),
         name: item.name,
@@ -270,22 +293,23 @@ Future<void> _reprintMainReceipt() async {
       )
     ).toList();
     
-    // Calculate totals
-    final subtotal = _calculateSubtotal(widget.order.items);
-    final tax = subtotal * (widget.taxRate / 100.0);
-    final discountAmount = _getCurrentDiscount();
-    final total = subtotal + tax - discountAmount;
+    
+    // Calculate totals from the actual order
+    final subtotal = orderToUse.subtotal;
+    final tax = orderToUse.tax;
+    final discountAmount = orderToUse.discount;
+    final total = orderToUse.total;
     
     // Extract tableInfo if this is a dining order
     String? tableInfo;
-    if (widget.order.serviceType.startsWith('Dining - Table')) {
-      tableInfo = widget.order.serviceType;
+    if (orderToUse.serviceType.startsWith('Dining - Table')) {
+      tableInfo = orderToUse.serviceType;
     }
     
     // Generate PDF with original order number
     final pdf = await BillService.generateBill(
       items: items,
-      serviceType: widget.order.serviceType,
+      serviceType: orderToUse.serviceType,
       subtotal: subtotal,
       tax: tax,
       discount: discountAmount,
@@ -302,7 +326,7 @@ Future<void> _reprintMainReceipt() async {
     try {
       printed = await BillService.printBill(
         items: items,
-        serviceType: widget.order.serviceType,
+        serviceType: orderToUse.serviceType,
         subtotal: subtotal,
         tax: tax,
         discount: discountAmount,
@@ -392,133 +416,11 @@ double _calculateSubtotal(List<dynamic> items) {
   return items.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
 }
 
-// // Custom save method with original order number filename
-// Future<bool> _saveWithCustomFileName(pw.Document pdf, String orderNumber) async {
-//   try {
-//     if (!Platform.isAndroid) {
-//       debugPrint('This method only works on Android');
-//       return false;
-//     }
-    
-//     final tempDir = await getTemporaryDirectory();
-//     final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-//     final tempFilename = 'temp_receipt_${orderNumber}_$timestamp.pdf';
-//     final tempFile = File('${tempDir.path}/$tempFilename');
-    
-//     await tempFile.writeAsBytes(await pdf.save());
-    
-//     final result = await _channel.invokeMethod('createDocument', {
-//       'path': tempFile.path,
-//       'mimeType': 'application/pdf',
-//       'fileName': 'SIMS_receipt_${orderNumber}_reprint.pdf', // Use original order number
-//     });
-    
-//     return result == true;
-//   } catch (e) {
-//     debugPrint('Error saving PDF with custom filename: $e');
-//     return false;
-//   }
-// }
 // Update the _showSavePdfDialog method
 Future<bool?> _showSavePdfDialog() {
   return CrossPlatformPdfService.showSavePdfDialog(context);
 }
-  // Future<void> _showBillPreviewDialog() async {
-  //   showDialog(
-  //     context: context,
-  //     barrierDismissible: false,
-  //     builder: (context) => const Center(
-  //       child: CircularProgressIndicator(),
-  //     ),
-  //   );
-    
-  //   try {
-  //     final pdf = await _generateReceipt();
-      
-  //     final tempDir = await getTemporaryDirectory();
-  //     final pdfPath = '${tempDir.path}/bill_preview_${widget.order.id}.pdf';
-  //     final file = File(pdfPath);
-  //     await file.writeAsBytes(await pdf.save());
-      
-  //     if (!mounted) return;
-  //     Navigator.of(context).pop();
-      
-  //     await showDialog(
-  //       context: context,
-  //       builder: (context) => Dialog(
-  //         insetPadding: EdgeInsets.zero,
-  //         child: Column(
-  //           children: [
-  //             Container(
-  //               color: Colors.blue.shade700,
-  //               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-  //               child: Row(
-  //                 children: [
-  //                   IconButton(
-  //                     icon: const Icon(Icons.close, color: Colors.white),
-  //                     onPressed: () => Navigator.of(context).pop(),
-  //                   ),
-  //                   Text(
-  //                     'Preview'.tr(),
-  //                     style: const TextStyle(
-  //                       color: Colors.white,
-  //                       fontSize: 18,
-  //                       fontWeight: FontWeight.bold,
-  //                     ),
-  //                   ),
-  //                   const Spacer(),
-  //                     // Add Reprint button next to Preview text
-  //                   ElevatedButton.icon(
-  //                     icon: const Icon(Icons.print, size: 16),
-  //                     label: Text('Reprint'.tr()),
-  //                     onPressed: () async {
-  //                       await _reprintMainReceipt(); // Call reprint method
-  //                     },
-  //                     style: ElevatedButton.styleFrom(
-  //                       backgroundColor: Colors.white,
-  //                       foregroundColor: Colors.blue.shade900,
-  //                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-  //                       textStyle: const TextStyle(fontSize: 12),
-  //                       minimumSize: const Size(80, 32),
-  //                     ),
-  //                   ),
-  //                 ],
-  //               ),
-  //             ),
-  //             Expanded(
-  //               child: PDFView(
-  //                 filePath: pdfPath,
-  //                 enableSwipe: true,
-  //                 swipeHorizontal: false,
-  //                 autoSpacing: false,
-  //                 pageFling: true,
-  //                 fitPolicy: FitPolicy.BOTH,
-  //                 fitEachPage: false,    
-  //                 defaultPage: 0,
-  //                 onError: (error) {
-  //                   debugPrint('Error loading PDF: $error');
-  //                   if (mounted) {
-  //                     ScaffoldMessenger.of(context).showSnackBar(
-  //                       SnackBar(content: Text('Error loading PDF preview'.tr())),
-  //                     );
-  //                   }
-  //                 },
-  //               ),
-  //             ),
-  //           ],
-  //         ),
-  //       ),
-  //     );
-  //   } catch (e) {
-  //     if (mounted) Navigator.of(context).pop();
-      
-  //     if (mounted) {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(content: Text('${'Error generating bill preview'.tr()}: $e')),
-  //       );
-  //     }
-  //   }
-  // }
+  
   Future<void> _showBillPreviewDialog() async {
   setState(() {
     _isProcessing = true;
@@ -631,7 +533,6 @@ Future<void> _showDesktopBillPreview(pw.Document pdf) async {
                           final pdfPath = '${tempDir.path}/receipt_${widget.order.orderNumber}_${DateTime.now().millisecondsSinceEpoch}.pdf';
                           final file = File(pdfPath);
                           await file.writeAsBytes(await pdf.save());
-                          
                           final uri = Uri.file(pdfPath);
                           if (await canLaunchUrl(uri)) {
                             await launchUrl(uri);
@@ -740,6 +641,1023 @@ Future<void> _showMobileBillPreview(pw.Document pdf) async {
     ),
   );
 }
+
+// NEW: Split Payment Dialog with responsive layout for tablets
+void _showSplitPaymentDialog() {
+  if (_orderStatus.toLowerCase() == 'completed') {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('No remaining balance to pay'.tr())
+      ),
+    );
+    
+    // Reset payment method and amount
+    setState(() {
+      _selectedPaymentMethod = null;
+      _amountInput = '0.000';
+    });
+    return;
+  }
+  
+  final discountedTotal = _getDiscountedTotal();
+  
+  _cashAmount = 0.0;
+  _bankAmount = 0.0;
+  
+  final TextEditingController cashController = TextEditingController(text: '0.000');
+  final TextEditingController bankController = TextEditingController(text: '0.000');
+  
+  _lastFourDigitsController.clear();
+  _approvalCodeController.clear();
+  _selectedCardType = 'VISA';
+  
+  bool isCashMode = true;
+  
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (BuildContext dialogContext) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          double remainingAmount = discountedTotal - _cashAmount - _bankAmount;
+          if (remainingAmount < 0) remainingAmount = 0;
+          
+          void updateAmount(String value) {
+            final controller = isCashMode ? cashController : bankController;
+            
+            if (value == 'C') {
+              setState(() {
+                if (isCashMode) {
+                  _cashAmount = 0;
+                  cashController.text = '0.000';
+                } else {
+                  _bankAmount = 0;
+                  bankController.text = '0.000';
+                }
+              });
+            } else if (value == '⌫') {
+              String current = controller.text;
+              if (current.length > 1) {
+                current = current.substring(0, current.length - 1);
+              } else {
+                current = '0.000';
+              }
+              setState(() {
+                controller.text = current;
+                if (isCashMode) {
+                  _cashAmount = double.tryParse(current) ?? 0;
+                } else {
+                  _bankAmount = double.tryParse(current) ?? 0;
+                }
+              });
+            } else if (value == '.') {
+              if (!controller.text.contains('.')) {
+                setState(() {
+                  controller.text = controller.text + value;
+                });
+              }
+            } else {
+              String current = controller.text;
+              if (current == '0.000' || current == '0') {
+                current = value;
+              } else {
+                current = current + value;
+              }
+              setState(() {
+                controller.text = current;
+                if (isCashMode) {
+                  _cashAmount = double.tryParse(current) ?? 0;
+                } else {
+                  _bankAmount = double.tryParse(current) ?? 0;
+                }
+              });
+            }
+          }
+          
+          // ✅ Check if we're on a tablet or larger device
+          final isTabletOrLarger = MediaQuery.of(context).size.width >= 600;
+          
+          return Dialog(
+            insetPadding: const EdgeInsets.all(20),
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.85,
+              height: MediaQuery.of(context).size.height * 0.85,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  // Header
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () {
+                          Navigator.of(dialogContext).pop();
+                          this.setState(() {
+                            _selectedPaymentMethod = null;
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Split Payment'.tr(),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue.shade900,
+                        ),
+                      ),
+                      const Spacer(),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.discount, size: 16),
+                        label: Text('Discount'.tr()),
+                        onPressed: () {
+                          _shouldReopenSplitDialog = true;
+                          Navigator.of(dialogContext).pop();
+                          Future.delayed(const Duration(milliseconds: 100), () {
+                            if (mounted) {
+                              _showDiscountDialog();
+                            }
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple.shade100,
+                          foregroundColor: Colors.purple.shade900,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // ✅ Content area with responsive layout
+                  Expanded(
+                    child: isTabletOrLarger 
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // ✅ LEFT SIDE - Summary and amount inputs (60% width)
+                            Expanded(
+                              flex: 6,
+                              child: SingleChildScrollView(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Amount summary
+                                    Container(
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade100,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: Colors.grey.shade300),
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text('Total Amount:'.tr(), style: const TextStyle(fontSize: 16)),
+                                              Text(
+                                                discountedTotal.toStringAsFixed(3),
+                                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                              ),
+                                            ],
+                                          ),
+                                          const Divider(height: 20),
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text('Cash Amount:'.tr(), style: const TextStyle(fontSize: 14)),
+                                              Text(
+                                                _cashAmount.toStringAsFixed(3),
+                                                style: TextStyle(fontSize: 14, color: Colors.green.shade700),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text('Bank Amount:'.tr(), style: const TextStyle(fontSize: 14)),
+                                              Text(
+                                                _bankAmount.toStringAsFixed(3),
+                                                style: TextStyle(fontSize: 14, color: Colors.blue.shade700),
+                                              ),
+                                            ],
+                                          ),
+                                          const Divider(height: 20),
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text('Remaining:'.tr(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                              Text(
+                                                remainingAmount.toStringAsFixed(3),
+                                                style: TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: remainingAmount > 0 ? Colors.red.shade700 : Colors.green.shade700,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    
+                                    const SizedBox(height: 20),
+                                    
+                                    // Cash amount input
+                                    Container(
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.shade50,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: Colors.green.shade300),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Icon(Icons.money, color: Colors.green.shade700, size: 20),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                'Cash Amount'.tr(),
+                                                style: TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.green.shade700,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 12),
+                                          TextField(
+                                            controller: cashController,
+                                            readOnly: true,
+                                            decoration: InputDecoration(
+                                              filled: true,
+                                              fillColor: Colors.white,
+                                              border: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                            ),
+                                            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                            textAlign: TextAlign.right,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    
+                                    const SizedBox(height: 20),
+                                    
+                                    // Bank amount input
+                                    Container(
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue.shade50,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: Colors.blue.shade300),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Icon(Icons.account_balance, color: Colors.blue.shade700, size: 20),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                'Bank Amount'.tr(),
+                                                style: TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.blue.shade700,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 12),
+                                          TextField(
+                                            controller: bankController,
+                                            readOnly: true,
+                                            decoration: InputDecoration(
+                                              filled: true,
+                                              fillColor: Colors.white,
+                                              border: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                            ),
+                                            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                            textAlign: TextAlign.right,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            
+                            const SizedBox(width: 16),
+                            
+                            // ✅ RIGHT SIDE - Number pad (40% width)
+                            Expanded(
+                              flex: 4,
+                              child: Column(
+                                children: [
+                                  // Mode selector
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade200,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Text(
+                                          'Enter amount for:'.tr(),
+                                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: ElevatedButton(
+                                                onPressed: () {
+                                                  setState(() {
+                                                    isCashMode = true;
+                                                  });
+                                                },
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: isCashMode ? Colors.green.shade600 : Colors.grey.shade400,
+                                                  foregroundColor: Colors.white,
+                                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                                ),
+                                                child: Text('Cash'.tr(), style: const TextStyle(fontSize: 14)),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: ElevatedButton(
+                                                onPressed: () {
+                                                  setState(() {
+                                                    isCashMode = false;
+                                                  });
+                                                },
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: !isCashMode ? Colors.blue.shade600 : Colors.grey.shade400,
+                                                  foregroundColor: Colors.white,
+                                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                                ),
+                                                child: Text('Bank'.tr(), style: const TextStyle(fontSize: 14)),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  
+                                  const SizedBox(height: 16),
+                                  
+                                  // Number pad
+                                  Expanded(
+                                    child: Column(
+                                      children: [
+                                        Expanded(
+                                          child: Row(
+                                            children: [
+                                              Expanded(child: _buildNumButton('7', () => updateAmount('7'))),
+                                              Expanded(child: _buildNumButton('8', () => updateAmount('8'))),
+                                              Expanded(child: _buildNumButton('9', () => updateAmount('9'))),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Expanded(
+                                          child: Row(
+                                            children: [
+                                              Expanded(child: _buildNumButton('4', () => updateAmount('4'))),
+                                              Expanded(child: _buildNumButton('5', () => updateAmount('5'))),
+                                              Expanded(child: _buildNumButton('6', () => updateAmount('6'))),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Expanded(
+                                          child: Row(
+                                            children: [
+                                              Expanded(child: _buildNumButton('1', () => updateAmount('1'))),
+                                              Expanded(child: _buildNumButton('2', () => updateAmount('2'))),
+                                              Expanded(child: _buildNumButton('3', () => updateAmount('3'))),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Expanded(
+                                          child: Row(
+                                            children: [
+                                              Expanded(child: _buildNumButton('000', () => updateAmount('000'))),
+                                              Expanded(child: _buildNumButton('0', () => updateAmount('0'))),
+                                              Expanded(child: _buildNumButton('⌫', () => updateAmount('⌫'), isBackspace: true)),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Expanded(
+                                          child: Row(
+                                            children: [
+                                              Expanded(child: _buildNumButton('C', () => updateAmount('C'))),
+                                              Expanded(child: _buildNumButton('.', () => updateAmount('.'))),
+                                              Expanded(
+                                                child: Container(
+                                                  margin: const EdgeInsets.all(2),
+                                                  child: ElevatedButton(
+                                                    onPressed: () {
+                                                      setState(() {
+                                                        isCashMode = !isCashMode;
+                                                      });
+                                                    },
+                                                    style: ElevatedButton.styleFrom(
+                                                      backgroundColor: isCashMode ? Colors.green.shade600 : Colors.blue.shade600,
+                                                      foregroundColor: Colors.white,
+                                                    ),
+                                                    child: Icon(isCashMode ? Icons.money : Icons.account_balance, size: 20),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        )
+                      : // ✅ MOBILE/PHONE LAYOUT (vertical stack as before)
+                        SingleChildScrollView(
+                          child: Column(
+                            children: [
+                              // Amount summary
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.grey.shade300),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text('Total Amount:'.tr(), style: const TextStyle(fontSize: 16)),
+                                        Text(
+                                          discountedTotal.toStringAsFixed(3),
+                                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                        ),
+                                      ],
+                                    ),
+                                    const Divider(height: 20),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text('Cash Amount:'.tr(), style: const TextStyle(fontSize: 14)),
+                                        Text(
+                                          _cashAmount.toStringAsFixed(3),
+                                          style: TextStyle(fontSize: 14, color: Colors.green.shade700),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text('Bank Amount:'.tr(), style: const TextStyle(fontSize: 14)),
+                                        Text(
+                                          _bankAmount.toStringAsFixed(3),
+                                          style: TextStyle(fontSize: 14, color: Colors.blue.shade700),
+                                        ),
+                                      ],
+                                    ),
+                                    const Divider(height: 20),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text('Remaining:'.tr(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                        Text(
+                                          remainingAmount.toStringAsFixed(3),
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: remainingAmount > 0 ? Colors.red.shade700 : Colors.green.shade700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              
+                              const SizedBox(height: 20),
+                              
+                              // Cash amount input
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.shade50,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.green.shade300),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(Icons.money, color: Colors.green.shade700, size: 20),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Cash Amount'.tr(),
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.green.shade700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    TextField(
+                                      controller: cashController,
+                                      readOnly: true,
+                                      decoration: InputDecoration(
+                                        filled: true,
+                                        fillColor: Colors.white,
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                      ),
+                                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                      textAlign: TextAlign.right,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              
+                              const SizedBox(height: 20),
+                              
+                              // Bank amount input
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.shade50,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.blue.shade300),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(Icons.account_balance, color: Colors.blue.shade700, size: 20),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Bank Amount'.tr(),
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.blue.shade700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    TextField(
+                                      controller: bankController,
+                                      readOnly: true,
+                                      decoration: InputDecoration(
+                                        filled: true,
+                                        fillColor: Colors.white,
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                      ),
+                                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                      textAlign: TextAlign.right,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              
+                              const SizedBox(height: 20),
+                              
+                              // Mode selector
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade200,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      'Enter amount for:'.tr(),
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: ElevatedButton(
+                                            onPressed: () {
+                                              setState(() {
+                                                isCashMode = true;
+                                              });
+                                            },
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: isCashMode ? Colors.green.shade600 : Colors.grey.shade400,
+                                              foregroundColor: Colors.white,
+                                            ),
+                                            child: Text('Cash'.tr()),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: ElevatedButton(
+                                            onPressed: () {
+                                              setState(() {
+                                                isCashMode = false;
+                                              });
+                                            },
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: !isCashMode ? Colors.blue.shade600 : Colors.grey.shade400,
+                                              foregroundColor: Colors.white,
+                                            ),
+                                            child: Text('Bank'.tr()),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              
+                              const SizedBox(height: 16),
+                              
+                              // Number pad
+                              SizedBox(
+                                height: 280,
+                                child: Column(
+                                  children: [
+                                    Expanded(
+                                      child: Row(
+                                        children: [
+                                          Expanded(child: _buildNumButton('7', () => updateAmount('7'))),
+                                          Expanded(child: _buildNumButton('8', () => updateAmount('8'))),
+                                          Expanded(child: _buildNumButton('9', () => updateAmount('9'))),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Expanded(
+                                      child: Row(
+                                        children: [
+                                          Expanded(child: _buildNumButton('4', () => updateAmount('4'))),
+                                          Expanded(child: _buildNumButton('5', () => updateAmount('5'))),
+                                          Expanded(child: _buildNumButton('6', () => updateAmount('6'))),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Expanded(
+                                      child: Row(
+                                        children: [
+                                          Expanded(child: _buildNumButton('1', () => updateAmount('1'))),
+                                          Expanded(child: _buildNumButton('2', () => updateAmount('2'))),
+                                          Expanded(child: _buildNumButton('3', () => updateAmount('3'))),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Expanded(
+                                      child: Row(
+                                        children: [
+                                          Expanded(child: _buildNumButton('000', () => updateAmount('000'))),
+                                          Expanded(child: _buildNumButton('0', () => updateAmount('0'))),
+                                          Expanded(child: _buildNumButton('⌫', () => updateAmount('⌫'), isBackspace: true)),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Expanded(
+                                      child: Row(
+                                        children: [
+                                          Expanded(child: _buildNumButton('C', () => updateAmount('C'))),
+                                          Expanded(child: _buildNumButton('.', () => updateAmount('.'))),
+                                          Expanded(
+                                            child: Container(
+                                              margin: const EdgeInsets.all(2),
+                                              child: ElevatedButton(
+                                                onPressed: () {
+                                                  setState(() {
+                                                    isCashMode = !isCashMode;
+                                                  });
+                                                },
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: isCashMode ? Colors.green.shade600 : Colors.blue.shade600,
+                                                  foregroundColor: Colors.white,
+                                                ),
+                                                child: Icon(isCashMode ? Icons.money : Icons.account_balance, size: 20),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                  ),
+                  
+                  // Action buttons
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop();
+                            this.setState(() {
+                              _selectedPaymentMethod = null;
+                            });
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.grey.shade300,
+                            foregroundColor: Colors.black87,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: Text('Cancel'.tr()),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: remainingAmount <= 0.001
+                            ? () {
+                              Navigator.of(dialogContext).pop();
+                              // ✅ Calculate total payment amount
+                              final totalAmount = _cashAmount + _bankAmount;
+                              
+                              // ✅ Show the payment confirmation dialog (with print option)
+                               _showPaymentConfirmationDialog(totalAmount); 
+                            }                           
+                            : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue.shade700,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            disabledBackgroundColor: Colors.grey.shade300,
+                          ),
+                          child: Text('Confirm Payment'.tr()),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );    
+    },
+  );
+}
+   Widget _buildNumButton(String text, VoidCallback onPressed, {bool isBackspace = false}) {
+    return Container(
+      margin: const EdgeInsets.all(2),
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isBackspace ? Colors.grey.shade200 : Colors.white,
+          foregroundColor: Colors.black87,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+        ),
+        child: isBackspace 
+          ? const Icon(Icons.backspace, size: 20)
+          : Text(text, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+  
+   // NEW: Process split payment
+  Future<void> _processSplitPayment(double cashAmount, double bankAmount) async {
+    setState(() {
+      _isProcessing = true;
+    });
+    try {
+      final discountedTotal = _getDiscountedTotal();
+      final totalPaid = cashAmount + bankAmount;
+
+      debugPrint('=== SPLIT PAYMENT DEBUG ===');
+      debugPrint('Cash Amount: $cashAmount');
+      debugPrint('Bank Amount: $bankAmount');
+      debugPrint('Total Paid: $totalPaid');
+      debugPrint('Discounted Total: $discountedTotal');
+      
+      if (totalPaid < discountedTotal - 0.001) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Total payment is less than order amount'.tr())),
+        );
+        return;
+      }
+      
+      double change = totalPaid > discountedTotal ? totalPaid - discountedTotal : 0.0;
+      
+      Order? savedOrder;
+      double discountAmount = _getCurrentDiscount();
+      final amounts = _calculateAmounts();
+      
+      if (widget.order.id != 0) {
+        final orders = await _localOrderRepo.getAllOrders();
+        final orderIndex = orders.indexWhere((o) => o.id == widget.order.id);
+        
+        if (orderIndex >= 0) {
+          final existingOrder = orders[orderIndex];
+          
+          savedOrder = Order(
+            id: existingOrder.id,
+            serviceType: existingOrder.serviceType,
+            items: existingOrder.items,
+            subtotal: amounts['subtotal']!,
+            tax: amounts['tax']!,
+            discount: discountAmount,
+            total: amounts['total']!,
+            status: 'completed',
+            createdAt: existingOrder.createdAt,
+            customerId: widget.customer?.id ?? existingOrder.customerId,
+            paymentMethod: 'bank+cash',
+            cashAmount: cashAmount,  // ✅ Store cash portion
+            bankAmount: bankAmount, 
+          );
+          debugPrint('Creating order with split payment:');
+          debugPrint('  Payment Method: ${savedOrder.paymentMethod}');
+          debugPrint('  Cash Amount: ${savedOrder.cashAmount}');
+          debugPrint('  Bank Amount: ${savedOrder.bankAmount}');
+          debugPrint('  Total: ${savedOrder.total}');
+        
+          
+          savedOrder = await _localOrderRepo.saveOrder(savedOrder);
+           // ✅ VERIFY IT WAS SAVED CORRECTLY
+          if (savedOrder.id != null) {
+            final verifyOrders = await _localOrderRepo.getAllOrders();
+            final verifyOrder = verifyOrders.firstWhere((o) => o.id == savedOrder!.id);
+            debugPrint('VERIFICATION - Order saved:');
+            debugPrint('  ID: ${verifyOrder.id}');
+            debugPrint('  Payment Method: ${verifyOrder.paymentMethod}');
+            debugPrint('  Cash Amount: ${verifyOrder.cashAmount}');
+            debugPrint('  Bank Amount: ${verifyOrder.bankAmount}');
+            debugPrint('  Total: ${verifyOrder.total}');
+          }
+        }
+      } else {
+        final orderItems = widget.order.items.map((item) => 
+          OrderItem(
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            kitchenNote: item.kitchenNote,
+          )
+        ).toList();
+        
+        savedOrder = Order(
+          serviceType: widget.order.serviceType,
+          items: orderItems,
+          subtotal: amounts['subtotal']!,
+          tax: amounts['tax']!,
+          discount: discountAmount,
+          total: amounts['total']!,
+          status: 'completed',
+          createdAt: DateTime.now().toIso8601String(),
+          customerId: widget.customer?.id,
+          paymentMethod: 'bank+cash',
+          cashAmount: cashAmount,  // ✅ Store cash portion
+          bankAmount: bankAmount, 
+        );
+          debugPrint('Creating NEW order with split payment:');
+          debugPrint('  Payment Method: ${savedOrder.paymentMethod}');
+          debugPrint('  Cash Amount: ${savedOrder.cashAmount}');
+          debugPrint('  Bank Amount: ${savedOrder.bankAmount}');
+          debugPrint('  Total: ${savedOrder.total}');
+        
+        savedOrder = await _localOrderRepo.saveOrder(savedOrder);
+        // ✅ VERIFY IT WAS SAVED CORRECTLY
+        if (savedOrder.id != null) {
+          final verifyOrders = await _localOrderRepo.getAllOrders();
+          final verifyOrder = verifyOrders.firstWhere((o) => o.id == savedOrder!.id);
+          debugPrint('VERIFICATION - Order saved:');
+          debugPrint('  ID: ${verifyOrder.id}');
+          debugPrint('  Payment Method: ${verifyOrder.paymentMethod}');
+          debugPrint('  Cash Amount: ${verifyOrder.cashAmount}');
+          debugPrint('  Bank Amount: ${verifyOrder.bankAmount}');
+          debugPrint('  Total: ${verifyOrder.total}');
+        }
+      }
+      
+      if (savedOrder == null) {
+        throw Exception('Failed to process order in the system');
+      }
+      
+      if (widget.order.id == 0) {
+        widget.order.id = savedOrder.id ?? 0;
+      }
+      
+      await _updateOrderStatus('completed');
+
+      final prefs = await SharedPreferences.getInstance();
+      final savedPrinterName = prefs.getString('selected_printer');
+      debugPrint('Selected printer: $savedPrinterName');
+      
+      final pdf = await _generateReceipt();
+      bool printed = false;
+      
+      try {
+        printed = await BillService.printThermalBill(
+          widget.order, 
+          isEdited: widget.isEdited, 
+          taxRate: widget.taxRate, 
+          discount: discountAmount
+        );
+      } catch (e) {
+        debugPrint('Printing error: $e');
+      }
+      if (!mounted) return;
+      if (!printed) {
+        bool? saveAsPdf = await CrossPlatformPdfService.showSavePdfDialog(context);
+        if (saveAsPdf == true) {
+          try {
+            final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+            final fileName = 'SIMS_receipt_${widget.order.orderNumber}_$timestamp.pdf';
+            await CrossPlatformPdfService.savePdf(pdf, suggestedFileName: fileName);
+          } catch (e) {
+            debugPrint('Error saving PDF: $e');
+          }
+        }
+      }
+      
+      if (widget.order.serviceType.contains('Dining - Table')) {
+        final tableNumberStr = widget.order.serviceType.split('Table ').last;
+        final tableNumber = int.tryParse(tableNumberStr);
+        
+        if (tableNumber != null && mounted) {
+          final tableProvider = Provider.of<TableProvider>(context, listen: false);
+          await tableProvider.setTableStatus(tableNumber, false);
+        }
+      }
+      
+      if (mounted) {
+        final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+        orderProvider.clearSelectedPerson();
+        orderProvider.clearCart();
+      }
+      
+      if (mounted) {
+        Provider.of<OrderHistoryProvider>(context, listen: false).refreshOrdersAndConnectivity();
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${'Payment processed'.tr()} - ${'Cash'.tr()}: ${cashAmount.toStringAsFixed(3)}, ${'Bank'.tr()}: ${bankAmount.toStringAsFixed(3)}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        if (change > 0) {
+          await _showBalanceMessageDialog(change);
+        } else {
+          await _showBalanceMessageDialog();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${'Error processing split payment'.tr()}: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
+  }
   Future<bool> _updateOrderStatus(String status) async {
     setState(() {
       _isProcessing = true;
@@ -764,6 +1682,8 @@ Future<void> _showMobileBillPreview(pw.Document pdf) async {
           createdAt: order.createdAt,
           customerId: order.customerId,
           paymentMethod: order.paymentMethod,
+          cashAmount: order.cashAmount,
+          bankAmount: order.bankAmount,
         );
         
         await _localOrderRepo.saveOrder(updatedOrder);
@@ -1522,6 +2442,7 @@ Widget _buildPaymentMethodSelection() {
       children: [
         _buildPaymentMethodOption('Bank'.tr(), Icons.account_balance),
         _buildPaymentMethodOption('Cash'.tr(), Icons.money),
+        _buildPaymentMethodOption('Bank + Cash'.tr(), Icons.payment),
         _buildPaymentMethodOption('Customer Credit'.tr(), Icons.person),
       ],
     ),
@@ -1578,6 +2499,8 @@ Widget _buildPaymentMethodOption(String method, IconData icon) {
           
           if (method == 'Bank'.tr()) {
             _showBankPaymentDialog();
+          }  else if (method == 'Bank + Cash'.tr()) { // NEW BLOCK
+            _showSplitPaymentDialog();
           } else if (method == 'Customer Credit'.tr() && !widget.isCreditCompletion) {
             _handleCustomerCreditPayment();
           }
@@ -3035,37 +3958,54 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
 
     if (result == 'yes' || result == 'no') {
       // For credit completion, always process the payment
-    if (widget.isCreditCompletion) {
-      if (_selectedPaymentMethod == 'Cash') {
-        _processCashPayment(amount, change);
+     if (widget.isCreditCompletion) {
+    // Determine which payment processing method to call
+    if (_selectedPaymentMethod == 'Cash') {
+      if (result == 'yes') {
+        await _processCreditCompletionPayment(amount, 'cash');
       } else {
-        _processPayment(amount);
+        await _processCreditCompletionPaymentWithoutPrinting(amount, 'cash');
       }
-      return;
+    } else if (_selectedPaymentMethod == 'Bank') {
+      if (result == 'yes') {
+        await _processCreditCompletionPayment(amount, 'bank');
+      } else {
+        await _processCreditCompletionPaymentWithoutPrinting(amount, 'bank');
+      }
+    } else if (_selectedPaymentMethod == 'Bank + Cash'.tr()) {
+      // ✅ Handle split payment for credit completion
+      if (result == 'yes') {
+        await _processCreditCompletionPayment(amount, 'bank+cash');
+      } else {
+        await _processCreditCompletionPaymentWithoutPrinting(amount, 'bank+cash');
+      }
     }
-      setState(() {
-        if (widget.isCreditCompletion) {
-          // For credit completion, we don't modify balance/paid amounts
-          // since it's a different payment flow
-          debugPrint('Credit completion payment - Amount: $amount, Change: $change');
-        }
-        else if (_selectedPaymentMethod == 'Cash') {
-          double amountToDeduct = _balanceAmount < amount ? _balanceAmount : amount;
-          
-          _balanceAmount -= amountToDeduct;
-          if (_balanceAmount < 0) _balanceAmount = 0;
-          
-          _paidAmount += amountToDeduct;
-        } else {
-          final discountedTotal = _getDiscountedTotal();
-          _paidAmount = discountedTotal;
-          _balanceAmount = 0;
-        }
-        
-        debugPrint('Payment processed. Amount: $amount, Change: $change');
-        debugPrint('New balance: $_balanceAmount, Total paid: $_paidAmount');
-      });
+    return; // Exit early for credit completion
+  }
+  
+      // Regular order payment processing (not credit completion)
+  setState(() {
+    if (_selectedPaymentMethod == 'Cash') {
+      double amountToDeduct = _balanceAmount < amount ? _balanceAmount : amount;
       
+      _balanceAmount -= amountToDeduct;
+      if (_balanceAmount < 0) _balanceAmount = 0;
+      
+      _paidAmount += amountToDeduct;
+    } else if (_selectedPaymentMethod == 'Bank + Cash'.tr()) {
+      // ✅ Handle split payment state update
+      final discountedTotal = _getDiscountedTotal();
+      _paidAmount = discountedTotal;
+      _balanceAmount = 0;
+    } else {
+      final discountedTotal = _getDiscountedTotal();
+      _paidAmount = discountedTotal;
+      _balanceAmount = 0;
+    }
+    
+    debugPrint('Payment processed. Amount: $amount, Change: $change');
+    debugPrint('New balance: $_balanceAmount, Total paid: $_paidAmount');
+  });
       if (change > 0) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -3089,16 +4029,164 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       if (result == 'yes') {
         if (_selectedPaymentMethod == 'Cash') {
           _processCashPayment(amount, change);
-        } else {
+        } else  if (_selectedPaymentMethod == 'Bank') {
           _processPayment(amount);
+        } else if (_selectedPaymentMethod == 'Bank + Cash'.tr()) {
+          _processSplitPayment(_cashAmount, _bankAmount);
         }
-      } else if (result == 'no' ) {
-        
-         _processPaymentWithoutPrinting(amount, change);
-         
+      }else if (result == 'no') {
+        if (_selectedPaymentMethod == 'Bank + Cash'.tr()) {
+          await _processSplitPaymentWithoutPrinting(_cashAmount, _bankAmount);
+        } else {
+          await _processPaymentWithoutPrinting(amount, change);
+        }
+
       }
     }
   }
+  Future<void> _processSplitPaymentWithoutPrinting(double cashAmount, double bankAmount) async {
+  setState(() {
+    _isProcessing = true;
+  });
+  
+  try {
+    final discountedTotal = _getDiscountedTotal();
+    final totalPaid = cashAmount + bankAmount;
+
+    debugPrint('=== SPLIT PAYMENT WITHOUT PRINTING DEBUG ===');
+    debugPrint('Cash Amount: $cashAmount');
+    debugPrint('Bank Amount: $bankAmount');
+    debugPrint('Total Paid: $totalPaid');
+    debugPrint('Discounted Total: $discountedTotal');
+    
+    if (totalPaid < discountedTotal - 0.001) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Total payment is less than order amount'.tr())),
+      );
+      return;
+    }
+    
+    double change = totalPaid > discountedTotal ? totalPaid - discountedTotal : 0.0;
+    
+    Order? savedOrder;
+    double discountAmount = _getCurrentDiscount();
+    final amounts = _calculateAmounts();
+    
+    if (widget.order.id != 0) {
+      final orders = await _localOrderRepo.getAllOrders();
+      final orderIndex = orders.indexWhere((o) => o.id == widget.order.id);
+      
+      if (orderIndex >= 0) {
+        final existingOrder = orders[orderIndex];
+        
+        savedOrder = Order(
+          id: existingOrder.id,
+          serviceType: existingOrder.serviceType,
+          items: existingOrder.items,
+          subtotal: amounts['subtotal']!,
+          tax: amounts['tax']!,
+          discount: discountAmount,
+          total: amounts['total']!,
+          status: 'completed',
+          createdAt: existingOrder.createdAt,
+          customerId: widget.customer?.id ?? existingOrder.customerId,
+          paymentMethod: 'bank+cash',
+          cashAmount: cashAmount,
+          bankAmount: bankAmount,
+        );
+        
+        savedOrder = await _localOrderRepo.saveOrder(savedOrder);
+      }
+    } else {
+      final orderItems = widget.order.items.map((item) => 
+        OrderItem(
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          kitchenNote: item.kitchenNote,
+        )
+      ).toList();
+      
+      savedOrder = Order(
+        serviceType: widget.order.serviceType,
+        items: orderItems,
+        subtotal: amounts['subtotal']!,
+        tax: amounts['tax']!,
+        discount: discountAmount,
+        total: amounts['total']!,
+        status: 'completed',
+        createdAt: DateTime.now().toIso8601String(),
+        customerId: widget.customer?.id,
+        paymentMethod: 'bank+cash',
+        cashAmount: cashAmount,
+        bankAmount: bankAmount,
+      );
+      
+      savedOrder = await _localOrderRepo.saveOrder(savedOrder);
+    }
+    
+    if (savedOrder == null) {
+      throw Exception('Failed to process order in the system');
+    }
+    
+    if (widget.order.id == 0) {
+      widget.order.id = savedOrder.id ?? 0;
+    }
+    
+    await _updateOrderStatus('completed');
+    
+    // SKIP PRINTING - payment processed without printing
+    debugPrint('Split payment processed without printing');
+    
+    if (widget.order.serviceType.contains('Dining - Table')) {
+      final tableNumberStr = widget.order.serviceType.split('Table ').last;
+      final tableNumber = int.tryParse(tableNumberStr);
+      
+      if (tableNumber != null && mounted) {
+        final tableProvider = Provider.of<TableProvider>(context, listen: false);
+        await tableProvider.setTableStatus(tableNumber, false);
+      }
+    }
+    
+    if (mounted) {
+      final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+      orderProvider.clearSelectedPerson();
+      orderProvider.clearCart();
+    }
+    
+    if (mounted) {
+      Provider.of<OrderHistoryProvider>(context, listen: false).refreshOrdersAndConnectivity();
+    }
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${'Payment processed'.tr()} - ${'Cash'.tr()}: ${cashAmount.toStringAsFixed(3)}, ${'Bank'.tr()}: ${bankAmount.toStringAsFixed(3)}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      
+      if (change > 0) {
+        await _showBalanceMessageDialog(change);
+      } else {
+        await _showBalanceMessageDialog();
+      }
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${'Error processing split payment'.tr()}: $e')),
+      );
+    }
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isProcessing = false;
+      });
+    }
+  }
+}
   Future<void> _processPaymentWithoutPrinting(double amount, double change) async {
   setState(() {
     _isProcessing = true;
@@ -3251,6 +4339,7 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
   }
 
   try {
+      final discountedTotal = _getDiscountedTotal();
     // Get the credit transaction details
     final creditRepo = CreditTransactionRepository();
     final creditTransaction = await creditRepo.getCreditTransactionById(widget.creditTransactionId!);
@@ -3272,25 +4361,98 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
       );
 
       if (success) {
-        // Update the original order's payment method
-        await _updateOriginalOrderPaymentMethod(
-          creditTransaction.orderNumber, 
-          paymentMethod.toLowerCase()
-        );
+        // ✅ NEW: Handle split payment for credit completion
+        if (paymentMethod == 'bank+cash' && _cashAmount > 0 && _bankAmount > 0) {
+          await _updateOriginalOrderPaymentMethodWithSplit(
+            creditTransaction.orderNumber,
+            paymentMethod.toLowerCase(),
+            _cashAmount,
+            _bankAmount,
+          );
+        } else {
+          // Update the original order's payment method
+          await _updateOriginalOrderPaymentMethod(
+            creditTransaction.orderNumber, 
+            paymentMethod.toLowerCase()
+          );
+        }
+          // ✅ FIX: Load the actual order from database
+        // final orderId = int.tryParse(creditTransaction.orderNumber);
+        // Order? actualOrder;
+        // if (orderId != null) {
+        //   actualOrder = await _localOrderRepo.getOrderById(orderId);
+        // }
+        
+        // if (actualOrder == null) {
+        //   throw Exception('Could not load original order');
+        // }
+        // Use actual order for PDF generation
+        // final pdf = await BillService.generateBill(
+        //   items: actualOrder.items.map((item) => item.toMenuItem()).toList(),
+        //   serviceType: actualOrder.serviceType,
+        //   subtotal: actualOrder.subtotal,
+        //   tax: actualOrder.tax,
+        //   discount: actualOrder.discount,
+        //   total: actualOrder.total,
+        //   personName: widget.customer?.name,
+        //   tableInfo: actualOrder.serviceType.contains('Table') ? actualOrder.serviceType : null,
+        //   isEdited: widget.isEdited,
+        //   orderNumber: creditTransaction.orderNumber,
+        //   taxRate: widget.taxRate,
+        // );
+        
+        // bool printed = false;
+        //  try {
+        //   printed = await BillService.printThermalBill(
+        //     OrderHistory.fromOrder(actualOrder), 
+        //     isEdited: widget.isEdited, 
+        //     taxRate: widget.taxRate, 
+        //     discount: actualOrder.discount
+        //   );
+        // } catch (e) {
+        //   debugPrint('Printing error: $e');
+        // }
+        
+        // bool? saveAsPdf = false;
+        // if (!printed) {
+        //   if (mounted) {
+        //     saveAsPdf = await CrossPlatformPdfService.showSavePdfDialog(context);
+        //   }
+          
+        //   if (saveAsPdf == true) {
+        //     try {
+        //       final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+        //       final fileName = 'SIMS_receipt_${creditTransaction.orderNumber}_$timestamp.pdf';
+        //       await CrossPlatformPdfService.savePdf(pdf, suggestedFileName: fileName);
+        //     } catch (e) {
+        //       debugPrint('Error saving PDF: $e');
+        //     }
+        //   }
+        // }
 
         // SKIP PRINTING - just show success message
         debugPrint('Credit payment completed without printing');
 
         if (mounted) {
+         String message;
+          if (paymentMethod == 'bank+cash') {
+            message = '${'Credit payment completed via'.tr()} ${'Bank + Cash'.tr()} - ${'Cash'.tr()}: ${_cashAmount.toStringAsFixed(3)}, ${'Bank'.tr()}: ${_bankAmount.toStringAsFixed(3)}';
+          } else {
+            message = '${'Credit payment completed via'.tr()} $paymentMethod'.tr();
+          }
+          // ✅ Add discount info to message if applicable
+          if (_getCurrentDiscount() > 0) {
+            message += ' (${'Discount'.tr()}: ${_getCurrentDiscount().toStringAsFixed(3)})';
+          }
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${'Credit payment completed via'.tr()} $paymentMethod'.tr()),
+              content: Text(message),
               backgroundColor: Colors.green,
             ),
           );
 
           // Show balance message (like normal payments)
-          await _showBalanceMessageDialog();
+          await _showBalanceMessageDialog(amount > discountedTotal ? amount - discountedTotal : 0.0);
         }
       } else {
         throw Exception('Failed to update customer credit balance');
@@ -3694,32 +4856,32 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
   //   );
   // }
 
-  Future<bool> _saveWithAndroidIntent(pw.Document pdf) async {
-    try {
-      if (!Platform.isAndroid) {
-        debugPrint('This method only works on Android');
-        return false;
-      }
+  // Future<bool> _saveWithAndroidIntent(pw.Document pdf) async {
+  //   try {
+  //     if (!Platform.isAndroid) {
+  //       debugPrint('This method only works on Android');
+  //       return false;
+  //     }
       
-      final tempDir = await getTemporaryDirectory();
-      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-      final tempFilename = 'temp_receipt_${widget.order.orderNumber}_$timestamp.pdf';
-      final tempFile = File('${tempDir.path}/$tempFilename');
+  //     final tempDir = await getTemporaryDirectory();
+  //     final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+  //     final tempFilename = 'temp_receipt_${widget.order.orderNumber}_$timestamp.pdf';
+  //     final tempFile = File('${tempDir.path}/$tempFilename');
       
-      await tempFile.writeAsBytes(await pdf.save());
+  //     await tempFile.writeAsBytes(await pdf.save());
       
-      final result = await _channel.invokeMethod('createDocument', {
-        'path': tempFile.path,
-        'mimeType': 'application/pdf',
-        'fileName': 'SIMS_receipt_${widget.order.orderNumber}_$timestamp.pdf',
-      });
+  //     final result = await _channel.invokeMethod('createDocument', {
+  //       'path': tempFile.path,
+  //       'mimeType': 'application/pdf',
+  //       'fileName': 'SIMS_receipt_${widget.order.orderNumber}_$timestamp.pdf',
+  //     });
       
-      return result == true;
-    } catch (e) {
-      debugPrint('Error saving PDF with Android intent: $e');
-      return false;
-    }
-  }
+  //     return result == true;
+  //   } catch (e) {
+  //     debugPrint('Error saving PDF with Android intent: $e');
+  //     return false;
+  //   }
+  // }
 
   Future<pw.Document> _generateReceipt() async {
     final amounts = _calculateAmounts();
@@ -3762,13 +4924,47 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
       );  
 
       if (success) {
+        // ✅ FIX: Calculate amounts properly before saving
+        final amounts = _calculateAmounts();
+        final discountAmount = _getCurrentDiscount();
+         // ✅ Save the order with CORRECT subtotal and tax
+        Order savedOrder;
+        if (widget.order.id != 0) {
+          final orders = await _localOrderRepo.getAllOrders();
+          final orderIndex = orders.indexWhere((o) => o.id == widget.order.id);
+          
+          if (orderIndex >= 0) {
+            final existingOrder = orders[orderIndex];
+            savedOrder = Order(
+              id: existingOrder.id,
+              serviceType: existingOrder.serviceType,
+              items: existingOrder.items,
+              subtotal: amounts['subtotal']!,  // ✅ Use calculated subtotal
+              tax: amounts['tax']!,            // ✅ Use calculated tax
+              discount: discountAmount,
+              total: amounts['total']!,
+              status: 'completed',
+              createdAt: existingOrder.createdAt,
+              customerId: customer.id,
+              paymentMethod: 'customer_credit',
+            );
+            
+            savedOrder = await _localOrderRepo.saveOrder(savedOrder);
+          } else {
+            throw Exception('Order not found');
+          }
+        } else {
+          throw Exception('Invalid order ID');
+        }
+        
+
          // Save credit transaction
         final creditRepo = CreditTransactionRepository();
         final transaction = CreditTransaction(
           id: 'credit_${DateTime.now().millisecondsSinceEpoch}',
           customerId: customer.id!,
           customerName: customer.name,
-          orderNumber: widget.order.orderNumber,
+          orderNumber: savedOrder.id.toString(),
           amount: discountedTotal,
           createdAt: DateTime.now(),
           serviceType: widget.order.serviceType,
@@ -3777,7 +4973,7 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
         
         await creditRepo.saveCreditTransaction(transaction);
          // Update the original order with customer_credit payment method
-        await _updateOrderPaymentMethodForCredit(widget.order.id, 'customer_credit', _getCurrentDiscount());
+        // await _updateOrderPaymentMethodForCredit(widget.order.id, 'customer_credit', _getCurrentDiscount());
 
         // Update order status to completed (without cash payment processing)
         await _updateOrderStatus('completed');
@@ -4006,23 +5202,59 @@ Future<void> _processCreditCompletionPayment(double amount, String paymentMethod
       );
 
       if (success) {
-        // IMPORTANT: Update the original order's payment method
-        await _updateOriginalOrderPaymentMethod(
-          creditTransaction.orderNumber, 
-          paymentMethod.toLowerCase()
+        // ✅ NEW: Handle split payment for credit completion
+        if (paymentMethod == 'bank+cash' && _cashAmount > 0 && _bankAmount > 0) {
+          // Update with split payment amounts
+          await _updateOriginalOrderPaymentMethodWithSplit(
+            creditTransaction.orderNumber,
+            paymentMethod.toLowerCase(),
+            _cashAmount,
+            _bankAmount,
+          );
+        } else {
+          // IMPORTANT: Update the original order's payment method
+          await _updateOriginalOrderPaymentMethod(
+            creditTransaction.orderNumber, 
+            paymentMethod.toLowerCase()
+          );
+        }
+        // ✅ FIX: Load the actual order from database
+        final orderId = int.tryParse(creditTransaction.orderNumber);
+        Order? actualOrder;
+        if (orderId != null) {
+          actualOrder = await _localOrderRepo.getOrderById(orderId);
+        }
+        
+        if (actualOrder == null) {
+          throw Exception('Could not load original order');
+        }
+        // ✅ Calculate tax rate from actual order data
+        final effectiveTaxRate = actualOrder.subtotal > 0 
+            ? (actualOrder.tax / actualOrder.subtotal) * 100 
+            : 0.0;
+        // Use actual order for PDF generation
+        final pdf = await BillService.generateBill(
+          items: actualOrder.items.map((item) => item.toMenuItem()).toList(),
+          serviceType: actualOrder.serviceType,
+          subtotal: actualOrder.subtotal,
+          tax: actualOrder.tax,
+          discount: actualOrder.discount,
+          total: actualOrder.total,
+          personName: widget.customer?.name,
+          tableInfo: actualOrder.serviceType.contains('Table') ? actualOrder.serviceType : null,
+          isEdited: widget.isEdited,
+          orderNumber: creditTransaction.orderNumber,
+          taxRate: effectiveTaxRate,
         );
 
-        // Use the regular receipt printing process
-        final pdf = await _generateReceipt();
-        
+   
         bool printed = false;
-        try {
-          // Use the same thermal printing as regular orders
+         try {
           printed = await BillService.printThermalBill(
-            widget.order, 
+            OrderHistory.fromOrder(actualOrder), 
             isEdited: widget.isEdited, 
-            taxRate: widget.taxRate, 
-            discount: _getCurrentDiscount(), // Include discount
+            taxRate: effectiveTaxRate, 
+            discount: actualOrder.discount
           );
         } catch (e) {
           debugPrint('Printing error: $e');
@@ -4036,7 +5268,9 @@ Future<void> _processCreditCompletionPayment(double amount, String paymentMethod
           
           if (saveAsPdf == true) {
             try {
-              await _saveWithAndroidIntent(pdf);
+              final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+              final fileName = 'SIMS_receipt_${widget.order.orderNumber}_$timestamp.pdf';
+              await CrossPlatformPdfService.savePdf(pdf, suggestedFileName: fileName);
             } catch (e) {
               debugPrint('Error saving PDF: $e');
             }
@@ -4044,9 +5278,20 @@ Future<void> _processCreditCompletionPayment(double amount, String paymentMethod
         }
 
         if (mounted) {
+          String message;
+          if (paymentMethod == 'bank+cash') {
+            message = '${'Credit payment completed via'.tr()} ${'Bank + Cash'.tr()} - ${'Cash'.tr()}: ${_cashAmount.toStringAsFixed(3)}, ${'Bank'.tr()}: ${_bankAmount.toStringAsFixed(3)}';
+          } else {
+            message = '${'Credit payment completed via'.tr()} $paymentMethod'.tr();
+          }
+           // ✅ Add discount info to message if applicable
+          if (_getCurrentDiscount() > 0) {
+            message += ' (${'Discount'.tr()}: ${_getCurrentDiscount().toStringAsFixed(3)})';
+          }
+          
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${'Credit payment completed via'.tr()} $paymentMethod'.tr()),
+              content: Text(message),
               backgroundColor: Colors.green,
             ),
           );
@@ -4086,16 +5331,33 @@ Future<void> _updateOriginalOrderPaymentMethod(String orderNumber, String paymen
     
     if (orderIndex >= 0) {
       final existingOrder = allOrders[orderIndex];
+      // ✅ FIX: Only apply discount if there's a new discount
+      // Otherwise preserve the existing order's amounts
+      double finalSubtotal = existingOrder.subtotal;
+      double finalTax = existingOrder.tax;
+      double finalDiscount = existingOrder.discount;
+      double finalTotal = existingOrder.total;
+
+      // ✅ FIX: Get current discount from tender screen
+      final currentDiscount = _getCurrentDiscount();
+      // final discountedTotal = _getDiscountedTotal();
+      // ✅ Calculate new amounts with discount
+      // final amounts = _calculateAmounts();
+      if (currentDiscount > 0 && currentDiscount != existingOrder.discount) {
+        // Recalculate only if discount changed
+        finalDiscount = currentDiscount;
+        finalTotal = existingOrder.subtotal + existingOrder.tax - finalDiscount;
+      }
       
       // Create updated order with new payment method
       final updatedOrder = Order(
         id: existingOrder.id,
         serviceType: existingOrder.serviceType,
         items: existingOrder.items,
-        subtotal: existingOrder.subtotal,
-        tax: existingOrder.tax,
-        discount: existingOrder.discount,
-        total: existingOrder.total,
+        subtotal: finalSubtotal,
+        tax: finalTax,
+        discount: finalDiscount,
+        total: finalTotal,
         status: existingOrder.status,
         createdAt: existingOrder.createdAt,
         customerId: existingOrder.customerId,
@@ -4112,40 +5374,68 @@ Future<void> _updateOriginalOrderPaymentMethod(String orderNumber, String paymen
     debugPrint('Error updating original order payment method: $e');
   }
 }
-// Add this method to update order payment method for initial credit
-Future<void> _updateOrderPaymentMethodForCredit(int orderId, String paymentMethod,double discount) async {
+// Update original order with split payment details
+Future<void> _updateOriginalOrderPaymentMethodWithSplit(
+  String orderNumber, 
+  String paymentMethod,
+  double cashAmount,
+  double bankAmount,
+) async {
   try {
     final localOrderRepo = LocalOrderRepository();
     final allOrders = await localOrderRepo.getAllOrders();
+    
+    // Find the order by order number
+    final orderId = int.tryParse(orderNumber);
+    if (orderId == null) return;
     
     final orderIndex = allOrders.indexWhere((order) => order.id == orderId);
     
     if (orderIndex >= 0) {
       final existingOrder = allOrders[orderIndex];
-      // Calculate the new total after discount
-      final discountedTotal = existingOrder.total - discount;
+       // ✅ FIX: Preserve existing amounts, only apply new discount if any
+      double finalSubtotal = existingOrder.subtotal;
+      double finalTax = existingOrder.tax;
+      double finalDiscount = existingOrder.discount;
+      double finalTotal = existingOrder.total;
+
+      // ✅ FIX: Get current discount from tender screen
+      final currentDiscount = _getCurrentDiscount();
+      // final discountedTotal = _getDiscountedTotal();
       
-      // Create updated order with customer_credit payment method
+      // ✅ Calculate new amounts with discount
+      // final amounts = _calculateAmounts();
+      // Check if there's a new discount being applied
+    
+      if (currentDiscount > 0 && currentDiscount != existingOrder.discount) {
+        finalDiscount = currentDiscount;
+        finalTotal = existingOrder.subtotal + existingOrder.tax - finalDiscount;
+      }
+      // Create updated order with split payment details
       final updatedOrder = Order(
         id: existingOrder.id,
         serviceType: existingOrder.serviceType,
         items: existingOrder.items,
-        subtotal: existingOrder.subtotal,
-        tax: existingOrder.tax,
-        discount: discount,
-        total: discountedTotal,
+        subtotal: finalSubtotal,
+        tax: finalTax,
+        discount: finalDiscount,
+        total: finalTotal,
         status: existingOrder.status,
         createdAt: existingOrder.createdAt,
         customerId: existingOrder.customerId,
-        paymentMethod: paymentMethod, // Set as customer_credit initially
+        paymentMethod: paymentMethod,
+        cashAmount: cashAmount,  // ✅ Add cash amount
+        bankAmount: bankAmount,  // ✅ Add bank amount
       );
       
       // Save the updated order
       await localOrderRepo.saveOrder(updatedOrder);
-      debugPrint('Updated order #$orderId with payment method: $paymentMethod and discount: $discount');
+      debugPrint('Updated order #$orderNumber with split payment: Cash=$cashAmount, Bank=$bankAmount');
+    } else {
+      debugPrint('Order #$orderNumber not found for split payment update');
     }
   } catch (e) {
-    debugPrint('Error updating order payment method for credit: $e');
+    debugPrint('Error updating order with split payment: $e');
   }
 }
 // Add this new method to update order with customer information
