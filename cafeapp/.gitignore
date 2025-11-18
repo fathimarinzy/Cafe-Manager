@@ -49,3 +49,8 @@ app.*.map.json
 .env.*
 android/gradle.properties  
 android/local.properties
+
+sims_cafe_installer.iss
+verify_paths.bat
+build_installer.bat
+installer_output/
