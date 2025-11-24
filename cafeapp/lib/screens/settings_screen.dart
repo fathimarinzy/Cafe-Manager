@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:cafeapp/main.dart';
 import 'package:cafeapp/providers/logo_provider.dart';
+import 'package:cafeapp/screens/device_management_screen.dart';
 import 'package:cafeapp/utils/database_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -1074,6 +1075,10 @@ Future<void> _checkLicenseStatus() async {
                   _buildProductSection(),
                   const Divider(),
                   
+                  _buildSectionHeader('Device Management'.tr()),
+                  _buildDeviceManagementSection(),
+                  const Divider(),
+
                   _buildSectionHeader('Tables'.tr()),
                   _buildTablesSection(),
                   const Divider(),
@@ -1642,7 +1647,24 @@ Future<void> _checkLicenseStatus() async {
         return language;
     }
   }
-
+ Widget _buildDeviceManagementSection() {
+  return Card(
+    child: ListTile(
+      leading: Icon(Icons.devices, color: _isDemoExpired ? Colors.grey : Colors.blue[700]),
+      title: Text('Device Sync'.tr()),
+      subtitle: Text('Manage devices and enable order syncing'.tr()),
+      trailing: _isDemoExpired ? null : const Icon(Icons.arrow_forward_ios, size: 16),
+      onTap: _isDemoExpired ? null : () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const DeviceManagementScreen(),
+          ),
+        );
+      },
+      enabled: !_isDemoExpired,
+    ),
+  );
+}
  Widget _buildLogoListTile() {
     return Consumer<LogoProvider>(
       builder: (context, logoProvider, child) {

@@ -2,6 +2,7 @@ import 'dart:io';
 // import 'package:cafeapp/models/order.dart';
 import 'package:cafeapp/providers/auth_provider.dart';
 import 'package:cafeapp/providers/logo_provider.dart';
+import 'package:cafeapp/screens/device_management_screen.dart';
 import 'package:cafeapp/screens/login_screen.dart';
 import 'package:cafeapp/screens/report_screen.dart';
 import 'package:flutter/material.dart';
@@ -476,6 +477,28 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ),
                   onPressed: _toggleUIMode,
                   tooltip: 'Toggle UI Style',
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFFF5F7FA),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                SizedBox(width: isTablet ? 12 : 8),
+                IconButton(
+                  icon: Icon(
+                    Icons.devices,
+                    color: const Color(0xFF667eea),
+                    size: isTablet ? 24 : 20,
+                  ),
+                  onPressed: () async {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const DeviceManagementScreen(),
+                      ),
+                    );
+                  },
+                  tooltip: 'Device Management'.tr(),
                   style: IconButton.styleFrom(
                     backgroundColor: const Color(0xFFF5F7FA),
                     shape: RoundedRectangleBorder(
@@ -1028,6 +1051,24 @@ class _DashboardScreenState extends State<DashboardScreen>
               onPressed: _toggleUIMode,
             ),
           ),
+          Container(
+            margin: const EdgeInsets.only(right: 12),
+            decoration: BoxDecoration(
+                color: Colors.white.withAlpha(51),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.devices, color: Colors.white, size: 24),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const DeviceManagementScreen(),
+                    ),
+                  );
+                },
+                tooltip: 'Device Management',
+              ),
+            ),
            Container(
             margin: const EdgeInsets.only(right: 12),
             decoration: BoxDecoration(
@@ -1288,6 +1329,17 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
           ),
           IconButton(
+            icon: const Icon(Icons.devices),
+            tooltip: 'Device Management'.tr(),
+            onPressed: () async {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const DeviceManagementScreen(),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Logout'.tr(),
             onPressed: () async {
@@ -1545,6 +1597,17 @@ Widget _buildCardStyleUI() {
           icon:  Icon(Icons.dashboard_customize, color: iconColor),
           onPressed: _toggleUIMode,
           tooltip: 'Toggle UI Style',
+        ),
+        IconButton(
+          icon: Icon(Icons.devices, color: iconColor),
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const DeviceManagementScreen(),
+              ),
+            );
+          },
+          tooltip: 'Device Management',
         ),
         IconButton(
             icon: Icon(Icons.logout, color: iconColor),

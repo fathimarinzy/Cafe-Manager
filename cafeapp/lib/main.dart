@@ -40,6 +40,8 @@ import 'services/firebase_service.dart';
 import 'services/demo_service.dart';
 import 'services/offline_sync_service.dart';
 import 'services/connectivity_monitor.dart';
+import 'services/device_sync_service.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -373,6 +375,18 @@ class _AppInitializerState extends State<AppInitializer> {
       }
     } catch (e) {
       debugPrint('⚠️ Error during app initialization: $e');
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final syncEnabled = prefs.getBool('device_sync_enabled') ?? false;
+      final companyId = prefs.getString('company_id') ?? '';
+      
+      if (syncEnabled && companyId.isNotEmpty) {
+        DeviceSyncService.startAutoSync(companyId);
+        debugPrint('✅ Device sync initialized');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error initializing device sync: $e');
     }
   }
 

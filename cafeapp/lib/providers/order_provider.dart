@@ -1,6 +1,7 @@
 // lib/providers/order_provider.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/menu_item.dart';
 import '../models/order.dart';
 import '../models/order_item.dart'; 
@@ -10,6 +11,7 @@ import '../providers/table_provider.dart';
 import '../services/bill_service.dart';
 import '../providers/settings_provider.dart';
 import '../repositories/local_order_repository.dart';
+import '../services/device_sync_service.dart';
 
 class OrderProvider with ChangeNotifier {
   // Map to store cart items for each service type or table
@@ -443,6 +445,7 @@ void addToCart(MenuItem item) {
         localOrder = await _localOrderRepo.saveOrder(localOrder);
         debugPrint('Created new order in local database: ID=${localOrder.id}');
       }
+      await _syncOrderIfEnabled(localOrder);
       
       final isContextMounted = context.mounted;
       
@@ -502,6 +505,21 @@ void addToCart(MenuItem item) {
       };
     }
   }
+
+  Future<void> _syncOrderIfEnabled(Order order) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final syncEnabled = prefs.getBool('device_sync_enabled') ?? false;
+    
+    if (syncEnabled) {
+      await DeviceSyncService.syncOrderToFirestore(order);
+      debugPrint('✅ Order synced automatically');
+    }
+  } catch (e) {
+    debugPrint('⚠️ Auto-sync failed: $e');
+    // Don't throw - sync failure shouldn't block order creation
+  }
+}
   
   // Get all orders from local repository
   Future<List<Order>> fetchOrders() async {
