@@ -373,7 +373,15 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () { Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        const RenewalScreen(renewalType: RenewalType.demo),
+                  ),
+                );
+              },
+
               style: TextButton.styleFrom(
                 backgroundColor: Colors.blue.shade700,
                 foregroundColor: Colors.white,
@@ -382,7 +390,20 @@ class _DashboardScreenState extends State<DashboardScreen>
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              child: Text('OK'.tr()),
+              child: Text('Upgrade'.tr()),
+            ),
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.grey.shade300,
+                foregroundColor: Colors.grey.shade700,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: Text('Later'.tr()),
             ),
           ],
         );

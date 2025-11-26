@@ -48,8 +48,8 @@ class FirebaseService {
         Firebase.initializeApp(
           options: DefaultFirebaseOptions.currentPlatform,
         ),
-        Future.delayed(const Duration(seconds: 10), () {
-          throw TimeoutException('Firebase initialization timed out', const Duration(seconds: 5));
+        Future.delayed(const Duration(seconds: 30), () {
+          throw TimeoutException('Firebase initialization timed out', const Duration(seconds: 30));
         }),
       ]);
       
@@ -1132,19 +1132,24 @@ class FirebaseService {
 
 
   // Perform the actual renewal process
-  static Future<Map<String, dynamic>> _performRenewal({
-    required List<String> renewalKeys,
-    required String deviceId,
-    required RenewalType renewalType,
-    required String renewalId,
+ static Future<Map<String, dynamic>> _performRenewal({
+  required List<String> renewalKeys,
+  required String deviceId,
+  required RenewalType renewalType,
+  required String renewalId,
   }) async {
+    // Determine renewal period based on type
+    // Demo renewal upgrades to full license (365 days)
+    final renewalPeriod = renewalType == RenewalType.demo ? 365 : 365; // Both are now 365 days
+    
     final renewalData = {
       'renewalKeys': renewalKeys,
       'deviceId': deviceId,
       'renewalType': renewalType.toString(),
       'renewedAt': FieldValue.serverTimestamp(),
-      'renewalPeriod': renewalType == RenewalType.demo ? 30 : 365, // days
+      'renewalPeriod': renewalPeriod,
       'status': 'completed',
+      'upgradedFromDemo': renewalType == RenewalType.demo, // Flag to track demo upgrades
     };
 
     // Store renewal history
@@ -1162,12 +1167,39 @@ class FirebaseService {
       'renewalHistoryId': docRef.id,
     });
 
+    // If this was a demo upgrade, update the demo registration status
+    if (renewalType == RenewalType.demo) {
+      try {
+        final demoQuery = await _firestore
+            .collection(_demoRegistrationsCollection)
+            .where('deviceId', isEqualTo: deviceId)
+            .limit(1)
+            .get();
+        
+        if (demoQuery.docs.isNotEmpty) {
+          await _firestore
+              .collection(_demoRegistrationsCollection)
+              .doc(demoQuery.docs.first.id)
+              .update({
+            'upgradedToLicense': true,
+            'upgradeDate': FieldValue.serverTimestamp(),
+            'isActive': false, // Deactivate demo
+          });
+        }
+      } catch (e) {
+        debugPrint('⚠️ Could not update demo registration: $e');
+        // Don't fail the renewal if this update fails
+      }
+    }
+
     debugPrint('✅ Renewal processed with ID: ${docRef.id}');
+    debugPrint('Renewal period: $renewalPeriod days');
 
     return {
       'success': true,
       'renewalId': docRef.id,
       'message': 'Renewal completed successfully',
+      'renewalPeriod': renewalPeriod,
     };
   }
 
@@ -1220,6 +1252,160 @@ class FirebaseService {
       };
     }
   }
+
+/// Upgrade demo registration to online registration (creates entry in online_registrations)
+static Future<Map<String, dynamic>> upgradeDemoToOnlineRegistration({
+  required String deviceId,
+  required String demoCompanyId,
+  required String businessName,
+  String? secondBusinessName,
+  required String businessAddress,
+  required String businessPhone,
+  required String businessEmail,
+}) async {
+  await ensureInitialized();
+  
+  if (!isFirebaseAvailable) {
+    return {
+      'success': false,
+      'message': 'No internet connection. Please connect to the internet and try again.',
+      'isOffline': true,
+    };
+  }
+
+  try {
+    debugPrint('🔵 Upgrading demo to online registration in Firebase...');
+    debugPrint('Device ID: $deviceId');
+    debugPrint('Demo Company ID: $demoCompanyId');
+    debugPrint('Business Name: $businessName');
+    
+    // First, get the demo registration details
+    Map<String, dynamic>? demoDetails;
+    String actualDemoCompanyId = demoCompanyId;
+    
+    if (demoCompanyId.isNotEmpty) {
+      try {
+        final demoDoc = await _firestore
+            .collection(_demoRegistrationsCollection)
+            .doc(demoCompanyId)
+            .get();
+        
+        if (demoDoc.exists) {
+          demoDetails = demoDoc.data();
+          debugPrint('✅ Found demo registration by company ID: ${demoDoc.id}');
+        }
+      } catch (e) {
+        debugPrint('⚠️ Could not find demo by company ID: $e');
+      }
+    }
+
+    // If we didn't find by company ID, try by device ID
+    if (demoDetails == null) {
+      debugPrint('🔍 Searching for demo registration by device ID...');
+      try {
+        final demoQuery = await _firestore
+            .collection(_demoRegistrationsCollection)
+            .where('deviceId', isEqualTo: deviceId)
+            .where('isActive', isEqualTo: true)
+            .limit(1)
+            .get();
+        
+        if (demoQuery.docs.isNotEmpty) {
+          demoDetails = demoQuery.docs.first.data();
+          actualDemoCompanyId = demoQuery.docs.first.id;
+          debugPrint('✅ Found demo registration by device ID: $actualDemoCompanyId');
+        }
+      } catch (e) {
+        debugPrint('⚠️ Could not find demo by device ID: $e');
+      }
+    }
+
+    // Use business info from parameters, falling back to demo details if needed
+    final finalBusinessName = businessName.isNotEmpty 
+        ? businessName 
+        : (demoDetails?['businessName'] ?? 'Upgraded Business');
+    final finalSecondBusinessName = secondBusinessName ?? demoDetails?['secondBusinessName'] ?? '';
+    final finalBusinessAddress = businessAddress.isNotEmpty
+        ? businessAddress
+        : (demoDetails?['businessAddress'] ?? '');
+    final finalBusinessPhone = businessPhone.isNotEmpty
+        ? businessPhone
+        : (demoDetails?['businessPhone'] ?? '');
+    final finalBusinessEmail = businessEmail.isNotEmpty
+        ? businessEmail
+        : (demoDetails?['businessEmail'] ?? '');
+
+    debugPrint('📋 Final business details:');
+    debugPrint('  Name: $finalBusinessName');
+    debugPrint('  Address: $finalBusinessAddress');
+    debugPrint('  Phone: $finalBusinessPhone');
+    debugPrint('  Email: $finalBusinessEmail');
+
+    // Generate registration keys for the online registration
+    final registrationKeys = generateRegistrationKeys();
+    debugPrint('🔑 Generated registration keys: ${registrationKeys.join(', ')}');
+
+    // Create the online registration entry
+    final onlineRegistrationData = {
+      'registrationKeys': registrationKeys,
+      'businessName': finalBusinessName,
+      'secondBusinessName': finalSecondBusinessName,
+      'businessAddress': finalBusinessAddress,
+      'businessPhone': finalBusinessPhone,
+      'businessEmail': finalBusinessEmail,
+      'deviceId': deviceId,
+      'registrationType': 'online',
+      'isActive': true,
+      'registeredAt': FieldValue.serverTimestamp(),
+      'lastLoginAt': FieldValue.serverTimestamp(),
+      'upgradedFromDemo': true, // Flag to indicate this was upgraded from demo
+      'originalDemoId': actualDemoCompanyId, // Reference to original demo registration
+    };
+
+    debugPrint('📤 Creating online registration document...');
+    final docRef = await _firestore
+        .collection(_companiesCollection)
+        .add(onlineRegistrationData);
+
+    debugPrint('✅ Online registration created with ID: ${docRef.id}');
+
+    // Mark the demo registration as upgraded and inactive
+    if (actualDemoCompanyId.isNotEmpty) {
+      try {
+        debugPrint('📝 Updating demo registration to mark as upgraded...');
+        await _firestore
+            .collection(_demoRegistrationsCollection)
+            .doc(actualDemoCompanyId)
+            .update({
+          'upgradedToLicense': true,
+          'upgradeDate': FieldValue.serverTimestamp(),
+          'isActive': false,
+          'upgradedToCompanyId': docRef.id, // Link to new online registration
+        });
+        debugPrint('✅ Demo registration marked as upgraded');
+      } catch (e) {
+        debugPrint('⚠️ Could not update demo registration: $e');
+        // Don't fail the upgrade if this fails
+      }
+    } else {
+      debugPrint('⚠️ No demo company ID to update');
+    }
+
+    return {
+      'success': true,
+      'companyId': docRef.id,
+      'message': 'Successfully upgraded demo to online registration',
+      'registrationKeys': registrationKeys,
+    };
+  } catch (e) {
+    debugPrint('❌ Error upgrading demo to online registration: $e');
+    debugPrint('Stack trace: ${StackTrace.current}');
+    return {
+      'success': false,
+      'message': 'Failed to upgrade demo registration: ${e.toString()}',
+    };
+  }
+}
   // NEW: Update online registration business information
   static Future<Map<String, dynamic>> updateOnlineRegistrationInfo({
     required String companyId,

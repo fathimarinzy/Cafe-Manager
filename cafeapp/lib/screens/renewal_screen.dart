@@ -209,7 +209,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
       if (result['success']) {
         // Update local services based on renewal type
         if (widget.renewalType == RenewalType.demo) {
-          await DemoService.renewDemo();
+          await DemoService.upgradeDemoToLicense();
         } else {
           await LicenseService.renewLicense();
         }

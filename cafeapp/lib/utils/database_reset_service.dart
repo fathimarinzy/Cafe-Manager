@@ -15,7 +15,8 @@ class DatabaseResetService {
     'cafe_menu.db',
     'cafe_orders.db',
     'cafe_persons.db',
-    'cafe_expenses.db'
+    'cafe_expenses.db',
+    'credit_transactions.db'
   ];
   
   // Force close all databases and delete database files

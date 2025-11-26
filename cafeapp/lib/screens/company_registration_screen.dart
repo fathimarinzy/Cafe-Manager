@@ -195,6 +195,16 @@ Future<void> _registerCompany() async {
     } else {
       debugPrint('✅ Using existing device ID: $deviceId');
     }
+    // Generate company ID for offline registration
+    String? companyId = prefs.getString('company_id');
+    if (companyId == null || companyId.isEmpty) {
+      companyId = 'offline_company_${DateTime.now().millisecondsSinceEpoch}';
+      await prefs.setString('company_id', companyId); // 🆕 STORE COMPANY ID
+      debugPrint('✅ Generated offline company ID: $companyId');
+    }else {
+      debugPrint('✅ Using existing company ID: $companyId');
+    }
+
     
     await prefs.setBool('company_registered', true);
     await prefs.setBool('device_registered', true);

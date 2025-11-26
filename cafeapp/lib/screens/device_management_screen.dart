@@ -40,6 +40,12 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
       _syncEnabled = prefs.getBool('device_sync_enabled') ?? false;
       _isMainDevice = prefs.getBool('is_main_device') ?? false;
 
+       // DEBUG: Print all SharedPreferences keys
+      final allKeys = prefs.getKeys();
+      debugPrint('All SharedPreferences keys: $allKeys');
+      debugPrint('Company ID: $_companyId');
+      debugPrint('Device ID: $_currentDeviceId');
+
       if (_companyId.isNotEmpty) {
         _devices = await DeviceSyncService.getCompanyDevices(_companyId);
         
@@ -99,6 +105,10 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
           ),
         ),
         actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel'.tr()),
+          ),
           ElevatedButton(
             onPressed: () async {
               if (formKey.currentState!.validate()) {
@@ -552,6 +562,7 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Text('Device Management'.tr()),
         backgroundColor: Colors.white,
@@ -559,12 +570,18 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _companyId.isEmpty
+          : _shouldShowInitialSetup()
               ? _buildInitialSetup()
               : _buildDeviceList(),
     );
   }
-
+  bool _shouldShowInitialSetup() {
+    // Show initial setup if device sync was never properly configured
+    // Even if company_id exists, if sync isn't enabled, show setup
+    return _companyId.isEmpty || 
+          !_syncEnabled || 
+          (_devices.isEmpty && !_isMainDevice);
+  }
   Widget _buildInitialSetup() {
     return Center(
       child: Padding(
@@ -914,9 +931,9 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.star, size: 20),
+                    // const Icon(Icons.star, size: 20),
                     const SizedBox(width: 8),
-                    Text('Set as Main'.tr()),
+                    // Text('Set as Main'.tr()),
                   ],
                 ),
               ),

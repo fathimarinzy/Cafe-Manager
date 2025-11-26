@@ -28,69 +28,83 @@ class AuthProvider with ChangeNotifier {
 
   // Check for existing login and auto-login on app start
   Future<bool> tryAutoLogin() async {
-    if (_isInitialized) return isAuth;
+  if (_isInitialized) return isAuth;
+  
+  _isLoading = true;
+  notifyListeners();
+  
+  try {
+    debugPrint('🔵 Attempting auto-login...');
     
-    _isLoading = true;
-    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
     
-    try {
-      debugPrint('🔵 Attempting auto-login...');
-      
-      final prefs = await SharedPreferences.getInstance();
-      
-      // Check if demo mode
-      final isDemoMode = await DemoService.isDemoMode();
-      if (isDemoMode) {
-        _registrationMode = 'demo';
-        debugPrint('📱 Registration mode: $_registrationMode (demo detected)');
-      } else {
-        // Get registration mode
-        _registrationMode = prefs.getString('device_mode') ?? 'offline';
-        debugPrint('📱 Registration mode: $_registrationMode');
-      }
-      
-      // Check if user is logged in
-      final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
-      
-      if (isLoggedIn) {
-        // Get stored username
-        _username = prefs.getString('username') ?? '';
-        debugPrint('👤 Found stored login for: $_username');
-        
-        if (_registrationMode == 'demo') {
-          // For demo mode, auto-login without Firebase check
-          _isAuthenticated = true;
-          _isOfflineMode = false;
-          debugPrint('✅ Auto-login successful (demo mode)');
-        } else if (_registrationMode == 'online') {
-          // For online mode, verify with Firebase (with timeout)
-          await _verifyOnlineRegistration(prefs);
-        } else {
-          // For offline mode, use local authentication
-          _isAuthenticated = true;
-          _isOfflineMode = false;
-          debugPrint('✅ Auto-login successful (offline mode)');
-        }
-        
-        _isInitialized = true;
-        _isLoading = false;
-        notifyListeners();
-        return _isAuthenticated;
-      } else {
-        debugPrint('ℹ️ No stored login found');
-      }
-    } catch (error) {
-      debugPrint('❌ Auto-login error: $error');
-      // Continue with offline mode if there's an error
-      _isOfflineMode = true;
+    // CRITICAL: Check device_mode first (more reliable than demo check)
+    final deviceMode = prefs.getString('device_mode');
+    final registrationMode = prefs.getString('registration_mode');
+    
+    debugPrint('Device mode: $deviceMode');
+    debugPrint('Registration mode: $registrationMode');
+    
+    // Check if demo mode (only if not already marked as online)
+    final isDemoMode = await DemoService.isDemoMode();
+    debugPrint('Demo mode check: $isDemoMode');
+    
+    // Determine actual registration mode
+    if (deviceMode == 'online' || registrationMode == 'online') {
+      // If explicitly marked as online, trust that
+      _registrationMode = 'online';
+      debugPrint('📱 Registration mode: online (from device_mode/registration_mode)');
+    } else if (isDemoMode) {
+      // Only use demo mode if not marked as online
+      _registrationMode = 'demo';
+      debugPrint('📱 Registration mode: demo');
+    } else {
+      // Default to offline
+      _registrationMode = deviceMode ?? registrationMode ?? 'offline';
+      debugPrint('📱 Registration mode: $_registrationMode');
     }
     
-    _isInitialized = true;
-    _isLoading = false;
-    notifyListeners();
-    return false;
+    // Check if user is logged in
+    final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+    
+    if (isLoggedIn) {
+      // Get stored username
+      _username = prefs.getString('username') ?? '';
+      debugPrint('👤 Found stored login for: $_username');
+      
+      if (_registrationMode == 'demo') {
+        // For demo mode, auto-login without Firebase check
+        _isAuthenticated = true;
+        _isOfflineMode = false;
+        debugPrint('✅ Auto-login successful (demo mode)');
+      } else if (_registrationMode == 'online') {
+        // For online mode, verify with Firebase (with timeout)
+        await _verifyOnlineRegistration(prefs);
+      } else {
+        // For offline mode, use local authentication
+        _isAuthenticated = true;
+        _isOfflineMode = false;
+        debugPrint('✅ Auto-login successful (offline mode)');
+      }
+      
+      _isInitialized = true;
+      _isLoading = false;
+      notifyListeners();
+      return _isAuthenticated;
+    } else {
+      debugPrint('ℹ️ No stored login found');
+    }
+  } catch (error) {
+    debugPrint('❌ Auto-login error: $error');
+    // Continue with offline mode if there's an error
+    _isOfflineMode = true;
   }
-
+  
+  _isInitialized = true;
+  _isLoading = false;
+  notifyListeners();
+  return false;
+}
   // Verify online registration with timeout
   Future<void> _verifyOnlineRegistration(SharedPreferences prefs) async {
     try {
@@ -151,72 +165,83 @@ class AuthProvider with ChangeNotifier {
 
   // Login with credentials
   Future<bool> login(String username, String password) async {
-    try {
-      _isLoading = true;
-      notifyListeners();
-      
-      debugPrint('🔵 Login attempt - Username: $username');
-      
-      // Check if demo mode first
-      final isDemoMode = await DemoService.isDemoMode();
-      if (isDemoMode) {
-        _registrationMode = 'demo';
-        debugPrint('📱 Registration mode: $_registrationMode (demo detected)');
-      }
-      
+  try {
+    _isLoading = true;
+    notifyListeners();
+    
+    debugPrint('🔵 Login attempt - Username: $username');
+    
+    final prefs = await SharedPreferences.getInstance();
+    
+    // CRITICAL: Check device_mode first
+    final deviceMode = prefs.getString('device_mode');
+    final registrationMode = prefs.getString('registration_mode');
+    
+    // Check if demo mode (only if not already marked as online)
+    final isDemoMode = await DemoService.isDemoMode();
+    
+    // Determine actual registration mode
+    if (deviceMode == 'online' || registrationMode == 'online') {
+      _registrationMode = 'online';
+      debugPrint('📱 Registration mode: online (from device_mode)');
+    } else if (isDemoMode) {
+      _registrationMode = 'demo';
+      debugPrint('📱 Registration mode: demo');
+    } else {
+      _registrationMode = deviceMode ?? registrationMode ?? 'offline';
       debugPrint('📱 Registration mode: $_registrationMode');
-      
-      // Trim whitespace from inputs
-      final trimmedUsername = username.trim();
-      final trimmedPassword = password.trim();
-      
-      bool isValid = false;
-      
-      if (_registrationMode == 'demo') {
-        // For demo mode, use demo credentials
-        isValid = (trimmedUsername == DemoService.demoUsername && trimmedPassword == DemoService.demoPassword);
-        _isOfflineMode = false;
-        debugPrint('🔵 Demo login validation: $isValid');
-      } else if (_registrationMode == 'online' && !_isOfflineMode) {
-        // For online mode, check if company is registered in Firebase
-        await _validateOnlineLogin(trimmedUsername, trimmedPassword);
-        isValid = _isAuthenticated;
-      } else {
-        // For offline mode, use default credentials
-        isValid = (trimmedUsername == defaultUsername && trimmedPassword == defaultPassword);
-        _isOfflineMode = _registrationMode == 'offline' || _isOfflineMode;
-      }
-      
-      debugPrint('📊 Login validation result: $isValid');
-      
-      if (isValid) {
-        _isAuthenticated = true;
-        _username = trimmedUsername;
-        
-        // Save login state to SharedPreferences
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('isLoggedIn', true);
-        await prefs.setString('username', trimmedUsername);
-        
-        _isLoading = false;
-        _isInitialized = true;
-        notifyListeners();
-        
-        debugPrint('✅ Login successful');
-        return true;
-      }
-      
-      _isLoading = false;
-      notifyListeners();
-      debugPrint('❌ Login failed - invalid credentials');
-      return false;
-    } catch (error) {
-      debugPrint('❌ Login error: $error');
-      _isLoading = false;
-      notifyListeners();
-      return false;
     }
+    
+    // Trim whitespace from inputs
+    final trimmedUsername = username.trim();
+    final trimmedPassword = password.trim();
+    
+    bool isValid = false;
+    
+    if (_registrationMode == 'demo') {
+      // For demo mode, use demo credentials
+      isValid = (trimmedUsername == DemoService.demoUsername && trimmedPassword == DemoService.demoPassword);
+      _isOfflineMode = false;
+      debugPrint('🔵 Demo login validation: $isValid');
+    } else if (_registrationMode == 'online' && !_isOfflineMode) {
+      // For online mode, check if company is registered in Firebase
+      await _validateOnlineLogin(trimmedUsername, trimmedPassword);
+      isValid = _isAuthenticated;
+    } else {
+      // For offline mode, use default credentials
+      isValid = (trimmedUsername == defaultUsername && trimmedPassword == defaultPassword);
+      _isOfflineMode = _registrationMode == 'offline' || _isOfflineMode;
+    }
+    
+    debugPrint('📊 Login validation result: $isValid');
+    
+    if (isValid) {
+      _isAuthenticated = true;
+      _username = trimmedUsername;
+      
+      // Save login state to SharedPreferences
+      await prefs.setBool('isLoggedIn', true);
+      await prefs.setString('username', trimmedUsername);
+      
+      _isLoading = false;
+      _isInitialized = true;
+      notifyListeners();
+      
+      debugPrint('✅ Login successful');
+      return true;
+    }
+    
+    _isLoading = false;
+    notifyListeners();
+    debugPrint('❌ Login failed - invalid credentials');
+    return false;
+  } catch (error) {
+    debugPrint('❌ Login error: $error');
+    _isLoading = false;
+    notifyListeners();
+    return false;
   }
+}
 
   // Validate online login with timeout
   Future<void> _validateOnlineLogin(String username, String password) async {

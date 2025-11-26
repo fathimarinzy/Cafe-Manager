@@ -127,42 +127,97 @@ class DemoService {
     return DateTime.parse(startDateStr);
   }
 
-  // Renew demo for another 30 days
-  static Future<Map<String, dynamic>> renewDemo() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final isDemoMode = prefs.getBool(_isDemoModeKey) ?? false;
-      
-      if (!isDemoMode) {
-        return {
-          'success': false,
-          'message': 'Device is not in demo mode',
-        };
-      }
-
-      // Set new demo start date to current time
-      final now = DateTime.now();
-      await prefs.setString(_demoStartDateKey, now.toIso8601String());
-      
-      // Ensure demo mode is still active
-      await prefs.setBool(_isDemoModeKey, true);
-
-      debugPrint('✅ Demo renewed for another 30 days');
-      
-      return {
-        'success': true,
-        'message': 'Demo renewed successfully',
-        'newStartDate': now.toIso8601String(),
-        'newExpiryDate': now.add(Duration(days: _demoDaysLimit)).toIso8601String(),
-      };
-    } catch (e) {
-      debugPrint('Error renewing demo: $e');
+/// Upgrade demo to full license (365 days) and create online registration
+static Future<Map<String, dynamic>> upgradeDemoToLicense() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final isDemoMode = prefs.getBool(_isDemoModeKey) ?? false;
+    
+    if (!isDemoMode) {
       return {
         'success': false,
-        'message': 'Failed to renew demo: $e',
+        'message': 'Device is not in demo mode',
       };
     }
+
+    final now = DateTime.now();
+    final deviceId = prefs.getString('device_id');
+    
+    if (deviceId == null) {
+      return {
+        'success': false,
+        'message': 'Device ID not found',
+      };
+    }
+
+    // Get business information from demo registration
+    final businessName = prefs.getString('business_name') ?? '';
+    final secondBusinessName = prefs.getString('second_business_name') ?? '';
+    final businessAddress = prefs.getString('business_address') ?? '';
+    final businessPhone = prefs.getString('business_phone') ?? '';
+    final businessEmail = prefs.getString('business_email') ?? '';
+
+    debugPrint('🔵 Upgrading demo to license...');
+    debugPrint('Business Name: $businessName');
+    debugPrint('Device ID: $deviceId');
+
+    // Get the demo company ID from SharedPreferences
+    final demoCompanyId = prefs.getString('demo_company_id') ?? '';
+
+    // Create online registration entry in Firebase
+    final upgradeResult = await FirebaseService.upgradeDemoToOnlineRegistration(
+      deviceId: deviceId,
+      demoCompanyId: demoCompanyId,
+      businessName: businessName,
+      secondBusinessName: secondBusinessName,
+      businessAddress: businessAddress,
+      businessPhone: businessPhone,
+      businessEmail: businessEmail,
+    );
+
+    if (!upgradeResult['success']) {
+      debugPrint('❌ Failed to create online registration: ${upgradeResult['message']}');
+      return upgradeResult;
+    }
+
+    // Update local settings
+    // Clear demo mode
+    await prefs.remove(_demoStartDateKey);
+    await prefs.setBool(_isDemoModeKey, false);
+    await prefs.remove('demo_company_id');
+    
+    // Set up as full license (365 days)
+    await prefs.setString('license_start_date', now.toIso8601String());
+    await prefs.setBool('company_registered', true);
+    await prefs.setBool('device_registered', true);
+    await prefs.setString('registration_mode', 'online'); // Changed from 'license' to 'online'
+    await prefs.setString('device_mode', 'online'); // CRITICAL: Update device mode
+    await prefs.setString('company_id', upgradeResult['companyId']); // Store new company ID
+    
+    debugPrint('✅ Demo upgraded to full license (365 days)');
+    debugPrint('New Company ID: ${upgradeResult['companyId']}');
+    
+    return {
+      'success': true,
+      'message': 'Upgraded to full license successfully',
+      'companyId': upgradeResult['companyId'],
+      'newStartDate': now.toIso8601String(),
+      'newExpiryDate': now.add(const Duration(days: 365)).toIso8601String(),
+      'licenseDays': 365,
+    };
+  } catch (e) {
+    debugPrint('❌ Error upgrading demo to license: $e');
+    return {
+      'success': false,
+      'message': 'Failed to upgrade demo: $e',
+    };
   }
+}
+/// Check if demo can be upgraded to license
+static Future<bool> canUpgradeDemoToLicense() async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getBool(_isDemoModeKey) ?? false;
+}
 
   // Check if demo can be renewed (is in demo mode)
   static Future<bool> canRenewDemo() async {

@@ -1419,44 +1419,44 @@ Future<void> _checkLicenseStatus() async {
                                   const SizedBox(width: 16),
                                   
                                   // Renew button (right side) - Show renewal option in last week
-                                  // if (_remainingDemoDays <= 7)
-                                  //   Container(
-                                  //     alignment: Alignment.topCenter,
-                                  //     child: ElevatedButton(
-                                  //       onPressed: () {
-                                  //         Navigator.of(context).push(
-                                  //           MaterialPageRoute(
-                                  //             builder: (context) => const RenewalScreen(renewalType: RenewalType.demo),
-                                  //           ),
-                                  //         );
-                                  //       },
-                                  //       style: ElevatedButton.styleFrom(
-                                  //         backgroundColor: _remainingDemoDays <= 5 ? Colors.blue[700] : Colors.blue[700],
-                                  //         foregroundColor: Colors.white,
-                                  //         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                  //         shape: RoundedRectangleBorder(
-                                  //           borderRadius: BorderRadius.circular(10),
-                                  //         ),
-                                  //         elevation: 2,
-                                  //         shadowColor: Colors.black.withAlpha(51),
-                                  //       ),
-                                  //       child: Column(
-                                  //         mainAxisSize: MainAxisSize.min,
-                                  //         children: [
-                                  //           const Icon(Icons.upgrade, size: 20),
-                                  //           const SizedBox(height: 4),
-                                  //           Text(
-                                  //             'Upgrade\nNow'.tr(),
-                                  //             textAlign: TextAlign.center,
-                                  //             style: const TextStyle(
-                                  //               fontSize: 12,
-                                  //               fontWeight: FontWeight.w600,
-                                  //             ),
-                                  //           ),
-                                  //         ],
-                                  //       ),
-                                  //     ),
-                                  //   ),
+                                  if (_remainingDemoDays <= 7)
+                                    Container(
+                                      alignment: Alignment.topCenter,
+                                      child: ElevatedButton(
+                                        onPressed: () {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (context) => const RenewalScreen(renewalType: RenewalType.demo),
+                                            ),
+                                          );
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: _remainingDemoDays <= 5 ? Colors.blue[700] : Colors.blue[700],
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                          elevation: 2,
+                                          shadowColor: Colors.black.withAlpha(51),
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.upgrade, size: 20),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Upgrade\nNow'.tr(),
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
                                   ],
                               ),
                             ],
@@ -1549,43 +1549,43 @@ Future<void> _checkLicenseStatus() async {
                                   const SizedBox(width: 16),
                                   
                                   // Renew button (right side)
-                                  // Container(
-                                  //   alignment: Alignment.topCenter,
-                                  //   child: ElevatedButton(
-                                  //     onPressed: () {
-                                  //       Navigator.of(context).push(
-                                  //         MaterialPageRoute(
-                                  //           builder: (context) => const RenewalScreen(renewalType: RenewalType.demo),
-                                  //         ),
-                                  //       );
-                                  //     },
-                                  //     style: ElevatedButton.styleFrom(
-                                  //       backgroundColor: Colors.blue[700],
-                                  //       foregroundColor: Colors.white,
-                                  //       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                  //       shape: RoundedRectangleBorder(
-                                  //         borderRadius: BorderRadius.circular(10),
-                                  //       ),
-                                  //       elevation: 2,
-                                  //       shadowColor: Colors.black.withAlpha(51),
-                                  //     ),
-                                  //     child: Column(
-                                  //       mainAxisSize: MainAxisSize.min,
-                                  //       children: [
-                                  //         const Icon(Icons.autorenew, size: 20),
-                                  //         const SizedBox(height: 4),
-                                  //         Text(
-                                  //           'Upgrade\nNow'.tr(),
-                                  //           textAlign: TextAlign.center,
-                                  //           style: const TextStyle(
-                                  //             fontSize: 12,
-                                  //             fontWeight: FontWeight.w600,
-                                  //           ),
-                                  //         ),
-                                  //       ],
-                                  //     ),
-                                  //   ),
-                                  // ),
+                                  Container(
+                                    alignment: Alignment.topCenter,
+                                    child: ElevatedButton(
+                                      onPressed: () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (context) => const RenewalScreen(renewalType: RenewalType.demo),
+                                          ),
+                                        );
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.blue[700],
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        elevation: 2,
+                                        shadowColor: Colors.black.withAlpha(51),
+                                      ),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.autorenew, size: 20),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Upgrade\nNow'.tr(),
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
                                 ],
                               ),
                             ],
