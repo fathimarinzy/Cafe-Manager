@@ -11,6 +11,7 @@ import 'firebase_service.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
+import '../services/menu_sync_service.dart';
 
 class DeviceSyncService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -106,7 +107,7 @@ class DeviceSyncService {
   }
 
   /// Link staff device using 6-digit code
-  static Future<Map<String, dynamic>> linkDeviceWithCode({
+   static Future<Map<String, dynamic>> linkDeviceWithCode({
     required String code,
     required String staffDeviceName,
   }) async {
@@ -211,6 +212,10 @@ class DeviceSyncService {
 
       // Copy business info from main device
       await _copyBusinessInfoFromMainDevice(linkCode.companyId);
+
+      // 🆕 INITIALIZE MENU SYNC - fetch all menu items from main device
+      debugPrint('🔄 Initializing menu sync for staff device...');
+      await MenuSyncService.initializeMenuSync(linkCode.companyId);
 
       debugPrint('✅ Device linked successfully to company: ${linkCode.companyId}');
 
@@ -370,6 +375,10 @@ class DeviceSyncService {
       await prefs.setBool('is_main_device', true);
       await prefs.setString('device_name', deviceName);
 
+      // 🆕 INITIALIZE MENU SYNC - sync all menu items to Firestore
+      debugPrint('🔄 Initializing menu sync for main device...');
+      await MenuSyncService.initializeMenuSync(companyId);
+
       debugPrint('✅ Main device registered');
 
       return {
@@ -383,6 +392,56 @@ class DeviceSyncService {
         'message': 'Failed to register main device: ${e.toString()}',
       };
     }
+  }
+    /// Start automatic background sync (UPDATED WITH MENU SYNC)
+  static void startAutoSync(String companyId) {
+    debugPrint('🔄 Starting auto-sync for company: $companyId');
+    
+    // Cancel any existing timers
+    _syncTimer?.cancel();
+    
+    // Sync pending orders every 5 minutes
+    _syncTimer = Timer.periodic(const Duration(minutes: 5), (timer) async {
+      debugPrint('⏰ Running scheduled sync...');
+      await syncPendingOrders();
+    });
+
+    // Start listening to orders from other devices
+    startListeningToOrders(companyId, (sync_models.SyncOrderModel syncOrder) async {
+      debugPrint('📦 Processing incoming order: ${syncOrder.id}');
+      await saveSyncedOrderLocally(syncOrder);
+    });
+
+    // 🆕 START MENU SYNC LISTENERS
+    MenuSyncService.startListeningToMenuItems(
+      companyId,
+      (syncItem) async {
+        debugPrint('📥 Received menu item: ${syncItem.name}');
+        await MenuSyncService.saveSyncedMenuItemLocally(syncItem);
+      },
+      (itemId) async {
+        debugPrint('🗑️ Received menu item deletion: $itemId');
+        await MenuSyncService.deleteSyncedMenuItemLocally(itemId);
+      },
+    );
+
+    MenuSyncService.startListeningToBusinessInfo(
+      companyId,
+      (businessInfo) async {
+        debugPrint('📥 Received business info update');
+        await MenuSyncService.saveSyncedBusinessInfoLocally(businessInfo);
+      },
+    );
+
+    MenuSyncService.startListeningToCategories(
+      companyId,
+      (categories) async {
+        debugPrint('📥 Received ${categories.length} categories');
+        await MenuSyncService.saveSyncedCategoriesLocally(categories);
+      },
+    );
+
+    debugPrint('✅ Auto-sync started successfully');
   }
 
   /// Get all devices for a company
@@ -611,27 +670,6 @@ class DeviceSyncService {
     }
   }
 
-  /// Start automatic background sync
-  static void startAutoSync(String companyId) {
-    debugPrint('🔄 Starting auto-sync for company: $companyId');
-    
-    // Cancel any existing timers
-    _syncTimer?.cancel();
-    
-    // Sync pending orders every 5 minutes
-    _syncTimer = Timer.periodic(const Duration(minutes: 5), (timer) async {
-      debugPrint('⏰ Running scheduled sync...');
-      await syncPendingOrders();
-    });
-
-    // Start listening to orders from other devices
-    startListeningToOrders(companyId, (sync_models.SyncOrderModel syncOrder) async {
-      debugPrint('📦 Processing incoming order: ${syncOrder.id}');
-      await saveSyncedOrderLocally(syncOrder);
-    });
-
-    debugPrint('✅ Auto-sync started successfully');
-  }
 
   /// Sync all pending orders that haven't been synced yet
   static Future<void> syncPendingOrders() async {
@@ -672,6 +710,8 @@ class DeviceSyncService {
     
     _orderSubscription?.cancel();
     _orderSubscription = null;
+    // 🆕 STOP MENU SYNC LISTENERS
+    MenuSyncService.stopAllListeners();
     
     debugPrint('🛑 Auto-sync stopped');
   }
@@ -782,12 +822,15 @@ class DeviceSyncService {
           syncedOrders = orders.docs.length;
         }
       }
+      // 🆕 GET MENU SYNC STATS
+      final menuStats = await MenuSyncService.getSyncStats();
       
       return {
         'syncEnabled': syncEnabled,
         'isMainDevice': isMain,
         'totalDevices': totalDevices,
         'syncedOrders': syncedOrders,
+        'syncedMenuItems': menuStats['totalSyncedItems'] ?? 0, 
         'firebaseAvailable': FirebaseService.isFirebaseAvailable,
       };
     } catch (e) {
@@ -797,6 +840,7 @@ class DeviceSyncService {
         'isMainDevice': false,
         'totalDevices': 0,
         'syncedOrders': 0,
+        'syncedMenuItems': 0,
         'firebaseAvailable': false,
       };
     }

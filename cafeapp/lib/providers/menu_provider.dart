@@ -1,7 +1,9 @@
-// lib/providers/menu_provider.dart
+// lib/providers/menu_provider.dart (UPDATED WITH SYNC)
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/menu_item.dart';
 import '../repositories/local_menu_repository.dart';
+import '../services/menu_sync_service.dart';
 
 class MenuProvider with ChangeNotifier {
   List<MenuItem> _items = [];
@@ -10,17 +12,15 @@ class MenuProvider with ChangeNotifier {
   
   bool _isLoading = false;
   bool get isLoading => _isLoading;
+  bool _syncEnabled = false;
 
   List<MenuItem> get items => [..._items];
   List<String> get categories => [..._categories];
   
-  // Make constructor private to enforce singleton pattern
   static final MenuProvider _instance = MenuProvider._internal();
   
-  // Factory constructor returns singleton instance
   factory MenuProvider() => _instance;
   
-  // Private constructor
   MenuProvider._internal() {
     _initialize();
   }
@@ -31,12 +31,22 @@ class MenuProvider with ChangeNotifier {
     
     debugPrint('Initializing MenuProvider');
     
-    // Initial data load
     try {
+      // Check if device sync is enabled
+      final prefs = await SharedPreferences.getInstance();
+      _syncEnabled = prefs.getBool('device_sync_enabled') ?? false;
+      final companyId = prefs.getString('company_id') ?? '';
+      
+      // Load initial data
       await Future.wait([
         fetchMenu(),
         fetchCategories()
       ]);
+      
+      // Start listening to menu changes if sync is enabled
+      if (_syncEnabled && companyId.isNotEmpty) {
+        _startMenuSync(companyId);
+      }
     } catch (e) {
       debugPrint('Error during initial data load: $e');
     }
@@ -44,15 +54,51 @@ class MenuProvider with ChangeNotifier {
     _isLoading = false;
     notifyListeners();
   }
+
+  /// Start menu sync listeners
+  void _startMenuSync(String companyId) {
+    debugPrint('🔄 Starting menu sync listeners');
+    
+    // Listen to menu item changes
+    MenuSyncService.startListeningToMenuItems(
+      companyId,
+      (syncItem) async {
+        // New or updated item received
+        await MenuSyncService.saveSyncedMenuItemLocally(syncItem);
+        await fetchMenu(forceRefresh: true);
+      },
+      (itemId) async {
+        // Item deleted
+        await MenuSyncService.deleteSyncedMenuItemLocally(itemId);
+        await fetchMenu(forceRefresh: true);
+      },
+    );
+    
+    // Listen to business info changes
+    MenuSyncService.startListeningToBusinessInfo(
+      companyId,
+      (businessInfo) async {
+        await MenuSyncService.saveSyncedBusinessInfoLocally(businessInfo);
+        debugPrint('✅ Business info updated from sync');
+      },
+    );
+    
+    // Listen to category changes
+    MenuSyncService.startListeningToCategories(
+      companyId,
+      (categories) async {
+        await MenuSyncService.saveSyncedCategoriesLocally(categories);
+        await fetchCategories(forceRefresh: true);
+      },
+    );
+  }
   
   Future<void> fetchMenu({bool forceRefresh = false}) async {
-    // Don't fetch if items already loaded and no force refresh
     if (items.isNotEmpty && !forceRefresh) {
       return;
     }
     
     try {
-      // Load from local database
       _items = await _localRepo.getMenuItems();
       debugPrint('Loaded ${_items.length} items from local database');
       
@@ -64,13 +110,11 @@ class MenuProvider with ChangeNotifier {
   }
 
   Future<void> fetchCategories({bool forceRefresh = false}) async {
-    // Don't fetch if categories already loaded and no force refresh
     if (categories.isNotEmpty && !forceRefresh) {
       return;
     }
     
     try {
-      // Load categories from local database
       _categories = await _localRepo.getCategories();
       debugPrint('Loaded ${_categories.length} categories from local database');
       
@@ -80,37 +124,31 @@ class MenuProvider with ChangeNotifier {
       rethrow;
     }
   }
-  
-  // Helper to check if two lists are equal
-  // bool _listsEqual<T>(List<T> list1, List<T> list2) {
-  //   if (list1.length != list2.length) return false;
-  //   for (int i = 0; i < list1.length; i++) {
-  //     if (list1[i] != list2[i]) return false;
-  //   }
-  //   return true;
-  // }
 
   List<MenuItem> getItemsByCategory(String category) {
     return _items.where((item) => item.category == category).toList();
   }
 
-  // Add a new menu item
+  /// Add a new menu item (with sync)
   Future<MenuItem> addMenuItem(MenuItem item) async {
     try {
-      // Save locally
       debugPrint('Adding menu item to local database');
       final newItem = await _localRepo.addMenuItem(item);
       debugPrint('Added menu item locally: ${newItem.id}');
       
-      // Update local state
       _items.add(newItem);
       
-      // Make sure the category exists
       if (!_categories.contains(newItem.category)) {
         _categories.add(newItem.category);
       }
       
       notifyListeners();
+      
+      // Sync to Firestore if enabled
+      if (_syncEnabled) {
+        MenuSyncService.syncMenuItemToFirestore(newItem);
+      }
+      
       return newItem;
     } catch (error) {
       debugPrint('Error adding menu item: $error');
@@ -118,25 +156,27 @@ class MenuProvider with ChangeNotifier {
     }
   }
 
-  // Update an existing menu item
+  /// Update an existing menu item (with sync)
   Future<void> updateMenuItem(MenuItem updatedItem) async {
     try {
-      // Save locally
       debugPrint('Updating menu item in local database');
       await _localRepo.updateMenuItem(updatedItem);
       debugPrint('Updated menu item locally: ${updatedItem.id}');
       
-      // Update local state
       final index = _items.indexWhere((item) => item.id == updatedItem.id);
       if (index >= 0) {
         _items[index] = updatedItem;
         
-        // Make sure the category exists
         if (!_categories.contains(updatedItem.category)) {
           _categories.add(updatedItem.category);
         }
         
         notifyListeners();
+      }
+      
+      // Sync to Firestore if enabled
+      if (_syncEnabled) {
+        MenuSyncService.syncMenuItemToFirestore(updatedItem);
       }
     } catch (error) {
       debugPrint('Error updating menu item: $error');
@@ -144,100 +184,95 @@ class MenuProvider with ChangeNotifier {
     }
   }
 
-  // Delete a menu item
+  /// Delete a menu item (with sync)
   Future<bool> deleteMenuItem(String id) async {
     try {
-      // Delete locally
       debugPrint('Deleting menu item from local database');
       await _localRepo.deleteMenuItem(id);
       debugPrint('Deleted menu item locally: $id');
       
-      // Update local state
       final previousLength = _items.length;
       _items.removeWhere((item) => item.id == id);
       
-      // Verify that an item was actually removed
       final wasRemoved = _items.length < previousLength;
       
-      // Only notify listeners if the state actually changed
       if (wasRemoved) {
         notifyListeners();
       } else {
-        // If no item was removed locally but operation succeeded,
-        // refresh the entire menu to ensure consistency
         await fetchMenu(forceRefresh: true);
+      }
+      
+      // Sync deletion to Firestore if enabled
+      if (_syncEnabled) {
+        MenuSyncService.syncMenuItemDeletionToFirestore(id);
       }
       
       return true;
     } catch (e) {
       debugPrint('Error deleting menu item: $e');
       
-      // Try to refresh data to ensure UI is in sync
       try {
         await fetchMenu(forceRefresh: true);
-      } catch (_) {
-        // Ignore errors during refresh attempt
-      }
+      } catch (_) {}
       
       return false;
     }
   }
 
-  // Add a new category
+  /// Add a new category (with sync)
   Future<bool> addCategory(String category) async {
     if (category.isEmpty) return false;
     
-    category = category.trim(); // Trim whitespace
+    category = category.trim();
     
     try {
-      // First check if category already exists to avoid duplicates
       if (_categories.contains(category)) {
-        return true; // Category already exists, consider it a success
+        return true;
       }
       
-      // Save locally
       debugPrint('Adding category to local database');
       await _localRepo.addCategory(category);
       debugPrint('Added category locally: $category');
 
-      // Update local state
       _categories.add(category);
       notifyListeners();
+      
+      // Sync categories to Firestore if enabled
+      if (_syncEnabled) {
+        MenuSyncService.syncCategoriesToFirestore(_categories);
+      }
+      
       return true;
     } catch (error) {
       debugPrint('Error adding category: $error');
       return false;
     }
   }
-  // Update a category name
+
+  /// Update a category name (with sync)
   Future<bool> updateCategory(String oldCategory, String newCategory) async {
     if (oldCategory.isEmpty || newCategory.isEmpty) return false;
     
     final trimmedNewCategory = newCategory.trim();
     final trimmedOldCategory = oldCategory.trim();
     
-    // Check if the category name is the same
     if (trimmedOldCategory == trimmedNewCategory) return true;
     
     try {
-      // Check if new category name already exists
       if (_categories.contains(trimmedNewCategory)) {
         debugPrint('Category "$trimmedNewCategory" already exists');
         return false;
       }
       
-      // Update in local database
       debugPrint('Updating category from "$trimmedOldCategory" to "$trimmedNewCategory"');
       await _localRepo.updateCategory(trimmedOldCategory, trimmedNewCategory);
       debugPrint('Category updated successfully');
       
-      // Update local state - update category list
       final index = _categories.indexOf(trimmedOldCategory);
       if (index >= 0) {
         _categories[index] = trimmedNewCategory;
       }
       
-      // Update all items with the old category
       for (var item in _items) {
         if (item.category == trimmedOldCategory) {
           final updatedItem = item.copyWith(category: trimmedNewCategory);
@@ -249,6 +284,18 @@ class MenuProvider with ChangeNotifier {
       }
       
       notifyListeners();
+      
+      // Sync categories to Firestore if enabled
+      if (_syncEnabled) {
+        MenuSyncService.syncCategoriesToFirestore(_categories);
+        
+        // Also sync all updated items
+        final updatedItems = _items.where((item) => item.category == trimmedNewCategory);
+        for (var item in updatedItems) {
+          MenuSyncService.syncMenuItemToFirestore(item);
+        }
+      }
+      
       return true;
     } catch (error) {
       debugPrint('Error updating category: $error');
@@ -256,21 +303,33 @@ class MenuProvider with ChangeNotifier {
     }
   }
 
-  // Delete a category (and all its items)
+  /// Delete a category (with sync)
   Future<bool> deleteCategory(String category) async {
     if (category.isEmpty) return false;
     
     try {
-      // Delete from local database
       debugPrint('Deleting category: $category');
       await _localRepo.deleteCategory(category);
       debugPrint('Category deleted successfully');
       
-      // Update local state
       _categories.remove(category);
+      
+      // Get items to delete for syncing
+      final itemsToDelete = _items.where((item) => item.category == category).toList();
       _items.removeWhere((item) => item.category == category);
       
       notifyListeners();
+      
+      // Sync deletion to Firestore if enabled
+      if (_syncEnabled) {
+        MenuSyncService.syncCategoriesToFirestore(_categories);
+        
+        // Sync item deletions
+        for (var item in itemsToDelete) {
+          MenuSyncService.syncMenuItemDeletionToFirestore(item.id);
+        }
+      }
+      
       return true;
     } catch (error) {
       debugPrint('Error deleting category: $error');
@@ -278,8 +337,35 @@ class MenuProvider with ChangeNotifier {
     }
   }
 
-  // Get item count for a category
   int getCategoryItemCount(String category) {
     return _items.where((item) => item.category == category).length;
   }
-}
+
+  /// Enable/disable sync
+  Future<void> setSyncEnabled(bool enabled) async {
+    _syncEnabled = enabled;
+    
+    if (enabled) {
+      final prefs = await SharedPreferences.getInstance();
+      final companyId = prefs.getString('company_id') ?? '';
+      
+      if (companyId.isNotEmpty) {
+        _startMenuSync(companyId);
+        
+        // If main device, sync all items immediately
+        final isMainDevice = prefs.getBool('is_main_device') ?? false;
+        if (isMainDevice) {
+          await MenuSyncService.syncAllMenuItemsToFirestore();
+        }
+      }
+    } else {
+      MenuSyncService.stopAllListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    MenuSyncService.stopAllListeners();
+    super.dispose();
+  }
+} 

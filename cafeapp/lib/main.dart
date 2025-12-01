@@ -384,6 +384,12 @@ class _AppInitializerState extends State<AppInitializer> {
       if (syncEnabled && companyId.isNotEmpty) {
         DeviceSyncService.startAutoSync(companyId);
         debugPrint('✅ Device sync initialized');
+        // 🆕 ALSO INITIALIZE MENU PROVIDER WITH SYNC
+        if (mounted) {
+        final menuProvider = Provider.of<MenuProvider>(context, listen: false);
+        await menuProvider.setSyncEnabled(true);
+        debugPrint('✅ Menu provider sync enabled');
+        }
       }
     } catch (e) {
       debugPrint('⚠️ Error initializing device sync: $e');
