@@ -28,6 +28,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
   OrderTimeFilter _selectedFilter = OrderTimeFilter.today;
   String _currentTime = '';
   Timer? _timer;
+  Timer? _refreshTimer;
   
   // Track if pending filter is active
   bool _isPendingFilterActive = false;
@@ -35,6 +36,13 @@ class _OrderListScreenState extends State<OrderListScreen> {
   @override
   void initState() {
     super.initState();
+    // Refresh every 30 seconds to catch synced orders
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (mounted) {
+        debugPrint('🔄 Auto-refreshing order history');
+        Provider.of<OrderHistoryProvider>(context, listen: false).loadOrders();
+      }
+    });
     _updateTime();
     
     // Start timer to update time every second
@@ -58,6 +66,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
   
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _searchController.dispose();
     _timer?.cancel();
     super.dispose();

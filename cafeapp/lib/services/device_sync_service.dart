@@ -1,4 +1,3 @@
-// lib/services/device_sync_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,14 +12,604 @@ import 'dart:io';
 import 'dart:math';
 import '../services/menu_sync_service.dart';
 
+// Helper extension for firstWhereOrNull
+extension IterableExtension<T> on Iterable<T> {
+  T? firstWhereOrNull(bool Function(T element) test) {
+    for (var element in this) {
+      if (test(element)) return element;
+    }
+    return null;
+  }
+}
+
 class DeviceSyncService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static const String _devicesCollection = 'devices';
   static const String _ordersCollection = 'synced_orders';
   static const String _linkCodesCollection = 'device_link_codes';
+  static const String _configCollection = 'config';
   
   static Timer? _syncTimer;
   static StreamSubscription? _orderSubscription;
+  static Timer? _mainOrderProcessingTimer;
+
+  // 🆕 Callback for UI refresh
+  static Function()? _onOrdersChangedCallback;
+
+  static void setOnOrdersChangedCallback(Function() callback) {
+    _onOrdersChangedCallback = callback;
+    debugPrint('✅ Order change callback registered');
+  }
+
+  static void _notifyOrdersChanged() {
+    if (_onOrdersChangedCallback != null) {
+      debugPrint('📢 Notifying UI of order changes');
+      _onOrdersChangedCallback!();
+    }
+  }
+
+  /// Sync a single order to Firestore (from staff device)
+  static Future<Map<String, dynamic>> syncOrderToFirestore(local_models.Order order) async {
+    try {
+      await FirebaseService.ensureInitialized();
+      
+      if (!FirebaseService.isFirebaseAvailable) {
+        debugPrint('⚠️ No internet connection, order will sync later');
+        return {
+          'success': false,
+          'message': 'No internet connection',
+          'willRetry': true,
+        };
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final deviceId = prefs.getString('device_id') ?? '';
+      final companyId = prefs.getString('company_id') ?? '';
+      final syncEnabled = prefs.getBool('device_sync_enabled') ?? false;
+      
+      if (!syncEnabled) {
+        debugPrint('ℹ️ Device sync is disabled');
+        return {
+          'success': false,
+          'message': 'Device sync is disabled',
+        };
+      }
+      
+      if (deviceId.isEmpty || companyId.isEmpty) {
+        return {
+          'success': false,
+          'message': 'Device or company not configured',
+        };
+      }
+
+      final syncOrder = sync_models.SyncOrderModel.fromOrder(order, deviceId, companyId);
+      
+      // Use composite document ID: company_staffDevice_staffOrderNum
+      final docId = '${companyId}_${deviceId}_${order.staffOrderNumber}';
+      
+      // Store order WITHOUT main_order_number (it will be assigned by main device)
+      await _firestore
+          .collection(_ordersCollection)
+          .doc(docId)
+          .set({
+        ...syncOrder.toJson(),
+        'syncedAt': FieldValue.serverTimestamp(),
+        'isSynced': true,
+        'mainOrderNumber': null, // Explicitly null until assigned
+        'mainNumberAssigned': false,
+      }, SetOptions(merge: true));
+
+      // Update local order sync status
+      final localRepo = LocalOrderRepository();
+      final updatedOrder = order.copyWith(
+        isSynced: true,
+        syncedAt: DateTime.now().toIso8601String(),
+      );
+      await localRepo.saveOrder(updatedOrder);
+
+      debugPrint('✅ Order synced to Firestore: $docId (Staff #${order.staffOrderNumber})');
+
+      return {
+        'success': true,
+        'message': 'Order synced successfully',
+        'orderId': docId,
+      };
+    } catch (e) {
+      debugPrint('❌ Error syncing order: $e');
+      return {
+        'success': false,
+        'message': 'Failed to sync order: ${e.toString()}',
+        'willRetry': true,
+      };
+    }
+  }
+
+  /// Fetch orders without main number and assign them (MAIN DEVICE ONLY)
+  static Future<Map<String, dynamic>> processUnassignedOrders() async {
+    try {
+      await FirebaseService.ensureInitialized();
+      
+      if (!FirebaseService.isFirebaseAvailable) {
+        return {
+          'success': false,
+          'message': 'No internet connection',
+          'isOffline': true,
+        };
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final isMainDevice = prefs.getBool('is_main_device') ?? false;
+      final companyId = prefs.getString('company_id') ?? '';
+      
+      if (!isMainDevice) {
+        debugPrint('⚠️ Only main device can assign main order numbers');
+        return {
+          'success': false,
+          'message': 'Only main device can assign order numbers',
+        };
+      }
+
+      if (companyId.isEmpty) {
+        return {
+          'success': false,
+          'message': 'Company ID not configured',
+        };
+      }
+
+      debugPrint('🔍 Fetching orders without main order numbers...');
+
+      // Query orders where mainNumberAssigned is false
+      final unassignedOrders = await _firestore
+          .collection(_ordersCollection)
+          .where('companyId', isEqualTo: companyId)
+          .where('mainNumberAssigned', isEqualTo: false)
+          .orderBy('createdAt', descending: false) // Process oldest first
+          .limit(50) // Process in batches
+          .get();
+
+      if (unassignedOrders.docs.isEmpty) {
+        debugPrint('ℹ️ No unassigned orders found');
+        return {
+          'success': true,
+          'message': 'No orders to process',
+          'processedCount': 0,
+        };
+      }
+
+      debugPrint('📦 Found ${unassignedOrders.docs.length} unassigned orders');
+
+      int processedCount = 0;
+      int failedCount = 0;
+      final localRepo = LocalOrderRepository();
+
+      for (var doc in unassignedOrders.docs) {
+        try {
+          final data = doc.data();
+          debugPrint('🔍 Processing order document: ${doc.id}');
+          
+          final syncOrder = sync_models.SyncOrderModel.fromJson(data);
+          debugPrint('📋 Parsed sync order: Staff#${syncOrder.staffOrderNumber}, ID=${syncOrder.id}');
+          
+          // Assign main order number using transaction
+          final mainOrderNumber = await _getNextMainOrderNumber(companyId);
+          
+          if (mainOrderNumber == null) {
+            debugPrint('❌ Failed to get next main order number');
+            failedCount++;
+            continue;
+          }
+
+          debugPrint('🔢 Assigned main order number: $mainOrderNumber');
+
+          // Update order in Firestore first
+          await doc.reference.update({
+            'mainOrderNumber': mainOrderNumber,
+            'mainNumberAssigned': true,
+            'mainNumberAssignedAt': FieldValue.serverTimestamp(),
+          });
+          debugPrint('✅ Firestore updated with main number');
+
+          // Search for existing order by staff device ID and staff order number
+          // Don't rely on the ID since it might not match local IDs
+          debugPrint('🔍 Searching for existing local order...');
+          
+          final allOrdersFuture = localRepo.getAllOrders();
+          final allOrders = await allOrdersFuture.timeout(
+            const Duration(seconds: 5),
+            onTimeout: () {
+              debugPrint('⏱️ Timeout getting all orders, returning empty list');
+              return <local_models.Order>[];
+            },
+          );
+          
+          debugPrint('📊 Found ${allOrders.length} total local orders');
+          
+          final existingOrder = allOrders.firstWhereOrNull(
+            (o) => o.staffDeviceId == syncOrder.staffDeviceId && 
+                   o.staffOrderNumber == syncOrder.staffOrderNumber,
+          );
+          
+          if (existingOrder != null) {
+            debugPrint('✏️ Found existing local order #${existingOrder.id}, updating...');
+            // Update the existing order with the main number
+            final updatedOrder = existingOrder.copyWith(
+              mainOrderNumber: mainOrderNumber,
+              mainNumberAssigned: true,
+            );
+            
+            await localRepo.saveOrder(updatedOrder).timeout(
+              const Duration(seconds: 5),
+              onTimeout: () {
+                debugPrint('⏱️ Timeout saving order update');
+                return updatedOrder;
+              },
+            );
+            
+            debugPrint('✅ Updated existing local order #${existingOrder.id} with main number $mainOrderNumber');
+            
+            // 🆕 Notify UI to refresh
+            _notifyOrdersChanged();
+          } else {
+            debugPrint('➕ No existing order found, creating new...');
+            // This is a new order from another device - save it with the main number
+            final localOrder = syncOrder.toOrder().copyWith(
+              mainOrderNumber: mainOrderNumber,
+              mainNumberAssigned: true,
+            );
+            
+            await localRepo.saveOrder(localOrder).timeout(
+              const Duration(seconds: 5),
+              onTimeout: () {
+                debugPrint('⏱️ Timeout saving new order');
+                return localOrder;
+              },
+            );
+            
+            debugPrint('✅ Saved new order from staff device with main number $mainOrderNumber');
+            
+            // 🆕 Notify UI to refresh
+            _notifyOrdersChanged();
+          }
+
+          debugPrint('✅ Assigned main order #$mainOrderNumber to staff order #${syncOrder.staffOrderNumber} from device ${syncOrder.staffDeviceId}');
+          processedCount++;
+
+        } catch (e, stackTrace) {
+          debugPrint('❌ Error processing order ${doc.id}: $e');
+          debugPrint('Stack trace: $stackTrace');
+          failedCount++;
+        }
+      }
+
+      debugPrint('🎯 Processed $processedCount orders, $failedCount failed');
+
+      return {
+        'success': true,
+        'message': 'Orders processed successfully',
+        'processedCount': processedCount,
+        'failedCount': failedCount,
+      };
+    } catch (e) {
+      debugPrint('❌ Error processing unassigned orders: $e');
+      return {
+        'success': false,
+        'message': 'Failed to process orders: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Get next main order number using Firestore transaction
+  static Future<int?> _getNextMainOrderNumber(String companyId) async {
+    try {
+      debugPrint('🔢 Getting next main order number for company: $companyId');
+      
+      final counterRef = _firestore
+          .collection(_configCollection)
+          .doc('${companyId}_main_order_counter');
+
+      // WORKAROUND: Use simple read-update instead of transaction on Windows
+      // Transactions can crash on Windows desktop
+      debugPrint('  → Reading counter document...');
+      
+      final snapshot = await counterRef.get().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          debugPrint('  ⏱️ Timeout reading counter document');
+          throw TimeoutException('Counter read timeout');
+        },
+      );
+
+      int currentCounter = 1;
+      if (snapshot.exists) {
+        currentCounter = (snapshot.data()?['counter'] as int?) ?? 1;
+        debugPrint('  → Current counter: $currentCounter');
+      } else {
+        debugPrint('  → Counter document does not exist, will create with counter: 1');
+      }
+
+      final nextCounter = currentCounter + 1;
+      debugPrint('  → Next counter will be: $nextCounter');
+
+      // Update the counter
+      await counterRef.set({
+        'companyId': companyId,
+        'counter': nextCounter,
+        'lastUpdated': FieldValue.serverTimestamp(),
+        if (!snapshot.exists) 'createdAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true)).timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          debugPrint('  ⏱️ Timeout updating counter document');
+          throw TimeoutException('Counter update timeout');
+        },
+      );
+      
+      debugPrint('✅ Successfully assigned order number: $currentCounter');
+      return currentCounter;
+    } on TimeoutException catch (e) {
+      debugPrint('⏱️ Timeout getting next main order number: $e');
+      return null;
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error getting next main order number: $e');
+      debugPrint('Stack trace: $stackTrace');
+      return null;
+    }
+  }
+
+  /// Start automatic sync and order processing
+  static void startAutoSync(String companyId) async {
+    debugPrint('🔄 Starting auto-sync for company: $companyId');
+    
+    _syncTimer?.cancel();
+    _mainOrderProcessingTimer?.cancel();
+    
+    final prefs = await SharedPreferences.getInstance();
+    final isMainDevice = prefs.getBool('is_main_device') ?? false;
+
+    // Sync pending orders every 2 minutes (all devices)
+    _syncTimer = Timer.periodic(const Duration(minutes: 2), (timer) async {
+      debugPrint('⏰ Running scheduled sync...');
+      await syncPendingOrders();
+    });
+
+    // Process unassigned orders every 30 seconds (main device only)
+    if (isMainDevice) {
+      _mainOrderProcessingTimer = Timer.periodic(const Duration(seconds: 30), (timer) async {
+        debugPrint('⏰ Processing unassigned orders...');
+        await processUnassignedOrders();
+      });
+      
+      // Process immediately on startup
+      Timer(const Duration(seconds: 5), () async {
+        await processUnassignedOrders();
+      });
+    }
+
+    // Listen to orders from other devices
+    startListeningToOrders(companyId, (sync_models.SyncOrderModel syncOrder) async {
+      debugPrint('📦 Processing incoming order: ${syncOrder.id}');
+      await saveSyncedOrderLocally(syncOrder);
+    });
+
+    // Start menu sync listeners
+    MenuSyncService.startListeningToMenuItems(
+      companyId,
+      (syncItem) async {
+        debugPrint('📥 Received menu item: ${syncItem.name}');
+        await MenuSyncService.saveSyncedMenuItemLocally(syncItem);
+      },
+      (itemId) async {
+        debugPrint('🗑️ Received menu item deletion: $itemId');
+        await MenuSyncService.deleteSyncedMenuItemLocally(itemId);
+      },
+    );
+
+    MenuSyncService.startListeningToBusinessInfo(
+      companyId,
+      (businessInfo) async {
+        debugPrint('📥 Received business info update');
+        await MenuSyncService.saveSyncedBusinessInfoLocally(businessInfo);
+      },
+    );
+
+    MenuSyncService.startListeningToCategories(
+      companyId,
+      (categories) async {
+        debugPrint('📥 Received ${categories.length} categories');
+        await MenuSyncService.saveSyncedCategoriesLocally(categories);
+      },
+    );
+
+    debugPrint('✅ Auto-sync started successfully');
+  }
+
+  /// Listen to orders from other devices in real-time
+  static void startListeningToOrders(String companyId, Function(sync_models.SyncOrderModel) onOrderReceived) async {
+    try {
+      await FirebaseService.ensureInitialized();
+      
+      if (!FirebaseService.isFirebaseAvailable) {
+        debugPrint('⚠️ Firebase not available, cannot listen to orders');
+        return;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final currentDeviceId = prefs.getString('device_id') ?? '';
+
+      _orderSubscription?.cancel();
+
+      debugPrint('🔔 Starting to listen for orders from company: $companyId');
+
+      _orderSubscription = _firestore
+          .collection(_ordersCollection)
+          .where('companyId', isEqualTo: companyId)
+          .snapshots()
+          .listen(
+        (snapshot) {
+          for (var change in snapshot.docChanges) {
+            if (change.type == DocumentChangeType.added || 
+                change.type == DocumentChangeType.modified) {
+              final data = change.doc.data();
+              if (data != null && data['staffDeviceId'] != currentDeviceId) {
+                try {
+                  final syncOrder = sync_models.SyncOrderModel.fromJson(data);
+                  debugPrint('📥 Received order from device: ${data['staffDeviceId']}');
+                  onOrderReceived(syncOrder);
+                } catch (e) {
+                  debugPrint('❌ Error parsing synced order: $e');
+                }
+              }
+            }
+          }
+        },
+        onError: (error) {
+          debugPrint('❌ Error in order listener: $error');
+        },
+      );
+
+      debugPrint('✅ Started listening to orders for company: $companyId');
+    } catch (e) {
+      debugPrint('❌ Error starting order listener: $e');
+    }
+  }
+
+  /// Save a synced order from another device to local database
+  static Future<void> saveSyncedOrderLocally(sync_models.SyncOrderModel syncOrder) async {
+    try {
+      final localRepo = LocalOrderRepository();
+      
+      // First try to find by local ID if it exists
+      local_models.Order? existingOrder;
+      if (syncOrder.id != null) {
+        existingOrder = await localRepo.getOrderById(syncOrder.id!);
+      }
+      
+      // If not found by ID, search by staff device ID and staff order number
+      if (existingOrder == null) {
+        final allOrders = await localRepo.getAllOrders();
+        existingOrder = allOrders.firstWhereOrNull(
+          (o) => o.staffDeviceId == syncOrder.staffDeviceId && 
+                 o.staffOrderNumber == syncOrder.staffOrderNumber,
+        );
+      }
+      
+      if (existingOrder != null) {
+        debugPrint('ℹ️ Order already exists locally (ID=${existingOrder.id}), updating...');
+        
+        // Check what needs to be updated
+        bool needsUpdate = false;
+        
+        // Update main number if assigned and different
+        if (syncOrder.mainNumberAssigned && 
+            existingOrder.mainOrderNumber != syncOrder.mainOrderNumber) {
+          needsUpdate = true;
+          debugPrint('  → Main number changed: ${existingOrder.mainOrderNumber} → ${syncOrder.mainOrderNumber}');
+        }
+        
+        // Update status if different
+        if (existingOrder.status != syncOrder.status) {
+          needsUpdate = true;
+          debugPrint('  → Status changed: ${existingOrder.status} → ${syncOrder.status}');
+        }
+        
+        // Update payment method if different
+        if (existingOrder.paymentMethod != syncOrder.paymentMethod) {
+          needsUpdate = true;
+          debugPrint('  → Payment method changed: ${existingOrder.paymentMethod} → ${syncOrder.paymentMethod}');
+        }
+        
+        if (needsUpdate) {
+          final updatedOrder = existingOrder.copyWith(
+            mainOrderNumber: syncOrder.mainNumberAssigned ? syncOrder.mainOrderNumber : existingOrder.mainOrderNumber,
+            mainNumberAssigned: syncOrder.mainNumberAssigned || existingOrder.mainNumberAssigned,
+            status: syncOrder.status,
+            paymentMethod: syncOrder.paymentMethod,
+            cashAmount: syncOrder.cashAmount,
+            bankAmount: syncOrder.bankAmount,
+            isSynced: true,
+          );
+          await localRepo.saveOrder(updatedOrder);
+          debugPrint('✅ Updated order: Staff#${syncOrder.staffOrderNumber}, Main#${updatedOrder.mainOrderNumber ?? "pending"}');
+          
+          // 🆕 Notify UI to refresh
+          _notifyOrdersChanged();
+        } else {
+          debugPrint('ℹ️ No updates needed for order Staff#${syncOrder.staffOrderNumber}');
+        }
+        return;
+      }
+      
+      // Order doesn't exist locally - create new
+      final order = syncOrder.toOrder();
+      await localRepo.saveOrder(order);
+      
+      debugPrint('✅ Synced NEW order saved locally: Staff#${order.staffOrderNumber}, Main#${order.mainOrderNumber ?? "pending"}');
+      
+      // 🆕 Notify UI to refresh
+      _notifyOrdersChanged();
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error saving synced order locally: $e');
+      debugPrint('Stack trace: $stackTrace');
+    }
+  }
+
+  /// Sync all pending orders that haven't been synced yet
+  static Future<void> syncPendingOrders() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final deviceSyncEnabled = prefs.getBool('device_sync_enabled') ?? false;
+      
+      if (!deviceSyncEnabled) {
+        debugPrint('ℹ️ Sync disabled, skipping pending orders sync');
+        return;
+      }
+
+      final localRepo = LocalOrderRepository();
+      final orders = await localRepo.getAllOrders();
+      
+      // Only sync orders that haven't been synced yet
+      final unsyncedOrders = orders.where((o) => !o.isSynced).toList();
+
+      if (unsyncedOrders.isEmpty) {
+        debugPrint('ℹ️ No unsynced orders to process');
+        return;
+      }
+
+      int syncedCount = 0;
+      int failedCount = 0;
+
+      for (var order in unsyncedOrders) {
+        final result = await syncOrderToFirestore(order);
+        if (result['success']) {
+          syncedCount++;
+        } else {
+          failedCount++;
+        }
+      }
+
+      debugPrint('✅ Sync completed: $syncedCount synced, $failedCount failed');
+    } catch (e) {
+      debugPrint('❌ Error syncing pending orders: $e');
+    }
+  }
+
+  /// Stop automatic sync and cleanup listeners
+  static void stopAutoSync() {
+    _syncTimer?.cancel();
+    _syncTimer = null;
+    
+    _mainOrderProcessingTimer?.cancel();
+    _mainOrderProcessingTimer = null;
+    
+    _orderSubscription?.cancel();
+    _orderSubscription = null;
+    
+    MenuSyncService.stopAllListeners();
+    
+    debugPrint('🛑 Auto-sync stopped');
+  }
+
+
 
   /// Generate a 6-digit linking code for staff devices
   static Future<Map<String, dynamic>> generateLinkCode() async {
@@ -393,56 +982,6 @@ class DeviceSyncService {
       };
     }
   }
-    /// Start automatic background sync (UPDATED WITH MENU SYNC)
-  static void startAutoSync(String companyId) {
-    debugPrint('🔄 Starting auto-sync for company: $companyId');
-    
-    // Cancel any existing timers
-    _syncTimer?.cancel();
-    
-    // Sync pending orders every 5 minutes
-    _syncTimer = Timer.periodic(const Duration(minutes: 5), (timer) async {
-      debugPrint('⏰ Running scheduled sync...');
-      await syncPendingOrders();
-    });
-
-    // Start listening to orders from other devices
-    startListeningToOrders(companyId, (sync_models.SyncOrderModel syncOrder) async {
-      debugPrint('📦 Processing incoming order: ${syncOrder.id}');
-      await saveSyncedOrderLocally(syncOrder);
-    });
-
-    // 🆕 START MENU SYNC LISTENERS
-    MenuSyncService.startListeningToMenuItems(
-      companyId,
-      (syncItem) async {
-        debugPrint('📥 Received menu item: ${syncItem.name}');
-        await MenuSyncService.saveSyncedMenuItemLocally(syncItem);
-      },
-      (itemId) async {
-        debugPrint('🗑️ Received menu item deletion: $itemId');
-        await MenuSyncService.deleteSyncedMenuItemLocally(itemId);
-      },
-    );
-
-    MenuSyncService.startListeningToBusinessInfo(
-      companyId,
-      (businessInfo) async {
-        debugPrint('📥 Received business info update');
-        await MenuSyncService.saveSyncedBusinessInfoLocally(businessInfo);
-      },
-    );
-
-    MenuSyncService.startListeningToCategories(
-      companyId,
-      (categories) async {
-        debugPrint('📥 Received ${categories.length} categories');
-        await MenuSyncService.saveSyncedCategoriesLocally(categories);
-      },
-    );
-
-    debugPrint('✅ Auto-sync started successfully');
-  }
 
   /// Get all devices for a company
   static Future<List<DeviceModel>> getCompanyDevices(String companyId) async {
@@ -530,190 +1069,6 @@ class DeviceSyncService {
         'message': 'Failed to set main device: ${e.toString()}',
       };
     }
-  }
-
-  /// Sync a single order to Firestore
-  static Future<Map<String, dynamic>> syncOrderToFirestore(local_models.Order order) async {
-    try {
-      await FirebaseService.ensureInitialized();
-      
-      if (!FirebaseService.isFirebaseAvailable) {
-        debugPrint('⚠️ No internet connection, order will sync later');
-        return {
-          'success': false,
-          'message': 'No internet connection',
-          'willRetry': true,
-        };
-      }
-
-      final prefs = await SharedPreferences.getInstance();
-      final deviceId = prefs.getString('device_id') ?? '';
-      final companyId = prefs.getString('company_id') ?? '';
-      final syncEnabled = prefs.getBool('device_sync_enabled') ?? false;
-      
-      if (!syncEnabled) {
-        debugPrint('ℹ️ Device sync is disabled');
-        return {
-          'success': false,
-          'message': 'Device sync is disabled',
-        };
-      }
-      
-      if (deviceId.isEmpty || companyId.isEmpty) {
-        return {
-          'success': false,
-          'message': 'Device or company not configured',
-        };
-      }
-
-      final syncOrder = sync_models.SyncOrderModel.fromOrder(order, deviceId, companyId);
-      
-      // Use order ID as document ID to avoid duplicates
-      final docId = '${companyId}_${deviceId}_${order.id}';
-      
-      await _firestore
-          .collection(_ordersCollection)
-          .doc(docId)
-          .set({
-        ...syncOrder.toJson(),
-        'syncedAt': FieldValue.serverTimestamp(),
-        'isSynced': true,
-      }, SetOptions(merge: true));
-
-      debugPrint('✅ Order synced to Firestore: $docId');
-
-      return {
-        'success': true,
-        'message': 'Order synced successfully',
-        'orderId': docId,
-      };
-    } catch (e) {
-      debugPrint('❌ Error syncing order: $e');
-      return {
-        'success': false,
-        'message': 'Failed to sync order: ${e.toString()}',
-        'willRetry': true,
-      };
-    }
-  }
-
-  /// Listen to orders from other devices in real-time
-  static void startListeningToOrders(String companyId, Function(sync_models.SyncOrderModel) onOrderReceived) async {
-    try {
-      await FirebaseService.ensureInitialized();
-      
-      if (!FirebaseService.isFirebaseAvailable) {
-        debugPrint('⚠️ Firebase not available, cannot listen to orders');
-        return;
-      }
-
-      final prefs = await SharedPreferences.getInstance();
-      final currentDeviceId = prefs.getString('device_id') ?? '';
-
-      _orderSubscription?.cancel();
-
-      debugPrint('🔔 Starting to listen for orders from company: $companyId');
-
-      _orderSubscription = _firestore
-          .collection(_ordersCollection)
-          .where('companyId', isEqualTo: companyId)
-          .snapshots()
-          .listen(
-        (snapshot) {
-          for (var change in snapshot.docChanges) {
-            if (change.type == DocumentChangeType.added || 
-                change.type == DocumentChangeType.modified) {
-              final data = change.doc.data();
-              if (data != null && data['deviceId'] != currentDeviceId) {
-                // This is an order from another device
-                try {
-                  final syncOrder = sync_models.SyncOrderModel.fromJson(data);
-                  debugPrint('📥 Received order from device: ${data['deviceId']}');
-                  onOrderReceived(syncOrder);
-                } catch (e) {
-                  debugPrint('❌ Error parsing synced order: $e');
-                }
-              }
-            }
-          }
-        },
-        onError: (error) {
-          debugPrint('❌ Error in order listener: $error');
-        },
-      );
-
-      debugPrint('✅ Started listening to orders for company: $companyId');
-    } catch (e) {
-      debugPrint('❌ Error starting order listener: $e');
-    }
-  }
-
-  /// Save a synced order from another device to local database
-  static Future<void> saveSyncedOrderLocally(sync_models.SyncOrderModel syncOrder) async {
-    try {
-      final localRepo = LocalOrderRepository();
-      
-      // Check if order already exists locally
-      final existingOrder = await localRepo.getOrderById(syncOrder.id ?? 0);
-      
-      if (existingOrder != null) {
-        debugPrint('ℹ️ Order already exists locally, skipping: ${syncOrder.id}');
-        return;
-      }
-      
-      final order = syncOrder.toOrder();
-      await localRepo.saveOrder(order);
-      
-      debugPrint('✅ Synced order saved locally: ${order.id}');
-    } catch (e) {
-      debugPrint('❌ Error saving synced order locally: $e');
-    }
-  }
-
-
-  /// Sync all pending orders that haven't been synced yet
-  static Future<void> syncPendingOrders() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final deviceSyncEnabled = prefs.getBool('device_sync_enabled') ?? false;
-      
-      if (!deviceSyncEnabled) {
-        debugPrint('ℹ️ Sync disabled, skipping pending orders sync');
-        return;
-      }
-
-      final localRepo = LocalOrderRepository();
-      final orders = await localRepo.getAllOrders();
-
-      int syncedCount = 0;
-      int failedCount = 0;
-
-      for (var order in orders) {
-        final result = await syncOrderToFirestore(order);
-        if (result['success']) {
-          syncedCount++;
-        } else {
-          failedCount++;
-        }
-      }
-
-      debugPrint('✅ Sync completed: $syncedCount synced, $failedCount failed');
-    } catch (e) {
-      debugPrint('❌ Error syncing pending orders: $e');
-    }
-  }
-
-  /// Stop automatic sync and cleanup listeners
-  static void stopAutoSync() {
-    _syncTimer?.cancel();
-    _syncTimer = null;
-    
-    _orderSubscription?.cancel();
-    _orderSubscription = null;
-    // 🆕 STOP MENU SYNC LISTENERS
-    MenuSyncService.stopAllListeners();
-    
-    debugPrint('🛑 Auto-sync stopped');
   }
 
   /// Remove a device from the company
@@ -809,7 +1164,6 @@ class DeviceSyncService {
       
       int totalDevices = 0;
       int syncedOrders = 0;
-      
       if (companyId.isNotEmpty) {
         final devices = await getCompanyDevices(companyId);
         totalDevices = devices.length;

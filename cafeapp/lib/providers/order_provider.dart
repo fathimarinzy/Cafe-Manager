@@ -340,7 +340,9 @@ void addToCart(MenuItem item) {
     try {
       // Get settings for VAT calculation
       final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-      
+      final prefs = await SharedPreferences.getInstance();
+      final deviceId = prefs.getString('device_id') ?? '';
+
       // Calculate totals based on VAT type
       final itemPricesSum = cartItems.fold(
         0.0, 
@@ -386,7 +388,6 @@ void addToCart(MenuItem item) {
         // Updating existing order
         final existingOrderId = _currentOrderId!;
         debugPrint('Updating existing order #$existingOrderId');
-        
         final orderItems = _serviceTypeCarts[_currentServiceType]!.map((item) => 
           OrderItem(
             id: int.tryParse(item.id) ?? 0,
@@ -400,6 +401,7 @@ void addToCart(MenuItem item) {
         
         localOrder = Order(
           id: existingOrderId,
+          staffDeviceId: deviceId, 
           serviceType: _currentServiceType,
           items: orderItems,
           subtotal: calculatedSubtotal,
@@ -413,7 +415,7 @@ void addToCart(MenuItem item) {
         );
         
         localOrder = await _localOrderRepo.saveOrder(localOrder);
-        debugPrint('Updated order in local database: ID=${localOrder.id}');
+        debugPrint('Updated order in local database: ID=${localOrder.id},Staff#=${localOrder.staffOrderNumber}');
       } else {
         // Create a new order
         debugPrint('Creating new order');
@@ -430,6 +432,7 @@ void addToCart(MenuItem item) {
         ).toList();
         
         localOrder = Order(
+          staffDeviceId: deviceId, 
           serviceType: _currentServiceType,
           items: orderItems,
           subtotal: calculatedSubtotal,
@@ -443,18 +446,21 @@ void addToCart(MenuItem item) {
         );
         
         localOrder = await _localOrderRepo.saveOrder(localOrder);
-        debugPrint('Created new order in local database: ID=${localOrder.id}');
+        debugPrint('Created new order in local database: ID=${localOrder.id},Staff#=${localOrder.staffOrderNumber}');
       }
       await _syncOrderIfEnabled(localOrder);
       
       final isContextMounted = context.mounted;
-      
-      final String orderNumberPadded = localOrder.id.toString().padLeft(4, '0');
+      final isMainDevice = prefs.getBool('is_main_device') ?? false;
+      // Use appropriate order number for display
+      final displayOrderNumber = localOrder.getDisplayOrderNumber(isMainDevice);
+
+      // final String orderNumberPadded = localOrder.id.toString().padLeft(4, '0');
       Map<String, dynamic> printResult = await BillService.printKitchenOrderReceipt(
         items: cartItems,
         serviceType: _currentServiceType,
         tableInfo: tableInfo,
-        orderNumber: orderNumberPadded,
+        orderNumber: displayOrderNumber,
         context: isContextMounted ? context : null,
       );
       
@@ -494,6 +500,8 @@ void addToCart(MenuItem item) {
         'success': true,
         'message': printResult['message'] ?? 'Order processed successfully',
         'order': localOrder,
+        'staffOrderNumber': localOrder.staffOrderNumber,
+        'mainOrderNumber': localOrder.mainOrderNumber,
         'billPrinted': printResult['printed'] ?? false,
         'billSaved': printResult['saved'] ?? false,
       };
@@ -513,7 +521,7 @@ void addToCart(MenuItem item) {
     
     if (syncEnabled) {
       await DeviceSyncService.syncOrderToFirestore(order);
-      debugPrint('✅ Order synced automatically');
+      debugPrint('✅ Order synced automatically - Staff #${order.staffOrderNumber}');
     }
   } catch (e) {
     debugPrint('⚠️ Auto-sync failed: $e');
@@ -603,6 +611,7 @@ void addToCart(MenuItem item) {
       final order = localOrders.firstWhere(
         (o) => o.id == orderId,
         orElse: () => Order(
+          staffDeviceId: '',
           serviceType: '',
           items: [],
           subtotal: 0,
@@ -677,6 +686,7 @@ void addToCart(MenuItem item) {
         
         // Create a new order with updated payment method
         final updatedOrder = Order(
+          staffDeviceId: order.staffDeviceId,
           id: order.id,
           serviceType: order.serviceType,
           items: order.items,

@@ -270,6 +270,7 @@ Future<void> _reprintMainReceipt() async {
     // Use the actual order if found, otherwise fall back to widget.order
     final orderToUse = actualOrder ?? Order(
       id: widget.order.id,
+      staffDeviceId: actualOrder?.staffDeviceId ?? '',
       serviceType: widget.order.serviceType,
       items: widget.order.items,
       subtotal: _calculateSubtotal(widget.order.items),
@@ -1491,6 +1492,7 @@ void _showSplitPaymentDialog() {
           
           savedOrder = Order(
             id: existingOrder.id,
+            staffDeviceId: existingOrder.staffDeviceId,
             serviceType: existingOrder.serviceType,
             items: existingOrder.items,
             subtotal: amounts['subtotal']!,
@@ -1536,6 +1538,7 @@ void _showSplitPaymentDialog() {
         ).toList();
         
         savedOrder = Order(
+          staffDeviceId: '',
           serviceType: widget.order.serviceType,
           items: orderItems,
           subtotal: amounts['subtotal']!,
@@ -1671,6 +1674,7 @@ void _showSplitPaymentDialog() {
         final order = orders[orderIndex];
         
         final updatedOrder = Order(
+          staffDeviceId: order.staffDeviceId,
           id: order.id,
           serviceType: order.serviceType,
           items: order.items,
@@ -1754,6 +1758,7 @@ void _showSplitPaymentDialog() {
 
           savedOrder = Order(
             id: existingOrder.id,
+            staffDeviceId: existingOrder.staffDeviceId,
             serviceType: existingOrder.serviceType,
             items: existingOrder.items,
             subtotal: amounts['subtotal']!,
@@ -1782,6 +1787,7 @@ void _showSplitPaymentDialog() {
         ).toList();
         
         savedOrder = Order(
+          staffDeviceId: '',
           serviceType: widget.order.serviceType,
           items: orderItems,
           subtotal: amounts['subtotal']!,
@@ -4081,6 +4087,7 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
         
         savedOrder = Order(
           id: existingOrder.id,
+          staffDeviceId: existingOrder.staffDeviceId,
           serviceType: existingOrder.serviceType,
           items: existingOrder.items,
           subtotal: amounts['subtotal']!,
@@ -4109,6 +4116,7 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       ).toList();
       
       savedOrder = Order(
+        staffDeviceId: '',
         serviceType: widget.order.serviceType,
         items: orderItems,
         subtotal: amounts['subtotal']!,
@@ -4218,6 +4226,7 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
 
         savedOrder = Order(
           id: existingOrder.id,
+          staffDeviceId: existingOrder.staffDeviceId,
           serviceType: existingOrder.serviceType,
           items: existingOrder.items,
           subtotal: widget.order.total - (widget.order.total * (widget.taxRate / 100)),
@@ -4246,6 +4255,7 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       ).toList();
       
       savedOrder = Order(
+        staffDeviceId: '',
         serviceType: widget.order.serviceType,
         items: orderItems,
         subtotal: widget.order.total - (widget.order.total * (widget.taxRate / 100)),
@@ -4501,6 +4511,7 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
           
           savedOrder = Order(
             id: existingOrder.id,
+            staffDeviceId: existingOrder.staffDeviceId,
             serviceType: existingOrder.serviceType,
             items: existingOrder.items,
             subtotal: widget.order.total - (widget.order.total * (widget.taxRate / 100)),
@@ -4532,6 +4543,7 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
         ).toList();
         
         savedOrder = Order(
+          staffDeviceId: '',
           serviceType: widget.order.serviceType,
           items: orderItems,
           subtotal: widget.order.total - (widget.order.total * (widget.taxRate / 100)),
@@ -4937,6 +4949,7 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
             final existingOrder = orders[orderIndex];
             savedOrder = Order(
               id: existingOrder.id,
+              staffDeviceId: existingOrder.staffDeviceId,
               serviceType: existingOrder.serviceType,
               items: existingOrder.items,
               subtotal: amounts['subtotal']!,  // ✅ Use calculated subtotal
@@ -5352,6 +5365,7 @@ Future<void> _updateOriginalOrderPaymentMethod(String orderNumber, String paymen
       // Create updated order with new payment method
       final updatedOrder = Order(
         id: existingOrder.id,
+        staffDeviceId: existingOrder.staffDeviceId,
         serviceType: existingOrder.serviceType,
         items: existingOrder.items,
         subtotal: finalSubtotal,
@@ -5414,6 +5428,7 @@ Future<void> _updateOriginalOrderPaymentMethodWithSplit(
       // Create updated order with split payment details
       final updatedOrder = Order(
         id: existingOrder.id,
+        staffDeviceId: existingOrder.staffDeviceId,
         serviceType: existingOrder.serviceType,
         items: existingOrder.items,
         subtotal: finalSubtotal,
@@ -5452,6 +5467,7 @@ Future<void> _updateOrderWithCustomer(Person customer) async {
       // Create updated order with customer ID
       final updatedOrder = Order(
         id: existingOrder.id,
+        staffDeviceId: existingOrder.staffDeviceId,
         serviceType: existingOrder.serviceType,
         items: existingOrder.items,
         subtotal: existingOrder.subtotal,

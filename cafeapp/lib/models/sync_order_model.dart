@@ -1,11 +1,13 @@
 // lib/models/sync_order_model.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'order.dart' as order_model;  // Use prefix to avoid conflict
+import 'order.dart' as order_model;
 import 'order_item.dart';
 
 class SyncOrderModel {
   final int? id;
-  final String deviceId;
+  final int? staffOrderNumber; // Staff device's local order number
+  final int? mainOrderNumber; // Main device's global order number (null until assigned)
+  final String staffDeviceId; // Device that created the order
   final String companyId;
   final String serviceType;
   final List<OrderItem> items;
@@ -21,10 +23,13 @@ class SyncOrderModel {
   final double? bankAmount;
   final bool isSynced;
   final String? syncedAt;
+  final bool mainNumberAssigned; // Whether main order number has been assigned
 
   SyncOrderModel({
     this.id,
-    required this.deviceId,
+    this.staffOrderNumber,
+    this.mainOrderNumber,
+    required this.staffDeviceId,
     required this.companyId,
     required this.serviceType,
     required this.items,
@@ -40,13 +45,16 @@ class SyncOrderModel {
     this.bankAmount,
     this.isSynced = false,
     this.syncedAt,
+    this.mainNumberAssigned = false,
   });
 
   // Convert to JSON for Firestore
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'deviceId': deviceId,
+      'staffOrderNumber': staffOrderNumber,
+      'mainOrderNumber': mainOrderNumber,
+      'staffDeviceId': staffDeviceId,
       'companyId': companyId,
       'serviceType': serviceType,
       'items': items.map((item) => {
@@ -69,6 +77,7 @@ class SyncOrderModel {
       'bankAmount': bankAmount,
       'isSynced': isSynced,
       'syncedAt': syncedAt,
+      'mainNumberAssigned': mainNumberAssigned,
     };
   }
 
@@ -84,7 +93,9 @@ class SyncOrderModel {
 
     return SyncOrderModel(
       id: json['id'] as int?,
-      deviceId: json['deviceId'] as String,
+      staffOrderNumber: json['staffOrderNumber'] as int?,
+      mainOrderNumber: json['mainOrderNumber'] as int?,
+      staffDeviceId: json['staffDeviceId'] as String,
       companyId: json['companyId'] as String,
       serviceType: json['serviceType'] as String,
       items: (json['items'] as List).map((item) => OrderItem(
@@ -110,15 +121,18 @@ class SyncOrderModel {
           ? (json['bankAmount'] as num).toDouble()
           : null,
       isSynced: json['isSynced'] as bool? ?? false,
-      syncedAt: timestampToString(json['syncedAt']), // FIXED: Handle Timestamp
+      syncedAt: timestampToString(json['syncedAt']),
+      mainNumberAssigned: json['mainNumberAssigned'] as bool? ?? false,
     );
   }
 
-  // Create from local Order model - Use prefix
+  // Create from local Order model
   factory SyncOrderModel.fromOrder(order_model.Order order, String deviceId, String companyId) {
     return SyncOrderModel(
       id: order.id,
-      deviceId: deviceId,
+      staffOrderNumber: order.staffOrderNumber,
+      mainOrderNumber: order.mainOrderNumber,
+      staffDeviceId: order.staffDeviceId.isNotEmpty ? order.staffDeviceId : deviceId,
       companyId: companyId,
       serviceType: order.serviceType,
       items: order.items,
@@ -132,13 +146,19 @@ class SyncOrderModel {
       paymentMethod: order.paymentMethod,
       cashAmount: order.cashAmount,
       bankAmount: order.bankAmount,
+      isSynced: order.isSynced,
+      syncedAt: order.syncedAt,
+      mainNumberAssigned: order.mainNumberAssigned,
     );
   }
 
-  // Convert to local Order model - Use prefix
+  // Convert to local Order model
   order_model.Order toOrder() {
     return order_model.Order(
       id: id,
+      staffOrderNumber: staffOrderNumber,
+      mainOrderNumber: mainOrderNumber,
+      staffDeviceId: staffDeviceId,
       serviceType: serviceType,
       items: items,
       subtotal: subtotal,
@@ -151,13 +171,18 @@ class SyncOrderModel {
       paymentMethod: paymentMethod,
       cashAmount: cashAmount,
       bankAmount: bankAmount,
+      isSynced: isSynced,
+      syncedAt: syncedAt,
+      mainNumberAssigned: mainNumberAssigned,
     );
   }
 
   // Copy with method for updates
   SyncOrderModel copyWith({
     int? id,
-    String? deviceId,
+    int? staffOrderNumber,
+    int? mainOrderNumber,
+    String? staffDeviceId,
     String? companyId,
     String? serviceType,
     List<OrderItem>? items,
@@ -173,10 +198,13 @@ class SyncOrderModel {
     double? bankAmount,
     bool? isSynced,
     String? syncedAt,
+    bool? mainNumberAssigned,
   }) {
     return SyncOrderModel(
       id: id ?? this.id,
-      deviceId: deviceId ?? this.deviceId,
+      staffOrderNumber: staffOrderNumber ?? this.staffOrderNumber,
+      mainOrderNumber: mainOrderNumber ?? this.mainOrderNumber,
+      staffDeviceId: staffDeviceId ?? this.staffDeviceId,
       companyId: companyId ?? this.companyId,
       serviceType: serviceType ?? this.serviceType,
       items: items ?? this.items,
@@ -192,13 +220,16 @@ class SyncOrderModel {
       bankAmount: bankAmount ?? this.bankAmount,
       isSynced: isSynced ?? this.isSynced,
       syncedAt: syncedAt ?? this.syncedAt,
+      mainNumberAssigned: mainNumberAssigned ?? this.mainNumberAssigned,
     );
   }
 
   @override
   String toString() {
-    return 'SyncOrderModel(id: $id, deviceId: $deviceId, companyId: $companyId, '
-           'serviceType: $serviceType, total: $total, status: $status, isSynced: $isSynced)';
+    return 'SyncOrderModel(id: $id, staffOrderNumber: $staffOrderNumber, mainOrderNumber: $mainOrderNumber, '
+           'staffDeviceId: $staffDeviceId, companyId: $companyId, '
+           'serviceType: $serviceType, total: $total, status: $status, '
+           'isSynced: $isSynced, mainNumberAssigned: $mainNumberAssigned)';
   }
 
   @override
@@ -207,7 +238,9 @@ class SyncOrderModel {
   
     return other is SyncOrderModel &&
       other.id == id &&
-      other.deviceId == deviceId &&
+      other.staffOrderNumber == staffOrderNumber &&
+      other.mainOrderNumber == mainOrderNumber &&
+      other.staffDeviceId == staffDeviceId &&
       other.companyId == companyId &&
       other.serviceType == serviceType &&
       other.status == status;
@@ -216,7 +249,9 @@ class SyncOrderModel {
   @override
   int get hashCode {
     return id.hashCode ^
-      deviceId.hashCode ^
+      staffOrderNumber.hashCode ^
+      mainOrderNumber.hashCode ^
+      staffDeviceId.hashCode ^
       companyId.hashCode ^
       serviceType.hashCode ^
       status.hashCode;

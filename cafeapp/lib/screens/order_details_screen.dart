@@ -205,6 +205,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       
       final localOrder = Order(
         id: _order!.id,
+        staffDeviceId: existingOrder?.staffDeviceId ?? '',
         serviceType: _order!.serviceType,
         items: orderItems,
         subtotal: calculatedSubtotal,

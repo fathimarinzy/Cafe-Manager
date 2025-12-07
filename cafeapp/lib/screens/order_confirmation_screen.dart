@@ -573,6 +573,7 @@ Future<void> _processOrder() async {
         // Create updated order with customer ID and correct tax calculation
         final updatedOrder = Order(
           id: processedOrder.id,
+          staffDeviceId: processedOrder.staffDeviceId,
           serviceType: processedOrder.serviceType,
           items: processedOrder.items,
           subtotal: subtotal,

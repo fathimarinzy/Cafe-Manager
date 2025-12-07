@@ -2147,6 +2147,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
             // Create a temporary Order object for TenderScreen
             final tempOrder = Order(
               id: orderId,
+              staffDeviceId: '',
               serviceType: widget.serviceType,
               items: orderItems,
               subtotal: subtotal,

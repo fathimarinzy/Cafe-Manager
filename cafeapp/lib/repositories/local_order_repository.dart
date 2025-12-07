@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/order.dart';
@@ -24,12 +25,15 @@ class LocalOrderRepository {
     
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: (db, version) async {
         // Create orders table with simplified fields
         await db.execute('''
           CREATE TABLE orders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            staff_order_number INTEGER,
+            main_order_number INTEGER,
+            staff_device_id TEXT NOT NULL,
             service_type TEXT NOT NULL,
             subtotal REAL NOT NULL,
             tax REAL NOT NULL,
@@ -40,7 +44,10 @@ class LocalOrderRepository {
             payment_method TEXT DEFAULT 'cash',
             customer_id TEXT,
             cash_amount REAL,
-            bank_amount REAL
+            bank_amount REAL,
+            is_synced INTEGER NOT NULL DEFAULT 0,
+            synced_at TEXT,
+            main_number_assigned INTEGER NOT NULL DEFAULT 0
           )
         ''');
         
@@ -61,62 +68,65 @@ class LocalOrderRepository {
 
         // Create indices for faster lookups
         await db.execute('CREATE INDEX idx_order_items_order_id ON order_items (order_id)');
+        await db.execute('CREATE INDEX idx_orders_staff_device ON orders (staff_device_id)');
+        await db.execute('CREATE INDEX idx_orders_main_number ON orders (main_order_number)');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         debugPrint('Upgrading orders database from version $oldVersion to $newVersion');
         
-        if (oldVersion < 2) {
-          // Add tax_exempt column to order_items table
+        if (oldVersion < 4) {
+          // Add new columns for dual numbering
           try {
-            await db.execute('''
-              ALTER TABLE order_items ADD COLUMN tax_exempt INTEGER NOT NULL DEFAULT 0
-            ''');
-            debugPrint('Added tax_exempt column to order_items table');
+            await db.execute('ALTER TABLE orders ADD COLUMN staff_order_number INTEGER');
+            await db.execute('ALTER TABLE orders ADD COLUMN main_order_number INTEGER');
+            await db.execute('ALTER TABLE orders ADD COLUMN staff_device_id TEXT DEFAULT ""');
+            await db.execute('ALTER TABLE orders ADD COLUMN is_synced INTEGER NOT NULL DEFAULT 0');
+            await db.execute('ALTER TABLE orders ADD COLUMN synced_at TEXT');
+            await db.execute('ALTER TABLE orders ADD COLUMN main_number_assigned INTEGER NOT NULL DEFAULT 0');
+            
+            // Create indexes
+            await db.execute('CREATE INDEX IF NOT EXISTS idx_orders_staff_device ON orders (staff_device_id)');
+            await db.execute('CREATE INDEX IF NOT EXISTS idx_orders_main_number ON orders (main_order_number)');
+            
+            debugPrint('Added dual numbering columns and indexes');
           } catch (e) {
-            debugPrint('Error adding tax_exempt column (may already exist): $e');
-          }
-        }
-         // ✅ NEW: Add cash_amount and bank_amount columns for split payments
-        if (oldVersion < 3) {
-          try {
-            await db.execute('''
-              ALTER TABLE orders ADD COLUMN cash_amount REAL
-            ''');
-            debugPrint('Added cash_amount column to orders table');
-          } catch (e) {
-            debugPrint('Error adding cash_amount column (may already exist): $e');
-          }
-          
-          try {
-            await db.execute('''
-              ALTER TABLE orders ADD COLUMN bank_amount REAL
-            ''');
-            debugPrint('Added bank_amount column to orders table');
-          } catch (e) {
-            debugPrint('Error adding bank_amount column (may already exist): $e');
+            debugPrint('Error adding dual numbering columns: $e');
           }
         }
       },
     );
   }
-
+   // Get the next staff order number for this device
+  Future<int> _getNextStaffOrderNumber() async {
+    final prefs = await SharedPreferences.getInstance();
+    final currentNumber = prefs.getInt('staff_order_counter') ?? 0;
+    final nextNumber = currentNumber + 1;
+    await prefs.setInt('staff_order_counter', nextNumber);
+    return nextNumber;
+  }
   // Save order to local database
   Future<Order> saveOrder(Order order) async {
     try {
       final db = await database;
+      final prefs = await SharedPreferences.getInstance();
+      final deviceId = prefs.getString('device_id') ?? '';
       
       // Determine if this is an update or new order
       final bool isUpdate = order.id != null;
       debugPrint(isUpdate ? 'Updating existing order #${order.id}' : 'Creating new order');
       
-       // FIXED: Always use current local time for new orders, preserve existing for updates
+      // FIXED: Always use current local time for new orders, preserve existing for updates
       String timestampToUse;
+      int? staffOrderNum = order.staffOrderNumber;
+
       if (isUpdate && order.createdAt != null) {
         // For updates, preserve the original timestamp
         timestampToUse = order.createdAt!;
       } else {
         // For new orders, use current local time in ISO format
         timestampToUse = DateTime.now().toIso8601String();
+        // Assign staff order number only for new orders
+        staffOrderNum ??= await _getNextStaffOrderNumber();
       }
       
       int orderId;
@@ -126,7 +136,7 @@ class LocalOrderRepository {
         // Check if the order exists and get its original creation timestamp
         final existingOrder = await db.query(
           'orders',
-          columns: ['id', 'created_at'],
+          columns: ['id', 'created_at','staff_order_number'],
           where: 'id = ?',
           whereArgs: [order.id],
         );
@@ -137,17 +147,22 @@ class LocalOrderRepository {
           
           // Update existing order WITHOUT changing the created_at field
           final orderMap = {
+            'staff_device_id': order.staffDeviceId.isNotEmpty ? order.staffDeviceId : deviceId,
             'service_type': order.serviceType,
             'subtotal': order.subtotal,
             'tax': order.tax,
             'discount': order.discount,
             'total': order.total,
             'status': order.status,
-            // Do NOT update created_at field to preserve original timestamp
             'payment_method': order.paymentMethod ?? 'cash',
             'customer_id': order.customerId,
             'cash_amount': order.cashAmount,
             'bank_amount': order.bankAmount,
+            'staff_order_number': existingOrder.first['staff_order_number'] as int?,
+            'main_order_number': order.mainOrderNumber,
+            'is_synced': order.isSynced ? 1 : 0,
+            'synced_at': order.syncedAt,
+            'main_number_assigned': order.mainNumberAssigned ? 1 : 0,
           };
           
           await db.update(
@@ -165,13 +180,17 @@ class LocalOrderRepository {
           );
           
           orderId = order.id!;
-           // Use the original timestamp for updates
+          staffOrderNum = existingOrder.first['staff_order_number'] as int?;
+          // Use the original timestamp for updates
           timestampToUse = existingOrder.first['created_at'] as String;
-          debugPrint('Updated existing order in local database: ID=$orderId, preserved timestamp: $timestampToUse');
+          debugPrint('Updated existing order: ID=$orderId, StaffNum=$staffOrderNum');
         } else {
          
           final orderMap = {
             'id': order.id,
+            'staff_order_number': staffOrderNum,
+            'main_order_number': order.mainOrderNumber,
+            'staff_device_id': order.staffDeviceId.isNotEmpty ? order.staffDeviceId : deviceId,
             'service_type': order.serviceType,
             'subtotal': order.subtotal,
             'tax': order.tax,
@@ -182,15 +201,21 @@ class LocalOrderRepository {
             'payment_method': order.paymentMethod ?? 'cash',
             'customer_id': order.customerId,
             'cash_amount': order.cashAmount,
-            'bank_amount': order.bankAmount
+            'bank_amount': order.bankAmount,
+            'is_synced': order.isSynced ? 1 : 0,
+            'synced_at': order.syncedAt,
+            'main_number_assigned': order.mainNumberAssigned ? 1 : 0,
           };
           
           orderId = await db.insert('orders', orderMap);
-          debugPrint('Inserted order with specified ID: $orderId, timestamp: $timestampToUse');
+          debugPrint('Inserted order with specified ID: $orderId, timestamp: $timestampToUse, StaffNum: $staffOrderNum');
         }
       } else {
         // Insert new order
         final orderMap = {
+         'staff_order_number': staffOrderNum,
+          'main_order_number': order.mainOrderNumber,
+          'staff_device_id': order.staffDeviceId.isNotEmpty ? order.staffDeviceId : deviceId,
           'service_type': order.serviceType,
           'subtotal': order.subtotal,
           'tax': order.tax,
@@ -201,11 +226,14 @@ class LocalOrderRepository {
           'payment_method': order.paymentMethod ?? 'cash',
           'customer_id': order.customerId,
           'cash_amount': order.cashAmount,
-          'bank_amount': order.bankAmount
+          'bank_amount': order.bankAmount,
+          'is_synced': order.isSynced ? 1 : 0,
+          'synced_at': order.syncedAt,
+          'main_number_assigned': order.mainNumberAssigned ? 1 : 0,
         };
         
         orderId = await db.insert('orders', orderMap);
-        debugPrint('Inserted new order: ID=$orderId, timestamp: $timestampToUse');
+        debugPrint('Inserted new order: ID=$orderId, timestamp: $timestampToUse, StaffNum: $staffOrderNum');
       }
       
       // Now insert the order items
@@ -224,6 +252,9 @@ class LocalOrderRepository {
       // Return the order with the updated ID and preserved timestamp
       return Order(
         id: orderId,
+        staffOrderNumber: staffOrderNum,
+        mainOrderNumber: order.mainOrderNumber,
+        staffDeviceId: order.staffDeviceId.isNotEmpty ? order.staffDeviceId : deviceId,
         serviceType: order.serviceType,
         items: order.items,
         subtotal: order.subtotal,
@@ -231,11 +262,14 @@ class LocalOrderRepository {
         discount: order.discount,
         total: order.total,
         status: order.status,
-        createdAt: timestampToUse, // Use the preserved or new timestamp
+        createdAt: timestampToUse,
         customerId: order.customerId,
         paymentMethod: order.paymentMethod,
         cashAmount: order.cashAmount,
         bankAmount: order.bankAmount,
+        isSynced: order.isSynced,
+        syncedAt: order.syncedAt,
+        mainNumberAssigned: order.mainNumberAssigned,
       );
     } catch (e) {
       debugPrint('Error saving order to local database: $e');
@@ -297,6 +331,9 @@ class LocalOrderRepository {
         // Add to result list
         result.add(Order(
           id: orderId,
+          staffOrderNumber: orderMap['staff_order_number'] as int?,
+          mainOrderNumber: orderMap['main_order_number'] as int?,
+          staffDeviceId: orderMap['staff_device_id'] as String? ?? '',
           serviceType: serviceType,
           items: orderItems,
           subtotal: (orderMap['subtotal'] as num? ?? 0).toDouble(),
@@ -309,6 +346,9 @@ class LocalOrderRepository {
           paymentMethod: orderMap['payment_method'] as String? ?? 'cash',
           cashAmount: cashAmount,
           bankAmount: bankAmount,
+          isSynced: (orderMap['is_synced'] as int?) == 1,
+          syncedAt: orderMap['synced_at'] as String?,
+          mainNumberAssigned: (orderMap['main_number_assigned'] as int?) == 1,
         ));
         
         // Log the order for debugging
@@ -361,6 +401,9 @@ class LocalOrderRepository {
           : null;
       return Order(
         id: orderMap['id'] as int,
+        staffOrderNumber: orderMap['staff_order_number'] as int?,
+        mainOrderNumber: orderMap['main_order_number'] as int?,
+        staffDeviceId: orderMap['staff_device_id'] as String? ?? '',
         serviceType: orderMap['service_type'] as String,
         items: orderItems,
         subtotal: (orderMap['subtotal'] as num).toDouble(),
@@ -373,6 +416,9 @@ class LocalOrderRepository {
         paymentMethod: orderMap['payment_method'] as String?,
         cashAmount: cashAmount,
         bankAmount: bankAmount,
+        isSynced: (orderMap['is_synced'] as int?) == 1,
+        syncedAt: orderMap['synced_at'] as String?,
+        mainNumberAssigned: (orderMap['main_number_assigned'] as int?) == 1,
       );
     } catch (e) {
       debugPrint('Error getting order by ID: $e');

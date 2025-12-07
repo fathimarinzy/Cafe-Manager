@@ -285,7 +285,7 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Text('This device will now sync orders with all devices.'.tr()),
+                  Text('This device will now sync with all devices.'.tr()),
                 ],
               ),
               actions: [
@@ -484,7 +484,7 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
       builder: (ctx) => AlertDialog(
         title: Text('Remove Device'.tr()),
         content: Text(
-          'Remove "${device.deviceName}" from syncing? This device will no longer receive orders.'.tr(),
+          'Remove "${device.deviceName}" from syncing? This device will no longer receive anything.'.tr(),
         ),
         actions: [
           TextButton(
@@ -654,7 +654,7 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
             onChanged: _toggleSync,
             title: Text('Enable Device Sync'.tr()),
             subtitle: Text(
-              'Automatically sync orders across all devices'.tr(),
+              'Automatically sync across all devices'.tr(),
             ),
             secondary: Icon(
               Icons.sync,

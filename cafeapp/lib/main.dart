@@ -382,6 +382,14 @@ class _AppInitializerState extends State<AppInitializer> {
       final companyId = prefs.getString('company_id') ?? '';
       
       if (syncEnabled && companyId.isNotEmpty) {
+        // 🆕 SET UP ORDER CHANGE CALLBACK
+        if (mounted) {
+          final orderHistoryProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
+          DeviceSyncService.setOnOrdersChangedCallback(() {
+            debugPrint('🔄 Refreshing order history due to sync update');
+            orderHistoryProvider.loadOrders();
+          });
+        }
         DeviceSyncService.startAutoSync(companyId);
         debugPrint('✅ Device sync initialized');
         // 🆕 ALSO INITIALIZE MENU PROVIDER WITH SYNC
