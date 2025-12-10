@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/order_history.dart';
 import '../providers/order_history_provider.dart';
 import '../models/order_item.dart';
@@ -15,6 +16,7 @@ import '../utils/app_localization.dart';
 import '../utils/service_type_utils.dart';
 import '../repositories/local_person_repository.dart';
 import '../models/person.dart';
+import '../services/device_sync_service.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
   final int orderId;
@@ -204,24 +206,52 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     
       
       final localOrder = Order(
-        id: _order!.id,
-        staffDeviceId: existingOrder?.staffDeviceId ?? '',
-        serviceType: _order!.serviceType,
-        items: orderItems,
-        subtotal: calculatedSubtotal,
-        tax: calculatedTax,
-        discount: _discountAmount,
-        total: calculatedTotal,
-        status: _order!.status,
-        createdAt: _order!.createdAt.toIso8601String(),
-        customerId: existingOrder?.customerId, // ✅ Preserve customer ID
-        paymentMethod: existingOrder?.paymentMethod, // ✅ Preserve payment method
-        cashAmount: existingOrder?.cashAmount, // ✅ Preserve cash amount
-        bankAmount: existingOrder?.bankAmount, // ✅ Preserve bank amount
-      );
+      id: _order!.id,
+      staffDeviceId: existingOrder?.staffDeviceId ?? '',
+      serviceType: _order!.serviceType,
+      items: orderItems,
+      subtotal: calculatedSubtotal,
+      tax: calculatedTax,
+      discount: _discountAmount,
+      total: calculatedTotal,
+      status: _order!.status,
+      createdAt: _order!.createdAt.toIso8601String(),
+      customerId: existingOrder?.customerId,
+      paymentMethod: existingOrder?.paymentMethod,
+      cashAmount: existingOrder?.cashAmount,
+      bankAmount: existingOrder?.bankAmount,
+      staffOrderNumber: existingOrder?.staffOrderNumber, // Preserve staff order number
+      mainOrderNumber: existingOrder?.mainOrderNumber, // Preserve main order number
+      mainNumberAssigned: existingOrder?.mainNumberAssigned ?? false,
+    );
       
-      final updatedOrder = await localOrderRepo.saveOrder(localOrder);
-      
+    final updatedOrder = await localOrderRepo.saveOrder(localOrder);
+
+      // 🆕 SYNC THE EDITED ORDER TO FIRESTORE
+    final prefs = await SharedPreferences.getInstance();
+    final syncEnabled = prefs.getBool('device_sync_enabled') ?? false;
+    final isMainDevice = prefs.getBool('is_main_device') ?? false;
+
+    
+     if (syncEnabled) {
+      try {
+        debugPrint('🔄 Syncing order edit from ${isMainDevice ? "MAIN" : "STAFF"} device...');
+        final syncResult = await DeviceSyncService.syncOrderUpdate(updatedOrder);
+        if (syncResult['success']) {
+          debugPrint('✅ Order edit synced to Firebase');
+        } else {
+          debugPrint('⚠️ Order edit sync failed: ${syncResult['message']}');
+        }
+      } catch (e) {
+        debugPrint('⚠️ Error syncing order edit: $e');
+        // Don't fail the save if sync fails
+      }
+    }
+    debugPrint('Order updated locally: ${updatedOrder.id}');
+    debugPrint('Staff Device ID: ${updatedOrder.staffDeviceId}');
+    debugPrint('Staff Order #: ${updatedOrder.staffOrderNumber}');
+    debugPrint('Main Order #: ${updatedOrder.mainOrderNumber}');
+
       debugPrint('Order updated locally with VAT type: ${updatedOrder.id}');
       debugPrint('Taxable: $taxableTotal, Tax-Exempt: $taxExemptTotal');
       debugPrint('Subtotal: $calculatedSubtotal, Tax: $calculatedTax, Total: $calculatedTotal');

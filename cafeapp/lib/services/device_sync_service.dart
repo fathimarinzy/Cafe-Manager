@@ -11,6 +11,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import '../services/menu_sync_service.dart';
+import '../models/order_item.dart' as local_order_item;
 
 // Helper extension for firstWhereOrNull
 extension IterableExtension<T> on Iterable<T> {
@@ -297,6 +298,96 @@ class DeviceSyncService {
       };
     }
   }
+  // Add this method to sync order updates
+static Future<Map<String, dynamic>> syncOrderUpdate(local_models.Order order) async {
+  try {
+    await FirebaseService.ensureInitialized();
+    
+    if (!FirebaseService.isFirebaseAvailable) {
+      debugPrint('⚠️ No internet connection, order update will sync later');
+      return {
+        'success': false,
+        'message': 'No internet connection',
+        'willRetry': true,
+      };
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final deviceId = prefs.getString('device_id') ?? '';
+    final companyId = prefs.getString('company_id') ?? '';
+    final syncEnabled = prefs.getBool('device_sync_enabled') ?? false;
+    final isMainDevice = prefs.getBool('is_main_device') ?? false; // 🆕 Check if main device
+
+    
+    if (!syncEnabled) {
+      debugPrint('ℹ️ Device sync is disabled');
+      return {
+        'success': false,
+        'message': 'Device sync is disabled',
+      };
+    }
+    
+    if (deviceId.isEmpty || companyId.isEmpty) {
+      return {
+        'success': false,
+        'message': 'Device or company not configured',
+      };
+    }
+    // 🆕 Get the staff device ID from the order (it might be from another device)
+    final orderStaffDeviceId = order.staffDeviceId.isNotEmpty 
+        ? order.staffDeviceId 
+        : deviceId;
+
+    final syncOrder = sync_models.SyncOrderModel.fromOrder(order, orderStaffDeviceId, companyId);
+    
+    // Use composite document ID: company_staffDevice_staffOrderNum
+    final docId = '${companyId}_${orderStaffDeviceId}_${order.staffOrderNumber}';
+    
+    debugPrint('🔄 Syncing order update from ${isMainDevice ? "MAIN" : "STAFF"} device');
+    debugPrint('   Document ID: $docId');
+    debugPrint('   Staff Device ID: $orderStaffDeviceId');
+    debugPrint('   Current Device ID: $deviceId');
+
+    // Update the existing document with the new order data
+    await _firestore
+        .collection(_ordersCollection)
+        .doc(docId)
+        .update({
+      ...syncOrder.toJson(),
+      'syncedAt': FieldValue.serverTimestamp(),
+      'lastUpdatedAt': FieldValue.serverTimestamp(), // Track when it was last edited
+      'lastUpdatedBy': deviceId, // 🆕 Track which device made the edit
+      'lastUpdatedByMain': isMainDevice, // 🆕 Track if edit was by main device
+      'isEdited': true,
+    });
+
+    // Update local order sync status
+    final localRepo = LocalOrderRepository();
+    final updatedOrder = order.copyWith(
+      isSynced: true,
+      syncedAt: DateTime.now().toIso8601String(),
+    );
+    await localRepo.saveOrder(updatedOrder);
+
+    debugPrint('✅ Order update synced to Firestore: $docId (Staff #${order.staffOrderNumber})');
+    debugPrint('   Edited by: ${isMainDevice ? "Main Device" : "Staff Device"}');
+
+    return {
+      'success': true,
+      'message': 'Order update synced successfully',
+      'orderId': docId,
+      'editedByMain': isMainDevice,
+
+    };
+  } catch (e) {
+    debugPrint('❌ Error syncing order update: $e');
+    return {
+      'success': false,
+      'message': 'Failed to sync order update: ${e.toString()}',
+      'willRetry': true,
+    };
+  }
+}
 
   /// Get next main order number using Firestore transaction
   static Future<int?> _getNextMainOrderNumber(String companyId) async {
@@ -453,7 +544,7 @@ class DeviceSyncService {
               if (data != null && data['staffDeviceId'] != currentDeviceId) {
                 try {
                   final syncOrder = sync_models.SyncOrderModel.fromJson(data);
-                  debugPrint('📥 Received order from device: ${data['staffDeviceId']}');
+                  debugPrint('📥 Received order ${change.type == DocumentChangeType.modified ? "UPDATE" : ""} from device: ${data['staffDeviceId']}');
                   onOrderReceived(syncOrder);
                 } catch (e) {
                   debugPrint('❌ Error parsing synced order: $e');
@@ -475,83 +566,150 @@ class DeviceSyncService {
 
   /// Save a synced order from another device to local database
   static Future<void> saveSyncedOrderLocally(sync_models.SyncOrderModel syncOrder) async {
-    try {
-      final localRepo = LocalOrderRepository();
+  try {
+    final localRepo = LocalOrderRepository();
+    final prefs = await SharedPreferences.getInstance();
+    final currentDeviceId = prefs.getString('device_id') ?? '';
+    final isMainDevice = prefs.getBool('is_main_device') ?? false;
+    
+    // 🆕 Skip if this is our own update (avoid circular updates)
+    if (syncOrder.staffDeviceId == currentDeviceId) {
+      debugPrint('ℹ️ Skipping own order update for Staff#${syncOrder.staffOrderNumber}');
+      return;
+    }
+    
+    debugPrint('📥 Processing order update from ${syncOrder.staffDeviceId == currentDeviceId ? "self" : "remote device"}');
+    debugPrint('   Current Device: $currentDeviceId (${isMainDevice ? "MAIN" : "STAFF"})');
+    debugPrint('   Order Staff Device: ${syncOrder.staffDeviceId}');
+    
+    // First try to find by local ID if it exists
+    local_models.Order? existingOrder;
+    if (syncOrder.id != null) {
+      existingOrder = await localRepo.getOrderById(syncOrder.id!);
+    }
+    
+    // If not found by ID, search by staff device ID and staff order number
+    if (existingOrder == null) {
+      final allOrders = await localRepo.getAllOrders();
+      existingOrder = allOrders.firstWhereOrNull(
+        (o) => o.staffDeviceId == syncOrder.staffDeviceId && 
+               o.staffOrderNumber == syncOrder.staffOrderNumber,
+      );
+    }
+    
+    if (existingOrder != null) {
+      debugPrint('ℹ️ Order already exists locally (ID=${existingOrder.id}), checking for updates...');
       
-      // First try to find by local ID if it exists
-      local_models.Order? existingOrder;
-      if (syncOrder.id != null) {
-        existingOrder = await localRepo.getOrderById(syncOrder.id!);
+      // Check what needs to be updated
+      bool needsUpdate = false;
+      List<String> changes = [];
+      
+      // Update main number if assigned and different
+      if (syncOrder.mainNumberAssigned && 
+          existingOrder.mainOrderNumber != syncOrder.mainOrderNumber) {
+        needsUpdate = true;
+        changes.add('Main number: ${existingOrder.mainOrderNumber} → ${syncOrder.mainOrderNumber}');
       }
       
-      // If not found by ID, search by staff device ID and staff order number
-      if (existingOrder == null) {
-        final allOrders = await localRepo.getAllOrders();
-        existingOrder = allOrders.firstWhereOrNull(
-          (o) => o.staffDeviceId == syncOrder.staffDeviceId && 
-                 o.staffOrderNumber == syncOrder.staffOrderNumber,
+      // Update status if different
+      if (existingOrder.status != syncOrder.status) {
+        needsUpdate = true;
+        changes.add('Status: ${existingOrder.status} → ${syncOrder.status}');
+      }
+      
+      // Update payment method if different
+      if (existingOrder.paymentMethod != syncOrder.paymentMethod) {
+        needsUpdate = true;
+        changes.add('Payment: ${existingOrder.paymentMethod} → ${syncOrder.paymentMethod}');
+      }
+      
+      // Check if items changed (for edits)
+      if (!_areItemsEqual(existingOrder.items, syncOrder.items)) {
+        needsUpdate = true;
+        changes.add('Items changed (${existingOrder.items.length} → ${syncOrder.items.length} items)');
+      }
+      
+      // Check if amounts changed (subtotal, tax, discount, total)
+      if (existingOrder.subtotal != syncOrder.subtotal ||
+          existingOrder.tax != syncOrder.tax ||
+          existingOrder.discount != syncOrder.discount ||
+          existingOrder.total != syncOrder.total) {
+        needsUpdate = true;
+        changes.add('Amounts changed (Total: ${existingOrder.total} → ${syncOrder.total})');
+      }
+      
+      // 🆕 Check payment amounts (for split payments)
+      if (existingOrder.cashAmount != syncOrder.cashAmount ||
+          existingOrder.bankAmount != syncOrder.bankAmount) {
+        needsUpdate = true;
+        changes.add('Payment amounts updated');
+      }
+      
+      if (needsUpdate) {
+        debugPrint('📝 Updating order with changes:');
+        for (var change in changes) {
+          debugPrint('   - $change');
+        }
+        
+        final updatedOrder = existingOrder.copyWith(
+          items: syncOrder.items,
+          subtotal: syncOrder.subtotal,
+          tax: syncOrder.tax,
+          discount: syncOrder.discount,
+          total: syncOrder.total,
+          mainOrderNumber: syncOrder.mainNumberAssigned ? syncOrder.mainOrderNumber : existingOrder.mainOrderNumber,
+          mainNumberAssigned: syncOrder.mainNumberAssigned || existingOrder.mainNumberAssigned,
+          status: syncOrder.status,
+          paymentMethod: syncOrder.paymentMethod,
+          cashAmount: syncOrder.cashAmount,
+          bankAmount: syncOrder.bankAmount,
+          isSynced: true,
         );
+        await localRepo.saveOrder(updatedOrder);
+        debugPrint('✅ Updated order: Staff#${syncOrder.staffOrderNumber}, Main#${updatedOrder.mainOrderNumber ?? "pending"}');
+        
+        // Notify UI to refresh
+        _notifyOrdersChanged();
+      } else {
+        debugPrint('ℹ️ No updates needed for order Staff#${syncOrder.staffOrderNumber}');
       }
-      
-      if (existingOrder != null) {
-        debugPrint('ℹ️ Order already exists locally (ID=${existingOrder.id}), updating...');
-        
-        // Check what needs to be updated
-        bool needsUpdate = false;
-        
-        // Update main number if assigned and different
-        if (syncOrder.mainNumberAssigned && 
-            existingOrder.mainOrderNumber != syncOrder.mainOrderNumber) {
-          needsUpdate = true;
-          debugPrint('  → Main number changed: ${existingOrder.mainOrderNumber} → ${syncOrder.mainOrderNumber}');
-        }
-        
-        // Update status if different
-        if (existingOrder.status != syncOrder.status) {
-          needsUpdate = true;
-          debugPrint('  → Status changed: ${existingOrder.status} → ${syncOrder.status}');
-        }
-        
-        // Update payment method if different
-        if (existingOrder.paymentMethod != syncOrder.paymentMethod) {
-          needsUpdate = true;
-          debugPrint('  → Payment method changed: ${existingOrder.paymentMethod} → ${syncOrder.paymentMethod}');
-        }
-        
-        if (needsUpdate) {
-          final updatedOrder = existingOrder.copyWith(
-            mainOrderNumber: syncOrder.mainNumberAssigned ? syncOrder.mainOrderNumber : existingOrder.mainOrderNumber,
-            mainNumberAssigned: syncOrder.mainNumberAssigned || existingOrder.mainNumberAssigned,
-            status: syncOrder.status,
-            paymentMethod: syncOrder.paymentMethod,
-            cashAmount: syncOrder.cashAmount,
-            bankAmount: syncOrder.bankAmount,
-            isSynced: true,
-          );
-          await localRepo.saveOrder(updatedOrder);
-          debugPrint('✅ Updated order: Staff#${syncOrder.staffOrderNumber}, Main#${updatedOrder.mainOrderNumber ?? "pending"}');
-          
-          // 🆕 Notify UI to refresh
-          _notifyOrdersChanged();
-        } else {
-          debugPrint('ℹ️ No updates needed for order Staff#${syncOrder.staffOrderNumber}');
-        }
-        return;
-      }
-      
-      // Order doesn't exist locally - create new
-      final order = syncOrder.toOrder();
-      await localRepo.saveOrder(order);
-      
-      debugPrint('✅ Synced NEW order saved locally: Staff#${order.staffOrderNumber}, Main#${order.mainOrderNumber ?? "pending"}');
-      
-      // 🆕 Notify UI to refresh
-      _notifyOrdersChanged();
-    } catch (e, stackTrace) {
-      debugPrint('❌ Error saving synced order locally: $e');
-      debugPrint('Stack trace: $stackTrace');
+      return;
+    }
+    
+    // Order doesn't exist locally - create new
+    debugPrint('➕ Creating new order from remote device');
+    final order = syncOrder.toOrder();
+    await localRepo.saveOrder(order);
+    
+    debugPrint('✅ Synced NEW order saved locally: Staff#${order.staffOrderNumber}, Main#${order.mainOrderNumber ?? "pending"}');
+    
+    // Notify UI to refresh
+    _notifyOrdersChanged();
+  } catch (e, stackTrace) {
+    debugPrint('❌ Error saving synced order locally: $e');
+    debugPrint('Stack trace: $stackTrace');
+  }
+}
+  // 🆕 Helper method to compare order items
+static bool _areItemsEqual(List<local_order_item.OrderItem> items1, List<local_order_item.OrderItem> items2) {
+  if (items1.length != items2.length) return false;
+  
+  for (int i = 0; i < items1.length; i++) {
+    final item1 = items1[i];
+    final item2 = items2[i];
+    
+    if (item1.id != item2.id ||
+        item1.name != item2.name ||
+        item1.price != item2.price ||
+        item1.quantity != item2.quantity ||
+        item1.kitchenNote != item2.kitchenNote ||
+        item1.taxExempt != item2.taxExempt) {
+      return false;
     }
   }
+  
+  return true;
+}
 
   /// Sync all pending orders that haven't been synced yet
   static Future<void> syncPendingOrders() async {
