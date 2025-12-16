@@ -458,8 +458,8 @@ class DeviceSyncService {
     final prefs = await SharedPreferences.getInstance();
     final isMainDevice = prefs.getBool('is_main_device') ?? false;
 
-    // Sync pending orders every 2 minutes (all devices)
-    _syncTimer = Timer.periodic(const Duration(minutes: 2), (timer) async {
+    // Sync pending orders every 1 minutes (all devices)
+    _syncTimer = Timer.periodic(const Duration(minutes: 1), (timer) async {
       debugPrint('⏰ Running scheduled sync...');
       await syncPendingOrders();
     });
