@@ -389,6 +389,12 @@ class _AppInitializerState extends State<AppInitializer> {
             debugPrint('🔄 Refreshing order history due to sync update');
             orderHistoryProvider.loadOrders();
           });
+          
+          final tableProvider = Provider.of<TableProvider>(context, listen: false);
+          DeviceSyncService.setOnTablesChangedCallback(() {
+             debugPrint('🔄 Refreshing tables due to sync update');
+             tableProvider.refreshTables();
+          });
         }
         DeviceSyncService.startAutoSync(companyId);
         debugPrint('✅ Device sync initialized');

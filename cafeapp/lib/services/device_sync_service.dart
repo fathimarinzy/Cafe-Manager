@@ -10,6 +10,8 @@ import 'firebase_service.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
+import 'dart:convert';
+import '../models/table_model.dart';
 import '../services/menu_sync_service.dart';
 import '../models/order_item.dart' as local_order_item;
 
@@ -29,6 +31,60 @@ class DeviceSyncService {
   static const String _ordersCollection = 'synced_orders';
   static const String _linkCodesCollection = 'device_link_codes';
   static const String _configCollection = 'config';
+  // Use same key as TableProvider
+  static const String _tableStorageKey = 'dining_tables'; 
+
+  /// Update table status locally in SharedPreferences
+  static Future<void> _updateTableStatusLocally(int tableNumber, bool isOccupied) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? tablesJson = prefs.getString(_tableStorageKey);
+      
+      if (tablesJson != null) {
+        final List<dynamic> decodedData = jsonDecode(tablesJson);
+        final List<TableModel> tables = decodedData.map((item) => TableModel.fromJson(item)).toList();
+        
+        final index = tables.indexWhere((t) => t.number == tableNumber);
+        
+        if (index >= 0) {
+          // Check if status actually needs changing to avoid unnecessary writes
+          if (tables[index].isOccupied != isOccupied) {
+            tables[index].isOccupied = isOccupied;
+            
+            final String updatedJson = jsonEncode(tables.map((table) => table.toJson()).toList());
+            await prefs.setString(_tableStorageKey, updatedJson);
+            // Force reload to ensure persistence
+            await prefs.reload();
+            
+            debugPrint('✅ Updated table $tableNumber status to ${isOccupied ? 'occupied' : 'available'} (Sync)');
+            _notifyTablesChanged();
+          } else {
+             debugPrint('ℹ️ Table $tableNumber status already ${isOccupied ? 'occupied' : 'available'}');
+          }
+        } else {
+          debugPrint('⚠️ Table $tableNumber not found for sync update');
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Error updating local table status: $e');
+    }
+  }
+
+  /// Helper to check if order is for a table and update status
+  static Future<void> _checkAndUpdateTableStatus(String serviceType, String status) async {
+    if (serviceType.startsWith('Dining - Table')) {
+      final match = RegExp(r'Table (\d+)').firstMatch(serviceType);
+      if (match != null && match.groupCount >= 1) {
+        final tableNum = int.tryParse(match.group(1)!);
+        if (tableNum != null) {
+          // If status is 'completed' or 'paid', free the table
+          // Otherwise mark as occupied
+          final bool isOccupied = !(status.toLowerCase() == 'completed' || status.toLowerCase() == 'paid');
+          await _updateTableStatusLocally(tableNum, isOccupied);
+        }
+      }
+    }
+  }
   
   static Timer? _syncTimer;
   static StreamSubscription? _orderSubscription;
@@ -46,6 +102,21 @@ class DeviceSyncService {
     if (_onOrdersChangedCallback != null) {
       debugPrint('📢 Notifying UI of order changes');
       _onOrdersChangedCallback!();
+    }
+  }
+
+  // 🆕 Callback for Table UI refresh
+  static Function()? _onTablesChangedCallback;
+
+  static void setOnTablesChangedCallback(Function() callback) {
+    _onTablesChangedCallback = callback;
+    debugPrint('✅ Table change callback registered');
+  }
+
+  static void _notifyTablesChanged() {
+    if (_onTablesChangedCallback != null) {
+      debugPrint('📢 Notifying UI of table changes');
+      _onTablesChangedCallback!();
     }
   }
 
@@ -689,6 +760,9 @@ class DeviceSyncService {
           await localRepo.saveOrder(updatedOrder);
           debugPrint('✅ Updated order: Staff#${syncOrder.staffOrderNumber}, Main#${updatedOrder.mainOrderNumber ?? "pending"}');
           
+          // 🆕 Update table status if needed
+          await _checkAndUpdateTableStatus(updatedOrder.serviceType, updatedOrder.status);
+
           // Notify UI to refresh
           _notifyOrdersChanged();
         } else {
@@ -703,6 +777,9 @@ class DeviceSyncService {
       await localRepo.saveOrder(order);
       
       debugPrint('✅ Synced NEW order saved locally: Staff#${order.staffOrderNumber}, Main#${order.mainOrderNumber ?? "pending"}');
+      
+      // 🆕 Update table status if needed
+      await _checkAndUpdateTableStatus(order.serviceType, order.status);
       
       // Notify UI to refresh
       _notifyOrdersChanged();
