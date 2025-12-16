@@ -24,6 +24,7 @@ class SyncOrderModel {
   final bool isSynced;
   final String? syncedAt;
   final bool mainNumberAssigned; // Whether main order number has been assigned
+  final String? lastUpdatedBy;
 
   SyncOrderModel({
     this.id,
@@ -46,6 +47,7 @@ class SyncOrderModel {
     this.isSynced = false,
     this.syncedAt,
     this.mainNumberAssigned = false,
+    this.lastUpdatedBy,
   });
 
   // Convert to JSON for Firestore
@@ -78,6 +80,7 @@ class SyncOrderModel {
       'isSynced': isSynced,
       'syncedAt': syncedAt,
       'mainNumberAssigned': mainNumberAssigned,
+      'lastUpdatedBy': lastUpdatedBy,
     };
   }
 
@@ -123,6 +126,7 @@ class SyncOrderModel {
       isSynced: json['isSynced'] as bool? ?? false,
       syncedAt: timestampToString(json['syncedAt']),
       mainNumberAssigned: json['mainNumberAssigned'] as bool? ?? false,
+      lastUpdatedBy: json['lastUpdatedBy'] as String?,
     );
   }
 
@@ -199,6 +203,7 @@ class SyncOrderModel {
     bool? isSynced,
     String? syncedAt,
     bool? mainNumberAssigned,
+    String? lastUpdatedBy,
   }) {
     return SyncOrderModel(
       id: id ?? this.id,
@@ -221,6 +226,7 @@ class SyncOrderModel {
       isSynced: isSynced ?? this.isSynced,
       syncedAt: syncedAt ?? this.syncedAt,
       mainNumberAssigned: mainNumberAssigned ?? this.mainNumberAssigned,
+      lastUpdatedBy: lastUpdatedBy ?? this.lastUpdatedBy,
     );
   }
 
