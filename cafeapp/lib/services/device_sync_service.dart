@@ -12,6 +12,10 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:convert';
 import '../models/table_model.dart';
+import '../models/person.dart';
+import '../models/credit_transaction.dart';
+import '../repositories/local_person_repository.dart';
+import '../repositories/credit_transaction_repository.dart';
 import '../services/menu_sync_service.dart';
 import '../models/order_item.dart' as local_order_item;
 
@@ -33,6 +37,12 @@ class DeviceSyncService {
   static const String _configCollection = 'config';
   // Use same key as TableProvider
   static const String _tableStorageKey = 'dining_tables'; 
+
+  /// Helper to get current device ID
+  static Future<String> _getDeviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('device_id') ?? '';
+  }
 
   /// Update table status locally in SharedPreferences
   static Future<void> _updateTableStatusLocally(int tableNumber, bool isOccupied) async {
@@ -582,6 +592,10 @@ class DeviceSyncService {
         await MenuSyncService.saveSyncedCategoriesLocally(categories);
       },
     );
+
+    // 🆕 Start listening to Persons and Credit Transactions
+    startListeningToPersons(companyId);
+    startListeningToCreditTransactions(companyId);
 
     debugPrint('✅ Auto-sync started successfully');
   }
@@ -1470,6 +1484,231 @@ class DeviceSyncService {
         'syncedMenuItems': 0,
         'firebaseAvailable': false,
       };
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // PERSON SYNCING
+  // ---------------------------------------------------------------------------
+
+  static const String _syncedPersonsCollection = 'synced_persons';
+  static StreamSubscription<QuerySnapshot>? _personsSubscription;
+  static Function()? _onPersonsChangedCallback;
+
+  static void setOnPersonsChangedCallback(Function() callback) {
+    _onPersonsChangedCallback = callback;
+  }
+
+  static void _notifyPersonsChanged() {
+    if (_onPersonsChangedCallback != null) {
+      _onPersonsChangedCallback!();
+    }
+  }
+
+  /// Start listening to person changes in Firestore
+  static void startListeningToPersons(String companyId) async {
+    if (_personsSubscription != null) return;
+    
+    try {
+      await FirebaseService.ensureInitialized();
+      
+      if (!FirebaseService.isFirebaseAvailable) {
+        debugPrint('⚠️ Firebase not available, cannot listen to persons');
+        return;
+      }
+    
+      debugPrint('👂 Starting to listen for PERSON updates for company: $companyId');
+      
+      _personsSubscription = _firestore
+          .collection(_syncedPersonsCollection)
+          .where('companyId', isEqualTo: companyId)
+          .snapshots()
+          .listen((snapshot) {
+        for (var change in snapshot.docChanges) {
+          if (change.type == DocumentChangeType.added || change.type == DocumentChangeType.modified) {
+            _processincomingPerson(change.doc);
+          }
+        }
+      }, onError: (e) {
+        debugPrint('❌ Error listening to persons: $e');
+      });
+    } catch (e) {
+      debugPrint('❌ Error starting person listener: $e');
+    }
+  }
+
+  static void stopListeningToPersons() {
+    _personsSubscription?.cancel();
+    _personsSubscription = null;
+  }
+
+  /// Process incoming person data
+  static Future<void> _processincomingPerson(DocumentSnapshot doc) async {
+    try {
+      final data = doc.data() as Map<String, dynamic>;
+      final lastUpdatedBy = data['lastUpdatedBy'] as String?;
+      final currentDeviceId = await _getDeviceId();
+
+      // Skip if we made the update
+      if (lastUpdatedBy == currentDeviceId) {
+        return;
+      }
+
+      debugPrint('📥 Received PERSON update: ${doc.id}');
+      
+      final personData = data['person'] as Map<String, dynamic>;
+      // Ensure 'credit' is handled as double
+      if (personData['credit'] is int) {
+        personData['credit'] = (personData['credit'] as int).toDouble();
+      }
+
+      final person = Person.fromJson(personData);
+      
+      final repo = LocalPersonRepository();
+      await repo.savePerson(person); // This saves or updates
+      
+      _notifyPersonsChanged();
+      
+    } catch (e) {
+      debugPrint('❌ Error processing incoming person: $e');
+    }
+  }
+
+  /// Sync a local person update to Firestore
+  static Future<void> syncPersonToFirestore(Person person) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final companyId = prefs.getString('company_id');
+      final deviceId = await _getDeviceId();
+
+      if (companyId == null) {
+        debugPrint('⚠️ Cannot sync person: No company ID');
+        return;
+      }
+
+      // Use composite ID to associate with company, or just use person ID if unique enough.
+      // Assuming person.id is unique per installation or synced correctly.
+      final docId = '${companyId}_${person.id}';
+
+      debugPrint('📤 Syncing PERSON to Firestore: $docId');
+
+      await _firestore.collection(_syncedPersonsCollection).doc(docId).set({
+        'companyId': companyId,
+        'person': person.toJson(),
+        'lastUpdatedBy': deviceId,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+    } catch (e) {
+      debugPrint('❌ Error syncing person: $e');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // CREDIT TRANSACTION SYNCING
+  // ---------------------------------------------------------------------------
+
+  static const String _syncedCreditCollection = 'synced_credit_transactions';
+  static StreamSubscription<QuerySnapshot>? _creditSubscription;
+  static Function()? _onCreditChangedCallback;
+
+  static void setOnCreditChangedCallback(Function() callback) {
+    _onCreditChangedCallback = callback;
+  }
+
+  static void _notifyCreditChanged() {
+    if (_onCreditChangedCallback != null) {
+      _onCreditChangedCallback!();
+    }
+  }
+
+  static void startListeningToCreditTransactions(String companyId) async {
+    if (_creditSubscription != null) return;
+    
+    try {
+      await FirebaseService.ensureInitialized();
+      
+      if (!FirebaseService.isFirebaseAvailable) {
+        debugPrint('⚠️ Firebase not available, cannot listen to credit transactions');
+        return;
+      }
+    
+      debugPrint('👂 Starting to listen for CREDIT updates for company: $companyId');
+      
+      _creditSubscription = _firestore
+          .collection(_syncedCreditCollection)
+          .where('companyId', isEqualTo: companyId)
+          .snapshots()
+          .listen((snapshot) {
+        for (var change in snapshot.docChanges) {
+          if (change.type == DocumentChangeType.added || change.type == DocumentChangeType.modified) {
+            _processIncomingCredit(change.doc);
+          }
+        }
+      }, onError: (e) {
+        debugPrint('❌ Error listening to credit transactions: $e');
+      });
+    } catch (e) {
+      debugPrint('❌ Error starting credit transaction listener: $e');
+    }
+  }
+
+  static void stopListeningToCreditTransactions() {
+    _creditSubscription?.cancel();
+    _creditSubscription = null;
+  }
+
+  static Future<void> _processIncomingCredit(DocumentSnapshot doc) async {
+    try {
+      final data = doc.data() as Map<String, dynamic>;
+      final lastUpdatedBy = data['lastUpdatedBy'] as String?;
+      final currentDeviceId = await _getDeviceId();
+
+      if (lastUpdatedBy == currentDeviceId) {
+        return;
+      }
+
+      debugPrint('📥 Received CREDIT update: ${doc.id}');
+      
+      final txData = data['transaction'] as Map<String, dynamic>;
+      
+      if (txData['isCompleted'] is bool) {
+        txData['isCompleted'] = (txData['isCompleted'] as bool) ? 1 : 0;
+      }
+      
+      final transaction = CreditTransaction.fromJson(txData);
+      
+      final repo = CreditTransactionRepository();
+      await repo.saveCreditTransaction(transaction);
+      
+      _notifyCreditChanged();
+    } catch (e) {
+      debugPrint('❌ Error processing incoming credit: $e');
+    }
+  }
+
+  static Future<void> syncCreditTransactionToFirestore(CreditTransaction transaction) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final companyId = prefs.getString('company_id');
+      final deviceId = await _getDeviceId();
+
+      if (companyId == null) return;
+
+      final docId = '${companyId}_${transaction.id}';
+      debugPrint('📤 Syncing CREDIT to Firestore: $docId');
+
+      final jsonMap = transaction.toJson();
+      
+      await _firestore.collection(_syncedCreditCollection).doc(docId).set({
+        'companyId': companyId,
+        'transaction': jsonMap,
+        'lastUpdatedBy': deviceId,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+    } catch (e) {
+      debugPrint('❌ Error syncing credit transaction: $e');
     }
   }
 

@@ -2,6 +2,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/person.dart';
 import '../repositories/local_person_repository.dart';
+import '../services/device_sync_service.dart';
 
 class PersonProvider with ChangeNotifier {
   final LocalPersonRepository _localPersonRepo = LocalPersonRepository();
@@ -52,6 +53,9 @@ class PersonProvider with ChangeNotifier {
       
       // Update local state
       _persons.add(newPerson);
+
+      // Sync to Firestore
+      DeviceSyncService.syncPersonToFirestore(newPerson);
     } catch (e) {
       _error = e.toString();
       debugPrint('Error adding person: $e');
@@ -123,12 +127,16 @@ class PersonProvider with ChangeNotifier {
           _persons[personsIndex] = person;
         }
         
+        
         final searchIndex = _searchResults.indexWhere((p) => p.id == person.id);
         if (searchIndex >= 0) {
           _searchResults[searchIndex] = person;
         }
         
         notifyListeners();
+        
+        // Sync to Firestore
+        DeviceSyncService.syncPersonToFirestore(person);
       }
       return success;
     } catch (e) {
@@ -159,6 +167,13 @@ Future<bool> updateCustomerCredit(String personId, double creditAmount) async {
       }
       
       notifyListeners();
+
+      // Sync updated person to Firestore
+      // We need the full updated person object. 
+      // If found in _persons (which it should be if update succeeded), use that.
+      if (personIndex >= 0) {
+         DeviceSyncService.syncPersonToFirestore(_persons[personIndex]);
+      }
     }
     return success;
   } catch (e) {

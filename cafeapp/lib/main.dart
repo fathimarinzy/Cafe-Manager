@@ -395,6 +395,12 @@ class _AppInitializerState extends State<AppInitializer> {
              debugPrint('🔄 Refreshing tables due to sync update');
              tableProvider.refreshTables();
           });
+          
+          final personProvider = Provider.of<PersonProvider>(context, listen: false);
+          DeviceSyncService.setOnPersonsChangedCallback(() {
+            debugPrint('🔄 Refreshing persons due to sync update');
+            personProvider.loadPersons();
+          });
         }
         DeviceSyncService.startAutoSync(companyId);
         debugPrint('✅ Device sync initialized');

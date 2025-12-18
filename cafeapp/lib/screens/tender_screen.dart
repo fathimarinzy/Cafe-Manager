@@ -29,7 +29,8 @@ import '../providers/person_provider.dart';
 import '../screens/search_person_screen.dart';
 import '../repositories/credit_transaction_repository.dart';
 import '../models/credit_transaction.dart';
-import '../services/cross_platform_pdf_service.dart'; // Add this import
+import '../services/cross_platform_pdf_service.dart';
+import '../services/device_sync_service.dart';
 
 class TenderScreen extends StatefulWidget {
   final OrderHistory order;
@@ -4985,6 +4986,10 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
         );
         
         await creditRepo.saveCreditTransaction(transaction);
+        
+        // Synced
+        await DeviceSyncService.syncCreditTransactionToFirestore(transaction);
+        
          // Update the original order with customer_credit payment method
         // await _updateOrderPaymentMethodForCredit(widget.order.id, 'customer_credit', _getCurrentDiscount());
 
