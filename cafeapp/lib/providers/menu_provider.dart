@@ -65,7 +65,11 @@ class MenuProvider with ChangeNotifier {
       (syncItem) async {
         // New or updated item received
         await MenuSyncService.saveSyncedMenuItemLocally(syncItem);
-        await fetchMenu(forceRefresh: true);
+        // Refresh both menu items and categories (in case a new category was added)
+        await Future.wait([
+          fetchMenu(forceRefresh: true),
+          fetchCategories(forceRefresh: true),
+        ]);
       },
       (itemId) async {
         // Item deleted
@@ -138,8 +142,10 @@ class MenuProvider with ChangeNotifier {
       
       _items.add(newItem);
       
+      bool isNewCategory = false;
       if (!_categories.contains(newItem.category)) {
         _categories.add(newItem.category);
+        isNewCategory = true;
       }
       
       notifyListeners();
@@ -147,6 +153,11 @@ class MenuProvider with ChangeNotifier {
       // Sync to Firestore if enabled
       if (_syncEnabled) {
         MenuSyncService.syncMenuItemToFirestore(newItem);
+        
+        // If this is a new category, sync categories too
+        if (isNewCategory) {
+          MenuSyncService.syncCategoriesToFirestore(_categories);
+        }
       }
       
       return newItem;

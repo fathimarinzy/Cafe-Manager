@@ -564,34 +564,9 @@ class DeviceSyncService {
       await saveSyncedOrderLocally(syncOrder);
     });
 
-    // Start menu sync listeners
-    MenuSyncService.startListeningToMenuItems(
-      companyId,
-      (syncItem) async {
-        debugPrint('📥 Received menu item: ${syncItem.name}');
-        await MenuSyncService.saveSyncedMenuItemLocally(syncItem);
-      },
-      (itemId) async {
-        debugPrint('🗑️ Received menu item deletion: $itemId');
-        await MenuSyncService.deleteSyncedMenuItemLocally(itemId);
-      },
-    );
-
-    MenuSyncService.startListeningToBusinessInfo(
-      companyId,
-      (businessInfo) async {
-        debugPrint('📥 Received business info update');
-        await MenuSyncService.saveSyncedBusinessInfoLocally(businessInfo);
-      },
-    );
-
-    MenuSyncService.startListeningToCategories(
-      companyId,
-      (categories) async {
-        debugPrint('📥 Received ${categories.length} categories');
-        await MenuSyncService.saveSyncedCategoriesLocally(categories);
-      },
-    );
+    // NOTE: Menu sync listeners are handled by MenuProvider directly
+    // to ensure UI updates happen immediately when menu items change.
+    // See MenuProvider._startMenuSync() for the implementation.
 
     // 🆕 Start listening to Persons and Credit Transactions
     startListeningToPersons(companyId);

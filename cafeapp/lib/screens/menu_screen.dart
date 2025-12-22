@@ -338,10 +338,14 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
   
   // Get displayed items with caching for performance
   List<MenuItem> _getDisplayedItems(MenuProvider menuProvider) {
-    // Only recalculate if category or search has changed
+    // Invalidate cache if menu items have changed (length check is a simple way to detect changes)
+    final currentItemsLength = menuProvider.items.length;
+    
+    // Only recalculate if category, search, or items have changed
     if (_cachedItems != null && 
         _lastCategory == _selectedCategory && 
-        _lastSearchQuery == _itemSearchQuery) {
+        _lastSearchQuery == _itemSearchQuery &&
+        _cachedItems!.length == currentItemsLength) {
       return _cachedItems!;
     }
 
