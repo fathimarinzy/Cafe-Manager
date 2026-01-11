@@ -220,16 +220,26 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     double? amount,
     String? remarks,
   }) {
-    if (index >= 0 && index < _expenseItems.length) {
+    // Only call setState if amount changed (affects totals) or account changed (may affect UI)
+    bool shouldRebuild = amount != null || account != null;
+    
+    if (shouldRebuild) {
       setState(() {
         if (account != null) _expenseItems[index].account = account;
         if (narration != null) _expenseItems[index].narration = narration;
         if (amount != null) _expenseItems[index].amount = amount;
         if (remarks != null) _expenseItems[index].remarks = remarks;
-        _updateGrandTotal();
+        if (amount != null) _updateGrandTotal();
       });
+    } else {
+      // Just update model
+      if (account != null) _expenseItems[index].account = account;
+      if (narration != null) _expenseItems[index].narration = narration;
+      if (amount != null) _expenseItems[index].amount = amount;
+      if (remarks != null) _expenseItems[index].remarks = remarks;
     }
   }
+
   
   void _removeExpenseItem(int index) {
     if (index >= 0 && index < _expenseItems.length) {
@@ -688,9 +698,13 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                           ),
                         ),
                         
-                        // Table rows
-                        for (int i = 0; i < _expenseItems.length; i++)
-                          _buildExpenseRow(i),
+                        // Table rows using ListView.builder for better performance
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _expenseItems.length,
+                          itemBuilder: (context, index) => _buildExpenseRow(index),
+                        ),
                         
                         // Add button
                         Container(
@@ -929,7 +943,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                     border: OutlineInputBorder(),
                   ),
                   onChanged: (value) {
-                    _updateExpenseItem(index, narration: value);
+                    // Directly update model without triggering rebuild
+                    _expenseItems[index].narration = value;
                   },
                 ),
               ),
@@ -948,7 +963,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                     border: OutlineInputBorder(),
                   ),
                   onChanged: (value) {
-                    _updateExpenseItem(index, remarks: value);
+                    // Directly update model without triggering rebuild
+                    _expenseItems[index].remarks = value;
                   },
                 ),
               ),

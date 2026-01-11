@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_localization.dart';
+import '../services/online_sync_service.dart';
 
 class SettingsProvider with ChangeNotifier {
   // Server settings
@@ -187,6 +188,23 @@ void initializeLanguage() {
     }
   }
   
+
+
+  // Helper to sync business info
+  Future<void> _triggerBusinessInfoSync() async {
+    try {
+      await OnlineSyncService.syncBusinessInfo(
+        businessName: _businessName,
+        secondBusinessName: _secondBusinessName,
+        businessAddress: _businessAddress,
+        businessPhone: _businessPhone,
+        businessEmail: _businessEmail,
+      );
+    } catch (e) {
+      debugPrint('Error triggering business info sync: $e');
+    }
+  }
+
   // Save a single setting
   Future<void> setSetting(String key, dynamic value) async {
     _isLoading = true;
@@ -194,6 +212,7 @@ void initializeLanguage() {
     
     try {
       final prefs = await SharedPreferences.getInstance();
+      bool isBusinessInfoUpdated = false;
       
       // Update the appropriate field based on key
       switch (key) {
@@ -263,30 +282,35 @@ void initializeLanguage() {
           if (value is String) {
             _businessName = value;
             await prefs.setString(key, value);
+            isBusinessInfoUpdated = true;
           }
           break;
         case 'second_business_name': // Add case for second business name
           if (value is String) {
             _secondBusinessName = value;
             await prefs.setString(key, value);
+             isBusinessInfoUpdated = true;
           }
           break;
         case 'business_address':
           if (value is String) {
             _businessAddress = value;
             await prefs.setString(key, value);
+             isBusinessInfoUpdated = true;
           }
           break;
         case 'business_phone':
           if (value is String) {
             _businessPhone = value;
             await prefs.setString(key, value);
+             isBusinessInfoUpdated = true;
           }
           break;
         case 'business_email':
           if (value is String) {
             _businessEmail = value;
             await prefs.setString(key, value);
+             isBusinessInfoUpdated = true;
           }
           break;
         case 'receipt_footer':
@@ -303,6 +327,12 @@ void initializeLanguage() {
           }
           break;
       }
+      
+      // Trigger sync if needed
+      if (isBusinessInfoUpdated) {
+        _triggerBusinessInfoSync();
+      }
+      
     } catch (e) {
       debugPrint('Error saving setting $key: $e');
     } finally {
@@ -343,6 +373,7 @@ void initializeLanguage() {
     
     try {
       final prefs = await SharedPreferences.getInstance();
+      bool isBusinessInfoUpdated = false;
       
       // Update server settings
       if (serverUrl != null) {
@@ -410,25 +441,30 @@ void initializeLanguage() {
       if (businessName != null) {
         _businessName = businessName;
         await prefs.setString('business_name', businessName);
+        isBusinessInfoUpdated = true;
       }
       if (secondBusinessName != null) { // Add second business name saving
         _secondBusinessName = secondBusinessName;
         await prefs.setString('second_business_name', secondBusinessName);
+         isBusinessInfoUpdated = true;
       }
       
       if (businessAddress != null) {
         _businessAddress = businessAddress;
         await prefs.setString('business_address', businessAddress);
+         isBusinessInfoUpdated = true;
       }
       
       if (businessPhone != null) {
         _businessPhone = businessPhone;
         await prefs.setString('business_phone', businessPhone);
+         isBusinessInfoUpdated = true;
       }
 
       if (businessEmail != null) {
         _businessEmail = businessEmail;
         await prefs.setString('business_email', businessEmail);
+         isBusinessInfoUpdated = true;
       }
       
       // Update receipt settings
@@ -436,6 +472,12 @@ void initializeLanguage() {
         _receiptFooter = receiptFooter;
         await prefs.setString('receipt_footer', receiptFooter);
       }
+      
+      // Trigger sync if needed
+      if (isBusinessInfoUpdated) {
+        _triggerBusinessInfoSync();
+      }
+      
     } catch (e) {
       debugPrint('Error saving settings: $e');
     } finally {

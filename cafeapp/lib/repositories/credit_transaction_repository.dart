@@ -1,15 +1,28 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/credit_transaction.dart';
+import '../services/device_sync_service.dart';
 import 'package:flutter/foundation.dart';
 
 class CreditTransactionRepository {
   static Database? _database;
 
+  static Future<Database>? _dbOpenFuture;
+
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDatabase();
-    return _database!;
+    
+    if (_dbOpenFuture != null) return _dbOpenFuture!;
+    
+    _dbOpenFuture = _initDatabase();
+    
+    try {
+      _database = await _dbOpenFuture;
+      return _database!;
+    } catch (e) {
+      _dbOpenFuture = null;
+      rethrow;
+    }
   }
 
   Future<Database> _initDatabase() async {
@@ -19,6 +32,9 @@ class CreditTransactionRepository {
     return await openDatabase(
       path,
       version: 1,
+      onConfigure: (db) async {
+        await db.rawQuery('PRAGMA journal_mode=WAL;');
+      },
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE credit_transactions (
@@ -36,7 +52,7 @@ class CreditTransactionRepository {
     );
   }
 
-  Future<CreditTransaction> saveCreditTransaction(CreditTransaction transaction) async {
+  Future<CreditTransaction> saveCreditTransaction(CreditTransaction transaction, {bool fromSync = false}) async {
     final db = await database;
     
     try {
@@ -45,6 +61,12 @@ class CreditTransactionRepository {
         transaction.toJson(),
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
+      
+      
+      // SYNC: Sync credit transaction (ONLY if not from sync)
+      if (!fromSync) {
+        await DeviceSyncService.syncCreditTransactionToFirestore(transaction);
+      }
       
       return transaction;
     } catch (e) {
@@ -80,6 +102,18 @@ class CreditTransactionRepository {
         where: 'id = ?',
         whereArgs: [transactionId],
       );
+      
+      if (count > 0) {
+        // SYNC: Fetch and sync updated transaction
+        try {
+           final updatedTx = await getCreditTransactionById(transactionId);
+           if (updatedTx != null) {
+             await DeviceSyncService.syncCreditTransactionToFirestore(updatedTx);
+           }
+        } catch (e) {
+          debugPrint('Error syncing completed credit transaction: $e');
+        }
+      }
       
       return count > 0;
     } catch (e) {

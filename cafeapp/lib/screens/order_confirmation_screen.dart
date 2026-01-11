@@ -6,8 +6,8 @@ import '../providers/order_provider.dart';
 import 'dashboard_screen.dart';
 import '../utils/app_localization.dart';
 import '../utils/service_type_utils.dart';
-import '../models/order.dart';
-import '../repositories/local_order_repository.dart';
+// import '../models/order.dart';
+// import '../repositories/local_order_repository.dart';
 
 
 class OrderConfirmationScreen extends StatefulWidget {
@@ -76,9 +76,10 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
     return {
       'subtotal': subtotal,
       'tax': tax,
-      'total': total,
+      'total': total + (orderProvider.deliveryCharge ?? 0),
       'taxableTotal': taxableTotal,
       'taxExemptTotal': taxExemptTotal,
+      'deliveryCharge': orderProvider.deliveryCharge ?? 0.0,
     };
   }
 
@@ -358,6 +359,28 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                             ),
                           ],
                         ),
+                        // Navigation for Delivery Charge
+                         if (amounts['deliveryCharge']! > 0) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                               Expanded(
+                                flex: 7,
+                                child: Text(
+                                  'Delivery Fee'.tr(),
+                                  textAlign: TextAlign.right,
+                                ),
+                              ),
+                              Expanded(
+                                flex: 3,
+                                child: Text(
+                                  amounts['deliveryCharge']!.toStringAsFixed(3),
+                                  textAlign: TextAlign.right,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                         // NEW: Show tax-exempt total if any
                         // if (amounts['taxExemptTotal']! > 0) ...[
                         //   const SizedBox(height: 4),
@@ -448,7 +471,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                   ),
                 ),
                 
-                const SizedBox(height: 100), // Space for the bottom buttons
+                const SizedBox(height: 120), // OPTIMIZATION: Increased space for bottom buttons
               ],
             ),
           ),
@@ -469,8 +492,10 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                   ),
                 ],
               ),
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
+              child: SafeArea( // OPTIMIZATION: Ensure buttons are safe from system nav bar
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
@@ -515,6 +540,8 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                     ),
                   ),
                 ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -530,84 +557,28 @@ Future<void> _processOrder() async {
 
   try {
     final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+    // final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
     
     final result = await orderProvider.processOrderWithBill(context);
 
-    if (result['success']) {
-      final Order? processedOrder = result['order'];
-      
-      // If we have a customer selected, update the order with customer info
-      if (orderProvider.selectedPerson != null && processedOrder != null) {
-        // Calculate tax and subtotal based on VAT type with tax-exempt handling
-        double subtotal;
-        double tax;
-        double total;
-        
-        // Separate taxable and tax-exempt items
-        double taxableTotal = 0.0;
-        double taxExemptTotal = 0.0;
-        
-        for (var item in processedOrder.items) {
-          final itemTotal = item.price * item.quantity;
-          if (item.taxExempt) {
-            taxExemptTotal += itemTotal;
-          } else {
-            taxableTotal += itemTotal;
-          }
-        }
-        
-        if (settingsProvider.isVatInclusive) {
-          // Inclusive VAT: extract tax only from taxable items
-          final taxableAmount = taxableTotal / (1 + (settingsProvider.taxRate / 100));
-          tax = taxableTotal - taxableAmount;
-          subtotal = taxableAmount + taxExemptTotal;
-          total = (taxableTotal + taxExemptTotal) - processedOrder.discount;
-        } else {
-          // Exclusive VAT: add tax on top of taxable items only
-          subtotal = (taxableTotal + taxExemptTotal) - processedOrder.discount;
-          tax = taxableTotal * (settingsProvider.taxRate / 100);
-          total = subtotal + tax;
-        }
-        
-        // Create updated order with customer ID and correct tax calculation
-        final updatedOrder = Order(
-          id: processedOrder.id,
-          staffDeviceId: processedOrder.staffDeviceId,
-          serviceType: processedOrder.serviceType,
-          items: processedOrder.items,
-          subtotal: subtotal,
-          tax: tax,
-          discount: processedOrder.discount,
-          total: total,
-          status: processedOrder.status,
-          createdAt: processedOrder.createdAt,
-          customerId: orderProvider.selectedPerson!.id,
-          paymentMethod: processedOrder.paymentMethod,
-        );
-        
-        // Save the updated order
-        final localOrderRepo = LocalOrderRepository();
-        await localOrderRepo.saveOrder(updatedOrder);
-        debugPrint('Updated order with customer ID and VAT type: ${orderProvider.selectedPerson!.id}');
-        debugPrint('Inclusive VAT: ${settingsProvider.isVatInclusive}, Total: $total, Tax: $tax, Subtotal: $subtotal');
-        debugPrint('Taxable: $taxableTotal, Tax-Exempt: $taxExemptTotal');
-      }
+      if (result['success']) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? 'Order processed successfully'.tr()),
+              backgroundColor: Colors.green,
+            ),
+          );
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message'] ?? 'Order processed successfully'.tr()),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const DashboardScreen()),
-          (route) => false,
-        );
-      }
-    } else {
+          // Use pushReplacement to avoid keeping the confirmation screen in stack
+          // and potentially reduce "shake" by not rebuilding the whole app from scratch
+          // if Dashboard is already below. But pushAndRemoveUntil is safer for state reset.
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const DashboardScreen()),
+            (route) => false,
+          );
+        }
+      } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

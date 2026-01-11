@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:cafeapp/screens/crop_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img;
 
@@ -66,29 +67,41 @@ class LogoService {
   }
 
   // Pick and save logo
-  static Future<bool> pickAndSaveLogo() async {
+  static Future<bool> pickAndSaveLogo(BuildContext context) async {
     try {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 85,
+        maxWidth: 1200, // Increased to allow quality crop
+        maxHeight: 1200,
+        imageQuality: 90,
       );
 
       if (image == null) return false;
 
-      // Read image bytes
-      final bytes = await image.readAsBytes();
+      // Read original bytes
+      final originalBytes = await image.readAsBytes();
+
+      // Show Crop Screen
+      if (!context.mounted) return false;
       
-      // Decode and validate image
-      final decodedImage = img.decodeImage(bytes);
+      final Uint8List? croppedBytes = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CropScreen(image: originalBytes),
+        ),
+      );
+
+      if (croppedBytes == null) return false; // User cancelled
+      
+      // Decode and validate image from cropped bytes
+      final decodedImage = img.decodeImage(croppedBytes);
       if (decodedImage == null) {
         debugPrint('Failed to decode image');
         return false;
       }
 
-      // Resize if too large (max 400px width)
+      // Resize if too large (max 400px width) - Post-crop optimization
       img.Image processedImage = decodedImage;
       if (decodedImage.width > 400) {
         processedImage = img.copyResize(decodedImage, width: 400);

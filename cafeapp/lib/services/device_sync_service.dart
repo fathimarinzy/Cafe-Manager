@@ -18,6 +18,8 @@ import '../repositories/local_person_repository.dart';
 import '../repositories/credit_transaction_repository.dart';
 import '../services/menu_sync_service.dart';
 import '../models/order_item.dart' as local_order_item;
+import '../models/delivery_boy.dart';
+import '../repositories/local_delivery_boy_repository.dart';
 
 // Helper extension for firstWhereOrNull
 extension IterableExtension<T> on Iterable<T> {
@@ -35,6 +37,7 @@ class DeviceSyncService {
   static const String _ordersCollection = 'synced_orders';
   static const String _linkCodesCollection = 'device_link_codes';
   static const String _configCollection = 'config';
+  static const String _syncedDeliveryBoysCollection = 'synced_delivery_boys';
   // Use same key as TableProvider
   static const String _tableStorageKey = 'dining_tables'; 
 
@@ -571,6 +574,7 @@ class DeviceSyncService {
     // 🆕 Start listening to Persons and Credit Transactions
     startListeningToPersons(companyId);
     startListeningToCreditTransactions(companyId);
+    startListeningToDeliveryBoys(companyId);
 
     debugPrint('✅ Auto-sync started successfully');
   }
@@ -725,6 +729,17 @@ class DeviceSyncService {
           needsUpdate = true;
           changes.add('Payment amounts updated');
         }
+
+        // 🆕 Check catering/delivery fields
+        if (existingOrder.eventDate != syncOrder.eventDate ||
+            existingOrder.eventTime != syncOrder.eventTime ||
+            existingOrder.depositAmount != syncOrder.depositAmount ||
+            existingOrder.tokenNumber != syncOrder.tokenNumber || 
+            existingOrder.customerName != syncOrder.customerName ||
+            existingOrder.deliveryAddress != syncOrder.deliveryAddress) {
+           needsUpdate = true;
+           changes.add('Catering/Delivery details updated');
+        }
         
         if (needsUpdate) {
           debugPrint('📝 Updating order with changes:');
@@ -745,6 +760,17 @@ class DeviceSyncService {
             cashAmount: syncOrder.cashAmount,
             bankAmount: syncOrder.bankAmount,
             isSynced: true,
+            // 🆕 Apply catering/delivery updates
+            deliveryCharge: syncOrder.deliveryCharge,
+            deliveryAddress: syncOrder.deliveryAddress,
+            deliveryBoy: syncOrder.deliveryBoy,
+            eventDate: syncOrder.eventDate,
+            eventTime: syncOrder.eventTime,
+            eventGuestCount: syncOrder.eventGuestCount,
+            eventType: syncOrder.eventType,
+            tokenNumber: syncOrder.tokenNumber,
+            customerName: syncOrder.customerName,
+            depositAmount: syncOrder.depositAmount,
           );
           await localRepo.saveOrder(updatedOrder);
           debugPrint('✅ Updated order: Staff#${syncOrder.staffOrderNumber}, Main#${updatedOrder.mainOrderNumber ?? "pending"}');
@@ -1540,7 +1566,7 @@ class DeviceSyncService {
       final person = Person.fromJson(personData);
       
       final repo = LocalPersonRepository();
-      await repo.savePerson(person); // This saves or updates
+      await repo.savePerson(person, fromSync: true); // This saves or updates
       
       _notifyPersonsChanged();
       
@@ -1654,7 +1680,7 @@ class DeviceSyncService {
       final transaction = CreditTransaction.fromJson(txData);
       
       final repo = CreditTransactionRepository();
-      await repo.saveCreditTransaction(transaction);
+      await repo.saveCreditTransaction(transaction, fromSync: true);
       
       _notifyCreditChanged();
     } catch (e) {
@@ -1698,5 +1724,144 @@ class DeviceSyncService {
       'success': true,
       'message': 'Force sync completed',
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // DELIVERY BOY SYNCING
+  // ---------------------------------------------------------------------------
+
+  static StreamSubscription<QuerySnapshot>? _deliveryBoysSubscription;
+ 
+  static void startListeningToDeliveryBoys(String companyId) async {
+    if (_deliveryBoysSubscription != null) return;
+    
+    try {
+      await FirebaseService.ensureInitialized();
+      
+      if (!FirebaseService.isFirebaseAvailable) {
+        debugPrint('⚠️ Firebase not available, cannot listen to delivery boys');
+        return;
+      }
+    
+      debugPrint('👂 Starting to listen for DELIVERY BOY updates for company: $companyId');
+      
+      _deliveryBoysSubscription = _firestore
+          .collection(_syncedDeliveryBoysCollection)
+          .where('companyId', isEqualTo: companyId)
+          .snapshots()
+          .listen((snapshot) {
+        for (var change in snapshot.docChanges) {
+          if (change.type == DocumentChangeType.added || change.type == DocumentChangeType.modified) {
+            _processIncomingDeliveryBoy(change.doc);
+          } else if (change.type == DocumentChangeType.removed) {
+            _processDeletedDeliveryBoy(change.doc);
+          }
+        }
+      }, onError: (e) {
+        debugPrint('❌ Error listening to delivery boys: $e');
+      });
+    } catch (e) {
+      debugPrint('❌ Error starting delivery boy listener: $e');
+    }
+  }
+
+  static void stopListeningToDeliveryBoys() {
+    _deliveryBoysSubscription?.cancel();
+    _deliveryBoysSubscription = null;
+  }
+
+  static Function()? _onDeliveryBoysChangedCallback;
+
+  static void setOnDeliveryBoysChangedCallback(Function() callback) {
+    _onDeliveryBoysChangedCallback = callback;
+  }
+
+  static void _notifyDeliveryBoysChanged() {
+    if (_onDeliveryBoysChangedCallback != null) {
+      _onDeliveryBoysChangedCallback!();
+    }
+  }
+
+  static Future<void> _processIncomingDeliveryBoy(DocumentSnapshot doc) async {
+    try {
+      final data = doc.data() as Map<String, dynamic>;
+      final lastUpdatedBy = data['lastUpdatedBy'] as String?;
+      final currentDeviceId = await _getDeviceId();
+
+      if (lastUpdatedBy == currentDeviceId) {
+        return;
+      }
+
+      debugPrint('📥 Received DELIVERY BOY update: ${doc.id}');
+      
+      final boyData = data['deliveryBoy'] as Map<String, dynamic>;
+      final boy = DeliveryBoy.fromMap(boyData);
+      
+      final repo = LocalDeliveryBoyRepository();
+      await repo.saveDeliveryBoy(boy, fromSync: true);
+      
+      _notifyDeliveryBoysChanged();
+    } catch (e) {
+      debugPrint('❌ Error processing incoming delivery boy: $e');
+    }
+  }
+
+  static Future<void> _processDeletedDeliveryBoy(DocumentSnapshot doc) async {
+    try {
+      final data = doc.data() as Map<String, dynamic>;
+      final boyData = data['deliveryBoy'] as Map<String, dynamic>;
+      final boyId = boyData['id'] as String;
+      
+      debugPrint('🗑️ Received DELIVERY BOY delete: $boyId');
+      
+      final repo = LocalDeliveryBoyRepository();
+      await repo.deleteDeliveryBoy(boyId, fromSync: true);
+      _notifyDeliveryBoysChanged();
+    } catch (e) {
+      debugPrint('❌ Error processing deleted delivery boy: $e');
+    }
+  }
+
+  static Future<void> syncDeliveryBoyToFirestore(DeliveryBoy boy) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final companyId = prefs.getString('company_id');
+      final deviceId = await _getDeviceId();
+
+      if (companyId == null) return;
+
+      final docId = '${companyId}_${boy.id}';
+      debugPrint('📤 Syncing DELIVERY BOY to Firestore: $boy.name ($docId)');
+
+      final jsonMap = boy.toMap();
+      
+      await _firestore.collection(_syncedDeliveryBoysCollection).doc(docId).set({
+        'companyId': companyId,
+        'deliveryBoy': jsonMap,
+        'lastUpdatedBy': deviceId,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+    } catch (e) {
+      debugPrint('❌ Error syncing delivery boy: $e');
+    }
+  }
+
+  static Future<void> deleteDeliveryBoyFromFirestore(String boyId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final companyId = prefs.getString('company_id');
+      // final deviceId = await _getDeviceId();
+
+      if (companyId == null) return;
+
+      final docId = '${companyId}_$boyId';
+      debugPrint('🗑️ Deleting DELIVERY BOY from Firestore: $docId');
+
+      await _firestore.collection(_syncedDeliveryBoysCollection).doc(docId).delete();
+
+    } catch (e) {
+      debugPrint('❌ Error deleting delivery boy from Firestore: $e');
+    }
   }
 }

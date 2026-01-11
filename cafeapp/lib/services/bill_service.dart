@@ -36,8 +36,15 @@ class BillService {
     };
   }
 
-  // Load Arabic-compatible font with multiple fallbacks
+  // Cached fonts to avoid reloading from assets every time
+  static pw.Font? _cachedArabicFont;
+  static pw.Font? _cachedFallbackFont;
+
+  // Load Arabic-compatible font with multiple fallbacks and caching
   static Future<pw.Font?> _loadArabicFont() async {
+    // Return cached font if available
+    if (_cachedArabicFont != null) return _cachedArabicFont;
+
     final List<String> arabicFonts = [
       "assets/fonts/cairo-regular.ttf",
       "assets/fonts/noto-sans-arabic.ttf", 
@@ -50,7 +57,8 @@ class BillService {
       try {
         final fontData = await rootBundle.load(fontPath);
         debugPrint('Successfully loaded Arabic font: $fontPath');
-        return pw.Font.ttf(fontData.buffer.asByteData());
+        _cachedArabicFont = pw.Font.ttf(fontData.buffer.asByteData());
+        return _cachedArabicFont;
       } catch (e) {
         debugPrint('Failed to load font $fontPath: $e');
         continue;
@@ -61,8 +69,11 @@ class BillService {
     return null;
   }
 
-  // Load fallback font for English text
+  // Load fallback font for English text with caching
   static Future<pw.Font?> _loadFallbackFont() async {
+    // Return cached font if available
+    if (_cachedFallbackFont != null) return _cachedFallbackFont;
+
     final List<String> fallbackFonts = [
       "assets/fonts/open-sans-regular.ttf",
       "assets/fonts/roboto-regular.ttf",
@@ -73,7 +84,8 @@ class BillService {
       try {
         final fontData = await rootBundle.load(fontPath);
         debugPrint('Successfully loaded fallback font: $fontPath');
-        return pw.Font.ttf(fontData.buffer.asByteData());
+        _cachedFallbackFont = pw.Font.ttf(fontData.buffer.asByteData());
+        return _cachedFallbackFont;
       } catch (e) {
         debugPrint('Failed to load font $fontPath: $e');
         continue;
@@ -139,6 +151,10 @@ class BillService {
     bool isEdited = false,
     String? orderNumber,
     double? taxRate,
+    String? title,
+
+    double? depositAmount,
+    double? deliveryCharge, // New parameter
   }) async {
     final pdf = pw.Document();
     final businessInfo = await getBusinessInfo();
@@ -266,7 +282,7 @@ class BillService {
                     pw.SizedBox(height: 3),
                     
                     _createText(
-                      'ORDER #$billNumber',
+                      '${title ?? 'ORDER'} #$billNumber',
                       arabicFont: arabicFont,
                       fallbackFont: fallbackFont,
                       style: pw.TextStyle(
@@ -516,6 +532,35 @@ class BillService {
                 ),
               ),
               
+              if (deliveryCharge != null && deliveryCharge > 0)
+                pw.Padding(
+                  padding: const pw.EdgeInsets.only(top: 2),
+                  child: pw.Row(
+                    children: [
+                      pw.Expanded(
+                        flex: 6,
+                        child: _createText(
+                          'Delivery Fee:',
+                          arabicFont: arabicFont,
+                          fallbackFont: fallbackFont,
+                          style: pw.TextStyle(fontSize: 10),
+                          textAlign: pw.TextAlign.right,
+                        ),
+                      ),
+                      pw.Expanded(
+                        flex: 4,
+                        child: _createText(
+                          deliveryCharge.toStringAsFixed(3),
+                          arabicFont: arabicFont,
+                          fallbackFont: fallbackFont,
+                          style: pw.TextStyle(fontSize: 10),
+                          textAlign: pw.TextAlign.right,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              
               if (discount > 0)
                 pw.Padding(
                   padding: const pw.EdgeInsets.only(top: 2),
@@ -544,6 +589,64 @@ class BillService {
                     ],
                   ),
                 ),
+              
+              if (depositAmount != null && depositAmount > 0) ...[
+                pw.Divider(thickness: 1),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.only(top: 2),
+                  child: pw.Row(
+                    children: [
+                      pw.Expanded(
+                        flex: 6,
+                        child: _createText(
+                          'Advance Paid:',
+                          arabicFont: arabicFont,
+                          fallbackFont: fallbackFont,
+                          style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+                          textAlign: pw.TextAlign.right,
+                        ),
+                      ),
+                      pw.Expanded(
+                        flex: 4,
+                        child: _createText(
+                          depositAmount.toStringAsFixed(3),
+                          arabicFont: arabicFont,
+                          fallbackFont: fallbackFont,
+                          style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+                          textAlign: pw.TextAlign.right,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.only(top: 2, bottom: 5),
+                  child: pw.Row(
+                    children: [
+                      pw.Expanded(
+                        flex: 6,
+                        child: _createText(
+                          'Balance Due:',
+                          arabicFont: arabicFont,
+                          fallbackFont: fallbackFont,
+                          style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.red),
+                          textAlign: pw.TextAlign.right,
+                        ),
+                      ),
+                      pw.Expanded(
+                        flex: 4,
+                        child: _createText(
+                          (total - depositAmount).toStringAsFixed(3),
+                          arabicFont: arabicFont,
+                          fallbackFont: fallbackFont,
+                          style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.red),
+                          textAlign: pw.TextAlign.right,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               
               pw.Divider(thickness: 1),
               
@@ -1055,6 +1158,8 @@ class BillService {
         isEdited: isEdited,
         orderNumber: order.orderNumber,
         taxRate: effectiveTaxRate,
+        depositAmount: order.depositAmount,
+        deliveryCharge: order.deliveryCharge,
       );
       
       return printed;
@@ -1114,6 +1219,9 @@ class BillService {
     bool isEdited = false,
     String? orderNumber,
     double? taxRate,
+
+    double? depositAmount,
+    double? deliveryCharge, // New parameter
   }) async {
     try {
       debugPrint('Printing bill using image-based approach');
@@ -1133,6 +1241,9 @@ class BillService {
         isEdited: isEdited,
         orderNumber: orderNumber,
         taxRate: effectiveTaxRate,
+
+        depositAmount: depositAmount,
+        deliveryCharge: deliveryCharge,
       );
       
       return printed;
@@ -1251,6 +1362,7 @@ class BillService {
     required BuildContext context,
     bool isEdited = false,
     double? taxRate,
+    double? deliveryCharge, // New parameter
   }) async {
     final effectiveTaxRate = taxRate ?? 0.0;
     final printerEnabled = await isPrinterEnabled();
@@ -1330,6 +1442,7 @@ class BillService {
         tableInfo: tableInfo,
         isEdited: isEdited,
         taxRate: effectiveTaxRate,
+        deliveryCharge: deliveryCharge,
       );
       
       final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
@@ -1367,6 +1480,7 @@ class BillService {
       tableInfo: tableInfo,
       isEdited: isEdited,
       taxRate: effectiveTaxRate,
+      deliveryCharge: deliveryCharge,
     );
     
     if (printed) {
@@ -1422,6 +1536,7 @@ class BillService {
       tableInfo: tableInfo,
       isEdited: isEdited,
       taxRate: effectiveTaxRate,
+      deliveryCharge: deliveryCharge,
     );
     
        final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());

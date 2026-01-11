@@ -724,7 +724,7 @@ Future<void> _verifyFirestoreSync() async {
                                 )
                               : ElevatedButton.icon(
                                   onPressed: () async {
-                                    final success = await LogoService.pickAndSaveLogo();
+                                    final success = await LogoService.pickAndSaveLogo(context);
                                     if (success) {
                                       // Update LogoProvider to trigger UI refresh
                                       await logoProvider.updateLogo();

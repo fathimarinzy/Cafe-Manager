@@ -35,7 +35,13 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   List<OrderItem>? _originalItems;
   double _taxRate = 0.0;
   double _discountAmount = 0.0; 
+
   Person? _customer;
+  // Catering Details
+  String? _eventDate;
+  String? _eventTime;
+  int? _eventGuestCount;
+  String? _eventType;
 
   @override
   void initState() {
@@ -71,7 +77,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
     try {
       final orderProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
-      final order = await orderProvider.getOrderDetails(widget.orderId);
+      var order = await orderProvider.getOrderDetails(widget.orderId);
       
       if (mounted && order != null) {
         Person? customer;
@@ -86,13 +92,29 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         }
         
         double discount = 0.0;
-        if (order.id > 0) {
+        String? eventDate;
+        String? eventTime;
+        int? eventGuestCount;
+        String? eventType;
+
+        if (order.id != null && order.id! > 0) {
           final localOrderRepo = LocalOrderRepository();
           try {
-            final orderFromDb = await localOrderRepo.getOrderById(order.id);
+            final orderFromDb = await localOrderRepo.getOrderById(order.id!);
             if (orderFromDb != null) {
               discount = orderFromDb.discount;
+              eventDate = orderFromDb.eventDate;
+              eventTime = orderFromDb.eventTime;
+              eventGuestCount = orderFromDb.eventGuestCount;
+              eventType = orderFromDb.eventType;
+              
               debugPrint('Loaded discount from DB: $discount');
+              debugPrint('Loaded event info: $eventType, $eventDate');
+              debugPrint('Loaded delivery charge from DB: ${orderFromDb.deliveryCharge}');
+              
+              // Prefer the fully populated DB order object
+              order = orderFromDb;
+
                 // DEBUG: Print tax-exempt status of items
                for (var item in orderFromDb.items) {
               debugPrint('Item: ${item.name}, TaxExempt: ${item.taxExempt}');
@@ -104,9 +126,13 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         }
         
         setState(() {
-          _order = order;
+          _order = OrderHistory.fromOrder(order!);
           _customer = customer;
           _discountAmount = discount;
+          _eventDate = eventDate;
+          _eventTime = eventTime;
+          _eventGuestCount = eventGuestCount;
+          _eventType = eventType;
           _originalItems = order.items.map((item) => 
             OrderItem(
               id: item.id,
@@ -132,9 +158,11 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
 
   void _navigateToTender() {
     if (_order == null) return;
+    debugPrint('OrderDetails: Navigating to Tender. OrderID=${_order!.id}, Charge=${_order!.deliveryCharge}');
     
     Navigator.of(context).push(
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'TenderScreen'),
         builder: (context) => TenderScreen(
           order: _order!,
           isEdited: _wasEdited,
@@ -176,17 +204,19 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       double calculatedTax;
       double calculatedTotal;
       
+      double deliveryCharge = _order!.deliveryCharge ?? 0.0;
+
       if (settingsProvider.isVatInclusive) {
         // Inclusive VAT: extract tax only from taxable items
         final taxableAmount = taxableTotal / (1 + (settingsProvider.taxRate / 100));
         calculatedTax = taxableTotal - taxableAmount;
         calculatedSubtotal = taxableAmount + taxExemptTotal;
-        calculatedTotal = (taxableTotal + taxExemptTotal) - _discountAmount;
+        calculatedTotal = (taxableTotal + taxExemptTotal + deliveryCharge) - _discountAmount;
       } else {
         // Exclusive VAT: add tax on top of taxable items only
         calculatedSubtotal = taxableTotal + taxExemptTotal;
         calculatedTax = taxableTotal * (settingsProvider.taxRate / 100);
-        calculatedTotal = calculatedSubtotal + calculatedTax - _discountAmount;
+        calculatedTotal = calculatedSubtotal + calculatedTax + deliveryCharge - _discountAmount;
       }
 
       final orderItems = _order!.items.map((item) => 
@@ -223,6 +253,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       staffOrderNumber: existingOrder?.staffOrderNumber, // Preserve staff order number
       mainOrderNumber: existingOrder?.mainOrderNumber, // Preserve main order number
       mainNumberAssigned: existingOrder?.mainNumberAssigned ?? false,
+      deliveryAddress: existingOrder?.deliveryAddress,
+      deliveryBoy: existingOrder?.deliveryBoy,
+      deliveryCharge: existingOrder?.deliveryCharge,
     );
       
     final updatedOrder = await localOrderRepo.saveOrder(localOrder);
@@ -251,9 +284,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     debugPrint('Staff Device ID: ${updatedOrder.staffDeviceId}');
     debugPrint('Staff Order #: ${updatedOrder.staffOrderNumber}');
     debugPrint('Main Order #: ${updatedOrder.mainOrderNumber}');
+    debugPrint('OrderDetails: Delivery Charge: ${updatedOrder.deliveryCharge}');
 
       debugPrint('Order updated locally with VAT type: ${updatedOrder.id}');
-      debugPrint('Taxable: $taxableTotal, Tax-Exempt: $taxExemptTotal');
       debugPrint('Subtotal: $calculatedSubtotal, Tax: $calculatedTax, Total: $calculatedTotal');
       debugPrint('Payment Method: ${updatedOrder.paymentMethod}');
       debugPrint('Cash Amount: ${updatedOrder.cashAmount}, Bank Amount: ${updatedOrder.bankAmount}');
@@ -591,15 +624,17 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                     double newTax;
                     double newTotal;
                     
+                    double deliveryCharge = _order!.deliveryCharge ?? 0.0;
+
                     if (settingsProvider.isVatInclusive) {
                       final taxableAmount = taxableTotal / (1 + (settingsProvider.taxRate / 100));
                       newTax = taxableTotal - taxableAmount;
                       newSubtotal = taxableAmount + taxExemptTotal;
-                      newTotal = (taxableTotal + taxExemptTotal) - _discountAmount;
+                      newTotal = (taxableTotal + taxExemptTotal + deliveryCharge) - _discountAmount;
                     } else {
                       newSubtotal = taxableTotal + taxExemptTotal ;
                       newTax = taxableTotal * (settingsProvider.taxRate / 100);
-                      newTotal = newSubtotal + newTax - _discountAmount;
+                      newTotal = newSubtotal + newTax + deliveryCharge - _discountAmount;
                     }
 
                     setState(() {
@@ -1087,6 +1122,129 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     );
   }
   
+  // Show dialog to edit delivery details
+  void _showEditDeliveryDetailsDialog() {
+    if (_order == null) return;
+    
+    final addressController = TextEditingController(text: _order!.deliveryAddress ?? '');
+    final chargeController = TextEditingController(text: (_order!.deliveryCharge ?? 0.0).toStringAsFixed(2));
+    final formKey = GlobalKey<FormState>();
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Edit Delivery Details'.tr()),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: addressController,
+                    decoration: InputDecoration(
+                      labelText: 'Delivery Address'.tr(),
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.location_on),
+                    ),
+                    maxLines: 3,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter delivery address'.tr();
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: chargeController,
+                    decoration: InputDecoration(
+                      labelText: 'Delivery Charge'.tr(),
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.attach_money),
+                    ),
+                    keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter charge'.tr();
+                      }
+                      if (double.tryParse(value) == null) {
+                        return 'Invalid amount'.tr();
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Cancel'.tr()),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (formKey.currentState!.validate()) {
+                  final newAddress = addressController.text;
+                  final newCharge = double.parse(chargeController.text);
+                  
+                  Navigator.of(context).pop();
+                  
+                  setState(() {
+                    _isLoading = true;
+                  });
+                  
+                  try {
+                    final provider = Provider.of<OrderHistoryProvider>(context, listen: false);
+                    final success = await provider.updateOrderDeliveryDetails(
+                      _order!.id,
+                      newAddress,
+                      _order!.deliveryBoy ?? '',
+                      newCharge,
+                    );
+                    
+                    if (success) {
+                      await _loadOrderDetails(); // Reload to refresh UI
+                      
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Delivery details updated'.tr()),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    } else {
+                       if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Failed to update details'.tr()),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  } catch (e) {
+                    debugPrint('Error updating delivery details: $e');
+                  } finally {
+                    if (mounted) {
+                      setState(() {
+                        _isLoading = false;
+                      });
+                    }
+                  }
+                }
+              },
+              child: Text('Save'.tr()),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildOrderDetailsView() {
     final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
     final settingsProvider = Provider.of<SettingsProvider>(context);
@@ -1108,15 +1266,17 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     double tax;
     double total;
     
+    double deliveryCharge = _order!.deliveryCharge ?? 0.0;
+
     if (settingsProvider.isVatInclusive) {
       final taxableAmount = taxableTotal / (1 + (settingsProvider.taxRate / 100));
       tax = taxableTotal - taxableAmount;
       subtotal = taxableAmount + taxExemptTotal;
-      total = (taxableTotal + taxExemptTotal) - _discountAmount;
+      total = (taxableTotal + taxExemptTotal + deliveryCharge) - _discountAmount;
     } else {
       subtotal = taxableTotal + taxExemptTotal;
       tax = taxableTotal * (settingsProvider.taxRate / 100);
-      total = subtotal + tax - _discountAmount;
+      total = subtotal + tax + deliveryCharge - _discountAmount;
     }
 
     return SingleChildScrollView(
@@ -1124,6 +1284,249 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (_order!.serviceType.toLowerCase().contains('delivery')) ...[
+              Card(
+                elevation: 2,
+                color: Colors.orange.shade50,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.local_shipping, color: Colors.orange[800]),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Delivery Details'.tr(),
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange[900],
+                                ),
+                              ),
+                            ],
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.edit, size: 20, color: Colors.orange),
+                            onPressed: _showEditDeliveryDetailsDialog,
+                            tooltip: 'Edit Details'.tr(),
+                          ),
+                        ],
+                      ),
+                      const Divider(),
+                      if (_order!.deliveryAddress != null)
+                        _buildInfoRow(Icons.location_on, 'Address'.tr(), _order!.deliveryAddress!),
+                      const SizedBox(height: 8),
+                      if (_order!.deliveryBoy != null)
+                        _buildInfoRow(Icons.directions_bike, 'Delivery Boy'.tr(), _order!.deliveryBoy!),
+                      const SizedBox(height: 8),
+                      if (_order!.deliveryCharge != null)
+                        _buildInfoRow(Icons.attach_money, 'Delivery Charge'.tr(), currencyFormat.format(_order!.deliveryCharge!)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+          ],
+
+          // Dining Details Card (Blue)
+          if (_order!.serviceType.toLowerCase().contains('dining')) ...[
+            Card(
+              elevation: 2,
+              color: Colors.blue.shade50,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.table_restaurant, color: Colors.blue[800]),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Dining Details'.tr(),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue[900],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(),
+                    _buildInfoRow(Icons.restaurant, 'Service Type'.tr(), 'Dine-In'.tr()),
+                    const SizedBox(height: 8),
+                    // Extract table info if present in string like "Dining - Table 5"
+                    if (_order!.serviceType.contains('-')) 
+                      _buildInfoRow(Icons.table_bar, 'Table'.tr(), _order!.serviceType.split('-').last.trim()),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          // Takeout / Take Away Details Card (Green)
+          if (_order!.serviceType.toLowerCase().contains('takeaway') || _order!.serviceType.toLowerCase().contains('takeout')) ...[
+            Card(
+              elevation: 2,
+              color: Colors.green.shade50,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.shopping_bag, color: Colors.green[800]),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Takeout Details'.tr(),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green[900],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(),
+                    _buildInfoRow(Icons.run_circle, 'Type'.tr(), 'Take Away'.tr()),
+                    const SizedBox(height: 8),
+                    _buildInfoRow(Icons.timer, 'Status'.tr(), 'Ready for Pickup'.tr()),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          // Online Order Details Card (Cyan)
+          if (_order!.serviceType.toLowerCase().contains('online')) ...[
+            Card(
+              elevation: 2,
+              color: Colors.cyan.shade50,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.public, color: Colors.cyan[800]),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Online Order'.tr(),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.cyan[900],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(),
+                    _buildInfoRow(Icons.web, 'Source'.tr(), 'Web/App'.tr()),
+                    const SizedBox(height: 8),
+                    // Placeholder for potential online order ID or external reference
+                     _buildInfoRow(Icons.confirmation_number, 'Ref #'.tr(), _order!.orderNumber.toString()), 
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          // Drive-Thru Details Card (Pink)
+          if (_order!.serviceType.toLowerCase().contains('drive')) ...[
+            Card(
+              elevation: 2,
+              color: Colors.pink.shade50,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.directions_car, color: Colors.pink[800]),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Drive-Thru'.tr(),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.pink[900],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(),
+                    _buildInfoRow(Icons.car_repair, 'Service'.tr(), 'Drive-Through'.tr()),
+                    const SizedBox(height: 8),
+                    // Extract vehicle info if present in string like "Drive-Thru - KA01AB1234"
+                    if (_order!.serviceType.contains('-'))
+                      _buildInfoRow(Icons.directions_car, 'Vehicle No'.tr(), _order!.serviceType.split('-').last.trim())
+                    else
+                      _buildInfoRow(Icons.directions_car, 'Vehicle No'.tr(), 'Not Provided'.tr()),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          // Catering Details Card
+          if (_eventType != null && (_order!.serviceType.toLowerCase().contains('catering'))) ...[
+            Card(
+              elevation: 2,
+              color: Colors.amber.shade50,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.cake, color: Colors.amber[900]),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Event Details'.tr(),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.amber[900],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(),
+                    _buildInfoRow(Icons.event_note, 'Event Type'.tr(), _eventType!),
+                    const SizedBox(height: 8),
+                    if (_eventDate != null)
+                      _buildInfoRow(Icons.calendar_today, 'Date'.tr(), _eventDate!),
+                    const SizedBox(height: 8),
+                    if (_eventTime != null)
+                      _buildInfoRow(Icons.access_time, 'Time'.tr(), _eventTime!),
+                    const SizedBox(height: 8),
+                    if (_eventGuestCount != null)
+                      _buildInfoRow(Icons.people, 'Guests'.tr(), '$_eventGuestCount'),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           Card(
             elevation: 2,
             shape: RoundedRectangleBorder(
@@ -1274,6 +1677,10 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                       Text(currencyFormat.format(tax)),
                     ],
                   ),
+                  if (_order!.serviceType.toLowerCase().contains('delivery')) ...[
+                    const SizedBox(height: 4),
+                    _buildTotalRow('Delivery Fee:'.tr(), deliveryCharge, currencyFormat),
+                  ],
                   // NEW: Show tax-exempt total if any
                   // if (taxExemptTotal > 0) ...[
                   //   const SizedBox(height: 4),
@@ -1308,6 +1715,52 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                       currencyFormat,
                       isTotal: true
                     ),
+                    if ((_order!.depositAmount ?? 0.0) > 0) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Advance Paid:'.tr(),
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange.shade800,
+                            ),
+                          ),
+                          Text(
+                            currencyFormat.format(_order!.depositAmount),
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange.shade800,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Balance Due:'.tr(),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red.shade700,
+                            ),
+                          ),
+                          Text(
+                            currencyFormat.format(total - (_order!.depositAmount ?? 0.0)),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ],
               ),
@@ -1334,35 +1787,46 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Row(
+                  Column(
                     children: [
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.payment),
-                          label: Text('Tender Payment'.tr()),
-                          onPressed: _navigateToTender,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue[900],
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                      Row(
+                        children: [
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.payment),
+                              label: Text('Tender Payment'.tr()),
+                              onPressed: _navigateToTender,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue[900],
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                minimumSize: const Size(double.infinity, 48), // Explicit height
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 10),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.print),
-                          label: Text('Reprint KOT'.tr()),
-                          onPressed: _reprintReceipt,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue[900],
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.print),
+                              label: Text('Reprint KOT'.tr()),
+                              onPressed: _reprintReceipt,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.grey[700], // distinct color for secondary action
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 10),
+                        ],
                       ),
-                      const SizedBox(width: 10),
                     ],
                   ),      
                 ],
@@ -1386,10 +1850,13 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           ),
         ),
         const SizedBox(width: 8),
-        Text(
-          value,
-          style: const TextStyle(
-            fontWeight: FontWeight.w500,
+        Flexible(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontWeight: FontWeight.w500,
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],

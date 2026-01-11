@@ -14,7 +14,9 @@ import '../utils/app_localization.dart';
 
 
 class ModifierScreen extends StatefulWidget {
-  const ModifierScreen({super.key});
+  final bool allowPerPlatePricing;
+
+  const ModifierScreen({super.key, this.allowPerPlatePricing = false});
 
   @override
   State<ModifierScreen> createState() => _ModifierScreenState();
@@ -32,6 +34,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
   bool _isAvailable = true;
   bool _isAddingNewCategory = false;
   bool _isTaxExempt = false;
+  bool _isPerPlate = false; // NEW
 
   
   MenuItem? _editingItem;
@@ -1197,6 +1200,7 @@ void _showPermissionDeniedDialog(BuildContext context) {
     setState(() {
       _isAvailable = true;
       _isTaxExempt = false;
+      _isPerPlate = false; // NEW
       _editingItem = null;
       _isAddingNewCategory = false;
       _selectedImage = null;
@@ -1218,7 +1222,8 @@ void _showPermissionDeniedDialog(BuildContext context) {
       _priceController.text = item.price.toString();
       _selectedCategory = item.category;
       _isAvailable = item.isAvailable;
-      _isTaxExempt = item.taxExempt; // NEW
+      _isTaxExempt = item.taxExempt; 
+      _isPerPlate = item.isPerPlate; // NEW
       _isAddingNewCategory = false;
       _selectedImage = null;
       
@@ -1602,6 +1607,7 @@ void _showPermissionDeniedDialog(BuildContext context) {
     // IMPORTANT: Capture the state values BEFORE any async operations
     final bool capturedTaxExempt = _isTaxExempt;
     final bool capturedIsAvailable = _isAvailable;
+    final bool capturedIsPerPlate = _isPerPlate; // NEW
     final String capturedName = _nameController.text.trim();
     final double capturedPrice = double.parse(_priceController.text);
 
@@ -1689,12 +1695,16 @@ void _showPermissionDeniedDialog(BuildContext context) {
       category: categoryToUse,
       imageUrl: imageUrl,
       isAvailable: capturedIsAvailable,  // ← Use captured value
-      taxExempt: capturedTaxExempt, 
+
+      taxExempt: capturedTaxExempt,
+      isPerPlate: capturedIsPerPlate, // NEW
     );
      // Debug log to verify the item being saved
      debugPrint('💾 MenuItem created - taxExempt: ${item.taxExempt}');
     // Save to database
     bool success = false;
+    String errorMessage = ''; // Capture the specific error
+
     try {
       if (_editingItem == null) {
         await menuProvider.addMenuItem(item);
@@ -1702,9 +1712,10 @@ void _showPermissionDeniedDialog(BuildContext context) {
         await menuProvider.updateMenuItem(item);
       }
       success = true;
-      // await LocalOrderRepository().printDatabaseContents(); // Debug log
     } catch (e) {
       success = false;
+      errorMessage = e.toString(); // Store the actual error
+      debugPrint('Error saving item: $errorMessage');
     }
 
     if (!mounted) return;
@@ -1714,8 +1725,19 @@ void _showPermissionDeniedDialog(BuildContext context) {
     final message = _editingItem == null ? 'Item added successfully'.tr() : 'Item updated successfully'.tr();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(success ? message : 'Failed to save item. Please try again.'.tr()),
+        // Show specific error if failed
+        content: Text(success ? message : 'Failed: $errorMessage'), 
         backgroundColor: success ? Colors.green : Colors.red,
+        duration: Duration(seconds: success ? 2 : 10), // Longer duration for error reading
+        action: success ? null : SnackBarAction(
+          label: 'Copy',
+          textColor: Colors.white,
+          onPressed: () {
+             // Optional: Allow copying to clipboard if we had the service, 
+             // for now just allow dismissing or maybe retry
+             ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          },
+        ),
       ),
     );
 
@@ -2223,6 +2245,28 @@ void _showPermissionDeniedDialog(BuildContext context) {
                     ),
                   ],
                 ),
+                const SizedBox(height: 8),
+
+                // NEW: Per Plate Pricing switch
+                if (widget.allowPerPlatePricing)
+                  Row(
+                    children: [
+                      Text('Per Plate Pricing'.tr()),
+                      const SizedBox(width: 8),
+                      Tooltip(
+                        message: 'Price is per person based on event guest count'.tr(),
+                        child: Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
+                      ),
+                      Switch(
+                        value: _isPerPlate,
+                        onChanged: (value) {
+                          setState(() {
+                            _isPerPlate = value;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
                 const SizedBox(height: 32), // Add extra space at bottom
 
                 // Form buttons

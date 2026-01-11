@@ -65,29 +65,28 @@ class PersonProvider with ChangeNotifier {
     }
   }
 
-  Future<void> searchPersons(String query) async {
+  void searchPersons(String query) {
     if (query.isEmpty) {
       _searchResults = [];
       notifyListeners();
       return;
     }
 
-    _isLoading = true;
+    _isLoading = false; // No async loading needed
     _error = '';
-    notifyListeners();
-
+    
+    // OPTIMIZATION: Filter in-memory list instead of DB query
+    // The _persons list is already loaded by loadPersons()
     try {
-      // Search only in local database
-      final allPersons = await _localPersonRepo.getAllPersons();
-      _searchResults = allPersons.where((person) => 
+      _searchResults = _persons.where((person) => 
         person.name.toLowerCase().contains(query.toLowerCase()) ||
         person.phoneNumber.contains(query)
       ).toList();
+      
+      notifyListeners();
     } catch (e) {
       _error = e.toString();
       debugPrint('Error searching persons: $e');
-    } finally {
-      _isLoading = false;
       notifyListeners();
     }
   }

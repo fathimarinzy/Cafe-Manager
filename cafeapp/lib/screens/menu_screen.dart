@@ -87,8 +87,12 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
    // Set the current service type and order ID in OrderProvider
   WidgetsBinding.instance.addPostFrameCallback((_) async {
     final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-    orderProvider.setCurrentServiceType(widget.serviceType);
-     orderProvider.clearSelectedPerson();
+     orderProvider.setCurrentServiceType(widget.serviceType);
+     // Only clear selected person if NOT delivery OR catering
+     final serviceLower = widget.serviceType.toLowerCase();
+     if (!serviceLower.contains('delivery') && !serviceLower.contains('catering')) {
+       orderProvider.clearSelectedPerson();
+     }
     
     // If an existing order ID was provided
     if (widget.existingOrderId != null) {
@@ -367,6 +371,12 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
     _lastSearchQuery = _itemSearchQuery;
     _cachedItems = items;
     
+    
+    // Filter out "Per Plate" items UNLESS we are in Catering mode
+    if (!widget.serviceType.toLowerCase().contains('catering')) {
+      items = items.where((item) => !item.isPerPlate).toList();
+    }
+
     return items;
   }
 
@@ -392,15 +402,29 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
     ]);
     
     if (mounted) {
-      setState(() {
-        // Only set the category if it's empty or no longer exists
-        if (_selectedCategory.isEmpty || 
-            !menuProvider.categories.contains(_selectedCategory)) {
-          _selectedCategory = menuProvider.categories.isNotEmpty ? 
-              menuProvider.categories.first : '';
+      final isMobile = MediaQuery.of(context).size.width < 600;
+      bool shouldUpdate = false;
+      
+      // Calculate desired category
+      String targetCategory = _selectedCategory;
+      if (!isMobile && (_selectedCategory.isEmpty || 
+          !menuProvider.categories.contains(_selectedCategory))) {
+        targetCategory = menuProvider.categories.isNotEmpty ? 
+            menuProvider.categories.first : '';
+        if (targetCategory != _selectedCategory) {
+          shouldUpdate = true;
         }
-        _isLoading = false;
-      });
+      }
+
+      // Only setState if we need to change category OR if we were loading
+      if (shouldUpdate || _isLoading) {
+        setState(() {
+          if (shouldUpdate) {
+            _selectedCategory = targetCategory;
+          }
+          _isLoading = false;
+        });
+      }
     }
   } catch (error) {
     if (!mounted) return;
@@ -478,7 +502,9 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
     final menuProvider = Provider.of<MenuProvider>(context);
     final orderProvider = Provider.of<OrderProvider>(context);
     final orientation = MediaQuery.of(context).orientation;
+    final screenWidth = MediaQuery.of(context).size.width;
     final isPortrait = orientation == Orientation.portrait;
+    final isMobile = screenWidth < 600;
     
     // Watch settings changes without creating an unused variable
     context.watch<SettingsProvider>();
@@ -506,10 +532,50 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
       onPopInvokedWithResult: (bool didPop, dynamic result) async {
         if (didPop) {
           await _loadMenu();
+          return;
+        }
+        // Handle Android Back Button to navigate up category hierarchy
+        if (isMobile && _selectedCategory.isNotEmpty) {
+           setState(() {
+             _selectedCategory = '';
+             _itemSearchQuery = '';
+             _cachedItems = null;
+           });
+        } else {
+           Navigator.of(context).pop();
         }
       },
       child: Scaffold(
-        appBar: AppBar(
+        appBar: isMobile // Simplified AppBar for mobile
+          ? AppBar(
+              backgroundColor: Colors.white,
+              elevation: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.black),
+                onPressed: () {
+                   if (_selectedCategory.isNotEmpty) {
+                     setState(() {
+                       _selectedCategory = '';
+                       _itemSearchQuery = '';
+                       _cachedItems = null;
+                     });
+                   } else {
+                     Navigator.of(context).pop();
+                   }
+                },
+              ),
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(widget.serviceType, style: const TextStyle(color: Colors.black, fontSize: 16)),
+                  Text(_currentTime, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                ],
+              ),
+              actions: [
+                IconButton(icon: Icon(Icons.print, color: _isKotPrinterEnabled ? Colors.blue : Colors.grey), onPressed: _toggleKotPrinterConnection),
+              ],
+            )
+          : AppBar(
           backgroundColor: Colors.white,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.black),
@@ -520,18 +586,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
             style: const TextStyle(color: Colors.black),
           ),
           actions: [
-            // Menu Layout Button
-            IconButton(
-              onPressed: _showMenuLayoutDialog,
-              icon: Icon(
-                Icons.grid_view,
-                color: Colors.blue.shade700,
-                size: 24,
-              ),
-              tooltip: 'Menu Layout'.tr(),
-            ),
-            const SizedBox(width: 8),
-            // Kitchen Printer Toggle Button
+            // Kitchen Printer Toggle Button (Moved First)
             IconButton(
               onPressed: _isCheckingKotPrinter ? null : _toggleKotPrinterConnection,
               icon: _isCheckingKotPrinter
@@ -552,6 +607,17 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
             ),
             const SizedBox(width: 8),
 
+            // Menu Layout Button (Moved Right)
+            IconButton(
+              onPressed: _showMenuLayoutDialog,
+              icon: Icon(
+                Icons.grid_view,
+                color: Colors.blue.shade700,
+                size: 24,
+              ),
+              tooltip: 'Menu Layout'.tr(),
+            ),
+            const SizedBox(width: 8),
             // Order List button
             TextButton.icon(  
               onPressed: () {
@@ -590,15 +656,301 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
             ),
           ),
         ),
-        body: Column(
+        body: isMobile 
+            ? _buildPhoneLayout(menuProvider, orderProvider, displayedItems)
+            : (isPortrait
+                ? _buildPortraitLayout(menuProvider, orderProvider, displayedItems)
+                : _buildLandscapeLayout(menuProvider, orderProvider, displayedItems)),
+                    
+                    
+                    
+        bottomNavigationBar: _buildBottomNavigationBar(isPortrait),
+      ),
+    );
+  }
+
+  // Mobile Phone Layout (Width < 600)
+  Widget _buildPhoneLayout(MenuProvider menuProvider, OrderProvider orderProvider, List<MenuItem> displayedItems) {
+    // If no category selected (and no search active), show full screen category grid
+    if (_selectedCategory.isEmpty && _itemSearchQuery.isEmpty) {
+      return Column(
+        children: [
+           // Search Bar for Categories/Items
+           Padding(
+             padding: const EdgeInsets.all(16.0),
+             child: TextField(
+               decoration: InputDecoration(
+                 hintText: "Search menu...".tr(),
+                 prefixIcon: const Icon(Icons.search),
+                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                 filled: true,
+                 fillColor: Colors.grey.shade100,
+                 contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+               ),
+               onChanged: (val) {
+                 setState(() {
+                   _itemSearchQuery = val;
+                   _cachedItems = null;
+                 });
+               },
+             ),
+           ),
+           Expanded(child: _buildCategoryGrid(menuProvider.categories)),
+           _buildMobileBottomBar(orderProvider),
+        ],
+      );
+    }
+
+    // Otherwise show the Product List (Sub-categories)
+    return Column(
+      children: [
+        // Top: Selected Category + Back Button (simulated header)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          color: Colors.white,
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () {
+                  setState(() {
+                    _selectedCategory = '';
+                    _itemSearchQuery = '';
+                    _cachedItems = null;
+                  });
+                },
+              ),
+              Expanded(
+                child: Text(
+                  _selectedCategory, 
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // Optional: Horizontal list could be here, but let's stick to "Focus on Items"
+            ],
+          ),
+        ),
+        Container(height: 1, color: Colors.grey.shade300),
+        
+        // Body: Product Grid
+        Expanded(
+          child: Column(
+            children: [
+               // Search within category
+               if (_selectedCategory.isNotEmpty)
+                 Padding(
+                   padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                   child: TextField(
+                    decoration: InputDecoration(
+                      hintText: "Search in $_selectedCategory...".tr(),
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    ),
+                    onChanged: (val) {
+                       setState(() {
+                         _itemSearchQuery = val; 
+                         _cachedItems = null;
+                       });
+                    },
+                   ),
+                 ),
+
+               Expanded(
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _buildProductGrid(displayedItems, orderProvider, crossAxisCount: _menuColumns),
+               ),
+            ],
+          ),
+        ),
+        
+        // Bottom: Condensed Order Bar (Always visible)
+        _buildMobileBottomBar(orderProvider),
+      ],
+    );
+  }
+
+  Widget _buildCategoryGrid(List<String> categories) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(8),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 5, // Even denser (from 4)
+        childAspectRatio: 0.85, // Taller to fit text in narrow space
+        crossAxisSpacing: 6,
+        mainAxisSpacing: 6,
+      ),
+      itemCount: categories.length,
+      itemBuilder: (context, index) {
+        final category = categories[index];
+        // Warm/Appetizing color scheme
+        final color = Colors.orange.shade50;
+        final textColor = Colors.brown.shade800;
+        final borderColor = Colors.orange.shade100;
+
+        return Material(
+          color: color,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: borderColor),
+          ),
+          elevation: 0,
+          child: InkWell(
+            onTap: () {
+              setState(() {
+                _selectedCategory = category;
+                _cachedItems = null;
+              });
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(4.0),
+                child: Text(
+                  category,
+                  textAlign: TextAlign.center,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11, // Smaller text
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                    height: 1.1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+
+  // Widget _buildHorizontalCategories(List<String> categories) {
+  //   return ListView.builder(
+  //     scrollDirection: Axis.horizontal,
+  //     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+  //     itemCount: categories.length,
+  //     itemBuilder: (context, index) {
+  //       final category = categories[index];
+  //       final isSelected = _selectedCategory == category;
+  //       return Padding(
+  //         padding: const EdgeInsets.only(right: 8),
+  //         child: InkWell(
+  //           onTap: () {
+  //             setState(() {
+  //               _selectedCategory = category;
+  //               _cachedItems = null;
+  //             });
+  //           },
+  //           borderRadius: BorderRadius.circular(20),
+  //           child: AnimatedContainer(
+  //             duration: const Duration(milliseconds: 200),
+  //             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+  //             decoration: BoxDecoration(
+  //               color: isSelected ? widget.serviceColor : Colors.grey.shade100,
+  //               borderRadius: BorderRadius.circular(20),
+  //               border: Border.all(
+  //                 color: isSelected ? widget.serviceColor : Colors.transparent,
+  //                 width: 1,
+  //               ),
+  //               boxShadow: isSelected 
+  //                   ? [BoxShadow(color: widget.serviceColor.withAlpha(77), blurRadius: 4, offset: Offset(0, 2))]
+  //                   : [],
+  //             ),
+  //             child: Center(
+  //               child: Text(
+  //                 category,
+  //                 style: TextStyle(
+  //                   color: isSelected ? Colors.white : Colors.grey.shade800,
+  //                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+  //                   fontSize: 14,
+  //                 ),
+  //               ),
+  //             ),
+  //           ),
+  //         ),
+  //       );
+  //     },
+  //   );
+  // }
+
+  Widget _buildMobileBottomBar(OrderProvider orderProvider) {
+    final total = orderProvider.total;
+    final itemCount = orderProvider.cartItems.fold<int>(0, (sum, item) => sum + item.quantity);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, -2))],
+      ),
+      child: SafeArea(
+        child: Row(
           children: [
             Expanded(
-              child: isPortrait ? _buildPortraitLayout(menuProvider, orderProvider, displayedItems)
-                               : _buildLandscapeLayout(menuProvider, orderProvider, displayedItems),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text("$itemCount Items".tr(), style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                  Text(
+                    "\$${total.toStringAsFixed(2)}", 
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue.shade800),
+                  ),
+                ],
+              ),
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: widget.serviceColor,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+              onPressed: () => _showMobileOrderSheet(context, orderProvider),
+              icon: Icon(Icons.shopping_cart_checkout),
+              label: Text("View Order".tr()),
             ),
           ],
         ),
-        bottomNavigationBar: _buildBottomNavigationBar(isPortrait),
+      ),
+    );
+  }
+
+  void _showMobileOrderSheet(BuildContext context, OrderProvider orderProvider) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.85,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        child: Column(
+          children: [
+             // Handle bar
+             Center(child: Container(margin: EdgeInsets.only(top: 8), width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)))),
+             // Header
+             Padding(
+               padding: const EdgeInsets.all(16.0),
+               child: Row(
+                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                 children: [
+                   Text("Current Order".tr(), style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                   IconButton(icon: Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+                 ],
+               ),
+             ),
+             Divider(height: 1),
+             // Reuse existing order panel content logic, but wrapped differently
+             Expanded(child: _buildOrderPanel(orderProvider, isPortrait: true, isMobileSheet: true)),
+          ],
+        ),
       ),
     );
   }
@@ -645,8 +997,8 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
         ),
         // Bottom section: Order panel - horizontal layout
         SizedBox(
-          height: 300, // Fixed height for order panel in portrait
-          child: _buildOrderPanel(orderProvider, isPortrait: true),
+          height: 350, // Reduced height for Horizontal Layout (More efficient)
+          child: _buildPortraitOrderPanel(orderProvider),
         ),
       ],
     );
@@ -800,7 +1152,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
 
   Widget _buildProductGrid(List<MenuItem> items, OrderProvider orderProvider, {required int crossAxisCount}) {
   // Use the passed crossAxisCount directly (which will now be _menuColumns)
-  final int responsiveColumns = crossAxisCount;
+  // final int responsiveColumns = crossAxisCount;
   return Container(
     color: Colors.grey.shade100,
     child: Padding(
@@ -811,37 +1163,48 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
               builder: (context, constraints) {
                 // Calculate responsive column count based on available width
                 final availableWidth = constraints.maxWidth;
-                // // Define ideal card width range (min and max)
-                // const double minCardWidth = 180.0; // Minimum card width
-                // const double maxCardWidth = 250.0; // Maximum card width
                 const double spacing = 8.0;
-                final itemWidth = (availableWidth - (spacing * (responsiveColumns + 1))) / responsiveColumns;
-                // Calculate responsive heights
-                final imageHeight = itemWidth * 0.6;
-                final contentHeight = itemWidth * 0.4;
-                final totalItemHeight = imageHeight + contentHeight + 16;
-                // Calculate aspect ratio
-                final aspectRatio = itemWidth / totalItemHeight;
 
-                // Calculate optimal number of columns
-                // int responsiveColumns = crossAxisCount;
+                // Determine columns: attempt to fit cards of ~160-200 width
+                // For Mobile (< 600) -> 2 or 3
+                // For Tablet (600 - 1200) -> 4 or 5
+                // For Desktop (> 1200) -> Use setting or calculated max
                 
-                // For desktop screens, calculate columns dynamically
-                // if (availableWidth > 800) {
-                //   // Calculate how many columns can fit with ideal card width
-                //   int maxPossibleColumns = ((availableWidth + spacing) / (minCardWidth + spacing)).floor();
-                //   int minPossibleColumns = ((availableWidth + spacing) / (maxCardWidth + spacing)).floor();
-                  
-                //   // Use a column count that gives cards between min and max width
-                //   responsiveColumns = maxPossibleColumns.clamp(minPossibleColumns, 8); // Max 8 columns
-                  
-                //   // Ensure at least 3 columns on desktop
-                //   if (responsiveColumns < 3) responsiveColumns = 3;
-                // }
+                int responsiveColumns = crossAxisCount; // Default to specific setting (Tablet/Desktop behavior)
                 
+                
+                final screenWidth = MediaQuery.of(context).size.width;
+
+                if (screenWidth < 600) {
+                  // Mobile (Phone)
+                  responsiveColumns = 2;
+                } // else if (screenWidth >= 600 && screenWidth < 1000) {
+                   // Tablet Portrait: Use user's saved preference
+                   // responsiveColumns = 4;
+                // } else if (screenWidth >= 1000) {
+                   // Tablet Landscape / Desktop: Use user's saved preference
+                   // responsiveColumns = 4;
+                  
+                  // Optional: Extra check for very small devices? 
+                  // if (availableWidth < 300) responsiveColumns = 1;
+ 
+                // For Tablet/Desktop (>= 600), we simply respect the 'responsiveColumns' 
+                // which is initialized to 'crossAxisCount' (the user's layout preference).
+                // We DO NOT override it, ensuring Tablet UI remains exactly as configured.
+
+                // Recalculate dimensions based on FINAL responsiveColumns
+                final itemWidth = (availableWidth - (spacing * (responsiveColumns + 1))) / responsiveColumns;
+                final imageHeight = itemWidth * 0.55; // Slightly reduced image height
+                // Add fixed height for content to avoid overflow issues on small screens
+                final contentHeight = 81.0; // Increased by 1 to eliminate sub-pixel overflow
+                final totalItemHeight = imageHeight + contentHeight;
+                final aspectRatio = itemWidth / totalItemHeight;
                 
                 return GridView.builder(
                   padding: EdgeInsets.zero,
+                  // Optimizations for low-end devices
+                  addAutomaticKeepAlives: false,
+                  cacheExtent: 100,
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: responsiveColumns,
                     childAspectRatio: aspectRatio,
@@ -855,12 +1218,13 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                     
                     return Card(
                       key: ValueKey('card_${item.id}'),
-                      elevation: 1,
+                      elevation: 0, // Removed shadow for performance
+                      color: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: const BorderRadius.all(Radius.circular(6)),
                         side: isSelected 
                             ? BorderSide(color: Colors.blue.shade700, width: 1.5)
-                            : BorderSide.none,
+                            : BorderSide(color: Colors.grey.shade200), // Simple border instead of shadow
                       ),
                       child: InkWell(
                         onTap: () {
@@ -917,62 +1281,66 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                             ),
                             // Content section - responsive height with equal padding
                             Expanded(
-                              child: Padding(
-                                padding: EdgeInsets.all((itemWidth * 0.04).clamp(6.0, 12.0)),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    // Item name - responsive font size
-                                    Flexible(
-                                      flex: 3,
-                                      child: Text(
-                                        item.name,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold, 
-                                          fontSize: (itemWidth * 0.09).clamp(12.0, 18.0),
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    // Price
-                                    Flexible(
-                                      flex: 1,
-                                      child: Text(
-                                        item.price.toStringAsFixed(3),
-                                        style: TextStyle(
-                                          color: Colors.black,
-                                          fontSize: (itemWidth * 0.06).clamp(9.0, 12.0),
-                                        ),
-                                      ),
-                                    ),
-                                    // Status and note indicator
-                                    Flexible(
-                                      flex: 1,
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Flexible(
-                                            child: Text(
-                                              item.isAvailable ? 'Available'.tr() : 'Out of stock'.tr(),
-                                              style: TextStyle(
-                                                color: item.isAvailable ? Colors.green : Colors.red,
-                                                fontSize: (itemWidth * 0.06).clamp(9.0, 12.0),
-                                              ),
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
+                              child: ClipRect(
+                                child: Padding(
+                                  padding: EdgeInsets.all((itemWidth * 0.04).clamp(6.0, 12.0)),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        // Item name
+                                        Text(
+                                          item.name,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold, 
+                                            fontSize: (itemWidth * 0.09).clamp(12.0, 18.0),
+                                            height: 1.2,
+                                            decoration: TextDecoration.none,
                                           ),
-                                          if (item.kitchenNote.isNotEmpty)
-                                            Icon(
-                                              Icons.note_alt_outlined,
-                                              size: (itemWidth * 0.08).clamp(12.0, 20.0),
-                                              color: Colors.blue.shade700,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        // Price and status section
+                                        Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              item.price.toStringAsFixed(3),
+                                              style: TextStyle(
+                                                color: Colors.black,
+                                                fontSize: (itemWidth * 0.06).clamp(10.0, 13.0),
+                                                fontWeight: FontWeight.w600,
+                                                letterSpacing: -0.5,
+                                              ),
                                             ),
-                                        ],
-                                      ),
+                                            const SizedBox(height: 1),
+                                            // Status and note
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    item.isAvailable ? 'Available'.tr() : 'Out of stock'.tr(),
+                                                    style: TextStyle(
+                                                      color: item.isAvailable ? Colors.green : Colors.red,
+                                                      fontSize: (itemWidth * 0.06).clamp(9.0, 12.0),
+                                                    ),
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                                if (item.kitchenNote.isNotEmpty)
+                                                  Icon(
+                                                    Icons.note_alt_outlined,
+                                                    size: (itemWidth * 0.08).clamp(12.0, 18.0),
+                                                    color: Colors.blue.shade700,
+                                                  ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                     ),
-                                  ],
                                 ),
                               ),
                             ),
@@ -1026,8 +1394,8 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
         fit: BoxFit.cover,
         key: imageKey,
         gaplessPlayback: true,
-        cacheWidth: 150, // Reduced cache size
-        cacheHeight: 150, // Reduced cache size
+        cacheWidth: 100, // Aggressively reduced for low-end devices
+        cacheHeight: 100,
       );
     } catch (e) {
       return Container(color: Colors.grey.shade300, child: const Icon(Icons.broken_image, size: 20));
@@ -1039,8 +1407,8 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
     imageUrl: item.imageUrl,
     fit: BoxFit.cover,
     key: imageKey,
-    memCacheWidth: 150, // Reduced cache size
-    memCacheHeight: 150, // Reduced cache size
+    memCacheWidth: 100, // Aggressively reduced for low-end devices
+    memCacheHeight: 100,
     fadeInDuration: const Duration(milliseconds: 0),
     fadeOutDuration: const Duration(milliseconds: 0),
     placeholder: (context, url) => Container(
@@ -1063,13 +1431,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
 }
 
   // Updated order panel that adapts to portrait/landscape
-  Widget _buildOrderPanel(OrderProvider orderProvider, {required bool isPortrait}) {
-    if (isPortrait) {
-      return _buildPortraitOrderPanel(orderProvider);
-    } else {
-      return _buildLandscapeOrderPanel(orderProvider);
-    }
-  }
+
 
   // Portrait order panel - horizontal layout with scrollable items
   Widget _buildPortraitOrderPanel(OrderProvider orderProvider) {
@@ -1241,6 +1603,18 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                             ],
                           ),
                         ),
+                        // Delivery Charge Row (Portrait)
+                        if ((orderProvider.deliveryCharge ?? 0) > 0 && widget.serviceType.toLowerCase().contains('delivery'))
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('Delivery Fee'.tr()),
+                                Text((orderProvider.deliveryCharge ?? 0).toStringAsFixed(3)),
+                              ],
+                            ),
+                          ),
                         const SizedBox(height: 8),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1281,6 +1655,19 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                                 }
                               },
                             ),
+                            Builder(
+                              builder: (context) {
+                                final isDelivery = widget.serviceType.toLowerCase().contains('delivery');
+                                debugPrint('DEBUG_PORTRAIT: ServiceType: ${widget.serviceType}, isDelivery: $isDelivery');
+                                if (isDelivery) {
+                                  return IconButton(
+                                    icon: Icon(Icons.local_shipping, color: widget.serviceColor),
+                                    onPressed: _showDeliveryDetailsDialog,
+                                  );
+                                }
+                                return const SizedBox.shrink();
+                              }
+                            ),
                           ],
                         ),
                       ],
@@ -1309,9 +1696,17 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                   ],
                 ),
                 const SizedBox(height: 8),
+
+                const SizedBox(height: 8),
                 // Second row of buttons
                 Row(
                   children: [
+                    if (widget.serviceType.toLowerCase().contains('catering')) ...[
+                      Expanded(
+                        child: _buildPaymentButton('Quote'.tr(), Colors.orange.shade50, textColor: Colors.orange.shade800, onTap: () => _showQuoteConfirmation()),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                     Expanded(
                       child: _buildPaymentButton('Order'.tr(), Colors.grey.shade100),
                     ),
@@ -1332,39 +1727,54 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
     );
   }
 
-  // Landscape order panel - same as current vertical layout
-  Widget _buildLandscapeOrderPanel(OrderProvider orderProvider) {
+  // Order Panel Widget
+  Widget _buildOrderPanel(OrderProvider orderProvider, {bool isPortrait = true, bool isMobileSheet = false}) {
     final settingsProvider = Provider.of<SettingsProvider>(context);
 
+    // If it's a mobile sheet, we want to expand to fill the available space (modal)
+    // If it's portrait/landscape desktop, we use fixed sizes usually
+    
     return Container(
-      width: 350,
+      width: isMobileSheet ? double.infinity : 350, // Full width for mobile sheet, fixed for desktop
       color: Colors.white,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-            ),
-            child: Text(
-              'Order Items'.tr(),
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-          ),
-          // Order items list or empty cart message - this is scrollable
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
+          if (!isMobileSheet) ...[ // Hide header if in mobile sheet (custom header provided)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  orderProvider.cartItems.isEmpty
-                      ? _buildEmptyCartMessage()
-                      : ListView.builder(
-                          physics: const NeverScrollableScrollPhysics(),
-                          shrinkWrap: true,
-                          itemCount: orderProvider.cartItems.length,
-                          itemBuilder: (ctx, index) {
+                  Text(
+                    'Order Items'.tr(),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  if (widget.serviceType.toLowerCase().contains('delivery'))
+                    IconButton(
+                      icon: const Icon(Icons.local_shipping, color: Colors.blue), // Hardcoded color for visibility check
+                      tooltip: 'Delivery Details',
+                      onPressed: _showDeliveryDetailsDialog,
+                    ),
+                ],
+              ),
+            ),
+          ],
+          
+          // Order items list
+          Expanded(
+            child: orderProvider.cartItems.isEmpty
+                ? _buildEmptyCartMessage()
+                : ListView.builder(
+                    padding: EdgeInsets.only(bottom: isMobileSheet ? 100 : 0), // Padding for floating buttons if any
+                    physics: const NeverScrollableScrollPhysics(), // Keep this for nested ListView
+                    shrinkWrap: true, // Keep this for nested ListView
+                    itemCount: orderProvider.cartItems.length,
+                    itemBuilder: (ctx, index) {
                             final item = orderProvider.cartItems[index];
                             return Container(
                               key: ValueKey('cart_item_${item.id}'),
@@ -1375,7 +1785,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // Item name and price - more space for name
+                                  // Item name and price
                                   Expanded(
                                     flex: 5,
                                     child: Column(
@@ -1399,10 +1809,28 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                                                   borderRadius: BorderRadius.circular(4),
                                                 ),
                                                 child: Text(
-                                                  'Out of stock'.tr(),
+                                                  'Sold Out'.tr(),
                                                   style: TextStyle(
                                                     color: Colors.red.shade900,
-                                                    fontSize: 9,
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              )
+                                            else if (item.isPerPlate)
+                                              Container(
+                                                margin: const EdgeInsets.only(left: 4),
+                                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.purple.shade100,
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  'Per Person'.tr(),
+                                                  style: TextStyle(
+                                                    color: Colors.purple.shade900,
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
                                                   ),
                                                 ),
                                               ),
@@ -1410,7 +1838,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          '${item.price.toStringAsFixed(3)} × ${item.quantity}',
+                                          '${item.price.toStringAsFixed(3)} x ${item.quantity}',
                                           style: TextStyle(
                                             color: Colors.grey.shade600,
                                             fontSize: 12,
@@ -1419,7 +1847,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                                       ],
                                     ),
                                   ),
-                                  // Quantity adjustment and controls with reduced spacing
+                                  // Quantity adjustment
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
@@ -1488,19 +1916,19 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                             );
                           },
                         ),
+                  ),
                   
-                  // Create a visual separator between order items and billing section
+                  // Separator
                   Container(
                     height: 10,
                     color: Colors.grey.shade50,
                   ),
                   
-                  // Order summary section
+                  // Order Summary
                   Container(
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       children: [
-                        // Subtotal row
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -1510,7 +1938,6 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                         ),
                         const SizedBox(height: 8),
                         
-                         // Tax row with VAT type badge
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -1533,7 +1960,6 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                                     ),
                                   ),
                                 ),
-                                // Show tax-exempt indicator if there are tax-exempt items
                                 if (_hasTaxExemptItems(orderProvider))
                                   Container(
                                     margin: const EdgeInsets.only(left: 4),
@@ -1553,16 +1979,25 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                                   ),
                               ],
                             ),
-                             Text(orderProvider.tax.toStringAsFixed(3)),
+                            Text(orderProvider.tax.toStringAsFixed(3)),
                           ],
                         ),
-                        // _buildSummaryRow('Item discount'.tr(), '0.000'),
-                        // _buildSummaryRow('Bill discount'.tr(), '0.000'),
-                       // _buildSummaryRow('Delivery charge'.tr(), '0.000'),
-                       // _buildSummaryRow('Surcharge'.tr(), '0.000'),
                         
+                        if ((orderProvider.deliveryCharge ?? 0) > 0 && widget.serviceType.toLowerCase().contains('delivery'))
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('Delivery Fee'.tr()),
+                                Text((orderProvider.deliveryCharge ?? 0).toStringAsFixed(3)),
+                              ],
+                            ),
+                          ),
+                          
                         const SizedBox(height: 8),
-                        // Grand total
+                        
+                        // Grand Total
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -1573,118 +2008,60 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                         
                         const SizedBox(height: 10),
                         
-                        // Date visited, Count visited, Point
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Date visited'.tr(), style: TextStyle(fontSize: 11)),
-                                  const SizedBox(height: 6),
-                                  Container(
-                                    height: 40,
-                                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(color: Colors.grey),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                      child: Align(
-                                        alignment: Alignment.centerLeft,
-                                        child: Text(
-                                        "${DateTime.now().day.toString().padLeft(2, '0')}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().year}",
-                                          style: const TextStyle(fontSize: 10),
-                                        ),
-                                      ),
-                                    ),
-                                ],
+                        // Customer selection row 
+                        Container(
+                          padding: const EdgeInsets.only(top: 16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.person_outline, color: widget.serviceColor),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => const PersonFormScreen())
+                                  );
+                                },
                               ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Count visited'.tr(), style: TextStyle(fontSize: 11)),
-                                  const SizedBox(height: 6),
-                                  Container(
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      border: Border.all(color: Colors.grey),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Point'.tr(), style: TextStyle(fontSize: 11)),
-                                  const SizedBox(height: 6),
-                                  Container(
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      border: Border.all(color: Colors.grey),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.only(top: 16),
-                              child: Row(
-                                children: [
-                                  IconButton(
-                                    icon: Icon(Icons.person_outline, color: widget.serviceColor),
-                                    onPressed: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => const PersonFormScreen()
-                                        ),
+                              IconButton(
+                                icon: Icon(Icons.search, color: widget.serviceColor),
+                                onPressed: () async {
+                                  final selectedPerson = await Navigator.push<Person>(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => const SearchPersonScreen())
+                                  );
+                                  if (selectedPerson != null) {
+                                    orderProvider.setSelectedPerson(selectedPerson);
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('Customer selected: ${selectedPerson.name}'), duration: const Duration(milliseconds: 100)),
                                       );
-                                    },
-                                  ),
-                                  IconButton(
-                                    icon: Icon(Icons.search, color: widget.serviceColor ),
-                                    onPressed: () async {
-                                      final selectedPerson = await Navigator.push<Person>(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => const SearchPersonScreen(),
-                                        ),
-                                      );
-                                      if (selectedPerson != null) {
-                                        orderProvider.setSelectedPerson(selectedPerson);
-                                        if (mounted) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(content: Text('Customer selected: ${selectedPerson.name}'),
-                                            duration: const Duration(milliseconds: 100),
-                                            ),
-                                          );
-                                        }
-                                      }
-                                      return;
-                                    },
-                                  ),
-                                ],
+                                    }
+                                  }
+                                },
                               ),
-                            ),
-                          ],
+                              Builder(
+                                builder: (context) {
+                                  final isDelivery = widget.serviceType.toLowerCase().contains('delivery');
+                                  // debugPrint('DEBUG: ServiceType: ${widget.serviceType}, isDelivery: $isDelivery');
+                                  if (isDelivery) {
+                                    return IconButton(
+                                      icon: Icon(Icons.local_shipping, color: widget.serviceColor),
+                                      onPressed: _showDeliveryDetailsDialog,
+                                    );
+                                  }
+                                  return const SizedBox.shrink(); // Hidden if not delivery
+                                }
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
-          ),
+                  const SizedBox(height: 8),
           
-          // FIXED PAYMENT BUTTONS SECTION - always at the bottom
+          // Payment Buttons
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
@@ -1701,22 +2078,23 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // First row of buttons
                 Row(
                   children: [
-                    Expanded(
-                      child: _buildPaymentButton('Cash'.tr(), Colors.grey.shade100),
-                    ),
+                    Expanded(child: _buildPaymentButton('Cash'.tr(), Colors.grey.shade100)),
                     const SizedBox(width: 8),
-                    Expanded(
-                      child: _buildPaymentButton('Credit'.tr(), Colors.grey.shade100),
-                    ),
+                    Expanded(child: _buildPaymentButton('Credit'.tr(), Colors.grey.shade100)),
                   ],
                 ),
                 const SizedBox(height: 8),
-                // Second row of buttons
+                const SizedBox(height: 8),
                 Row(
                   children: [
+                    if (widget.serviceType.toLowerCase().contains('catering')) ...[
+                      Expanded(
+                        child: _buildPaymentButton('Quote'.tr(), Colors.orange.shade50, textColor: Colors.orange.shade800, onTap: () => _showQuoteConfirmation()),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                     Expanded(
                       child: _buildPaymentButton('Order'.tr(), Colors.grey.shade100),
                     ),
@@ -1783,41 +2161,51 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
     if (isPortrait) {
       // In portrait, show fewer buttons or make them scrollable
       return Container(
-        height: 50,
         decoration: BoxDecoration(
           color: Colors.white,
           border: Border(top: BorderSide(color: Colors.grey.shade300)),
         ),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            mainAxisSize: MainAxisSize.min, // Important: prevents unbounded width
-            children: [
-              _buildNavButtonScrollable(Icons.arrow_back_ios, null, ''),
-              _buildNavButtonScrollable(null, null, 'Kitchen note'.tr()),
-              _buildNavButtonScrollable(null, null, 'Clear'.tr()),
-              _buildNavButtonScrollable(null, null, 'Order List'.tr()),
-              _buildNavButtonScrollable(Icons.arrow_forward_ios, null, ''),
-            ],
+        child: SafeArea(
+          child: Container(
+            height: 60, // Increased height for better touch targets
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min, // Important: prevents unbounded width
+                children: [
+                  _buildNavButtonScrollable(Icons.arrow_back_ios, null, ''),
+                  _buildNavButtonScrollable(null, null, 'Kitchen note'.tr()),
+                  _buildNavButtonScrollable(null, null, 'Clear'.tr()),
+                  _buildNavButtonScrollable(null, null, 'Order List'.tr()),
+                  _buildNavButtonScrollable(Icons.arrow_forward_ios, null, ''),
+                ],
+              ),
+            ),
           ),
         ),
       );
     } else {
       // In landscape, show all buttons as before
       return Container(
-        height: 50,
         decoration: BoxDecoration(
           color: Colors.white,
           border: Border(top: BorderSide(color: Colors.grey.shade300)),
         ),
-        child: Row(
-          children: [
-            _buildNavButton(Icons.arrow_back_ios, null, ''),
-            _buildNavButton(null, null, 'Kitchen note'.tr()),
-            _buildNavButton(null, null, 'Clear'.tr()),
-            _buildNavButton(null, null, 'Order List'.tr()),
-            _buildNavButton(Icons.arrow_forward_ios, null, ''),
-          ],
+        child: SafeArea(
+          child: Container(
+             height: 60, // Increased height
+             padding: const EdgeInsets.symmetric(vertical: 4),
+             child: Row(
+              children: [
+                _buildNavButton(Icons.arrow_back_ios, null, ''),
+                _buildNavButton(null, null, 'Kitchen note'.tr()),
+                _buildNavButton(null, null, 'Clear'.tr()),
+                _buildNavButton(null, null, 'Order List'.tr()),
+                _buildNavButton(Icons.arrow_forward_ios, null, ''),
+              ],
+            ),
+          ),
         ),
       );
     }
@@ -1837,7 +2225,9 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const ModifierScreen()
+                  builder: (context) => ModifierScreen(
+                    allowPerPlatePricing: widget.serviceType.toLowerCase().contains('catering'),
+                  )
                 ),
               ).then((_) {
                 // Refresh when returning from ModifierScreen
@@ -1894,7 +2284,8 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const TableManagementScreen()
+                  builder: (context) => const TableManagementScreen(),
+                  settings: const RouteSettings(name: 'TableManagementScreen'),
                 ),
               ).then((_) {
                 // Refresh when returning from TableManagementScreen
@@ -1906,6 +2297,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                 context,
                 MaterialPageRoute(
                   builder: (context) => OrderListScreen(serviceType: widget.serviceType, fromMenuScreen: true, ),
+                  settings: const RouteSettings(name: 'OrderListScreen'),
                 ),
               );
             }else if (text == 'Kitchen note'.tr()) {
@@ -1956,7 +2348,10 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => const ModifierScreen()
+                builder: (context) => ModifierScreen(
+                  allowPerPlatePricing: widget.serviceType.toLowerCase().contains('catering'),
+                ),
+                settings: const RouteSettings(name: 'ModifierScreen'),
               ),
             ).then((_) {
               // Refresh when returning from ModifierScreen
@@ -2013,7 +2408,8 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => const TableManagementScreen()
+                builder: (context) => const TableManagementScreen(),
+                settings: const RouteSettings(name: 'TableManagementScreen'),
               ),
             ).then((_) {
               // Refresh when returning from TableManagementScreen
@@ -2025,6 +2421,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
               context,
               MaterialPageRoute(
                 builder: (context) => OrderListScreen(serviceType: widget.serviceType, fromMenuScreen: true, ),
+                settings: const RouteSettings(name: 'OrderListScreen'),
               ),
             );
           }else if (text == 'Kitchen note'.tr()) {
@@ -2059,14 +2456,103 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
     );
   }
 
-  // Updated payment button with better sizing for portrait mode
- Widget _buildPaymentButton(String text, Color color) {
+  // Show Quote Confirmation Dialog
+  void _showDeliveryDetailsDialog() {
+    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+    final deliveryChargeController = TextEditingController(text: (orderProvider.deliveryCharge ?? 0.0).toString());
+    final deliveryAddressController = TextEditingController(text: orderProvider.deliveryAddress ?? '');
+    final deliveryBoyController = TextEditingController(text: orderProvider.deliveryBoy ?? '');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delivery Details'.tr()),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: deliveryChargeController,
+                decoration: InputDecoration(labelText: 'Delivery Charge'.tr()),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: deliveryAddressController,
+                decoration: InputDecoration(labelText: 'Delivery Address'.tr()),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: deliveryBoyController,
+                decoration: InputDecoration(labelText: 'Delivery Boy'.tr()),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Cancel'.tr()),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final charge = double.tryParse(deliveryChargeController.text) ?? 0.0;
+              orderProvider.setDeliveryDetails(
+                charge: charge,
+                address: deliveryAddressController.text,
+                boy: deliveryBoyController.text,
+              );
+              Navigator.of(ctx).pop();
+            },
+            child: Text('Save'.tr()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showQuoteConfirmation() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Save Quotation?'.tr()),
+        content: Text('Do you want to save the current items as a quotation?'.tr()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel'.tr()),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+              final result = await orderProvider.saveAsQuote(context);
+                if (result['success']) {
+                  if(!mounted) return;
+                  // Navigate back to the dashboard (root)
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                }
+
+            },
+            child: Text('Save Quote'.tr()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper method for custom payment buttons
+ Widget _buildPaymentButton(String label, Color color, {Color? textColor, VoidCallback? onTap}) {
   return SizedBox(
     height: 45,
     child: OutlinedButton(
-      onPressed: () async {
+      onPressed: onTap ?? () async {
         final orderProvider = Provider.of<OrderProvider>(context, listen: false);
         final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+        
+        // Use label instead of text
+        final text = label;
         
         if (orderProvider.cartItems.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -2157,9 +2643,18 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
               subtotal: subtotal,
               tax: tax,
               discount: 0.0,
-              total: total,
+              total: total + (orderProvider.deliveryCharge ?? 0.0), // Include delivery charge in total
               status: 'pending',
-              customerId: orderProvider.selectedPerson?.id
+              customerId: orderProvider.selectedPerson?.id,
+              // Add Delivery Details
+              deliveryCharge: orderProvider.deliveryCharge,
+              deliveryAddress: orderProvider.deliveryAddress,
+              deliveryBoy: orderProvider.deliveryBoy,
+              // Add Catering Details
+              eventDate: orderProvider.eventDate,
+              eventTime: orderProvider.eventTime,
+              eventGuestCount: orderProvider.eventGuestCount,
+              eventType: orderProvider.eventType,
             );
             
             // Convert to OrderHistory for TenderScreen
@@ -2169,6 +2664,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
             final result = await Navigator.push(
               context,
               MaterialPageRoute(
+                settings: const RouteSettings(name: 'TenderScreen'),
                 builder: (context) => TenderScreen(
                   order: orderHistory,
                   isEdited: orderId != null,
@@ -2211,7 +2707,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
         side: BorderSide(color: Colors.grey.shade300),
       ),
       child: Text(
-        text, 
+        label, 
         style: const TextStyle(color: Colors.black, fontSize: 12),
         overflow: TextOverflow.ellipsis,
       ),

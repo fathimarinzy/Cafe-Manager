@@ -851,7 +851,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                                 )
                               : ElevatedButton.icon(
                                   onPressed: () async {
-                                    final success = await LogoService.pickAndSaveLogo();
+                                    final success = await LogoService.pickAndSaveLogo(context);
                                     if (success) {
                                       // Update LogoProvider to trigger UI refresh
                                       await logoProvider.updateLogo();
@@ -1375,7 +1375,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                                 )
                               : ElevatedButton.icon(
                                   onPressed: () async {
-                                    final success = await LogoService.pickAndSaveLogo();
+                                    final success = await LogoService.pickAndSaveLogo(context);
                                     if (success) {
                                       // Update LogoProvider to trigger UI refresh
                                       await logoProvider.updateLogo();

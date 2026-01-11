@@ -40,6 +40,9 @@ class LocalExpenseRepository {
         return await openDatabase(
           path,
           version: 1,
+          onConfigure: (db) async {
+            await db.rawQuery('PRAGMA journal_mode=WAL;');
+          },
           onCreate: (db, version) async {
             debugPrint('Creating expense database tables...');
             

@@ -6,20 +6,29 @@ import 'package:cafeapp/screens/device_management_screen.dart';
 import 'package:cafeapp/screens/login_screen.dart';
 import 'package:cafeapp/screens/report_screen.dart';
 import 'package:flutter/material.dart';
+import 'drive_through_screen.dart';
+import 'delivery_setup_screen.dart';
+import 'catering_setup_screen.dart';
 import 'package:provider/provider.dart';
 import '../providers/order_provider.dart';
 import '../services/demo_service.dart';
 import 'menu_screen.dart';
+import 'expense_screen.dart';
 import 'dining_table_screen.dart';
 import 'order_list_screen.dart';
 import '../utils/app_localization.dart';
 import '../widgets/settings_password_dialog.dart';
+import '../screens/settings_screen.dart';
 import '../providers/settings_provider.dart';
 import '../services/license_service.dart';
 import 'renewal_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import '../services/logo_service.dart';
+// import '../widgets/dashboard_modern_dark.dart';
+import '../widgets/dashboard_ultimate.dart';
+// import '../widgets/order_list_modern.dart';
+import '../widgets/dashboard_mobile.dart'; // Mobile Performance Mode
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -33,7 +42,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _isDemoExpired = false;
   bool _isLicenseExpired = false;
   bool _isRegularUser = false;
-  int _currentUIMode = 0; // 0: Modern, 1: Classic, 2: Sidebar , 3: Card Style
+  int _currentUIMode = 5; // 0: Modern, 1: Classic, 2: Sidebar , 3: Card Style, 4: Premium Dark, 5: Mobile Performance
   late AnimationController _animationController;
   late AnimationController _fabAnimationController;
   late Animation<double> _fadeAnimation;
@@ -122,11 +131,22 @@ class _DashboardScreenState extends State<DashboardScreen>
   Future<void> _loadUIPreference() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final savedUIMode = prefs.getInt('ui_mode') ?? 0;
+      int? savedUIMode = prefs.getInt('ui_mode_v2');
+
+      if (savedUIMode == null) {
+        // No valid preference saved, detect screen size
+        if (mounted) {
+          final width = MediaQuery.of(context).size.width;
+          // If tablet (>600), default to 4 (Premium Dark/Tablet), else 5 (Mobile)
+          savedUIMode = width > 600 ? 4 : 5;
+        } else {
+           savedUIMode = 5; // Fallback
+        }
+      }
       
       if (mounted) {
         setState(() {
-          _currentUIMode = savedUIMode;
+          _currentUIMode = savedUIMode ?? 5;
         });
       }
     } catch (e) {
@@ -137,7 +157,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   Future<void> _saveUIPreference(int mode) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('ui_mode', mode);
+      await prefs.setInt('ui_mode_v2', mode);
     } catch (e) {
       debugPrint('Error saving UI preference: $e');
     }
@@ -411,15 +431,15 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  void _toggleUIMode() {
-    final newUIMode = (_currentUIMode + 1) % 4;
-    setState(() {
-      _currentUIMode = newUIMode;
-    });
-    _saveUIPreference(newUIMode);
-    _animationController.reset();
-    _animationController.forward();
-  }
+  // void _toggleUIMode() {
+  //   final newUIMode = (_currentUIMode + 1) % 6; // Cycle 0-5
+  //   setState(() {
+  //     _currentUIMode = newUIMode;
+  //   });
+  //   _saveUIPreference(newUIMode);
+  //   _animationController.reset();
+  //   _animationController.forward();
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -430,9 +450,157 @@ class _DashboardScreenState extends State<DashboardScreen>
         return _buildSidebarUI();
       case 3:
         return _buildCardStyleUI();
+      case 4:
+        return _buildPremiumDarkUI(); // New Premium Dark Mode
+      case 5:
+        return _buildMobilePerformanceUI();
       default:
         return _buildModernUI();
     }
+  }
+
+  Widget _buildPremiumDarkUI() {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    return DashboardUltimate(
+      businessName: settingsProvider.businessName,
+      onDiningTap: () => _navigateToServiceCardStyle('Dining', const Color(0xFFd48c56), true),
+      onDeliveryTap: () => _navigateToServiceCardStyle('Delivery', const Color(0xFF6aaec6), false),
+      onTakeoutTap: () => _navigateToServiceCardStyle('Takeout', const Color(0xFF6a8a4f), false),
+      onDriveThroughTap: _handleDriveThroughTap,
+      onCateringTap: () => _navigateToServiceCardStyle('Catering', const Color(0xFFd4b556), false),
+      onDelivery2Tap: () => _navigateToServiceCardStyle('Online Order', const Color(0xFF383b42), false),
+      onOrdersTap: _navigateToOrderListModern,
+      onLogoutTap: _showLogoutDialogWithReport,
+      onUISwitch: () {
+        setState(() {
+          // Toggle to Modern Dark UI (mode 0)
+          _currentUIMode = 0;
+        });
+      },
+      onReportsTap: () {
+        Navigator.push(
+          context,
+          NoAnimationPageRoute(
+            builder: (context) => const ReportScreen(),
+            settings: const RouteSettings(name: 'ReportScreen'),
+          ),
+        );
+      },
+      onSettingsTap: () {
+         showDialog(
+          context: context,
+          builder: (dialogContext) => SettingsPasswordDialog(
+            onVerified: (userType) async {
+              Navigator.of(dialogContext).pop();
+              if (mounted) {
+                await Navigator.of(context).push(
+                  NoAnimationPageRoute(
+                    builder: (context) => SettingsScreen(userType: userType),
+                  ),
+                );
+                _loadUIPreference();
+              }
+            },
+          ),
+        );
+      },
+      onSearchTap: () {
+        showDialog(
+          context: context,
+          builder: (context) {
+            String searchQuery = '';
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Text('Search Orders'.tr(), style: TextStyle(fontWeight: FontWeight.bold)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      hintText: 'Enter Order #, Token #, or Customer Name'.tr(),
+                      prefixIcon: Icon(Icons.search, color:  Colors.blue.shade700),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                    ),
+                    onChanged: (value) {
+                      searchQuery = value;
+                    },
+                    onSubmitted: (value) {
+                       Navigator.pop(context); // Close dialog
+                       if (value.isNotEmpty) {
+                         Navigator.push(
+                            context,
+                            NoAnimationPageRoute(
+                              builder: (context) => OrderListScreen(
+                                searchQuery: value,
+                                excludeCatering: false, // Search everything
+                                serviceType: null, // Global search
+                              ),
+                            ),
+                         );
+                       }
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Cancel'.tr(), style: const TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context); // Close dialog
+                    if (searchQuery.isNotEmpty) {
+                       Navigator.push(
+                          context,
+                          NoAnimationPageRoute(
+                            builder: (context) => OrderListScreen(
+                              searchQuery: searchQuery,
+                              excludeCatering: false, // Search everything
+                              serviceType: null, // Global search
+                            ),
+                          ),
+                       );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade700,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: Text('Search'.tr()),
+                ),
+              ],
+            );
+          },
+        );
+      },
+      onExpensesTap: () {
+        Navigator.push(
+          context,
+          NoAnimationPageRoute(
+            builder: (context) => ExpenseScreen(),
+            settings: const RouteSettings(name: 'ExpenseScreen'),
+          ),
+        );
+      },
+    );
+  }
+
+  void _navigateToOrderListModern() {
+     Navigator.push(
+      context,
+      NoAnimationPageRoute(
+        builder: (context) => const OrderListScreen(excludeCatering: true), // Exclude catering
+        settings: const RouteSettings(name: 'OrderListScreen'),
+      ),
+    );
   }
 
  Widget _buildSidebarUI() {
@@ -490,21 +658,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ),
                 const Spacer(),
                 // UI Toggle
-                IconButton(
-                  icon: Icon(
-                    Icons.dashboard_customize,
-                    color: const Color(0xFF667eea),
-                    size: isTablet ? 24 : 20,
-                  ),
-                  onPressed: _toggleUIMode,
-                  tooltip: 'Toggle UI Style',
-                  style: IconButton.styleFrom(
-                    backgroundColor: const Color(0xFFF5F7FA),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
+
                 SizedBox(width: isTablet ? 12 : 8),
                 IconButton(
                   icon: Icon(
@@ -556,7 +710,19 @@ class _DashboardScreenState extends State<DashboardScreen>
                   onPressed: () {
                     showDialog(
                       context: context,
-                      builder: (_) => const SettingsPasswordDialog(),
+                      builder: (dialogContext) => SettingsPasswordDialog(
+                        onVerified: (userType) async {
+                          Navigator.of(dialogContext).pop();
+                          if (mounted) {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) => SettingsScreen(userType: userType),
+                              ),
+                            );
+                            _loadUIPreference();
+                          }
+                        },
+                      ),
                     );
                   },
                   tooltip: 'Settings',
@@ -973,7 +1139,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       );
     } else if (service.title == 'orderList') {
       Navigator.of(context).push(
-        MaterialPageRoute(builder: (context) => const OrderListScreen()),
+        MaterialPageRoute(builder: (context) => const OrderListScreen(excludeCatering: true)),
       );
     } else {
       orderProvider.setCurrentServiceType(service.title.tr());
@@ -1061,17 +1227,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               ],
             ),
           ),
-          Container(
-            margin: const EdgeInsets.only(right: 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withAlpha(51),
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.dashboard_customize, color: Colors.white, size: 24),
-              onPressed: _toggleUIMode,
-            ),
-          ),
+
           Container(
             margin: const EdgeInsets.only(right: 12),
             decoration: BoxDecoration(
@@ -1114,7 +1270,19 @@ class _DashboardScreenState extends State<DashboardScreen>
               onPressed: () {
                 showDialog(
                   context: context,
-                  builder: (_) => const SettingsPasswordDialog(),
+                  builder: (dialogContext) => SettingsPasswordDialog(
+                    onVerified: (userType) async {
+                      Navigator.of(dialogContext).pop();
+                      if (mounted) {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => SettingsScreen(userType: userType),
+                          ),
+                        );
+                        _loadUIPreference();
+                      }
+                    },
+                  ),
                 );
               },
             ),
@@ -1341,14 +1509,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         elevation: 2,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            child: IconButton(
-              icon: const Icon(Icons.dashboard_customize, color: Colors.white),
-              tooltip: 'Toggle UI Style'.tr(),
-              onPressed: _toggleUIMode,
-            ),
-          ),
+
           IconButton(
             icon: const Icon(Icons.devices),
             tooltip: 'Device Management'.tr(),
@@ -1370,10 +1531,29 @@ class _DashboardScreenState extends State<DashboardScreen>
           IconButton(
             icon: const Icon(Icons.settings),
             tooltip: 'settings'.tr(),
-            onPressed: () async {
+            onPressed: () {
               showDialog(
                 context: context,
-                builder: (_) => const SettingsPasswordDialog(),
+                builder: (dialogContext) => SettingsPasswordDialog(
+                  onVerified: (userType) async {
+                    debugPrint('DEBUG: Callback received userType: $userType');
+                    
+                    // Close the dialog first
+                    Navigator.of(dialogContext).pop();
+                    
+                    if (context.mounted) {
+                      debugPrint('DEBUG: Pushing SettingsScreen');
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => SettingsScreen(userType: userType),
+                        ),
+                      );
+                      
+                      debugPrint('DEBUG: Settings closed, reloading UI');
+                      _loadUIPreference();
+                    }
+                  },
+                ),
               );
             },
           ),
@@ -1614,11 +1794,7 @@ Widget _buildCardStyleUI() {
           },
           tooltip: _isCardStyleDarkMode ? 'Light Mode' : 'Dark Mode',
         ),
-        IconButton(
-          icon:  Icon(Icons.dashboard_customize, color: iconColor),
-          onPressed: _toggleUIMode,
-          tooltip: 'Toggle UI Style',
-        ),
+
         IconButton(
           icon: Icon(Icons.devices, color: iconColor),
           onPressed: () {
@@ -1640,7 +1816,19 @@ Widget _buildCardStyleUI() {
           onPressed: () {
             showDialog(
               context: context,
-              builder: (_) => const SettingsPasswordDialog(),
+              builder: (dialogContext) => SettingsPasswordDialog(
+                onVerified: (userType) async {
+                  Navigator.of(dialogContext).pop();
+                  if (mounted) {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => SettingsScreen(userType: userType),
+                      ),
+                    );
+                    _loadUIPreference();
+                  }
+                },
+              ),
             );
           },
           tooltip: 'Settings',
@@ -2469,26 +2657,59 @@ void _showLogoutDialogWithReport() {
   //     ],
   //   );
   // }
-void _navigateToServiceCardStyle(String title, Color color, bool isDining) {
-  final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-
-  if (isDining) {
+  void _handleDriveThroughTap() {
     Navigator.of(context).push(
       MaterialPageRoute(
+        builder: (context) => const DriveThroughScreen(),
+      ),
+    );
+  }
+
+  void _navigateToServiceCardStyle(String title, Color color, bool isDining) {
+    if (title == 'Delivery') {
+      Navigator.of(context).push(
+        NoAnimationPageRoute(
+           builder: (ctx) => const DeliverySetupScreen(),
+           settings: const RouteSettings(name: 'DeliverySetupScreen'),
+        ),
+      );
+      return;
+    }
+
+    if (title == 'Catering') {
+      Navigator.of(context).push(
+        NoAnimationPageRoute(
+           builder: (ctx) => const CateringSetupScreen(),
+           settings: const RouteSettings(name: 'CateringSetupScreen'),
+        ),
+      );
+      return;
+    }
+
+    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+
+    if (isDining) {
+    Navigator.of(context).push(
+      NoAnimationPageRoute(
         builder: (ctx) => const DiningTableScreen(),
+        settings: const RouteSettings(name: 'DiningTableScreen'),
       ),
     );
   } else if (title == 'orderList') {
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (ctx) => const OrderListScreen(),
+      NoAnimationPageRoute(
+        builder: (ctx) => const OrderListScreen(excludeCatering: true),
+        settings: const RouteSettings(name: 'OrderListScreen'),
       ),
     );
   } else {
-    orderProvider.setCurrentServiceType(title.tr());
+    // If the title contains "Drive Through", we want to ensure we treat it as that service type
+    // The title might now be "Drive Through - Vehicle: XYZ"
+    orderProvider.setCurrentServiceType(title); // Removed .tr() to preserve dynamic vehicle info
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (ctx) => MenuScreen(serviceType: title.tr(), serviceColor: color),
+      NoAnimationPageRoute(
+        builder: (ctx) => MenuScreen(serviceType: title, serviceColor: color), // Removed .tr()
+        settings: const RouteSettings(name: 'MenuScreen'),
       ),
     );
   }
@@ -2537,7 +2758,7 @@ void _navigateToServiceCardStyle(String title, Color color, bool isDining) {
     } else if (service.title == 'orderList') {
       Navigator.of(context).push(
         PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => const OrderListScreen(),
+          pageBuilder: (context, animation, secondaryAnimation) => const OrderListScreen(excludeCatering: true),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return SlideTransition(
               position: animation.drive(
@@ -2583,7 +2804,7 @@ void _navigateToServiceCardStyle(String title, Color color, bool isDining) {
     } else if (title == 'orderList') {
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (ctx) => const OrderListScreen(),
+          builder: (ctx) => const OrderListScreen(excludeCatering: true),
         ),
       );
     } else {
@@ -2594,6 +2815,139 @@ void _navigateToServiceCardStyle(String title, Color color, bool isDining) {
         ),
       );
     }
+  }
+  Widget _buildMobilePerformanceUI() {
+  final settingsProvider = Provider.of<SettingsProvider>(context);
+  return DashboardMobile(
+     businessName: settingsProvider.businessName,
+     onDiningTap: () => _navigateToServiceCardStyle('Dining', const Color(0xFF3B82F6), true),
+     onDeliveryTap: () => _navigateToServiceCardStyle('Delivery', const Color(0xFFFF7D29), false),
+      onTakeoutTap: () => _navigateToServiceCardStyle('Takeout', const Color(0xFF6a8a4f), false),
+      onDriveThroughTap: _handleDriveThroughTap,
+      onCateringTap: () => _navigateToServiceCardStyle('Catering', const Color(0xFFd4b556), false),
+      onDelivery2Tap: () => _navigateToServiceCardStyle('Online Order', const Color(0xFF383b42), false),
+      onOrdersTap: _navigateToOrderListModern,
+      onUISwitch: () {
+        setState(() {
+          _currentUIMode = 0; // Cycle back to Modern
+        });
+        _saveUIPreference(0);
+      },
+      onReportsTap: () {
+        Navigator.push(
+          context,
+          NoAnimationPageRoute(
+            builder: (context) => const ReportScreen(),
+            settings: const RouteSettings(name: 'ReportScreen'),
+          ),
+        );
+      },
+      onSettingsTap: () {
+         showDialog(
+          context: context,
+          builder: (dialogContext) => SettingsPasswordDialog(
+            onVerified: (userType) async {
+              Navigator.of(dialogContext).pop();
+              if (mounted) {
+                await Navigator.of(context).push(
+                  NoAnimationPageRoute(
+                    builder: (context) => SettingsScreen(userType: userType),
+                  ),
+                );
+                _loadUIPreference();
+              }
+            },
+          ),
+        );
+      },
+      onSearchTap: () {
+           showDialog(
+          context: context,
+          builder: (context) {
+            String searchQuery = '';
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Text('Search Orders'.tr(), style: TextStyle(fontWeight: FontWeight.bold)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                   TextField(
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      hintText: 'Enter Order #, Token #, or Customer Name'.tr(),
+                      prefixIcon: Icon(Icons.search, color:  Colors.blue.shade700),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                    ),
+                    onChanged: (value) {
+                      searchQuery = value;
+                    },
+                    onSubmitted: (value) {
+                       Navigator.pop(context); // Close dialog
+                       if (value.isNotEmpty) {
+                         Navigator.push(
+                            context,
+                            NoAnimationPageRoute(
+                              builder: (context) => OrderListScreen(
+                                searchQuery: value,
+                                excludeCatering: false, // Search everything
+                                serviceType: null, // Global search
+                              ),
+                            ),
+                         );
+                       }
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Cancel'.tr(), style: const TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context); // Close dialog
+                    if (searchQuery.isNotEmpty) {
+                       Navigator.push(
+                          context,
+                          NoAnimationPageRoute(
+                            builder: (context) => OrderListScreen(
+                              searchQuery: searchQuery,
+                              excludeCatering: false, // Search everything
+                              serviceType: null, // Global search
+                            ),
+                          ),
+                       );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade700,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: Text('Search'.tr()),
+                ),
+              ],
+            );
+          },
+        );
+      },
+      onExpensesTap: () {
+        Navigator.push(
+          context,
+          NoAnimationPageRoute(
+            builder: (context) => ExpenseScreen(),
+            settings: const RouteSettings(name: 'ExpenseScreen'),
+          ),
+        );
+      },
+      onLogoutTap: _showLogoutDialogWithReport,
+    );
   }
 }
 // // Custom Painter for Pie Chart (ADD THIS OUTSIDE THE CLASS)
@@ -2702,6 +3056,7 @@ class SidebarServiceItem {
     this.subtitle, [
     this.isDining = false,
   ]);
+
 }
 class AnimatedDiningIcon extends StatefulWidget {
   final double size;
@@ -2825,4 +3180,16 @@ class RightHalfClipper extends CustomClipper<Rect> {
 
   @override
   bool shouldReclip(CustomClipper<Rect> oldClipper) => false;
+}
+
+// --- Optimized Navigation Route ---
+class NoAnimationPageRoute<T> extends PageRouteBuilder<T> {
+  final WidgetBuilder builder;
+
+  NoAnimationPageRoute({required this.builder, super.settings})
+      : super(
+          pageBuilder: (context, animation, secondaryAnimation) => builder(context),
+          transitionDuration: Duration.zero,
+          reverseTransitionDuration: Duration.zero,
+        );
 }

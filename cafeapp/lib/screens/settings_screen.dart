@@ -3,8 +3,11 @@ import 'package:cafeapp/main.dart';
 import 'package:cafeapp/providers/logo_provider.dart';
 import 'package:cafeapp/screens/device_management_screen.dart';
 import 'package:cafeapp/utils/database_helper.dart';
+import 'customer_management_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+// import 'company_registration_screen.dart';
+import 'delivery_boy_management_screen.dart';
 import '../providers/auth_provider.dart';
 import '../providers/table_provider.dart';
 import '../providers/settings_provider.dart';
@@ -61,6 +64,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _autoPrintReceipts = true;
   bool _autoPrintKitchenOrders = true;
   String _selectedPrinter = 'Default Printer';
+  
+  // UI Mode
+  int _selectedUIMode = 5; // Default to Mobile Performance
   
   // Tax Settings
   final _taxRateController = TextEditingController(text: '0.0');
@@ -193,7 +199,7 @@ Future<void> _showLogoDialog() async {
                             );
 
                             try {
-                              final success = await LogoService.pickAndSaveLogo();
+                              final success = await LogoService.pickAndSaveLogo(context);
                               
                               // Close loading dialog
                               if (context.mounted) {
@@ -485,6 +491,10 @@ Future<void> _checkLicenseStatus() async {
       _selectedLanguage = settingsProvider.appLanguage;
       
       _serverUrlController.text = settingsProvider.serverUrl;
+      
+      // Load Dashboard UI Mode
+      final prefs = await SharedPreferences.getInstance();
+      _selectedUIMode = prefs.getInt('ui_mode_v2') ?? 5;
     } catch (e) {
       debugPrint('Error loading settings: $e');
       
@@ -1050,6 +1060,46 @@ Future<void> _checkLicenseStatus() async {
                   _buildBusinessInfoSection(),
                   const Divider(),
                 ],
+                
+                // Management Section
+                _buildSectionHeader('Management'.tr()),
+                Card(
+                  child: Column(
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.people, color: Colors.blue),
+                        title: Text('Customers'.tr()),
+                        subtitle: Text('View and manage customer list'.tr()),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const CustomerManagementScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      const Divider(),
+                      ListTile(
+                        leading: const Icon(Icons.directions_bike, color: Colors.orange),
+                        title: Text('Delivery Boys'.tr()),
+                        subtitle: Text('Manage delivery personnel'.tr()),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const DeliveryBoyManagementScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(),
+
                 // Only show other sections if demo is not expired
                 if (!_isDemoExpired && !(_isRegularUser && _isLicenseExpired)) ...[
                   _buildSectionHeader('Expense'.tr()),
@@ -1121,6 +1171,43 @@ Future<void> _checkLicenseStatus() async {
                                 child: Text(_getLanguageDisplayName(value)),
                               );
                             }).toList(),
+                            underline: Container(),
+                          ),
+                        ),
+                        const Divider(height: 1),
+                        ListTile(
+                          title: Text('Dashboard Layout'.tr()),
+                          subtitle: Text(_getUIModeName(_selectedUIMode)),
+                          trailing: DropdownButton<int>(
+                            value: _selectedUIMode,
+                            onChanged: (int? newValue) async {
+                              if (newValue != null) {
+                                setState(() {
+                                  _selectedUIMode = newValue;
+                                });
+                                
+                                // Save directly to SharedPreferences as Dashboard uses it
+                                final prefs = await SharedPreferences.getInstance();
+                                await prefs.setInt('ui_mode_v2', newValue);
+                                
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Dashboard layout updated'.tr()),
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            items: [
+                              const DropdownMenuItem(value: 5, child: Text('Mobile Performance')),
+                              const DropdownMenuItem(value: 4, child: Text('Ultimate (Dark)')),
+                              const DropdownMenuItem(value: 0, child: Text('Classic Grid')),
+                              const DropdownMenuItem(value: 2, child: Text('Modern')),
+                              const DropdownMenuItem(value: 1, child: Text('Sidebar')),
+                              const DropdownMenuItem(value: 3, child: Text('Card Style')),
+                            ],
                             underline: Container(),
                           ),
                         ),
@@ -2375,7 +2462,7 @@ void _showTaxSettingsDialog() {
         onTap: _isDemoExpired ? null : () {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (context) => const ModifierScreen(),
+              builder: (context) => const ModifierScreen(allowPerPlatePricing: true),
             ),
           );
         },
@@ -2428,5 +2515,16 @@ void _showTaxSettingsDialog() {
         ),
       ),
     );
+  }
+  String _getUIModeName(int mode) {
+    switch (mode) {
+      case 5: return 'Mobile Performance';
+      case 4: return 'Ultimate (Dark)';
+      case 0: return 'Classic Grid';
+      case 2: return 'Modern';
+      case 1: return 'Sidebar';
+      case 3: return 'Card Style';
+      default: return 'Unknown';
+    }
   }
 }

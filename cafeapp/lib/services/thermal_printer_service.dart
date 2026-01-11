@@ -1,5 +1,6 @@
 
 import 'dart:ui' as ui show Canvas, ImageByteFormat, Paint, PaintingStyle, PictureRecorder, Rect, TextDirection, instantiateImageCodec;
+import 'dart:io';
 import 'package:flutter/material.dart' show TextAlign, TextPainter, TextSpan, TextStyle, FontWeight, Colors, debugPrint;
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
@@ -10,6 +11,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/menu_item.dart';
 import '../models/order_item.dart';
 import '../services/logo_service.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:flutter/foundation.dart'; // Import for compute
+import 'windows_raw_printer.dart'; // Direct Windows RAW Printing
+
 
 class ThermalPrinterService {
   // Printer settings constants
@@ -23,6 +30,16 @@ class ThermalPrinterService {
   static const String _kotPrinterIpKey = 'kot_printer_ip';
   static const String _kotPrinterPortKey = 'kot_printer_port';
   static const String _kotPrinterEnabledKey = 'kot_printer_enabled';
+
+  // NEW: Printer Type Settings
+  static const String _receiptPrinterTypeKey = 'receipt_printer_type'; // 'network' or 'system'
+  static const String _receiptSystemPrinterNameKey = 'receipt_system_printer_name';
+  
+  static const String _kotPrinterTypeKey = 'kot_printer_type'; // 'network' or 'system'
+  static const String _kotSystemPrinterNameKey = 'kot_system_printer_name';
+
+  static const String printerTypeNetwork = 'network';
+  static const String printerTypeSystem = 'system';
 
   // Image generation constants - Fixed for proper 80mm thermal paper width
   static const double _thermalPrinterWidth = 512.0; // Changed from 576.0
@@ -82,6 +99,55 @@ class ThermalPrinterService {
   static Future<void> setKotPrinterEnabled(bool enabled) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kotPrinterEnabledKey, enabled);
+  }
+
+  // Printer Type Getters/Setters
+  static Future<String> getReceiptPrinterType() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_receiptPrinterTypeKey) ?? printerTypeNetwork;
+  }
+
+  static Future<void> setReceiptPrinterType(String type) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_receiptPrinterTypeKey, type);
+  }
+
+  static Future<String?> getReceiptSystemPrinterName() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_receiptSystemPrinterNameKey);
+  }
+
+  static Future<void> setReceiptSystemPrinterName(String? name) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (name == null) {
+      await prefs.remove(_receiptSystemPrinterNameKey);
+    } else {
+      await prefs.setString(_receiptSystemPrinterNameKey, name);
+    }
+  }
+
+  static Future<String> getKotPrinterType() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kotPrinterTypeKey) ?? printerTypeNetwork;
+  }
+
+  static Future<void> setKotPrinterType(String type) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kotPrinterTypeKey, type);
+  }
+
+  static Future<String?> getKotSystemPrinterName() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kotSystemPrinterNameKey);
+  }
+
+  static Future<void> setKotSystemPrinterName(String? name) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (name == null) {
+      await prefs.remove(_kotSystemPrinterNameKey);
+    } else {
+      await prefs.setString(_kotSystemPrinterNameKey, name);
+    }
   }
 
   // Utility Methods
@@ -376,6 +442,8 @@ static Future<Uint8List?> _generateReceiptImage({
   bool isEdited = false,
   String? orderNumber,
   double? taxRate,
+  double? depositAmount,
+  double? deliveryCharge,
 }) async {
   try {
     final businessInfo = await getBusinessInfo();
@@ -484,15 +552,29 @@ static Future<Uint8List?> _generateReceiptImage({
     contentHeight += 2 + 6; // Line after items
     
     // Totals section
-    contentHeight += _fontSize - 4 + 8; // Subtotal
-    contentHeight += _fontSize - 4 + 8; // Tax
+    // Corrected height calculations based on _drawTotalRow and _drawLine implementations
+    // _drawTotalRow(isTotal: false) returns approx 42 pixels (32 font + 10 padding)
+    contentHeight += 42; // Subtotal
+    contentHeight += 42; // Tax
+
+    if (deliveryCharge != null && deliveryCharge > 0) {
+      contentHeight += 42; // Delivery Charge
+    }
 
     if (discount > 0) {
-      contentHeight += _fontSize - 4 + 8; // Discount
+      contentHeight += 42; // Discount
     }
     
-    contentHeight += 2 + 6; // Line before total
-    contentHeight += _fontSize + 8; // Total
+    contentHeight += 12; // Line before total (thickness 4 + 8)
+    contentHeight += 40; // Total (isTotal: true, 30 font + 10 padding)
+    
+    // Add height for Deposit and Balance
+    if (depositAmount != null && depositAmount > 0) {
+       contentHeight += 5; // Explicit spacing added in draw phase
+       contentHeight += 10; // Divider line (thickness 2 + 8)
+       contentHeight += 42; // Advance Paid (isTotal: false)
+       contentHeight += 40; // Balance Due (isTotal: true)
+    }
     contentHeight += 2 + 6; // Line after total
     contentHeight += 8; // Space before footer
     
@@ -658,12 +740,25 @@ static Future<Uint8List?> _generateReceiptImage({
     currentY = _drawTotalRow(canvas, 'Subtotal:', subtotal.toStringAsFixed(3), currentY);
     currentY = _drawTotalRow(canvas, 'Tax (${effectiveTaxRate.toStringAsFixed(1)}%):', tax.toStringAsFixed(3), currentY);
     
+    if (deliveryCharge != null && deliveryCharge > 0) {
+       currentY = _drawTotalRow(canvas, 'Delivery Fee:', deliveryCharge.toStringAsFixed(3), currentY);
+    }
+    
     if (discount > 0) {
       currentY = _drawTotalRow(canvas, 'Discount:', discount.toStringAsFixed(3), currentY);
     }
     
     currentY = _drawLine(canvas, currentY);
     currentY = _drawTotalRow(canvas, 'TOTAL:', total.toStringAsFixed(3), currentY, isTotal: true);
+    // Deposit and Balance
+    if (depositAmount != null && depositAmount > 0) {
+       currentY += 5;
+       currentY = _drawLine(canvas, currentY, thickness: 2.0);
+       currentY = _drawTotalRow(canvas, 'Advance Paid:', depositAmount.toStringAsFixed(3), currentY);
+       
+       final balance = total - depositAmount;
+       currentY = _drawTotalRow(canvas, 'Balance Due:', balance.toStringAsFixed(3), currentY, isTotal: true);
+    }
     // currentY = _drawLine(canvas, currentY);
     
     currentY += 10;
@@ -740,6 +835,9 @@ static Future<Uint8List?> _generateKotImage({
     final now = DateTime.now();
     final billNumber = orderNumber ?? '${now.millisecondsSinceEpoch % 10000}';
     
+    // OPTIMIZATION: Yield to event loop to keep UI responsive
+    await Future.delayed(Duration.zero);
+
     // First pass: Calculate the exact content height
     double contentHeight = _padding; // Start with top padding
     
@@ -1207,53 +1305,323 @@ static Future<Uint8List?> _generateKotImage({
   }
 }
 
+  // Direct RAW Printing using Windows Spooler (Fix for truncation)
+  static Future<bool> _printToUsb(Uint8List imageBytes, {bool isKot = false}) async {
+    // Only works on Windows for now (user's target OS)
+    if (!Platform.isWindows) return false;
+
+    try {
+      debugPrint('Attempting Direct RAW Print...');
+      
+      // 1. Get the configured System Printer Name
+      // We reuse the same printer selected in settings, but send RAW bytes instead of PDF
+      final printerName = isKot 
+          ? await getKotSystemPrinterName() 
+          : await getReceiptSystemPrinterName();
+          
+      if (printerName == null) {
+        debugPrint('No system printer configured for RAW print');
+        return false;
+      }
+
+      debugPrint('Targeting printer for RAW output: $printerName');
+
+      // Check for Windows offline status specifically for RAW print
+      // This is crucial to prevent spooling jobs when the printer is physically disconnected
+      final isReady = await _isWindowsPrinterReady(printerName);
+      if (!isReady) {
+        debugPrint('Windows RAW printer check failed: $printerName is offline or not ready');
+        return false;
+      }
+
+      // 2. Purge existing jobs if any (Anti-Spooling safeguard)
+      // If the printer was offline and just came online, it might have old jobs stuck.
+      // We clear them to ensure only the CURRENT job prints.
+      try {
+        debugPrint('Purging stale jobs for: $printerName');
+        await Process.run('powershell', [
+          '-Command', 
+          'Get-Printer -Name "$printerName" | Get-PrintJob | Remove-PrintJob'
+        ]);
+      } catch (e) {
+        debugPrint('Warning: Failed to purge jobs: $e');
+      }
+
+      // 3. Generate ESC/POS Raster Bytes
+      final profile = await CapabilityProfile.load();
+      final generator = Generator(PaperSize.mm80, profile);
+      List<int> bytes = [];
+
+      // Reset
+      bytes += generator.reset();
+
+      // Process Image
+      final image = img.decodeImage(imageBytes);
+      if (image == null) {
+        debugPrint('Failed to decode image for RAW print');
+        return false;
+      }
+
+      // Resize and Grayscale (consistent with network print)
+      // 512 width is safe for 80mm
+      final resized = img.copyResize(image, width: 512); 
+      final bw = img.grayscale(resized);
+
+      // Raster Image Command
+      bytes += generator.image(bw);
+      bytes += generator.cut();
+
+      // 3. Send Bytes via Win32 Spooler API
+      final success = WindowsRawPrinter.printBytes(
+        printerName: printerName,
+        bytes: bytes,
+        jobName: isKot ? "Sims Cafe KOT (RAW)" : "Sims Cafe Receipt (RAW)"
+      );
+      
+      if (success) {
+        debugPrint('Direct Windows RAW Print sent to spooler. Verifying execution...');
+        
+        // 4. Post-Print Verification (Fix for "Spooling when offline")
+        // Windows might accept the job to spooler even if offline.
+        // We wait briefly and check if the job is still stuck in the queue.
+        await Future.delayed(const Duration(seconds: 2));
+        
+        // Check JobCount
+        final jobCountResult = await Process.run('powershell', [
+          '-Command', 
+          'Get-Printer -Name "$printerName" | Select-Object -ExpandProperty JobCount'
+        ]);
+        
+        int jobCount = 0;
+        try {
+           jobCount = int.parse(jobCountResult.stdout.toString().trim());
+        } catch (e) {
+           // If parsing fails, assume 0 or handle safe
+        }
+        
+        if (jobCount > 0) {
+           debugPrint('Job stuck in spooler (JobCount: $jobCount). Printer likely offline properly.');
+           debugPrint('PURGING stuck job to prevent ghost printing...');
+           
+           // PURGE again to cancel the stuck job
+           await Process.run('powershell', [
+              '-Command', 
+              'Get-Printer -Name "$printerName" | Get-PrintJob | Remove-PrintJob'
+           ]);
+           
+           return false; // Treat as failed so fallback dialog appears
+        }
+        
+        debugPrint('Job cleared from queue (Printed successfully).');
+        return true;
+      } else {
+        debugPrint('Failed to send RAW bytes to printer');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('Error in _printToUsb: $e');
+      return false;
+    }
+  }
+
+  // Helper to check precise Windows printer status using PowerShell
+  static Future<bool> _isWindowsPrinterReady(String printerName) async {
+    try {
+      // Execute PowerShell command to get printer status
+      // We check for 'WorkOffline' and 'PrinterStatus'
+      final result = await Process.run('powershell', [
+        '-Command', 
+        'Get-Printer -Name "$printerName" | Select-Object WorkOffline, PrinterStatus | ConvertTo-Json'
+      ]);
+
+      if (result.exitCode != 0) {
+        debugPrint('Failed to check printer status: ${result.stderr}');
+        // If we can't check, we default to seeing if standard isAvailable worked (which it did to get here)
+        // But to be safe for this specific "offline spooling" bug, maybe return false? 
+        // Let's allow it but log warning, as aggressive blocking might break things if PS fails.
+        return true; 
+      }
+
+      final output = result.stdout.toString().trim();
+      if (output.isEmpty) return true;
+
+      // Simple string parsing to avoid full JSON import for just this
+      // JSON example: { "WorkOffline": true, "PrinterStatus": 1 }
+      
+      final isOffline = output.contains('"WorkOffline":true') || output.contains('"WorkOffline": true');
+      
+      // PrinterStatus 3 = Idle, 4 = Printing, 5 = Warming Up. Others are error states.
+      // 1 = Other, 2 = Unknown, 6 = Stopped, 7 = Offline
+      // We'll trust WorkOffline mostly, but also check for explicit error status codes if needed.
+      // For now, WorkOffline is the main flag set when USB is unplugged.
+      
+      if (isOffline) {
+        debugPrint('Windows Printer Check: Printer is marked WorkOffline');
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      debugPrint('Error checking Windows printer status: $e');
+      return true; // Fallback to allowing it if check fails
+    }
+  }
+
+  // Print Image to System Printer (USB/Bluetooth/Driver)
+  static Future<bool> _printToSystemPrinter(Uint8List imageBytes, {bool isKot = false, String? overridePrinterName}) async {
+    try {
+      // Create a completer to handle the timeout logic wrapper
+      // We wrap the entire process in a Future.timeout to ensure we don't hang indefinitely
+      return await Future<bool>(() async {
+        final printerName = overridePrinterName ?? (isKot 
+            ? await getKotSystemPrinterName() 
+            : await getReceiptSystemPrinterName());
+        
+        if (printerName == null) {
+          debugPrint('No system printer selected for ${isKot ? 'KOT' : 'receipt'}');
+          return false;
+        }
+
+        // Find the printer
+        final printers = await Printing.listPrinters();
+        Printer? printer;
+        try {
+          printer = printers.firstWhere((p) => p.name == printerName);
+        } catch (e) {
+          printer = null;
+        }
+
+        if (printer == null) {
+          debugPrint('Printer not found: $printerName');
+          return false;
+        }
+
+        if (!printer.isAvailable) {
+          debugPrint('Printer is not available: $printerName');
+          return false;
+        }
+
+        // Check for Windows offline status specifically
+        // This prevents spooling jobs when the printer is physically disconnected
+        if (Platform.isWindows) {
+          final isReady = await _isWindowsPrinterReady(printer.name);
+          if (!isReady) {
+            debugPrint('Windows printer check failed: ${printer.name} is offline or not ready');
+            return false;
+          }
+        }
+
+        // Create PDF document
+        final doc = pw.Document();
+        final image = pw.MemoryImage(imageBytes);
+
+        doc.addPage(pw.Page(
+          pageFormat: PdfPageFormat.roll80,
+          margin: pw.EdgeInsets.zero,
+          build: (pw.Context context) {
+            return pw.Center(
+              child: pw.Image(image),
+            );
+          },
+        ));
+
+        // Print
+        await Printing.directPrintPdf(
+          printer: printer,
+          onLayout: (PdfPageFormat format) async => doc.save(),
+          name: '${isKot ? 'KOT' : 'Receipt'}_${DateTime.now().millisecondsSinceEpoch}',
+          format: PdfPageFormat.roll80,
+        );
+
+        debugPrint('${isKot ? 'KOT' : 'Receipt'} sent to system printer: $printerName');
+        return true;
+      }).timeout(const Duration(seconds: 5), onTimeout: () {
+        debugPrint('System printing timed out after 5 seconds');
+        return false; 
+      });
+    } catch (e) {
+      debugPrint('Error printing to system printer: $e');
+      return false;
+    }
+  }
+
   // Print Image to Printer - Fixed width handling
   static Future<bool> _printImage(Uint8List imageBytes, {bool isKot = false}) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      String ip;
-      int port;
-      
-      if (isKot) {
-        ip = prefs.getString(_kotPrinterIpKey) ?? _defaultKotPrinterIp;
-        port = prefs.getInt(_kotPrinterPortKey) ?? _defaultKotPrinterPort;
-      } else {
-        ip = prefs.getString(_receiptPrinterIpKey) ?? _defaultReceiptPrinterIp;
-        port = prefs.getInt(_receiptPrinterPortKey) ?? _defaultReceiptPrinterPort;
-      }
-      
-      final profile = await CapabilityProfile.load();
-      final printer = NetworkPrinter(PaperSize.mm80, profile);
-      
-      debugPrint('Connecting to ${isKot ? 'KOT' : 'receipt'} printer at $ip:$port');
-      final result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 5));
-      
-      if (result != PosPrintResult.success) {
-        debugPrint('Failed to connect to printer: ${result.msg}');
-        return false;
+      // Check printer type preference
+      final printerType = isKot 
+          ? await getKotPrinterType() 
+          : await getReceiptPrinterType();
+
+      // Route to appropriate method
+      if (printerType == printerTypeSystem) {
+         // Smart Routing: Try Direct USB First for Receipt (non-KOT) to fix truncation
+         // Or just try RAW first for both if enabled settings (defaulting to try RAW first for system printers on Windows)
+         // We pass isKot to help identify correct printer
+         if (Platform.isWindows) {
+            final usbSuccess = await _printToUsb(imageBytes, isKot: isKot);
+            if (usbSuccess) {
+              return true; // Successfully printed via direct RAW
+            }
+            debugPrint('Direct RAW print failed, falling back to System Driver (PDF)');
+         }
+         
+        return await _printToSystemPrinter(imageBytes, isKot: isKot);
       }
 
-      final image = img.decodeImage(imageBytes);
-      if (image == null) {
-        debugPrint('Failed to decode image');
+      // Network Printing Logic (Existing) with Timeout Wrapper
+      return await Future<bool>(() async {
+        final prefs = await SharedPreferences.getInstance();
+        String ip;
+        int port;
+        
+        if (isKot) {
+          ip = prefs.getString(_kotPrinterIpKey) ?? _defaultKotPrinterIp;
+          port = prefs.getInt(_kotPrinterPortKey) ?? _defaultKotPrinterPort;
+        } else {
+          ip = prefs.getString(_receiptPrinterIpKey) ?? _defaultReceiptPrinterIp;
+          port = prefs.getInt(_receiptPrinterPortKey) ?? _defaultReceiptPrinterPort;
+        }
+        
+        final profile = await CapabilityProfile.load();
+        final printer = NetworkPrinter(PaperSize.mm80, profile);
+        
+        debugPrint('Connecting to ${isKot ? 'KOT' : 'receipt'} printer at $ip:$port');
+        
+        // We use a shorter inner timeout for connection to allow the overall timeout to catch prolonged operations
+        final result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 4));
+        
+        if (result != PosPrintResult.success) {
+          debugPrint('Failed to connect to printer: ${result.msg}');
+          return false;
+        }
+
+        final image = img.decodeImage(imageBytes);
+        if (image == null) {
+          debugPrint('Failed to decode image');
+          printer.disconnect();
+          return false;
+        }
+
+        // Resize to proper thermal printer width (512 pixels for 80mm at 8 dots/mm)
+        final resized = img.copyResize(image, width: 512);
+        
+        // Convert to black and white for better contrast
+        final bw = img.grayscale(resized);
+        
+        printer.image(bw);
+        printer.cut();
+        
+        // Reduced delay to fit within timeout
+        await Future.delayed(const Duration(milliseconds: 200));
         printer.disconnect();
+        
+        debugPrint('${isKot ? 'KOT' : 'Receipt'} printed successfully');
+        return true;
+      }).timeout(const Duration(seconds: 5), onTimeout: () {
+        debugPrint('Network printing timed out after 5 seconds');
         return false;
-      }
-
-      // Resize to proper thermal printer width (512 pixels for 80mm at 8 dots/mm)
-      final resized = img.copyResize(image, width: 512);
-      
-      // Convert to black and white for better contrast
-      final bw = img.grayscale(resized);
-      
-      printer.image(bw);
-      printer.cut();
-      
-      await Future.delayed(const Duration(milliseconds: 500));
-      printer.disconnect();
-      
-      debugPrint('${isKot ? 'KOT' : 'Receipt'} printed successfully');
-      return true;
+      });
       
     } catch (e) {
       debugPrint('Error printing image: $e');
@@ -1274,6 +1642,8 @@ static Future<Uint8List?> _generateKotImage({
     bool isEdited = false,
     String? orderNumber,
     double? taxRate,
+    double? depositAmount,
+    double? deliveryCharge,
   }) async {
     debugPrint('Printing order receipt as image');
     
@@ -1289,6 +1659,8 @@ static Future<Uint8List?> _generateKotImage({
       isEdited: isEdited,
       orderNumber: orderNumber,
       taxRate: taxRate,
+      depositAmount: depositAmount,
+      deliveryCharge: deliveryCharge,
     );
     
     if (imageBytes == null) {
@@ -1352,15 +1724,34 @@ static Future<Uint8List?> _generateKotImage({
   }
 
   // Test Methods
-  static Future<bool> testConnection() async {
+  static Future<bool> testConnection({
+    String? type,
+    String? ip,
+    int? port,
+    String? systemPrinterName,
+  }) async {
     try {
-      final ip = await getPrinterIp();
-      final port = await getPrinterPort();
+      final effectiveType = type ?? await getReceiptPrinterType();
+
+      if (effectiveType == printerTypeSystem) {
+        final name = systemPrinterName ?? await getReceiptSystemPrinterName();
+        if (name == null) return false;
+        
+        // For system printers, we test by printing a small image
+        final testImage = await _generateTestImage();
+        if (testImage == null) return false;
+        
+        return await _printToSystemPrinter(testImage, isKot: false, overridePrinterName: name);
+      }
+
+      // Network logic
+      final effectiveIp = ip ?? await getPrinterIp();
+      final effectivePort = port ?? await getPrinterPort();
       
       final profile = await CapabilityProfile.load();
       final printer = NetworkPrinter(PaperSize.mm80, profile);
       
-      final result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 3));
+      final result = await printer.connect(effectiveIp, port: effectivePort, timeout: const Duration(seconds: 3));
       
       if (result == PosPrintResult.success) {
         // Generate test image
@@ -1368,7 +1759,7 @@ static Future<Uint8List?> _generateKotImage({
         if (testImage != null) {
           final image = img.decodeImage(testImage);
           if (image != null) {
-            final resized = img.copyResize(image, width: 576);
+            final resized = img.copyResize(image, width: 512); // Fixed width
             printer.image(resized);
             printer.cut();
           }
@@ -1384,22 +1775,40 @@ static Future<Uint8List?> _generateKotImage({
     }
   }
 
-  static Future<bool> testKotConnection() async {
+  static Future<bool> testKotConnection({
+    String? type,
+    String? ip,
+    int? port,
+    String? systemPrinterName,
+  }) async {
     try {
-      final ip = await getKotPrinterIp();
-      final port = await getKotPrinterPort();
+      final effectiveType = type ?? await getKotPrinterType();
+
+      if (effectiveType == printerTypeSystem) {
+        final name = systemPrinterName ?? await getKotSystemPrinterName();
+        if (name == null) return false;
+        
+        final testImage = await _generateTestImage(isKot: true);
+        if (testImage == null) return false;
+        
+        return await _printToSystemPrinter(testImage, isKot: true, overridePrinterName: name);
+      }
+
+      // Network logic
+      final effectiveIp = ip ?? await getKotPrinterIp();
+      final effectivePort = port ?? await getKotPrinterPort();
       
       final profile = await CapabilityProfile.load();
       final printer = NetworkPrinter(PaperSize.mm80, profile);
       
-      final result = await printer.connect(ip, port: port, timeout: const Duration(seconds: 3));
+      final result = await printer.connect(effectiveIp, port: effectivePort, timeout: const Duration(seconds: 3));
       
       if (result == PosPrintResult.success) {
         final testImage = await _generateTestImage(isKot: true);
         if (testImage != null) {
           final image = img.decodeImage(testImage);
           if (image != null) {
-            final resized = img.copyResize(image, width: 576);
+            final resized = img.copyResize(image, width: 512); // Fixed width
             printer.image(resized);
             printer.cut();
           }
@@ -1973,5 +2382,21 @@ static Future<Uint8List?> _generateKotImage({
       return false;
     }
   }
+  // Process image in a separate isolate to avoid blocking the UI thread
+  // static img.Image? _processImageOnIsolate(Uint8List imageBytes) {
+  //   try {
+  //     final image = img.decodeImage(imageBytes);
+  //     if (image == null) return null;
+
+  //     // Resize to proper thermal printer width (512 pixels for 80mm at 8 dots/mm)
+  //     final resized = img.copyResize(image, width: 512);
+      
+  //     // Convert to black and white for better contrast
+  //     return img.grayscale(resized);
+  //   } catch (e) {
+  //     debugPrint('Error processing image on isolate: $e');
+  //     return null;
+  //   }
+  // }
 
 }

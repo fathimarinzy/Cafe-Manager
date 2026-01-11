@@ -6,6 +6,8 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
+// import 'package:cross_file/cross_file.dart';
 import '../utils/app_localization.dart';
 
 class CrossPlatformPdfService {
@@ -173,5 +175,24 @@ class CrossPlatformPdfService {
            Platform.isMacOS || 
            Platform.isLinux || 
            Platform.isIOS;
+  }
+
+  /// Share PDF using system share sheet
+  static Future<bool> sharePdf(pw.Document pdf, {String? fileName}) async {
+    try {
+      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final name = fileName ?? 'SIMS_quote_$timestamp.pdf';
+      
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/$name');
+      await file.writeAsBytes(await pdf.save());
+
+      final xFile = XFile(file.path);
+      await Share.shareXFiles([xFile], text: 'Here is your quotation from SIMS CAFE');
+      return true;
+    } catch (e) {
+      debugPrint('Error sharing PDF: $e');
+      return false;
+    }
   }
 }

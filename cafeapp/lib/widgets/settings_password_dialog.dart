@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import '../services/settings_password_service.dart';
-import '../screens/settings_screen.dart';
+// import '../screens/settings_screen.dart';
 import '../utils/app_localization.dart';
 
 class SettingsPasswordDialog extends StatefulWidget {
-  const SettingsPasswordDialog({super.key});
+  final Function(String userType)? onVerified;
+  
+  const SettingsPasswordDialog({
+    super.key, 
+    this.onVerified,
+  });
 
   @override
   State<SettingsPasswordDialog> createState() => _SettingsPasswordDialogState();
@@ -56,14 +61,12 @@ class _SettingsPasswordDialogState extends State<SettingsPasswordDialog> {
         });
         
         if (userType != null) {
-          Navigator.of(context).pop();
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => SettingsScreen(
-                userType: userType,
-              ),
-            ),
-          );
+          debugPrint('DEBUG: Password verified, userType: $userType. Calling onVerified or popping.');
+          if (widget.onVerified != null) {
+             widget.onVerified!(userType);
+          } else {
+             Navigator.of(context).pop(userType);
+          }
         } else {
           setState(() {
             _isError = true;

@@ -45,6 +45,64 @@ class OrderProvider with ChangeNotifier {
   // Getter for current service type
   String get currentServiceType => _currentServiceType;
 
+  // Delivery Details
+  String? _deliveryAddress;
+  String? _deliveryBoy;
+  double? _deliveryCharge;
+
+  String? get deliveryAddress => _deliveryAddress;
+  String? get deliveryBoy => _deliveryBoy;
+  double? get deliveryCharge => _deliveryCharge;
+
+  void setDeliveryDetails({String? address, String? boy, double? charge}) {
+    if (address != null) _deliveryAddress = address;
+    if (boy != null) _deliveryBoy = boy;
+    if (charge != null) _deliveryCharge = charge;
+    debugPrint('OrderProvider: SET Delivery details: Addr=$_deliveryAddress, Boy=$_deliveryBoy, Charge=$_deliveryCharge');
+    notifyListeners();
+  }
+  void clearDeliveryDetails() {
+    _deliveryAddress = null;
+    _deliveryBoy = null;
+    _deliveryCharge = null;
+    notifyListeners();
+  }
+
+  // Catering Details
+  String? _eventDate;
+  String? _eventTime;
+  int? _eventGuestCount;
+  String? _eventType;
+
+  String? get eventDate => _eventDate;
+  String? get eventTime => _eventTime;
+  int? get eventGuestCount => _eventGuestCount;
+  String? get eventType => _eventType;
+  String? _cateringTokenNumber;
+  String? get cateringTokenNumber => _cateringTokenNumber;
+
+  void setCateringTokenNumber(String? token) {
+    _cateringTokenNumber = token;
+    notifyListeners();
+  }
+
+  void setCateringDetails({String? date, String? time, int? guests, String? type}) {
+    if (date != null) _eventDate = date;
+    if (time != null) _eventTime = time;
+    if (guests != null) _eventGuestCount = guests;
+    if (type != null) _eventType = type;
+    notifyListeners();
+  }
+
+  void clearCateringDetails() {
+    _eventDate = null;
+    _eventTime = null;
+    _eventGuestCount = null;
+    _eventType = null;
+    _cateringTokenNumber = null;
+    notifyListeners();
+  }
+
   // Getter and setter for selected person
   Person? get selectedPerson => _selectedPerson;
   
@@ -82,6 +140,16 @@ class OrderProvider with ChangeNotifier {
       };
     }
     
+    // Clear delivery details if switching away from Delivery
+    if (!serviceType.toLowerCase().contains('delivery')) {
+      clearDeliveryDetails();
+    }
+    
+    // Clear catering details if switching away from Catering
+    if (!serviceType.toLowerCase().contains('catering')) {
+      clearCateringDetails();
+    }
+    
     notifyListeners();
   }
 
@@ -107,73 +175,88 @@ class OrderProvider with ChangeNotifier {
   
   // Get total for current service type
   double get total {
-    return _serviceTotals[_currentServiceType]?['total'] ?? 0;
+    final baseTotal = _serviceTotals[_currentServiceType]?['total'] ?? 0;
+    // Add delivery charge to total if valid
+    return baseTotal + (_deliveryCharge ?? 0.0);
   }
+
   // Add this getter after the existing getters (around line 70-100)
-Future<List<Order>> get orders async {
-  try {
-    return await _localOrderRepo.getAllOrders();
-  } catch (error) {
-    debugPrint('Error fetching orders: $error');
-    return [];
+  Future<List<Order>> get orders async {
+    try {
+      return await _localOrderRepo.getAllOrders();
+    } catch (error) {
+      debugPrint('Error fetching orders: $error');
+      return [];
+    }
   }
-}
 
   // Add item to cart for current service type
-void addToCart(MenuItem item) {
-  if (_currentServiceType.isEmpty) {
-    debugPrint('Warning: No service type selected');
-    return;
-  }
-  
-  final existingIndex = _serviceTypeCarts[_currentServiceType]!
-      .indexWhere((cartItem) => cartItem.id == item.id);
+  void addToCart(MenuItem item) {
+    if (_currentServiceType.isEmpty) {
+      debugPrint('Warning: No service type selected');
+      return;
+    }
+    
+    final existingIndex = _serviceTypeCarts[_currentServiceType]!
+        .indexWhere((cartItem) => cartItem.id == item.id);
 
-  if (existingIndex >= 0) {
-    // Keep the existing kitchen note if the item already has one
-    String existingNote = _serviceTypeCarts[_currentServiceType]![existingIndex].kitchenNote;
-    String noteToUse = item.kitchenNote.isNotEmpty ? item.kitchenNote : existingNote;
+    if (existingIndex >= 0) {
+      // Keep the existing kitchen note if the item already has one
+      String existingNote = _serviceTypeCarts[_currentServiceType]![existingIndex].kitchenNote;
+      String noteToUse = item.kitchenNote.isNotEmpty ? item.kitchenNote : existingNote;
+      
+      // Get the existing item
+      final existingItem = _serviceTypeCarts[_currentServiceType]![existingIndex];
+      
+      // Remove the item from its current position
+      _serviceTypeCarts[_currentServiceType]!.removeAt(existingIndex);
+      
+      // Create updated item with incremented quantity
+      final updatedItem = MenuItem(
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        imageUrl: item.imageUrl,
+        category: item.category,
+        isAvailable: item.isAvailable,
+        quantity: existingItem.quantity + 1, // Increment quantity
+        kitchenNote: noteToUse,
+        taxExempt: item.taxExempt,
+        isPerPlate: item.isPerPlate,
+      );
+      
+      // Insert the updated item at the beginning of the list
+      _serviceTypeCarts[_currentServiceType]!.insert(0, updatedItem);
+    } else {
+      // Logic for new items
+      int initialQuantity = 1;
+      
+      // If Catering and Item is Per Plate, use Event Guest Count
+      if (_currentServiceType.startsWith('Catering') && item.isPerPlate) {
+        if (_eventGuestCount != null && _eventGuestCount! > 0) {
+          initialQuantity = _eventGuestCount!;
+        }
+      }
+
+      // If it's a new item, add it to the beginning of the list
+      final newItem = MenuItem(
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        imageUrl: item.imageUrl,
+        category: item.category,
+        isAvailable: item.isAvailable,
+        quantity: initialQuantity,
+        kitchenNote: item.kitchenNote,
+        taxExempt: item.taxExempt,
+        isPerPlate: item.isPerPlate,
+      );
+      _serviceTypeCarts[_currentServiceType]!.insert(0, newItem);
+    }
     
-    // Get the existing item
-    final existingItem = _serviceTypeCarts[_currentServiceType]![existingIndex];
-    
-    // Remove the item from its current position
-    _serviceTypeCarts[_currentServiceType]!.removeAt(existingIndex);
-    
-    // Create updated item with incremented quantity
-    final updatedItem = MenuItem(
-      id: item.id,
-      name: item.name,
-      price: item.price,
-      imageUrl: item.imageUrl,
-      category: item.category,
-      isAvailable: item.isAvailable,
-      quantity: existingItem.quantity + 1, // Increment quantity
-      kitchenNote: noteToUse,
-      taxExempt: item.taxExempt,
-    );
-    
-    // Insert the updated item at the beginning of the list
-    _serviceTypeCarts[_currentServiceType]!.insert(0, updatedItem);
-  } else {
-    // If it's a new item, add it to the beginning of the list
-    final newItem = MenuItem(
-      id: item.id,
-      name: item.name,
-      price: item.price,
-      imageUrl: item.imageUrl,
-      category: item.category,
-      isAvailable: item.isAvailable,
-      quantity: 1,
-      kitchenNote: item.kitchenNote,
-      taxExempt: item.taxExempt,
-    );
-    _serviceTypeCarts[_currentServiceType]!.insert(0, newItem);
+    _updateTotals(_currentServiceType);
+    notifyListeners();
   }
-  
-  _updateTotals(_currentServiceType);
-  notifyListeners();
-}
   
   // Update item quantity for current service type
   void updateItemQuantity(String id, int quantity) {
@@ -298,7 +381,7 @@ void addToCart(MenuItem item) {
     'total': total - discount,
   };
   
-  debugPrint('Order totals updated - Taxable: $taxableTotal, Tax-Exempt: $taxExemptTotal, Tax: $tax, Total: $total');
+  // debugPrint('Order totals updated - Taxable: $taxableTotal, Tax-Exempt: $taxExemptTotal, Tax: $tax, Total: $total');
 }
   
   // For this to work, we need to store the BuildContext
@@ -344,30 +427,48 @@ void addToCart(MenuItem item) {
       final deviceId = prefs.getString('device_id') ?? '';
 
       // Calculate totals based on VAT type
-      final itemPricesSum = cartItems.fold(
-        0.0, 
-        (sum, item) => sum + (item.price * item.quantity)
-      );
+      double taxableTotal = 0.0;
+      double taxExemptTotal = 0.0;
+      
+      for (var item in cartItems) {
+        final itemTotal = item.price * item.quantity;
+        if (item.taxExempt) {
+          taxExemptTotal += itemTotal;
+        } else {
+          taxableTotal += itemTotal;
+        }
+      }
       
       double calculatedSubtotal;
       double calculatedTax;
       double calculatedTotal;
       
       if (settingsProvider.isVatInclusive) {
-        // Inclusive VAT: item prices already include tax
-        calculatedTotal = itemPricesSum - discount;
-        calculatedTax = calculatedTotal - (calculatedTotal / (1 + (settingsProvider.taxRate / 100)));
-        calculatedSubtotal = calculatedTotal - calculatedTax;
+        // Inclusive VAT: tax is already in the price for taxable items
+        // Extract tax only from taxable items
+        final taxableAmount = taxableTotal / (1 + (settingsProvider.taxRate / 100));
+        calculatedTax = taxableTotal - taxableAmount;
+        calculatedSubtotal = taxableAmount + taxExemptTotal;
+        calculatedTotal = (taxableTotal + taxExemptTotal) - discount;
       } else {
-        // Exclusive VAT: add tax on top
-        calculatedSubtotal = itemPricesSum - discount;
-        calculatedTax = calculatedSubtotal * (settingsProvider.taxRate / 100);
+        // Exclusive VAT: add tax on top of taxable items only
+        calculatedSubtotal = (taxableTotal + taxExemptTotal) - discount;
+        calculatedTax = taxableTotal * (settingsProvider.taxRate / 100);
         calculatedTotal = calculatedSubtotal + calculatedTax;
       }
+      
+      // ADD Delivery Charge to Total
+      calculatedTotal += (_deliveryCharge ?? 0.0);
+      
+      debugPrint('OrderProvider: Processing Delivery Order. Addr=$_deliveryAddress, Boy=$_deliveryBoy, Charge=$_deliveryCharge');
       
       // Extract table number from service type if this is a dining order
       String? tableInfo;
       int? tableNumber;
+      
+      debugPrint('PROCESS ORDER DEBUG: ServiceType: $_currentServiceType');
+      debugPrint('PROCESS ORDER DEBUG: Catering Token: $_cateringTokenNumber');
+      debugPrint('PROCESS ORDER DEBUG: Customer: ${_selectedPerson?.name}');
       
       if (_currentServiceType.startsWith('Dining - Table')) {
         tableInfo = _currentServiceType;
@@ -412,6 +513,15 @@ void addToCart(MenuItem item) {
           createdAt: formattedTimestamp,
           customerId: _selectedPerson?.id,
           paymentMethod: 'cash',
+          deliveryAddress: _deliveryAddress,
+          deliveryBoy: _deliveryBoy,
+          deliveryCharge: _deliveryCharge,
+          eventDate: _eventDate,
+          eventTime: _eventTime,
+          eventGuestCount: _eventGuestCount,
+          eventType: _eventType,
+          tokenNumber: _cateringTokenNumber,
+          customerName: _selectedPerson?.name,
         );
         
         localOrder = await _localOrderRepo.saveOrder(localOrder);
@@ -443,19 +553,30 @@ void addToCart(MenuItem item) {
           createdAt: formattedTimestamp,
           customerId: _selectedPerson?.id,
           paymentMethod: 'cash',
+          deliveryAddress: _deliveryAddress,
+          deliveryBoy: _deliveryBoy,
+          deliveryCharge: _deliveryCharge,
+          eventDate: _eventDate,
+          eventTime: _eventTime,
+          eventGuestCount: _eventGuestCount,
+          eventType: _eventType,
+          tokenNumber: _cateringTokenNumber,
+          customerName: _selectedPerson?.name,
         );
         
         localOrder = await _localOrderRepo.saveOrder(localOrder);
         debugPrint('Created new order in local database: ID=${localOrder.id},Staff#=${localOrder.staffOrderNumber}');
       }
-      await _syncOrderIfEnabled(localOrder);
+      // OPTIMIZATION: Fire-and-forget sync to avoid blocking UI
+      _syncOrderIfEnabled(localOrder);
       
       final isContextMounted = context.mounted;
       final isMainDevice = prefs.getBool('is_main_device') ?? false;
-      // Use appropriate order number for display
       final displayOrderNumber = localOrder.getDisplayOrderNumber(isMainDevice);
+      debugPrint('Printing KOT for Order #${localOrder.id}, Staff #${localOrder.staffOrderNumber}, Display: $displayOrderNumber');
 
       // final String orderNumberPadded = localOrder.id.toString().padLeft(4, '0');
+      // OPTIMIZATION: Fire-and-forget printing to avoid blocking UI (image generation is slow)
       Map<String, dynamic> printResult = await BillService.printKitchenOrderReceipt(
         items: cartItems,
         serviceType: _currentServiceType,
@@ -498,7 +619,7 @@ void addToCart(MenuItem item) {
       
       return {
         'success': true,
-        'message': printResult['message'] ?? 'Order processed successfully',
+        'message':printResult['message'] ?? 'Order processed successfully', // Return success immediately
         'order': localOrder,
         'staffOrderNumber': localOrder.staffOrderNumber,
         'mainOrderNumber': localOrder.mainOrderNumber,
@@ -643,6 +764,22 @@ void addToCart(MenuItem item) {
           _addToCartWithoutIncrementing(menuItem);
         }
         
+        // Load Delivery Details
+        if (order.serviceType.toLowerCase().contains('delivery')) {
+           _deliveryCharge = order.deliveryCharge;
+           _deliveryAddress = order.deliveryAddress;
+           _deliveryBoy = order.deliveryBoy;
+        }
+
+        // Load Catering Details
+        if (order.serviceType.toLowerCase().contains('catering')) {
+           _eventDate = order.eventDate;
+           _eventTime = order.eventTime;
+           _eventGuestCount = order.eventGuestCount;
+           _eventType = order.eventType;
+           _cateringTokenNumber = order.tokenNumber; // FIXED: Load token number
+        }
+        
         // Update totals
         _updateTotals(_currentServiceType);
         notifyListeners();
@@ -669,8 +806,9 @@ void addToCart(MenuItem item) {
     }
     
     // Add the item to the beginning of the list (for consistency with addToCart)
-  _serviceTypeCarts[_currentServiceType]!.insert(0, item);
+    _serviceTypeCarts[_currentServiceType]!.insert(0, item);
   }
+
   
   // Update payment method for an order
   Future<bool> updateOrderPaymentMethod(int orderId, String paymentMethod) async {
@@ -697,7 +835,6 @@ void addToCart(MenuItem item) {
           status: order.status,
           createdAt: order.createdAt,
           customerId: order.customerId,
-          paymentMethod: paymentMethod,
         );
         
         // Save the updated order
@@ -710,6 +847,118 @@ void addToCart(MenuItem item) {
       }
     } catch (e) {
       debugPrint('Error updating payment method: $e');
+      return false;
+    }
+  }
+
+  // Save current cart as a QUOTE
+  Future<Map<String, dynamic>> saveAsQuote(BuildContext context) async {
+    if (cartItems.isEmpty) {
+      return {'success': false, 'message': 'Cart is empty'};
+    }
+
+    try {
+      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+      final prefs = await SharedPreferences.getInstance();
+      final deviceId = prefs.getString('device_id') ?? '';
+
+      // Prepare items
+      final orderItems = cartItems.map((item) => 
+        OrderItem(
+          id: 0, 
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          kitchenNote: item.kitchenNote,
+          taxExempt: item.taxExempt,
+        )
+      ).toList();
+
+      // Calculate totals
+      final itemPricesSum = cartItems.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
+      double subtotal, tax, total;
+
+      if (settingsProvider.isVatInclusive) {
+        double taxableAmount = itemPricesSum / (1 + (settingsProvider.taxRate / 100));
+        tax = itemPricesSum - taxableAmount;
+        subtotal = taxableAmount;
+        total = itemPricesSum - discount;
+      } else {
+        subtotal = itemPricesSum;
+        tax = itemPricesSum * (settingsProvider.taxRate / 100);
+        total = subtotal + tax - discount;
+      }
+
+      total += (_deliveryCharge ?? 0.0);
+
+      final quote = Order(
+        staffDeviceId: deviceId,
+        serviceType: _currentServiceType.isEmpty ? 'Quick Order' : _currentServiceType,
+        items: orderItems,
+        subtotal: subtotal,
+        tax: tax,
+        discount: discount,
+        total: total,
+        status: 'quote', // KEY: Status is quote
+        createdAt: DateTime.now().toIso8601String(),
+        paymentMethod: 'quote',
+        customerId: _selectedPerson?.id,
+        // Delivery/Catering details
+        deliveryAddress: _deliveryAddress,
+        deliveryBoy: _deliveryBoy,
+        deliveryCharge: _deliveryCharge,
+        eventDate: _eventDate,
+        eventTime: _eventTime,
+        eventGuestCount: _eventGuestCount,
+        eventType: _eventType,
+        tokenNumber: _cateringTokenNumber, // FIXED: Save token number
+        customerName: _selectedPerson?.name, // FIXED: Save customer name
+      );
+
+      await _localOrderRepo.saveOrder(quote);
+      
+      // ✅ SYNC: Sync the quote to Firestore
+      _syncOrderIfEnabled(quote);
+      
+      // Clear cart after saving
+      clearCart();
+
+      return {'success': true, 'message': 'Quotation saved successfully'};
+    } catch (e) {
+      debugPrint('Error saving quote: $e');
+      return {'success': false, 'message': 'Error saving quote: $e'};
+    }
+  }
+
+  // Convert a Quote to an Active Order
+  Future<bool> convertQuoteToOrder(int quoteId) async {
+    try {
+      final order = await _localOrderRepo.getOrderById(quoteId);
+      if (order == null) return false;
+
+      // Check if it should be a catering order based on event type
+      String newServiceType = order.serviceType;
+      // If it has event type/date but service type doesn't say catering, fix it
+      if ((order.eventType != null || order.eventDate != null) && 
+          !newServiceType.toLowerCase().contains('catering')) {
+        newServiceType = 'Catering - ${order.eventType ?? "Order"}';
+      }
+
+      // Update status to pending
+      final updatedOrder = order.copyWith(
+        status: 'pending',
+        serviceType: newServiceType, // Update service type to ensure it appears in catering list
+        createdAt: DateTime.now().toIso8601String(), // Refresh timestamp
+      );
+
+      await _localOrderRepo.saveOrder(updatedOrder);
+      
+      // ✅ SYNC: Sync the converted order to Firestore
+      _syncOrderIfEnabled(updatedOrder);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Error converting quote: $e');
       return false;
     }
   }

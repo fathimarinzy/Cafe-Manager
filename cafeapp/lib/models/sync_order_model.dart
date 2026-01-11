@@ -25,6 +25,17 @@ class SyncOrderModel {
   final String? syncedAt;
   final bool mainNumberAssigned; // Whether main order number has been assigned
   final String? lastUpdatedBy;
+  // NEW: Catering and Delivery fields
+  final double? deliveryCharge;
+  final String? deliveryAddress;
+  final String? deliveryBoy;
+  final String? eventDate;
+  final String? eventTime;
+  final int? eventGuestCount;
+  final String? eventType;
+  final String? tokenNumber;
+  final String? customerName;
+  final double? depositAmount;
 
   SyncOrderModel({
     this.id,
@@ -48,6 +59,16 @@ class SyncOrderModel {
     this.syncedAt,
     this.mainNumberAssigned = false,
     this.lastUpdatedBy,
+    this.deliveryCharge,
+    this.deliveryAddress,
+    this.deliveryBoy,
+    this.eventDate,
+    this.eventTime,
+    this.eventGuestCount,
+    this.eventType,
+    this.tokenNumber,
+    this.customerName,
+    this.depositAmount,
   });
 
   // Convert to JSON for Firestore
@@ -73,14 +94,26 @@ class SyncOrderModel {
       'total': total,
       'status': status,
       'createdAt': createdAt,
-      'customerId': customerId,
-      'paymentMethod': paymentMethod,
-      'cashAmount': cashAmount,
-      'bankAmount': bankAmount,
       'isSynced': isSynced,
       'syncedAt': syncedAt,
       'mainNumberAssigned': mainNumberAssigned,
-      'lastUpdatedBy': lastUpdatedBy,
+      
+      // Conditional fields - omit if null to satisfy Firestore strict type checks
+      if (customerId != null) 'customerId': customerId,
+      if (paymentMethod != null) 'paymentMethod': paymentMethod,
+      if (cashAmount != null) 'cashAmount': cashAmount,
+      if (bankAmount != null) 'bankAmount': bankAmount,
+      if (lastUpdatedBy != null) 'lastUpdatedBy': lastUpdatedBy,
+      if (deliveryCharge != null) 'deliveryCharge': deliveryCharge,
+      if (deliveryAddress != null) 'deliveryAddress': deliveryAddress,
+      if (deliveryBoy != null) 'deliveryBoy': deliveryBoy,
+      if (eventDate != null) 'eventDate': eventDate,
+      if (eventTime != null) 'eventTime': eventTime,
+      if (eventGuestCount != null) 'eventGuestCount': eventGuestCount,
+      if (eventType != null) 'eventType': eventType,
+      if (tokenNumber != null) 'tokenNumber': tokenNumber,
+      if (customerName != null) 'customerName': customerName,
+      if (depositAmount != null) 'depositAmount': depositAmount,
     };
   }
 
@@ -98,22 +131,22 @@ class SyncOrderModel {
       id: json['id'] as int?,
       staffOrderNumber: json['staffOrderNumber'] as int?,
       mainOrderNumber: json['mainOrderNumber'] as int?,
-      staffDeviceId: json['staffDeviceId'] as String,
-      companyId: json['companyId'] as String,
-      serviceType: json['serviceType'] as String,
-      items: (json['items'] as List).map((item) => OrderItem(
+      staffDeviceId: json['staffDeviceId'] as String? ?? '',
+      companyId: json['companyId'] as String? ?? '',
+      serviceType: json['serviceType'] as String? ?? 'Dine-in', // Fallback to avoid crash
+      items: (json['items'] as List?)?.map((item) => OrderItem(
         id: item['id'] as int,
         name: item['name'] as String,
         price: (item['price'] as num).toDouble(),
         quantity: item['quantity'] as int,
         kitchenNote: item['kitchenNote'] as String? ?? '',
         taxExempt: item['taxExempt'] as bool? ?? false,
-      )).toList(),
-      subtotal: (json['subtotal'] as num).toDouble(),
-      tax: (json['tax'] as num).toDouble(),
-      discount: (json['discount'] as num).toDouble(),
-      total: (json['total'] as num).toDouble(),
-      status: json['status'] as String,
+      )).toList() ?? [],
+      subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0.0,
+      tax: (json['tax'] as num?)?.toDouble() ?? 0.0,
+      discount: (json['discount'] as num?)?.toDouble() ?? 0.0,
+      total: (json['total'] as num?)?.toDouble() ?? 0.0,
+      status: json['status'] as String? ?? 'pending',
       createdAt: json['createdAt'] as String,
       customerId: json['customerId'] as String?,
       paymentMethod: json['paymentMethod'] as String?,
@@ -127,6 +160,16 @@ class SyncOrderModel {
       syncedAt: timestampToString(json['syncedAt']),
       mainNumberAssigned: json['mainNumberAssigned'] as bool? ?? false,
       lastUpdatedBy: json['lastUpdatedBy'] as String?,
+      deliveryCharge: json['deliveryCharge'] != null ? (json['deliveryCharge'] as num).toDouble() : null,
+      deliveryAddress: json['deliveryAddress'] as String?,
+      deliveryBoy: json['deliveryBoy'] as String?,
+      eventDate: json['eventDate'] as String?,
+      eventTime: json['eventTime'] as String?,
+      eventGuestCount: json['eventGuestCount'] as int?,
+      eventType: json['eventType'] as String?,
+      tokenNumber: json['tokenNumber'] as String?,
+      customerName: json['customerName'] as String?,
+      depositAmount: json['depositAmount'] != null ? (json['depositAmount'] as num).toDouble() : null,
     );
   }
 
@@ -153,6 +196,16 @@ class SyncOrderModel {
       isSynced: order.isSynced,
       syncedAt: order.syncedAt,
       mainNumberAssigned: order.mainNumberAssigned,
+      deliveryCharge: order.deliveryCharge,
+      deliveryAddress: order.deliveryAddress,
+      deliveryBoy: order.deliveryBoy,
+      eventDate: order.eventDate,
+      eventTime: order.eventTime,
+      eventGuestCount: order.eventGuestCount,
+      eventType: order.eventType,
+      tokenNumber: order.tokenNumber,
+      customerName: order.customerName,
+      depositAmount: order.depositAmount,
     );
   }
 
@@ -178,6 +231,16 @@ class SyncOrderModel {
       isSynced: isSynced,
       syncedAt: syncedAt,
       mainNumberAssigned: mainNumberAssigned,
+      deliveryCharge: deliveryCharge,
+      deliveryAddress: deliveryAddress,
+      deliveryBoy: deliveryBoy,
+      eventDate: eventDate,
+      eventTime: eventTime,
+      eventGuestCount: eventGuestCount,
+      eventType: eventType,
+      tokenNumber: tokenNumber,
+      customerName: customerName,
+      depositAmount: depositAmount,
     );
   }
 
@@ -204,6 +267,16 @@ class SyncOrderModel {
     String? syncedAt,
     bool? mainNumberAssigned,
     String? lastUpdatedBy,
+    double? deliveryCharge,
+    String? deliveryAddress,
+    String? deliveryBoy,
+    String? eventDate,
+    String? eventTime,
+    int? eventGuestCount,
+    String? eventType,
+    String? tokenNumber,
+    String? customerName,
+    double? depositAmount,
   }) {
     return SyncOrderModel(
       id: id ?? this.id,
@@ -227,6 +300,16 @@ class SyncOrderModel {
       syncedAt: syncedAt ?? this.syncedAt,
       mainNumberAssigned: mainNumberAssigned ?? this.mainNumberAssigned,
       lastUpdatedBy: lastUpdatedBy ?? this.lastUpdatedBy,
+      deliveryCharge: deliveryCharge ?? this.deliveryCharge,
+      deliveryAddress: deliveryAddress ?? this.deliveryAddress,
+      deliveryBoy: deliveryBoy ?? this.deliveryBoy,
+      eventDate: eventDate ?? this.eventDate,
+      eventTime: eventTime ?? this.eventTime,
+      eventGuestCount: eventGuestCount ?? this.eventGuestCount,
+      eventType: eventType ?? this.eventType,
+      tokenNumber: tokenNumber ?? this.tokenNumber,
+      customerName: customerName ?? this.customerName,
+      depositAmount: depositAmount ?? this.depositAmount,
     );
   }
 

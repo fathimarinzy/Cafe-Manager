@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:network_info_plus/network_info_plus.dart';
+import 'package:printing/printing.dart';
 import 'dart:io';
 import 'dart:async';
 import '../services/thermal_printer_service.dart';
@@ -27,6 +28,14 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
   bool _isDiscovering = false;
   bool _kotPrinterEnabled = true;
   
+  // NEW: System Printer State
+  String _receiptPrinterType = ThermalPrinterService.printerTypeNetwork;
+  String _kotPrinterType = ThermalPrinterService.printerTypeNetwork;
+  String? _selectedReceiptSystemPrinter;
+  String? _selectedKotSystemPrinter;
+  List<Printer> _systemPrinters = [];
+  bool _isLoadingSystemPrinters = false;
+  
   late TabController _tabController;
   final List<Map<String, String>> _discoveredPrinters = [];
 
@@ -35,6 +44,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _loadSettings();
+    _loadSystemPrinters();
   }
 
   @override
@@ -46,6 +56,25 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
     _tabController.dispose();
     super.dispose();
   }
+  
+  Future<void> _loadSystemPrinters() async {
+    setState(() {
+      _isLoadingSystemPrinters = true;
+    });
+    
+    try {
+      final printers = await Printing.listPrinters();
+      setState(() {
+        _systemPrinters = printers;
+        _isLoadingSystemPrinters = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading system printers: $e');
+      setState(() {
+        _isLoadingSystemPrinters = false;
+      });
+    }
+  }
 
   Future<void> _loadSettings() async {
     setState(() {
@@ -56,18 +85,30 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
       // Load Receipt Printer settings
       final receiptIp = await ThermalPrinterService.getPrinterIp();
       final receiptPort = await ThermalPrinterService.getPrinterPort();
+      final receiptType = await ThermalPrinterService.getReceiptPrinterType();
+      final receiptSystemName = await ThermalPrinterService.getReceiptSystemPrinterName();
       
       // Load KOT Printer settings
       final kotIp = await ThermalPrinterService.getKotPrinterIp();
       final kotPort = await ThermalPrinterService.getKotPrinterPort();
       final kotEnabled = await ThermalPrinterService.isKotPrinterEnabled();
+      final kotType = await ThermalPrinterService.getKotPrinterType();
+      final kotSystemName = await ThermalPrinterService.getKotSystemPrinterName();
       
       setState(() {
         _receiptIpController.text = receiptIp;
         _receiptPortController.text = receiptPort.toString();
+        
         _kotIpController.text = kotIp;
         _kotPortController.text = kotPort.toString();
         _kotPrinterEnabled = kotEnabled;
+        
+        // Load types
+        _receiptPrinterType = receiptType;
+        _kotPrinterType = kotType;
+        _selectedReceiptSystemPrinter = receiptSystemName;
+        _selectedKotSystemPrinter = kotSystemName;
+        
         _isLoading = false;
       });
     } catch (e) {
@@ -120,7 +161,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
 
       // Show results
       if (_discoveredPrinters.isEmpty) {
-        _showErrorMessage("No printers discovered".tr());
+        _showErrorMessage("No printers found".tr());
       } else {
         _showDiscoveredPrintersDialog();
       }
@@ -452,16 +493,25 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
   }
 
   Future<void> _saveReceiptPrinterSettings() async {
-    if (!_validateIpAddress(_receiptIpController.text)) {
-      _showErrorMessage("Please enter a valid IP address for Receipt Printer".tr());
-      return;
-    }
+    // Validation based on printer type
+    if (_receiptPrinterType == ThermalPrinterService.printerTypeNetwork) {
+      if (!_validateIpAddress(_receiptIpController.text)) {
+        _showErrorMessage("Please enter a valid IP address for Receipt Printer".tr());
+        return;
+      }
 
-    final portText = _receiptPortController.text.trim();
-    final port = int.tryParse(portText);
-    if (port == null || port <= 0 || port > 65535) {
-      _showErrorMessage("Please enter a valid port number (1-65535) for Receipt Printer".tr());
-      return;
+      final portText = _receiptPortController.text.trim();
+      final port = int.tryParse(portText);
+      if (port == null || port <= 0 || port > 65535) {
+        _showErrorMessage("Please enter a valid port number (1-65535) for Receipt Printer".tr());
+        return;
+      }
+    } else {
+      // System printer 
+      if (_selectedReceiptSystemPrinter == null) {
+        _showErrorMessage("Please select a printer".tr());
+        return;
+      }
     }
 
     setState(() {
@@ -469,8 +519,17 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
     });
 
     try {
-      await ThermalPrinterService.savePrinterIp(_receiptIpController.text.trim());
-      await ThermalPrinterService.savePrinterPort(port);
+      // Save Type
+      await ThermalPrinterService.setReceiptPrinterType(_receiptPrinterType);
+      
+      // Save details based on type
+      if (_receiptPrinterType == ThermalPrinterService.printerTypeNetwork) {
+        await ThermalPrinterService.savePrinterIp(_receiptIpController.text.trim());
+        final port = int.parse(_receiptPortController.text.trim());
+        await ThermalPrinterService.savePrinterPort(port);
+      } else {
+        await ThermalPrinterService.setReceiptSystemPrinterName(_selectedReceiptSystemPrinter);
+      }
       
       if (!mounted) return;
       
@@ -488,16 +547,25 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
   }
 
   Future<void> _saveKotPrinterSettings() async {
-    if (!_validateIpAddress(_kotIpController.text)) {
-      _showErrorMessage("Please enter a valid IP address for KOT Printer".tr());
-      return;
-    }
+    // Validation based on printer type
+    if (_kotPrinterType == ThermalPrinterService.printerTypeNetwork) {
+      if (!_validateIpAddress(_kotIpController.text)) {
+        _showErrorMessage("Please enter a valid IP address for KOT Printer".tr());
+        return;
+      }
 
-    final portText = _kotPortController.text.trim();
-    final port = int.tryParse(portText);
-    if (port == null || port <= 0 || port > 65535) {
-      _showErrorMessage("Please enter a valid port number (1-65535) for KOT Printer".tr());
-      return;
+      final portText = _kotPortController.text.trim();
+      final port = int.tryParse(portText);
+      if (port == null || port <= 0 || port > 65535) {
+        _showErrorMessage("Please enter a valid port number (1-65535) for KOT Printer".tr());
+        return;
+      }
+    } else {
+      // System printer
+      if (_selectedKotSystemPrinter == null) {
+        _showErrorMessage("Please select a printer".tr());
+        return;
+      }
     }
 
     setState(() {
@@ -505,9 +573,16 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
     });
 
     try {
-      await ThermalPrinterService.saveKotPrinterIp(_kotIpController.text.trim());
-      await ThermalPrinterService.saveKotPrinterPort(port);
       await ThermalPrinterService.setKotPrinterEnabled(_kotPrinterEnabled);
+      await ThermalPrinterService.setKotPrinterType(_kotPrinterType);
+      
+      if (_kotPrinterType == ThermalPrinterService.printerTypeNetwork) {
+        await ThermalPrinterService.saveKotPrinterIp(_kotIpController.text.trim());
+        final port = int.parse(_kotPortController.text.trim());
+        await ThermalPrinterService.saveKotPrinterPort(port);
+      } else {
+        await ThermalPrinterService.setKotSystemPrinterName(_selectedKotSystemPrinter);
+      }
       
       if (!mounted) return;
       
@@ -530,7 +605,12 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
     });
 
     try {
-      final connected = await ThermalPrinterService.testConnection();
+      final connected = await ThermalPrinterService.testConnection(
+        type: _receiptPrinterType,
+        ip: _receiptIpController.text.trim(),
+        port: int.tryParse(_receiptPortController.text.trim()),
+        systemPrinterName: _selectedReceiptSystemPrinter,
+      );
       
       if (!mounted) return;
       
@@ -541,9 +621,14 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
       if (connected) {
         _showSuccessMessage("Successfully connected to receipt printer".tr());
       } else {
-        _showErrorMessage("Failed to connect to receipt printer. Please check IP address and port.".tr());
+        if (_receiptPrinterType == ThermalPrinterService.printerTypeNetwork) {
+          _showErrorMessage("Failed to connect to receipt printer. Please check IP address and port.".tr());
+        } else {
+          _showErrorMessage("Failed to test system printer. Please check if the printer is on and drivers are installed.".tr());
+        }
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isTestingReceipt = false;
       });
@@ -557,7 +642,12 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
     });
 
     try {
-      final connected = await ThermalPrinterService.testKotConnection();
+      final connected = await ThermalPrinterService.testKotConnection(
+        type: _kotPrinterType,
+        ip: _kotIpController.text.trim(),
+        port: int.tryParse(_kotPortController.text.trim()),
+        systemPrinterName: _selectedKotSystemPrinter,
+      );
       
       if (!mounted) return;
       
@@ -568,9 +658,14 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
       if (connected) {
         _showSuccessMessage("Successfully connected to KOT printer".tr());
       } else {
-        _showErrorMessage("Failed to connect to KOT printer. Please check IP address and port.".tr());
+        if (_kotPrinterType == ThermalPrinterService.printerTypeNetwork) {
+          _showErrorMessage("Failed to connect to KOT printer. Please check IP address and port.".tr());
+        } else {
+          _showErrorMessage("Failed to test KOT system printer. Please check if the printer is on and drivers are installed.".tr());
+        }
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isTestingKot = false;
       });
@@ -629,8 +724,13 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text('Printer Settings'.tr()),
+        elevation: 0,
+        title: Text(
+          'Printer Settings'.tr(),
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
         backgroundColor: Colors.blue.shade700,
         foregroundColor: Colors.white,
         bottom: TabBar(
@@ -638,20 +738,31 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white70,
           indicatorColor: Colors.white,
+          indicatorWeight: 3,
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           tabs: [
             Tab(
-              icon: const Icon(Icons.receipt),
+              icon: const Icon(Icons.receipt_long),
               text: 'Receipt Printer'.tr(),
             ),
             Tab(
-              icon: const Icon(Icons.restaurant_menu),
+              icon: const Icon(Icons.restaurant),
               text: 'KOT Printer'.tr(),
             ),
           ],
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text('Loading settings...'.tr()),
+                ],
+              ),
+            )
           : TabBarView(
               controller: _tabController,
               children: [
@@ -662,139 +773,322 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
     );
   }
 
+  Widget _buildSectionCard({required String title, required IconData icon, required List<Widget> children, Widget? trailing}) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: Colors.blue.shade700, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                if (trailing != null) trailing,
+              ],
+            ),
+            const SizedBox(height: 24),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    TextInputType keyboardType = TextInputType.text,
+    bool enabled = true,
+  }) {
+    return TextFormField(
+      controller: controller,
+      enabled: enabled,
+      keyboardType: keyboardType,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        prefixIcon: Icon(icon, color: Colors.grey.shade600),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.blue.shade700, width: 2),
+        ),
+        filled: !enabled,
+        fillColor: enabled ? null : Colors.grey.shade100,
+      ),
+    );
+  }
+
   Widget _buildReceiptPrinterTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Printer icon and title
-          Center(
-            child: Column(
-              children: [
-                Icon(
-                  Icons.receipt,
-                  size: 60,
-                  color: Colors.blue.shade700,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Receipt Printer Configuration'.tr(),
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Configure your receipt printer'.tr(),
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          const SizedBox(height: 32),
-          
-          // IP Address Field
-          Text(
-            'Printer IP Address'.tr(),
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextFormField(
-            controller: _receiptIpController,
-            decoration: InputDecoration(
-              border: const OutlineInputBorder(),
-              hintText: 'e.g., 192.168.1.100'.tr(),
-              helperText: 'Enter the IP address of your printer'.tr(),
-            ),
-            keyboardType: TextInputType.number,
-          ),
-          
-          const SizedBox(height: 24),
-          
-          // Port Field
-          Text(
-            'Printer Port'.tr(),
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextFormField(
-            controller: _receiptPortController,
-            decoration: InputDecoration(
-              border: const OutlineInputBorder(),
-              hintText: 'e.g., 9100'.tr(),
-              helperText: 'Default port for most thermal printers is 9100'.tr(),
-            ),
-            keyboardType: TextInputType.number,
-          ),
-          
-          const SizedBox(height: 32),
-          
-          // Save Button
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _saveReceiptPrinterSettings,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Colors.blue.shade700,
-                foregroundColor: Colors.white,
+          _buildSectionCard(
+            title: 'Configuration',
+            icon: Icons.settings,
+            children: [
+              // Connection Type
+              Text(
+                'Connection Type'.tr(),
+                style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.black87),
               ),
-              child: Text(
-                'Save Settings'.tr(),
-                style: const TextStyle(fontSize: 16),
-              ),
-            ),
-          ),
-          
-          const SizedBox(height: 16),
-          
-          // Test Connection Button
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _isTestingReceipt ? null : _testReceiptConnection,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Colors.green.shade700,
-                foregroundColor: Colors.white,
-              ),
-              child: _isTestingReceipt
-                  ? Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: ButtonTheme(
+                    alignedDropdown: true,
+                    child: DropdownButton<String>(
+                      isExpanded: true,
+                      value: _receiptPrinterType,
+                      borderRadius: BorderRadius.circular(12),
+                      items: [
+                        DropdownMenuItem(
+                          value: ThermalPrinterService.printerTypeNetwork,
+                          child: Row(
+                            children: [
+                              const Icon(Icons.wifi, size: 20, color: Colors.grey),
+                              const SizedBox(width: 12),
+                              Text('Network (WiFi/Ethernet)'.tr()),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Text('Testing Connection...'.tr()),
+                        DropdownMenuItem(
+                          value: ThermalPrinterService.printerTypeSystem,
+                          child: Row(
+                            children: [
+                              const Icon(Icons.usb, size: 20, color: Colors.grey),
+                              const SizedBox(width: 12),
+                              Text('System Printer (USB/Driver)'.tr()),
+                            ],
+                          ),
+                        ),
                       ],
-                    )
-                  : Text(
-                      'Test Connection'.tr(),
-                      style: const TextStyle(fontSize: 16),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _receiptPrinterType = value;
+                          });
+                        }
+                      },
                     ),
-            ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              if (_receiptPrinterType == ThermalPrinterService.printerTypeNetwork) ...[
+                _buildTextField(
+                  controller: _receiptIpController,
+                  label: 'Printer IP Address'.tr(),
+                  hint: 'e.g., 192.168.1.100',
+                  icon: Icons.dns,
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 16),
+                _buildTextField(
+                  controller: _receiptPortController,
+                  label: 'Printer Port'.tr(),
+                  hint: 'e.g., 9100',
+                  icon: Icons.numbers,
+                  keyboardType: TextInputType.number,
+                ),
+              ] else ...[
+                 Text(
+                  'Select Printer'.tr(),
+                  style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.black87),
+                ),
+                const SizedBox(height: 8),
+                if (_isLoadingSystemPrinters)
+                  const Center(child: Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: CircularProgressIndicator(),
+                  ))
+                else if (_systemPrinters.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700, size: 20),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'No system printers found.'.tr(),
+                            style: TextStyle(color: Colors.orange.shade900, fontSize: 13),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _loadSystemPrinters,
+                          child: Text('Refresh'.tr()),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: ButtonTheme(
+                              alignedDropdown: true,
+                              child: DropdownButton<String>(
+                                isExpanded: true,
+                                value: _selectedReceiptSystemPrinter,
+                                hint: Text('Choose a printer'.tr()),
+                                borderRadius: BorderRadius.circular(12),
+                                items: _systemPrinters.map((printer) {
+                                  return DropdownMenuItem(
+                                    value: printer.name,
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.print, size: 18, color: Colors.grey),
+                                        const SizedBox(width: 8),
+                                        Flexible(child: Text(printer.name, overflow: TextOverflow.ellipsis)),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  setState(() {
+                                    _selectedReceiptSystemPrinter = value;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.refresh, color: Colors.blue),
+                          onPressed: _loadSystemPrinters,
+                          tooltip: 'Refresh Printers'.tr(),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+              
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _saveReceiptPrinterSettings,
+                  icon: const Icon(Icons.save),
+                  label: Text('Save Configuration'.tr()),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: Colors.blue.shade700,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-          
-          const SizedBox(height: 24),
-          
+
+          _buildSectionCard(
+            title: 'Connection Status'.tr(),
+            icon: Icons.network_check,
+            children: [
+               Row(
+                 children: [
+                   Expanded(
+                     child: OutlinedButton.icon(
+                      onPressed: _isTestingReceipt ? null : _testReceiptConnection,
+                      icon: _isTestingReceipt 
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) 
+                        : const Icon(Icons.wifi_tethering),
+                      label: Text(_isTestingReceipt ? 'Testing...' : 'Test Connection'.tr()),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        side: BorderSide(color: Colors.blue.shade700),
+                        foregroundColor: Colors.blue.shade700,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                                     ),
+                   ),
+                   if (_receiptPrinterType == ThermalPrinterService.printerTypeNetwork) ...[
+                     const SizedBox(width: 12),
+                     Expanded(
+                       child: OutlinedButton.icon(
+                        onPressed: _isDiscovering ? null : _discoverPrinters,
+                        icon: _isDiscovering 
+                           ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) 
+                           : const Icon(Icons.search),
+                        label: Text(_isDiscovering ? 'Scanning...' : 'Scan Printers'.tr()),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          side: BorderSide(color: Colors.grey.shade400),
+                          foregroundColor: Colors.black87,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                       ),
+                     ),
+                   ],
+                 ],
+               ),
+            ],
+          ),
+
           _buildHelpSection(),
         ],
       ),
@@ -806,157 +1100,270 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Printer icon and title
-          Center(
-            child: Column(
-              children: [
-                Icon(
-                  Icons.restaurant_menu,
-                  size: 60,
-                  color: Colors.blue.shade700,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'KOT Printer Configuration'.tr(),
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+          _buildSectionCard(
+            title: 'KOT Status',
+            icon: Icons.power_settings_new,
+            children: [
+              SwitchListTile(
+                title: Text('Enable KOT Printer'.tr(), style: const TextStyle(fontWeight: FontWeight.w500)),
+                subtitle: Text('Print kitchen orders to separate printer'.tr()),
+                value: _kotPrinterEnabled,
+                onChanged: (bool value) {
+                  setState(() {
+                    _kotPrinterEnabled = value;
+                  });
+                },
+                secondary: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _kotPrinterEnabled ? Colors.green.shade50 : Colors.grey.shade100,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    _kotPrinterEnabled ? Icons.check_circle : Icons.cancel,
+                    color: _kotPrinterEnabled ? Colors.green : Colors.grey,
                   ),
                 ),
-                const SizedBox(height: 4),
+                contentPadding: EdgeInsets.zero,
+              ),
+            ],
+          ),
+
+          if (_kotPrinterEnabled) ...[
+            _buildSectionCard(
+              title: 'Configuration',
+              icon: Icons.settings,
+              children: [
                 Text(
-                  'Configure your KOT printer'.tr(),
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade700,
+                  'Connection Type'.tr(),
+                  style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.black87),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: ButtonTheme(
+                      alignedDropdown: true,
+                      child: DropdownButton<String>(
+                        isExpanded: true,
+                        value: _kotPrinterType,
+                        borderRadius: BorderRadius.circular(12),
+                        items: [
+                          DropdownMenuItem(
+                            value: ThermalPrinterService.printerTypeNetwork,
+                            child: Row(
+                              children: [
+                                const Icon(Icons.wifi, size: 20, color: Colors.grey),
+                                const SizedBox(width: 12),
+                                Text('Network (WiFi/Ethernet)'.tr()),
+                              ],
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: ThermalPrinterService.printerTypeSystem,
+                            child: Row(
+                              children: [
+                                const Icon(Icons.usb, size: 20, color: Colors.grey),
+                                const SizedBox(width: 12),
+                                Text('System Printer (USB/Driver)'.tr()),
+                              ],
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() {
+                              _kotPrinterType = value;
+                            });
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(height: 20),
+
+                if (_kotPrinterType == ThermalPrinterService.printerTypeNetwork) ...[
+                  _buildTextField(
+                    controller: _kotIpController,
+                    label: 'Printer IP Address'.tr(),
+                    hint: 'e.g., 192.168.1.101',
+                    icon: Icons.dns,
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildTextField(
+                    controller: _kotPortController,
+                    label: 'Printer Port'.tr(),
+                    hint: 'e.g., 9100',
+                    icon: Icons.numbers,
+                    keyboardType: TextInputType.number,
+                  ),
+                ] else ...[
+                   Text(
+                    'Select Printer'.tr(),
+                    style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.black87),
+                  ),
+                  const SizedBox(height: 8),
+                  if (_isLoadingSystemPrinters)
+                    const Center(child: Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: CircularProgressIndicator(),
+                    ))
+                  else if (_systemPrinters.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700, size: 20),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'No system printers found.'.tr(),
+                              style: TextStyle(color: Colors.orange.shade900, fontSize: 13),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _loadSystemPrinters,
+                            child: Text('Refresh'.tr()),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: ButtonTheme(
+                                alignedDropdown: true,
+                                child: DropdownButton<String>(
+                                  isExpanded: true,
+                                  value: _selectedKotSystemPrinter,
+                                  hint: Text('Choose a printer'.tr()),
+                                  borderRadius: BorderRadius.circular(12),
+                                  items: _systemPrinters.map((printer) {
+                                    return DropdownMenuItem(
+                                      value: printer.name,
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.print, size: 18, color: Colors.grey),
+                                          const SizedBox(width: 8),
+                                          Flexible(child: Text(printer.name, overflow: TextOverflow.ellipsis)),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _selectedKotSystemPrinter = value;
+                                    });
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.refresh, color: Colors.blue),
+                            onPressed: _loadSystemPrinters,
+                            tooltip: 'Refresh Printers'.tr(),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+                
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _saveKotPrinterSettings,
+                    icon: const Icon(Icons.save),
+                    label: Text('Save Configuration'.tr()),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: Colors.blue.shade700,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
-          ),
-          
-          const SizedBox(height: 32),
-          
-          // KOT Printer Enable/Disable
-          Card(
-            child: SwitchListTile(
-              title: Text('Enable KOT Printer'.tr()),
-              subtitle: Text('Print kitchen orders to separate printer'.tr()),
-              value: _kotPrinterEnabled,
-              onChanged: (bool value) {
-                setState(() {
-                  _kotPrinterEnabled = value;
-                });
-              },
-              secondary: Icon(
-                _kotPrinterEnabled ? Icons.print : Icons.print_disabled,
-                color: _kotPrinterEnabled ? Colors.green : Colors.grey,
-              ),
-            ),
-          ),
-          
-          const SizedBox(height: 24),
-          
-          // IP Address Field
-          Text(
-            'Printer IP Address'.tr(),
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: _kotPrinterEnabled ? Colors.black : Colors.grey,
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextFormField(
-            controller: _kotIpController,
-            enabled: _kotPrinterEnabled,
-            decoration: InputDecoration(
-              border: const OutlineInputBorder(),
-              hintText: 'e.g., 192.168.1.101'.tr(),
-              helperText: 'Enter the IP address of your printer'.tr(),
-            ),
-            keyboardType: TextInputType.number,
-          ),
-          
-          const SizedBox(height: 24),
-          
-          // Port Field
-          Text(
-            'Printer Port'.tr(),
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: _kotPrinterEnabled ? Colors.black : Colors.grey,
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextFormField(
-            controller: _kotPortController,
-            enabled: _kotPrinterEnabled,
-            decoration: InputDecoration(
-              border: const OutlineInputBorder(),
-              hintText: 'e.g., 9100'.tr(),
-              helperText: 'Default port for most thermal printers is 9100'.tr(),
-            ),
-            keyboardType: TextInputType.number,
-          ),
-          
-          const SizedBox(height: 32),
-          
-          // Save Button
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _kotPrinterEnabled ? _saveKotPrinterSettings : null,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Colors.blue.shade700,
-                foregroundColor: Colors.white,
-              ),
-              child: Text(
-                'Save Settings'.tr(),
-                style: const TextStyle(fontSize: 16),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          
-          // Test Connection Button
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _kotPrinterEnabled && !_isTestingKot ? _testKotConnection : null,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Colors.green.shade700,
-                foregroundColor: Colors.white,
-              ),
-              child: _isTestingKot
-                  ? Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
+
+            _buildSectionCard(
+              title: 'Connection Status'.tr(),
+              icon: Icons.network_check,
+              children: [
+                 Row(
+                   children: [
+                     Expanded(
+                       child: OutlinedButton.icon(
+                        onPressed: (_kotPrinterEnabled && !_isTestingKot) ? _testKotConnection : null,
+                        icon: _isTestingKot 
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) 
+                          : const Icon(Icons.wifi_tethering),
+                        label: Text(_isTestingKot ? 'Testing...' : 'Test Connection'.tr()),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          side: BorderSide(color: _kotPrinterEnabled ? Colors.blue.shade700 : Colors.grey),
+                          foregroundColor: _kotPrinterEnabled ? Colors.blue.shade700 : Colors.grey,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Text('Testing Connection...'.tr()),
-                      ],
-                    )
-                  : Text(
-                       'Test Connection'.tr(),
-                      style: const TextStyle(fontSize: 16),
-                    ),
+                       ),
+                     ),
+                   if (_kotPrinterType == ThermalPrinterService.printerTypeNetwork) ...[
+                     const SizedBox(width: 12),
+                     Expanded(
+                       child: OutlinedButton.icon(
+                        onPressed: (_kotPrinterEnabled && !_isDiscovering) ? _discoverPrinters : null,
+                        icon: _isDiscovering 
+                           ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) 
+                           : const Icon(Icons.search),
+                        label: Text(_isDiscovering ? 'Scanning...' : 'Scan Printers'.tr()),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          side: BorderSide(color: Colors.grey.shade400),
+                          foregroundColor: Colors.black87,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                       ),
+                     ),
+                   ],
+                   ],
+                 ),
+              ],
             ),
-          ),
-          
-          const SizedBox(height: 24),
+          ],
           
           _buildHelpSection(),
         ],
@@ -965,119 +1372,74 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
   }
 
   Widget _buildHelpSection() {
-    return Column(
-      children: [
-        // Printer Discovery Section
-        Card(
-          elevation: 2,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.wifi, color: Colors.blue.shade700),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Printer Discovery'.tr(),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Automatically find network printers on your local network.'.tr(),
-                  style: const TextStyle(fontSize: 14),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _isDiscovering ? null : _discoverPrinters,
-                    icon: _isDiscovering
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.search),
-                    label: Text(
-                      _isDiscovering
-                          ? 'Discovering...'.tr()
-                          : 'Discover Printers'.tr(),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade700,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                  ),
-                ),
-              ],
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.blue.shade100),
+      ),
+      color: Colors.blue.shade50.withAlpha(128),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          leading: Icon(Icons.help_outline, color: Colors.blue.shade700),
+          title: Text(
+            'Troubleshooting Guide'.tr(),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.blue.shade900,
             ),
           ),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          children: [
+             const Divider(),
+             const SizedBox(height: 8),
+             _buildHelpItem(
+               '1. Network Printers', 
+               'Ensure the printer and this device are on the same WiFi network. Determine the printer\'s IP address from its self-test page.'
+             ),
+             _buildHelpItem(
+               '2. Port Number', 
+               'Standard port for thermal printers is 9100. Only change this if you have configured your printer differently.'
+             ),
+             _buildHelpItem(
+               '3. System Printers', 
+               'Connect your USB printer and ensure drivers are installed. If it doesn\'t appear in the list, try refreshing or restarting the app.'
+             ),
+             _buildHelpItem(
+               '4. KOT Printing', 
+               'You can use the same physical printer for both Receipt and KOT by entering the same settings in both tabs.'
+             ),
+          ],
         ),
-        
-        const SizedBox(height: 24),
+      ),
+    );
+  }
 
-        // Help section
-        Card(
-          elevation: 2,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
+  Widget _buildHelpItem(String title, String description) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.info_outline, color: Colors.blue.shade700),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Printer Setup Help'.tr(),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
                 Text(
-                  '1. Make sure your printers are connected to the same WiFi network as this tablet'.tr(),
-                  style: const TextStyle(fontSize: 14),
+                  title.tr(),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
                 Text(
-                  '2. Enter the printer\'s IP address (check your printer settings or router)'.tr(),
-                   style: const TextStyle(fontSize: 14),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '3. Port 9100 is the standard port for most network printers'.tr(),
-                   style: const TextStyle(fontSize: 14),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '4. Click "Test Connection" to verify the printer is working'.tr(),
-                   style: const TextStyle(fontSize: 14),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '5. You can use the same printer for both purposes with different IP addresses or disable KOT printing'.tr(),
-                  style: const TextStyle(fontSize: 14),
+                  description.tr(),
+                  style: const TextStyle(fontSize: 13, color: Colors.black87),
                 ),
               ],
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

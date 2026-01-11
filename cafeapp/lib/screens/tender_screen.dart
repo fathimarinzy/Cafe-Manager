@@ -32,6 +32,7 @@ import '../models/credit_transaction.dart';
 import '../services/cross_platform_pdf_service.dart';
 import '../services/device_sync_service.dart';
 
+
 class TenderScreen extends StatefulWidget {
   final OrderHistory order;
   final bool isEdited;
@@ -73,9 +74,11 @@ class _TenderScreenState extends State<TenderScreen> {
   // NEW: Split payment state variables
   double _cashAmount = 0.0;
   double _bankAmount = 0.0;
+  bool _isDepositMode = false; // New: Toggle for deposit payment
 
   final Map<String, Map<String, double>> _serviceTotals = {};
   final String _currentServiceType = '';
+  Order? _updatedOrder; // To track changes to the order (e.g. deposit, ID assignment)
 
   String _orderStatus = 'pending';
   final LocalOrderRepository _localOrderRepo = LocalOrderRepository();
@@ -126,11 +129,18 @@ class _TenderScreenState extends State<TenderScreen> {
       _balanceAmount = 0.0;
       _paidAmount = widget.order.total;
     } else {
-      _balanceAmount = widget.order.total;
-      _paidAmount = 0.0;
+      // Use logic that includes delivery charge fix
+      final totalAmount = _getDiscountedTotal();
+      
+      // Use depositAmount for advances if it exists
+      final deposit = widget.order.depositAmount ?? 0.0;
+      _paidAmount = deposit;
+      _balanceAmount = totalAmount - deposit;
+      if (_balanceAmount < 0) _balanceAmount = 0.0;
     }
  
     debugPrint('Initial balance: $_balanceAmount, Initial paid: $_paidAmount, Status: $_orderStatus');
+    debugPrint('TenderScreen: Received Order logic. Charge=${widget.order.deliveryCharge}, Total=${widget.order.total}');
     if (widget.showBankDialogOnLoad) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showBankPaymentDialog();
@@ -155,7 +165,42 @@ class _TenderScreenState extends State<TenderScreen> {
       discount = _serviceTotals[_currentServiceType]!['discount'] ?? 0.0;
     }
     
-    return widget.order.total - discount;
+    // ✅ FIX: Ensure delivery charge is included
+    // If the total seems to be ignoring the delivery charge (e.g. Total approx Subtotal + Tax), add it.
+    double total = widget.order.total;
+    final deliveryCharge = widget.order.deliveryCharge ?? 0.0;
+    
+    // Debug the values for troubleshooting
+    // debugPrint('TenderScreen Calc: Total=$total, Subtotal=${widget.order.subtotal}, Tax=${widget.order.tax}, Charge=$deliveryCharge');
+    
+    if (deliveryCharge > 0) {
+      // Logic: If total < subtotal + tax + deliveryCharge - 0.1 (tolerance), then add deliveryCharge
+      // If subtotal is 0 (data issue), use total as estimated base
+      
+      double estimatedTotalWithoutDelivery;
+      if (widget.order.subtotal > 0) {
+         estimatedTotalWithoutDelivery = widget.order.subtotal + widget.order.tax - widget.order.discount;
+      } else {
+         // Fallback: assume current total IS the item total (missing delivery)
+         estimatedTotalWithoutDelivery = total;
+      }
+      
+      final diff = (total - estimatedTotalWithoutDelivery).abs();
+      debugPrint('TenderScreen Calc Detailed: Total=$total, Estimated=$estimatedTotalWithoutDelivery, Diff=$diff, Charge=$deliveryCharge');
+
+      // If total is close to estimatedTotalWithoutDelivery, but we have a delivery charge, 
+      // then delivery charge is missing.
+      if (diff < 1.0) {
+         total += deliveryCharge;
+         debugPrint('TenderScreen: Detected missing delivery charge in total. Added $deliveryCharge. New Total: $total');
+      } else {
+         debugPrint('TenderScreen: Delivery charge deemed included. Total ($total) != Estimated ($estimatedTotalWithoutDelivery)');
+      }
+    } else {
+       debugPrint('TenderScreen: No delivery charge ($deliveryCharge). Returning Total: $total');
+    }
+
+    return total - discount;
   }
 
   double _getCurrentDiscount() {
@@ -171,7 +216,7 @@ class _TenderScreenState extends State<TenderScreen> {
     final effectiveDiscount = discountAmount > widget.order.total ? widget.order.total : discountAmount;
     
     setState(() {
-      _balanceAmount = widget.order.total - effectiveDiscount;
+      _balanceAmount = widget.order.total - (widget.order.depositAmount ?? 0.0) - effectiveDiscount;
       if (_balanceAmount < 0) _balanceAmount = 0.0;
       
       if (_serviceTotals.containsKey(_currentServiceType)) {
@@ -252,8 +297,9 @@ class _TenderScreenState extends State<TenderScreen> {
   return {
     'subtotal': subtotal,
     'tax': tax,
-    'total': total,
+    'total': total + (widget.order.deliveryCharge ?? 0),
     'discount': discountAmount,
+    'deliveryCharge': widget.order.deliveryCharge ?? 0.0,
   };
 }
 Future<void> _reprintMainReceipt() async {
@@ -281,6 +327,15 @@ Future<void> _reprintMainReceipt() async {
       status: 'completed',
       createdAt: DateTime.now().toIso8601String(),
       customerId: widget.customer?.id,
+      depositAmount: actualOrder?.depositAmount ?? widget.order.depositAmount, 
+      // FIX: Preserve delivery and event details in fallback
+      deliveryCharge: widget.order.deliveryCharge,
+      deliveryAddress: widget.order.deliveryAddress,
+      deliveryBoy: widget.order.deliveryBoy,
+      eventDate: widget.order.eventDate,
+      eventTime: widget.order.eventTime,
+      eventGuestCount: widget.order.eventGuestCount,
+      eventType: widget.order.eventType,
     );
     // Convert order items to MenuItem objects
     final items = orderToUse.items.map((item) => 
@@ -321,6 +376,8 @@ Future<void> _reprintMainReceipt() async {
       isEdited: widget.isEdited,
       orderNumber: widget.order.orderNumber, // Use original order number
       taxRate: widget.taxRate,
+      depositAmount: orderToUse.depositAmount,
+      deliveryCharge: orderToUse.deliveryCharge, // Pass delivery charge
     );
 
     // Try to print directly first
@@ -338,6 +395,8 @@ Future<void> _reprintMainReceipt() async {
         isEdited: widget.isEdited,
         orderNumber: widget.order.orderNumber, // Use original order number
         taxRate: widget.taxRate,
+        depositAmount: orderToUse.depositAmount,
+        deliveryCharge: orderToUse.deliveryCharge, // Pass delivery charge
       );
     } catch (e) {
       debugPrint('Direct printing failed: $e');
@@ -644,6 +703,103 @@ Future<void> _showMobileBillPreview(pw.Document pdf) async {
   );
 }
 
+void _handleAdvancePayment() {
+  String cleanInput = _amountInput.replaceAll(',', '.');
+  double amount = double.tryParse(cleanInput) ?? 0.0;
+
+  if (amount <= 0) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Please enter an advance amount'.tr())),
+    );
+    return;
+  }
+
+  final discountedTotal = _getDiscountedTotal();
+  if (amount >= discountedTotal) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Advance must be less than total. Use full payment instead.'.tr())),
+    );
+    return;
+  }
+
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('Confirm Advance'.tr()),
+      content: Text('${'Record Advance of'.tr()} ${amount.toStringAsFixed(3)}?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Cancel'.tr()),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context);
+            _processAdvance(amount);
+          },
+          child: Text('Confirm'.tr()),
+        ),
+      ],
+    ),
+  );
+}
+
+Future<void> _processAdvance(double amount) async {
+  setState(() {
+    _isProcessing = true;
+  });
+
+  try {
+    // Get the full Order object from the repository
+    Order? orderToUpdate;
+    if (_updatedOrder != null) {
+      orderToUpdate = _updatedOrder;
+    } else {
+      orderToUpdate = await _localOrderRepo.getOrderById(widget.order.id);
+    }
+    
+    if (orderToUpdate == null) {
+      throw Exception('Could not find order to update');
+    }
+    
+    // Update the Order object in the database
+    final updatedOrder = orderToUpdate.copyWith(
+      depositAmount: amount,
+      status: 'confirmed',
+    );
+
+    await _localOrderRepo.saveOrder(updatedOrder);
+    
+    if (mounted) {
+      setState(() {
+        _updatedOrder = updatedOrder;
+        _orderStatus = 'confirmed';
+        _paidAmount = amount;
+        _balanceAmount = updatedOrder.total - amount;
+        _isProcessing = false;
+        _amountInput = '0.000';
+      });
+      
+      // Generate and show receipt
+      _generateReceipt();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Advance recorded successfully'.tr())),
+      );
+    }
+  } catch (e) {
+    if (mounted) {
+      setState(() {
+        _isProcessing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error recording advance: $e'.tr())),
+      );
+    }
+  }
+}
+
+
 // NEW: Split Payment Dialog with responsive layout for tablets
 void _showSplitPaymentDialog() {
   if (_orderStatus.toLowerCase() == 'completed') {
@@ -665,6 +821,8 @@ void _showSplitPaymentDialog() {
   
   _cashAmount = 0.0;
   _bankAmount = 0.0;
+  // Initialize deposit mode: default to false, but logic could auto-enable for catering if needed
+  _isDepositMode = false;
   
   final TextEditingController cashController = TextEditingController(text: '0.000');
   final TextEditingController bankController = TextEditingController(text: '0.000');
@@ -681,59 +839,44 @@ void _showSplitPaymentDialog() {
     builder: (BuildContext dialogContext) {
       return StatefulBuilder(
         builder: (context, setState) {
-          double remainingAmount = discountedTotal - _cashAmount - _bankAmount;
+          final deposit = widget.order.depositAmount ?? 0.0;
+          double remainingAmount = discountedTotal - deposit - _cashAmount - _bankAmount;
           if (remainingAmount < 0) remainingAmount = 0;
           
           void updateAmount(String value) {
             final controller = isCashMode ? cashController : bankController;
+            String current = controller.text;
             
             if (value == 'C') {
-              setState(() {
-                if (isCashMode) {
-                  _cashAmount = 0;
-                  cashController.text = '0.000';
-                } else {
-                  _bankAmount = 0;
-                  bankController.text = '0.000';
-                }
-              });
+              current = '0.000';
             } else if (value == '⌫') {
-              String current = controller.text;
               if (current.length > 1) {
                 current = current.substring(0, current.length - 1);
               } else {
                 current = '0.000';
               }
-              setState(() {
-                controller.text = current;
-                if (isCashMode) {
-                  _cashAmount = double.tryParse(current) ?? 0;
-                } else {
-                  _bankAmount = double.tryParse(current) ?? 0;
-                }
-              });
             } else if (value == '.') {
-              if (!controller.text.contains('.')) {
-                setState(() {
-                  controller.text = controller.text + value;
-                });
+              if (!current.contains('.')) {
+                current += value;
               }
             } else {
-              String current = controller.text;
+              // Digit input
               if (current == '0.000' || current == '0') {
-                current = value;
+                 current = value;
               } else {
-                current = current + value;
+                 current += value;
               }
-              setState(() {
-                controller.text = current;
-                if (isCashMode) {
-                  _cashAmount = double.tryParse(current) ?? 0;
-                } else {
-                  _bankAmount = double.tryParse(current) ?? 0;
-                }
-              });
             }
+            
+            setState(() {
+              controller.text = current;
+              double val = double.tryParse(current) ?? 0.0;
+              if (isCashMode) {
+                _cashAmount = val;
+              } else {
+                _bankAmount = val;
+              }
+            });
           }
           
           // ✅ Check if we're on a tablet or larger device
@@ -770,7 +913,7 @@ void _showSplitPaymentDialog() {
                       ),
                       const Spacer(),
                       ElevatedButton.icon(
-                        icon: const Icon(Icons.discount, size: 16),
+                        icon: const Icon(Icons.discount, size: 14), // Smaller icon
                         label: Text('Discount'.tr()),
                         onPressed: () {
                           _shouldReopenSplitDialog = true;
@@ -784,7 +927,9 @@ void _showSplitPaymentDialog() {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.purple.shade100,
                           foregroundColor: Colors.purple.shade900,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), // Smaller padding
+                          textStyle: const TextStyle(fontSize: 12), // Smaller text
+                          minimumSize: const Size(60, 28), // Compact size
                         ),
                       ),
                     ],
@@ -817,9 +962,46 @@ void _showSplitPaymentDialog() {
                                           Row(
                                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                             children: [
-                                              Text('Total Amount:'.tr(), style: const TextStyle(fontSize: 16)),
+                                              Text('Subtotal:'.tr(), style: const TextStyle(fontSize: 14)),
                                               Text(
                                                 discountedTotal.toStringAsFixed(3),
+                                                style: const TextStyle(fontSize: 14),
+                                              ),
+                                            ],
+                                          ),
+                                          if ((widget.order.deliveryCharge ?? 0.0) > 0) ...[
+                                            const SizedBox(height: 8),
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                Text('Delivery Fee:'.tr(), style: const TextStyle(fontSize: 14)),
+                                                Text(
+                                                  (widget.order.deliveryCharge ?? 0.0).toStringAsFixed(3),
+                                                  style: const TextStyle(fontSize: 14),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                          if ((widget.order.depositAmount ?? 0.0) > 0) ...[
+                                            const SizedBox(height: 8),
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                Text('Advance Paid:'.tr(), style: TextStyle(fontSize: 14, color: Colors.orange.shade800)),
+                                                Text(
+                                                  '-${(widget.order.depositAmount ?? 0.0).toStringAsFixed(3)}',
+                                                  style: TextStyle(fontSize: 14, color: Colors.orange.shade800, fontWeight: FontWeight.bold),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                          const Divider(height: 20),
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text('Balance to Pay:'.tr(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                              Text(
+                                                (discountedTotal - (widget.order.depositAmount ?? 0.0)).toStringAsFixed(3),
                                                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                                               ),
                                             ],
@@ -850,7 +1032,7 @@ void _showSplitPaymentDialog() {
                                           Row(
                                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                             children: [
-                                              Text('Remaining:'.tr(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                              Text(_isDepositMode ? 'Balance:'.tr() : 'Remaining:'.tr(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                                               Text(
                                                 remainingAmount.toStringAsFixed(3),
                                                 style: TextStyle(
@@ -1115,9 +1297,46 @@ void _showSplitPaymentDialog() {
                                     Row(
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
-                                        Text('Total Amount:'.tr(), style: const TextStyle(fontSize: 16)),
+                                        Text('Subtotal:'.tr(), style: const TextStyle(fontSize: 14)),
                                         Text(
                                           discountedTotal.toStringAsFixed(3),
+                                          style: const TextStyle(fontSize: 14),
+                                        ),
+                                      ],
+                                    ),
+                                    if ((widget.order.deliveryCharge ?? 0.0) > 0) ...[
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text('Delivery Fee:'.tr(), style: const TextStyle(fontSize: 14)),
+                                          Text(
+                                            (widget.order.deliveryCharge ?? 0.0).toStringAsFixed(3),
+                                            style: const TextStyle(fontSize: 14),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                    if ((widget.order.depositAmount ?? 0.0) > 0) ...[
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text('Advance Paid:'.tr(), style: TextStyle(fontSize: 14, color: Colors.orange.shade800)),
+                                          Text(
+                                            '-${(widget.order.depositAmount ?? 0.0).toStringAsFixed(3)}',
+                                            style: TextStyle(fontSize: 14, color: Colors.orange.shade800, fontWeight: FontWeight.bold),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                    const Divider(height: 20),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text('Balance to Pay:'.tr(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                        Text(
+                                          (discountedTotal - (widget.order.depositAmount ?? 0.0)).toStringAsFixed(3),
                                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                                         ),
                                       ],
@@ -1148,7 +1367,7 @@ void _showSplitPaymentDialog() {
                                     Row(
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
-                                        Text('Remaining:'.tr(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                        Text(_isDepositMode ? 'Balance:'.tr() : 'Remaining:'.tr(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                                         Text(
                                           remainingAmount.toStringAsFixed(3),
                                           style: TextStyle(
@@ -1306,6 +1525,51 @@ void _showSplitPaymentDialog() {
                                 ),
                               ),
                               
+                              // Advance Payment Button for Catering
+                              if (ServiceTypeUtils.normalize(widget.order.serviceType) == 'Catering')
+                                Container(
+                                  margin: const EdgeInsets.only(top: 16),
+                                  child: SizedBox(
+                                    width: double.infinity,
+                                    height: 50,
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {
+                                        setState(() {
+                                          _isDepositMode = !_isDepositMode;
+                                          // If enabling advance mode, we might want to clear current input to let them type advance
+                                          if (_isDepositMode) {
+                                             if (isCashMode) {
+                                               _cashAmount = 0.0;
+                                               cashController.text = '0.000';
+                                             } else {
+                                               _bankAmount = 0.0;
+                                               bankController.text = '0.000';
+                                             }
+                                             // No _amountInput here, it uses local controllers
+                                          }
+                                        });
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(_isDepositMode ? 'Advance Mode: Enter advance amount'.tr() : 'Full Payment Mode'.tr()),
+                                            backgroundColor: _isDepositMode ? Colors.orange : Colors.grey,
+                                            duration: const Duration(seconds: 1),
+                                          ),
+                                        );
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: _isDepositMode ? Colors.orange : Colors.grey.shade300,
+                                        foregroundColor: _isDepositMode ? Colors.white : Colors.black87,
+                                        elevation: _isDepositMode ? 4 : 0,
+                                      ),
+                                      icon: Icon(_isDepositMode ? Icons.check_circle : Icons.verified_user_outlined),
+                                      label: Text(
+                                        'Advance Payment'.tr(), 
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
                               const SizedBox(height: 16),
                               
                               // Number pad
@@ -1409,7 +1673,7 @@ void _showSplitPaymentDialog() {
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: remainingAmount <= 0.001
+                          onPressed: (remainingAmount <= 0.001 || (_isDepositMode && (_cashAmount > 0 || _bankAmount > 0)))
                             ? () {
                               Navigator.of(dialogContext).pop();
                               // ✅ Calculate total payment amount
@@ -1471,14 +1735,20 @@ void _showSplitPaymentDialog() {
       debugPrint('Total Paid: $totalPaid');
       debugPrint('Discounted Total: $discountedTotal');
       
-      if (totalPaid < discountedTotal - 0.001) {
+      debugPrint('Discounted Total: $discountedTotal');
+      
+      // ✅ Check logic modified for Deposit Mode
+      final existingDeposit = widget.order.depositAmount ?? 0.0;
+      final balanceToPay = discountedTotal - existingDeposit;
+      
+      if (!_isDepositMode && totalPaid < balanceToPay - 0.001) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Total payment is less than order amount'.tr())),
+          SnackBar(content: Text('Total payment is less than remaining balance'.tr())),
         );
         return;
       }
       
-      double change = totalPaid > discountedTotal ? totalPaid - discountedTotal : 0.0;
+      double change = totalPaid > balanceToPay ? totalPaid - balanceToPay : 0.0;
       
       Order? savedOrder;
       double discountAmount = _getCurrentDiscount();
@@ -1500,12 +1770,23 @@ void _showSplitPaymentDialog() {
             tax: amounts['tax']!,
             discount: discountAmount,
             total: amounts['total']!,
-            status: 'completed',
+            status: _isDepositMode ? 'confirmed' : 'completed', // 'confirmed' implies deposit paid but not fully complete
             createdAt: existingOrder.createdAt,
             customerId: widget.customer?.id ?? existingOrder.customerId,
             paymentMethod: 'bank+cash',
             cashAmount: cashAmount,  // ✅ Store cash portion
-            bankAmount: bankAmount, 
+            bankAmount: bankAmount,
+            depositAmount: _isDepositMode ? totalPaid : existingOrder.depositAmount, // ✅ Store deposit (or preserve existing)
+            // ✅ Preserve catering/delivery fields
+            deliveryCharge: existingOrder.deliveryCharge,
+            deliveryAddress: existingOrder.deliveryAddress,
+            deliveryBoy: existingOrder.deliveryBoy,
+            eventDate: existingOrder.eventDate,
+            eventTime: existingOrder.eventTime,
+            eventGuestCount: existingOrder.eventGuestCount,
+            eventType: existingOrder.eventType,
+            tokenNumber: existingOrder.tokenNumber,
+            customerName: existingOrder.customerName,
           );
           debugPrint('Creating order with split payment:');
           debugPrint('  Payment Method: ${savedOrder.paymentMethod}');
@@ -1546,12 +1827,23 @@ void _showSplitPaymentDialog() {
           tax: amounts['tax']!,
           discount: discountAmount,
           total: amounts['total']!,
-          status: 'completed',
+          status: _isDepositMode ? 'confirmed' : 'completed',
           createdAt: DateTime.now().toIso8601String(),
           customerId: widget.customer?.id,
           paymentMethod: 'bank+cash',
           cashAmount: cashAmount,  // ✅ Store cash portion
-          bankAmount: bankAmount, 
+          bankAmount: bankAmount,
+          depositAmount: _isDepositMode ? totalPaid : widget.order.depositAmount, // ✅ Store deposit (or preserve from widget)
+          // ✅ Preserve catering/delivery fields
+          deliveryCharge: widget.order.deliveryCharge,
+          deliveryAddress: widget.order.deliveryAddress,
+          deliveryBoy: widget.order.deliveryBoy,
+          eventDate: widget.order.eventDate,
+          eventTime: widget.order.eventTime,
+          eventGuestCount: widget.order.eventGuestCount,
+          eventType: widget.order.eventType,
+          tokenNumber: widget.order.tokenNumber,
+          customerName: widget.order.customerName,
         );
           debugPrint('Creating NEW order with split payment:');
           debugPrint('  Payment Method: ${savedOrder.paymentMethod}');
@@ -1577,11 +1869,9 @@ void _showSplitPaymentDialog() {
         throw Exception('Failed to process order in the system');
       }
       
-      if (widget.order.id == 0) {
-        widget.order.id = savedOrder.id ?? 0;
-      }
+      _updatedOrder = savedOrder; // Update local tracking since widget.order is immutable/final
       
-      await _updateOrderStatus('completed');
+      await _updateOrderStatus(_isDepositMode ? 'confirmed' : 'completed');
 
       final prefs = await SharedPreferences.getInstance();
       final savedPrinterName = prefs.getString('selected_printer');
@@ -1669,29 +1959,20 @@ void _showSplitPaymentDialog() {
     
     try {
       final orders = await _localOrderRepo.getAllOrders();
-      final orderIndex = orders.indexWhere((o) => o.id == widget.order.id);
+      // Use _updatedOrder if available (e.g. newly created order)
+      final targetId = _updatedOrder?.id ?? widget.order.id;
+      final orderIndex = orders.indexWhere((o) => o.id == targetId);
       
       if (orderIndex >= 0) {
         final order = orders[orderIndex];
         
-        final updatedOrder = Order(
-          staffDeviceId: order.staffDeviceId,
-          id: order.id,
-          serviceType: order.serviceType,
-          items: order.items,
-          subtotal: order.subtotal,
-          tax: order.tax,
-          discount: order.discount,
-          total: order.total,
-          status: status,
-          createdAt: order.createdAt,
-          customerId: order.customerId,
-          paymentMethod: order.paymentMethod,
-          cashAmount: order.cashAmount,
-          bankAmount: order.bankAmount,
-        );
+        // Use copyWith to preserve all fields including depositAmount
+        final updatedOrder = order.copyWith(status: status);
         
         await _localOrderRepo.saveOrder(updatedOrder);
+
+        // ✅ SYNC: Sync the status update to Firestore
+        await DeviceSyncService.syncOrderToFirestore(updatedOrder);
         
         if (mounted) {
           setState(() {
@@ -1718,7 +1999,7 @@ void _showSplitPaymentDialog() {
       }
     }
   }
-  Future<void> _processPayment(double amount) async {
+  Future<void> _processPayment(double amount, [double change = 0.0]) async {
     if (_selectedPaymentMethod == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Please select a payment method'.tr())),
@@ -1740,9 +2021,11 @@ void _showSplitPaymentDialog() {
 
       final discountedTotal = _getDiscountedTotal();
       
-      double change = 0.0;
-      if (amount > discountedTotal) {
-        change = amount - discountedTotal;
+      // Change is now passed as an argument or uses the provided amount logic
+      final deposit = widget.order.depositAmount ?? 0.0;
+      final currentBalance = discountedTotal - deposit;
+      if (change <= 0 && amount > currentBalance) {
+        change = amount - currentBalance;
       }
 
       final paymentMethod = _selectedPaymentMethod!.toLowerCase();
@@ -1769,7 +2052,18 @@ void _showSplitPaymentDialog() {
             status: 'completed',
             createdAt: existingOrder.createdAt,
             customerId: widget.customer?.id ?? existingOrder.customerId,
-            paymentMethod: paymentMethod
+            paymentMethod: paymentMethod,
+            // ✅ Preserve catering/delivery fields
+            deliveryCharge: existingOrder.deliveryCharge,
+            deliveryAddress: existingOrder.deliveryAddress,
+            deliveryBoy: existingOrder.deliveryBoy,
+            eventDate: existingOrder.eventDate,
+            eventTime: existingOrder.eventTime,
+            eventGuestCount: existingOrder.eventGuestCount,
+            eventType: existingOrder.eventType,
+            tokenNumber: existingOrder.tokenNumber,
+            customerName: existingOrder.customerName,
+            depositAmount: existingOrder.depositAmount,
           );
           
           savedOrder = await _localOrderRepo.saveOrder(savedOrder);
@@ -1799,6 +2093,17 @@ void _showSplitPaymentDialog() {
           createdAt: DateTime.now().toIso8601String(),
           customerId: widget.customer?.id,
           paymentMethod: paymentMethod,
+          // ✅ Preserve catering/delivery fields
+          deliveryCharge: widget.order.deliveryCharge,
+          deliveryAddress: widget.order.deliveryAddress,
+          deliveryBoy: widget.order.deliveryBoy,
+          eventDate: widget.order.eventDate,
+          eventTime: widget.order.eventTime,
+          eventGuestCount: widget.order.eventGuestCount,
+          eventType: widget.order.eventType,
+          tokenNumber: widget.order.tokenNumber,
+          customerName: widget.order.customerName,
+          depositAmount: widget.order.depositAmount,
         );
         
         savedOrder = await _localOrderRepo.saveOrder(savedOrder);
@@ -2348,7 +2653,11 @@ void _showSplitPaymentDialog() {
   _approvalCodeController.clear();
   
   final discountedTotal = _getDiscountedTotal();
-  _receivedAmountController.text = discountedTotal.toStringAsFixed(3);
+  // FIX: Deduct deposit amount for bank payment initial value
+  final depositAmount = widget.order.depositAmount ?? 0.0;
+  final remainingAmount = discountedTotal - depositAmount;
+  
+  _receivedAmountController.text = remainingAmount.toStringAsFixed(3);
   _selectedCardType = 'VISA';
   
   showDialog(
@@ -2386,7 +2695,7 @@ void _showSplitPaymentDialog() {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Terminal credit card'.tr(),
+                        'Terminal card'.tr(),
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -2395,7 +2704,7 @@ void _showSplitPaymentDialog() {
                       ),
                       Expanded(child: Container()),
                       ElevatedButton.icon(
-                        icon: const Icon(Icons.discount, size: 16),
+                        icon: const Icon(Icons.discount, size: 14), // Smaller icon
                         label: Text('Discount'.tr()),
                          onPressed: () {
                           // Set a flag to indicate we're coming from bank dialog
@@ -2414,9 +2723,9 @@ void _showSplitPaymentDialog() {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.purple.shade100,
                           foregroundColor: Colors.purple.shade900,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          textStyle: const TextStyle(fontSize: 12),
-                          minimumSize: const Size(80, 32),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), // Smaller padding
+                          textStyle: const TextStyle(fontSize: 12), // Smaller text
+                          minimumSize: const Size(60, 28), // Compact size
                         ),
                       ),
                     ],
@@ -2443,15 +2752,17 @@ void _showSplitPaymentDialog() {
 Widget _buildPaymentMethodSelection() {
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-    margin: const EdgeInsets.only(top: 55),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildPaymentMethodOption('Bank'.tr(), Icons.account_balance),
-        _buildPaymentMethodOption('Cash'.tr(), Icons.money),
-        _buildPaymentMethodOption('Bank + Cash'.tr(), Icons.payment),
-        _buildPaymentMethodOption('Customer Credit'.tr(), Icons.person),
-      ],
+    margin: const EdgeInsets.only(top: 8), // Reduced from 55
+    child: SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildPaymentMethodOption('Bank'.tr(), Icons.account_balance),
+          _buildPaymentMethodOption('Cash'.tr(), Icons.money),
+          _buildPaymentMethodOption('Bank + Cash'.tr(), Icons.payment),
+          _buildPaymentMethodOption('Customer Credit'.tr(), Icons.person),
+        ],
+      ),
     ),
   );
 }
@@ -2463,7 +2774,7 @@ Widget _buildPaymentMethodOption(String method, IconData icon) {
   final isDisabled = isCreditOption && widget.isCreditCompletion;
   
   return Container(
-    margin: const EdgeInsets.only(bottom: 25),
+    margin: const EdgeInsets.only(bottom: 12), // Reduced from 25
     decoration: BoxDecoration(
       color: isSelected ? Colors.blue.shade200 : Colors.white,
       border: Border.all(
@@ -2473,14 +2784,6 @@ Widget _buildPaymentMethodOption(String method, IconData icon) {
       borderRadius: BorderRadius.circular(4),
     ),
     child: ListTile(
-      leading: CircleAvatar(
-        backgroundColor: isSelected ? Colors.blue.shade100 : Colors.grey.shade100,
-        child: Icon(
-          icon,
-          color: isSelected ?  Colors.blue.shade800 : Colors.grey,
-          size: 20,
-        ),
-      ),
       title: Text(
         method,
         style: TextStyle(
@@ -2488,6 +2791,7 @@ Widget _buildPaymentMethodOption(String method, IconData icon) {
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           color: isSelected ? Colors.blue.shade800 : Colors.black87,
         ),
+        textAlign: TextAlign.center, // Center text since icon is gone
       ),
       dense: true,
       selected: isSelected,
@@ -2522,7 +2826,8 @@ Widget _buildNumberPad() {
   return Column(
     children: [
       Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), // Reduced vertical padding
+        margin: const EdgeInsets.only(bottom: 8), // Added margin replacing SizedBox
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(color: Colors.grey.shade300),
@@ -2539,7 +2844,7 @@ Widget _buildNumberPad() {
           ),
         ),
       ),
-      const SizedBox(height: 16),
+
       
       Expanded(
         child: AbsorbPointer(
@@ -2608,7 +2913,9 @@ Widget _buildNumberButton(String text) {
       margin: const EdgeInsets.all(4),
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          padding: EdgeInsets.symmetric(
+            vertical: MediaQuery.of(context).size.height < 600 ? 8 : 14
+          ),
           backgroundColor: text == 'Add'.tr() ? Colors.blue.shade700 : Colors.blue.shade100,
           foregroundColor: text == 'Add'.tr() ? Colors.white : Colors.blue.shade800,
         ),
@@ -2626,7 +2933,7 @@ Widget _buildNumberButton(String text) {
 Widget _buildPaymentSummary() {
   final formatCurrency = NumberFormat.currency(symbol: '', decimalDigits: 3);
   final discount = _getCurrentDiscount();
-  final discountedTotal = _getDiscountedTotal();
+  // final discountedTotal = _getDiscountedTotal();
 
   return AbsorbPointer(
     absorbing: false,
@@ -2638,10 +2945,10 @@ Widget _buildPaymentSummary() {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 45),
+              const SizedBox(height: 16), // Reduced from 45
               
               Container(
-                margin: const EdgeInsets.only(bottom: 25),
+                margin: const EdgeInsets.only(bottom: 12), // Reduced from 25
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -2669,7 +2976,7 @@ Widget _buildPaymentSummary() {
               ),
               
               Container(
-                margin: const EdgeInsets.only(bottom: 25),
+                margin: const EdgeInsets.only(bottom: 12), // Reduced from 25
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -2755,7 +3062,7 @@ Widget _buildPaymentSummary() {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            formatCurrency.format(discount > 0 ? discountedTotal : widget.order.total),
+                            formatCurrency.format(_balanceAmount),
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
@@ -2792,10 +3099,10 @@ Widget _buildPaymentSummary() {
   Widget _buildOrderInfoBar() {
     final formatCurrency = NumberFormat.currency(symbol: '', decimalDigits: 3);
     final discount = _getCurrentDiscount();
-    // final settingsProvider = Provider.of<SettingsProvider>(context);
     
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      // REDUCED PADDING: horizontal 16 -> 8 to prevent overflow
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.grey.shade200,
         border: Border(
@@ -2809,10 +3116,14 @@ Widget _buildPaymentSummary() {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [ 
-                Text('${'Customer'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                // REDUCED FONT: 12 -> 10
+                Text('${'Customer'.tr()}:', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                // SINGLE LINE & REDUCED FONT: 14 -> 12
                 Text(
                   _currentCustomer?.name ?? 'NA',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -2822,8 +3133,13 @@ Widget _buildPaymentSummary() {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${'Order type'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                Text(_getTranslatedServiceType(widget.order.serviceType), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                Text('${'Order type'.tr()}:', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                Text(
+                  _getTranslatedServiceType(widget.order.serviceType), 
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),
@@ -2832,12 +3148,12 @@ Widget _buildPaymentSummary() {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${'Tables'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                Text('${'Tables'.tr()}:', style: const TextStyle(fontSize: 10, color: Colors.grey)),
                 Text(
                   widget.order.serviceType.contains('Table') 
                       ? widget.order.serviceType.split('Table ').last 
                       : '0',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)
                 ),
               ],
             ),
@@ -2849,42 +3165,31 @@ Widget _buildPaymentSummary() {
               children: [
                 Row(
                   children: [
-                    Text('${'Status'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    Text('${'Status'.tr()}:', style: const TextStyle(fontSize: 10, color: Colors.grey)),
                     const SizedBox(width: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                      decoration: BoxDecoration(
-                        // color: Colors.blue.shade100,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                      // child: Text(
-                      //   settingsProvider.isVatInclusive ? 'Incl.' : 'Excl.',
-                      //   style: TextStyle(
-                      //     fontSize: 9,
-                      //     fontWeight: FontWeight.bold,
-                      //     color: Colors.blue.shade800,
-                      //   ),
-                      // ),
-                    ),
                   ],
                 ),
                 Row(
                   children: [
                     Container(
-                      width: 8,
-                      height: 8,
-                      margin: const EdgeInsets.only(right: 6),
+                      width: 6, // Reduced size
+                      height: 6,
+                      margin: const EdgeInsets.only(right: 4),
                       decoration: BoxDecoration(
                         color: _getStatusColor(_orderStatus),
                         shape: BoxShape.circle,
                       ),
                     ),
-                    Text(
-                      _getTranslatedStatus(_orderStatus),
-                      style: TextStyle(
-                        fontSize: 14, 
-                        fontWeight: FontWeight.bold,
-                        color: _getStatusColor(_orderStatus),
+                    Expanded( // Prevent status text overflow
+                      child: Text(
+                        _getTranslatedStatus(_orderStatus),
+                        style: TextStyle(
+                          fontSize: 12, 
+                          fontWeight: FontWeight.bold,
+                          color: _getStatusColor(_orderStatus),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -2897,17 +3202,34 @@ Widget _buildPaymentSummary() {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${'Total amount'.tr()}:', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                Row(
+                Text('${'Total amount'.tr()}:', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                Wrap( // Use Wrap to handle potential overflow of badges
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 2,
                   children: [
                     Text(
                       formatCurrency.format(widget.order.total),
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)
                     ),
-                    const SizedBox(width: 4),
+                    if ((widget.order.deliveryCharge ?? 0) > 0)
+                       Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade100,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '+${formatCurrency.format(widget.order.deliveryCharge)}', // Removed 'Del.' text to save space
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange.shade800,
+                          ),
+                        ),
+                      ),
                     if (discount > 0)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
                         decoration: BoxDecoration(
                           color: Colors.purple.shade100,
                           borderRadius: BorderRadius.circular(4),
@@ -2915,14 +3237,14 @@ Widget _buildPaymentSummary() {
                         child: Text(
                           '-${formatCurrency.format(discount)}',
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: 9,
                             fontWeight: FontWeight.bold,
                             color: Colors.purple.shade800,
                           ),
                         ),
                       ),
                   ],
-                ), 
+                ),
               ],
             ),
           ),
@@ -3008,7 +3330,7 @@ Widget build(BuildContext context) {
                           Expanded(
                             flex: 2,
                             child: Container(
-                              padding: const EdgeInsets.all(16),
+                              // padding: const EdgeInsets.all(16), // REMOVED to fix overflow
                               child: _buildNumberPad(),
                             ),
                           ),
@@ -3026,8 +3348,6 @@ Widget build(BuildContext context) {
           ),
         ),
     bottomNavigationBar: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      height: 50,
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -3038,7 +3358,10 @@ Widget build(BuildContext context) {
           ),
         ],
       ),
-      child: Row(
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16), // OPTIMIZATION: Raised buttons higher
+          child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           ElevatedButton(
@@ -3055,9 +3378,29 @@ Widget build(BuildContext context) {
           ),
           
           const SizedBox(width: 8),
+
+          if (ServiceTypeUtils.normalize(widget.order.serviceType) == 'Catering')
+            ElevatedButton(
+              onPressed: (_orderStatus.toLowerCase() == 'completed' || _orderStatus.toLowerCase() == 'confirmed')
+                ? null
+                : _handleAdvancePayment,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange.shade100,
+                foregroundColor: Colors.orange.shade900,
+                elevation: 1,
+                padding: const EdgeInsets.symmetric(horizontal: 35, vertical: 10),
+                minimumSize: const Size(10, 36),
+                textStyle: const TextStyle(fontSize: 12),
+                disabledBackgroundColor: Colors.grey.shade200,
+                disabledForegroundColor: Colors.grey.shade500,
+              ),
+              child: Text('Advance'.tr()),
+            ),
+          
+          const SizedBox(width: 8),
           
           ElevatedButton(
-            onPressed: (_balanceAmount == widget.order.total && _orderStatus.toLowerCase() != 'completed') 
+            onPressed: (_balanceAmount == widget.order.total && _orderStatus.toLowerCase() != 'completed' && _orderStatus.toLowerCase() != 'confirmed') 
               ? null
               : () {
                 _showBillPreviewDialog(); 
@@ -3075,6 +3418,8 @@ Widget build(BuildContext context) {
             child: Text('View Bill'.tr()), 
           ),
         ],
+          ),
+        ),
       ),
     ),
   );
@@ -3105,13 +3450,13 @@ Widget _buildPortraitLayout(StateSetter setState, double initialDiscountedTotal,
                     flex: 3,
                     child: Text(
                       'Balance amount'.tr(),
-                      style: const TextStyle(fontSize: 16),
+                      style: const TextStyle(fontSize: 14),
                     ),
                   ),
                   Expanded(
                     flex: 4,
                     child: Text(
-                      NumberFormat.currency(symbol: '', decimalDigits: 3).format(currentDiscountedTotal),
+                      NumberFormat.currency(symbol: '', decimalDigits: 3).format(currentDiscountedTotal - (widget.order.depositAmount ?? 0.0)),
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -3130,7 +3475,7 @@ Widget _buildPortraitLayout(StateSetter setState, double initialDiscountedTotal,
                     flex: 3,
                     child: Text(
                       'Received'.tr(),
-                      style: const TextStyle(fontSize: 16),
+                      style: const TextStyle(fontSize: 14),
                     ),
                   ),
                   Expanded(
@@ -3155,10 +3500,11 @@ Widget _buildPortraitLayout(StateSetter setState, double initialDiscountedTotal,
                       onChanged: (value) {
                         setState(() {}); // Trigger rebuild when typing
                       },
-                          onTap: () {
-                        // Update received amount to current discounted total when tapped
-                        setState(() {
-                          _receivedAmountController.text = currentDiscountedTotal.toStringAsFixed(3);
+                      onTap: () {
+                        // Update received amount to current discounted total minus deposit when tapped
+                        final deposit = widget.order.depositAmount ?? 0.0;
+                         setState(() {
+                          _receivedAmountController.text = (currentDiscountedTotal - deposit).toStringAsFixed(3);
                         });
                       },
                     ),
@@ -3174,7 +3520,7 @@ Widget _buildPortraitLayout(StateSetter setState, double initialDiscountedTotal,
                     flex: 3,
                     child: Text(
                       'Last 4 digit'.tr(),
-                      style: const TextStyle(fontSize: 16),
+                      style: const TextStyle(fontSize: 14),
                     ),
                   ),
                   Expanded(
@@ -3214,7 +3560,7 @@ Widget _buildPortraitLayout(StateSetter setState, double initialDiscountedTotal,
                     flex: 3,
                     child: Text(
                       'Approval code'.tr(),
-                      style: const TextStyle(fontSize: 16),
+                      style: const TextStyle(fontSize: 14),
                     ),
                   ),
                   Expanded(
@@ -3327,9 +3673,9 @@ Widget _buildPortraitLayout(StateSetter setState, double initialDiscountedTotal,
         
         const SizedBox(height: 20),
         
-        // Number pad section - still works for on-screen input
+        // Number pad section - Adjusted height for extra button row
         SizedBox(
-          height: 280,
+          height: 340, // Increased from 280
           child: Column(
             children: [
               Expanded(
@@ -3376,55 +3722,65 @@ Widget _buildPortraitLayout(StateSetter setState, double initialDiscountedTotal,
               ),
               const SizedBox(height: 8),
               
-              Expanded(
-                child: Row(
-                  children: [
-                    Expanded(child: _buildPortraitNumberPadButton('C', setState)),
-                    Expanded(child: _buildPortraitNumberPadButton('.', setState)),
-                    Expanded(
-                      child: Container(
-                        margin: const EdgeInsets.all(4),
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                            String receivedAmount = _receivedAmountController.text.trim();
-                            double amount = double.tryParse(receivedAmount) ?? 0.0;
-                            if (amount > 0) {
-                              _showPaymentConfirmationDialog(amount);
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Please enter a valid amount'.tr())),
-                              );
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            minimumSize: const Size(60, 50),
-                          ),
-                          child: Text(
-                            'OK'.tr(),
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Expanded(child: _buildPortraitNumberPadButton('C', setState)),
+                        Expanded(child: _buildPortraitNumberPadButton('.', setState)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  
+                  // NEW: Centered Payment Button
+                  SizedBox(
+                    height: 50,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                String receivedAmount = _receivedAmountController.text.trim();
+                                double amount = double.tryParse(receivedAmount) ?? 0.0;
+                                if (amount > 0) {
+                                  _showPaymentConfirmationDialog(amount);
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Please enter a valid amount'.tr())),
+                                  );
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                elevation: 2,
+                              ),
+                              child: Text(
+                                'OK'.tr(),
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 }
 
 Widget _buildLandscapeLayout(StateSetter setState, double initialDiscountedTotal, Function getCurrentDiscountedTotal) {
@@ -3443,19 +3799,19 @@ Widget _buildLandscapeLayout(StateSetter setState, double initialDiscountedTotal
                   flex: 4,
                   child: Text(
                     'Balance amount'.tr(),
-                    style: const TextStyle(fontSize: 16),
+                    style: const TextStyle(fontSize: 14),
                   ),
                 ),
-                Expanded(
-                  flex: 6,
-                  child: Text(
-                    NumberFormat.currency(symbol: '', decimalDigits: 3).format(currentDiscountedTotal),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    flex: 6,
+                    child: Text(
+                      NumberFormat.currency(symbol: '', decimalDigits: 3).format(currentDiscountedTotal - (widget.order.depositAmount ?? 0.0)),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -3466,7 +3822,7 @@ Widget _buildLandscapeLayout(StateSetter setState, double initialDiscountedTotal
                   flex: 4,
                   child: Text(
                     'Received'.tr(),
-                    style: const TextStyle(fontSize: 16),
+                    style: const TextStyle(fontSize: 14),
                   ),
                 ),
                 Expanded(
@@ -3490,9 +3846,10 @@ Widget _buildLandscapeLayout(StateSetter setState, double initialDiscountedTotal
                       setState(() {}); // Trigger rebuild when typing
                     },
                      onTap: () {
-                      // Update received amount to current discounted total when tapped
+                      // Update received amount to current discounted total minus deposit when tapped
+                      final deposit = widget.order.depositAmount ?? 0.0;
                       setState(() {
-                        _receivedAmountController.text = currentDiscountedTotal.toStringAsFixed(3);
+                        _receivedAmountController.text = (currentDiscountedTotal - deposit).toStringAsFixed(3);
                       });
                     },
                   ),
@@ -3507,7 +3864,7 @@ Widget _buildLandscapeLayout(StateSetter setState, double initialDiscountedTotal
                   flex: 4,
                   child: Text(
                     'Last 4 digit'.tr(),
-                    style: const TextStyle(fontSize: 16),
+                    style: const TextStyle(fontSize: 14),
                   ),
                 ),
                 Expanded(
@@ -3544,7 +3901,7 @@ Widget _buildLandscapeLayout(StateSetter setState, double initialDiscountedTotal
                   flex: 4,
                   child: Text(
                     'Approval code'.tr(),
-                    style: const TextStyle(fontSize: 16),
+                    style: const TextStyle(fontSize: 14),
                   ),
                 ),
                 Expanded(
@@ -3683,33 +4040,45 @@ Widget _buildLandscapeLayout(StateSetter setState, double initialDiscountedTotal
                   children: [
                     Expanded(child: _buildNumberPadDialogButton('C', setState)),
                     Expanded(child: _buildNumberPadDialogButton('.', setState)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              
+              // NEW: Centered Payment Button for Landscape
+              Expanded(
+                child: Row(
+                  children: [
                     Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          String receivedAmount = _receivedAmountController.text.trim();
-                          double amount = double.tryParse(receivedAmount) ?? 0.0;
-                          if (amount > 0) {
-                            _showPaymentConfirmationDialog(amount);
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Please enter a valid amount'.tr())),
-                            );
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            String receivedAmount = _receivedAmountController.text.trim();
+                            double amount = double.tryParse(receivedAmount) ?? 0.0;
+                            if (amount > 0) {
+                              _showPaymentConfirmationDialog(amount);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Please enter a valid amount'.tr())),
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                           ),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: Text(
-                          'OK'.tr(),
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                          child: Text(
+                            'OK'.tr(),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
@@ -3717,6 +4086,7 @@ Widget _buildLandscapeLayout(StateSetter setState, double initialDiscountedTotal
                   ],
                 ),
               ),
+
             ],
           ),
         ),
@@ -3870,7 +4240,7 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       return;
     }
 
-    double amount = _getDiscountedTotal();
+    double amount = _balanceAmount;
     
     if (!mounted) return;
     
@@ -3899,21 +4269,17 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
     double change = 0.0;
     // Calculate change differently for credit completion
   if (widget.isCreditCompletion) {
-  // FIX: Use discounted total for credit completion
-  final discountedTotal = _getDiscountedTotal();
-  if (amount > discountedTotal) {
-    change = amount - discountedTotal;
-  }
-  } else {
-    if (_selectedPaymentMethod == 'Bank') {
-      final discountedTotal = _getDiscountedTotal(); // ✅ Get the discounted total
+    // FIX: Use discounted total for credit completion
+    final discountedTotal = _getDiscountedTotal();
     if (amount > discountedTotal) {
-      change = amount - discountedTotal; // ✅ Use discounted total for calculation
+      change = amount - discountedTotal;
     }
-    } else {
-      if (amount > _balanceAmount) {
-        change = amount - _balanceAmount;
-      }
+  } else {
+    final deposit = widget.order.depositAmount ?? 0.0;
+    final discountedTotal = _getDiscountedTotal();
+    final currentBalance = discountedTotal - deposit;
+    if (amount > currentBalance) {
+      change = amount - currentBalance;
     }
   }
     
@@ -4037,7 +4403,7 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
         if (_selectedPaymentMethod == 'Cash') {
           _processCashPayment(amount, change);
         } else  if (_selectedPaymentMethod == 'Bank') {
-          _processPayment(amount);
+          _processPayment(amount, change);
         } else if (_selectedPaymentMethod == 'Bank + Cash'.tr()) {
           _processSplitPayment(_cashAmount, _bankAmount);
         }
@@ -4066,14 +4432,17 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
     debugPrint('Total Paid: $totalPaid');
     debugPrint('Discounted Total: $discountedTotal');
     
-    if (totalPaid < discountedTotal - 0.001) {
+    final existingDeposit = widget.order.depositAmount ?? 0.0;
+    final balanceToPay = discountedTotal - existingDeposit;
+    
+    if (totalPaid < balanceToPay - 0.001) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Total payment is less than order amount'.tr())),
+        SnackBar(content: Text('Total payment is less than remaining balance'.tr())),
       );
       return;
     }
     
-    double change = totalPaid > discountedTotal ? totalPaid - discountedTotal : 0.0;
+    double change = totalPaid > balanceToPay ? totalPaid - balanceToPay : 0.0;
     
     Order? savedOrder;
     double discountAmount = _getCurrentDiscount();
@@ -4101,6 +4470,16 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
           paymentMethod: 'bank+cash',
           cashAmount: cashAmount,
           bankAmount: bankAmount,
+          deliveryCharge: existingOrder.deliveryCharge,
+          deliveryAddress: existingOrder.deliveryAddress,
+          deliveryBoy: existingOrder.deliveryBoy,
+          eventDate: existingOrder.eventDate,
+          eventTime: existingOrder.eventTime,
+          eventGuestCount: existingOrder.eventGuestCount,
+          eventType: existingOrder.eventType,
+          tokenNumber: existingOrder.tokenNumber,
+          customerName: existingOrder.customerName,
+          depositAmount: existingOrder.depositAmount,
         );
         
         savedOrder = await _localOrderRepo.saveOrder(savedOrder);
@@ -4130,6 +4509,16 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
         paymentMethod: 'bank+cash',
         cashAmount: cashAmount,
         bankAmount: bankAmount,
+        deliveryCharge: widget.order.deliveryCharge,
+        deliveryAddress: widget.order.deliveryAddress,
+        deliveryBoy: widget.order.deliveryBoy,
+        eventDate: widget.order.eventDate,
+        eventTime: widget.order.eventTime,
+        eventGuestCount: widget.order.eventGuestCount,
+        eventType: widget.order.eventType,
+        tokenNumber: widget.order.tokenNumber,
+        customerName: widget.order.customerName,
+        depositAmount: widget.order.depositAmount,
       );
       
       savedOrder = await _localOrderRepo.saveOrder(savedOrder);
@@ -4209,6 +4598,13 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
     }
 
     final discountedTotal = _getDiscountedTotal();
+    final deposit = widget.order.depositAmount ?? 0.0;
+    final currentBalance = discountedTotal - deposit;
+    
+    if (change <= 0 && amount > currentBalance) {
+      change = amount - currentBalance;
+    }
+    
     final paymentMethod = _selectedPaymentMethod!.toLowerCase();
     Order? savedOrder;
     
@@ -4237,7 +4633,17 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
           status: 'completed',
           createdAt: existingOrder.createdAt,
           customerId: widget.customer?.id ?? existingOrder.customerId,
-          paymentMethod: paymentMethod
+          paymentMethod: paymentMethod,
+          deliveryCharge: existingOrder.deliveryCharge,
+          deliveryAddress: existingOrder.deliveryAddress,
+          deliveryBoy: existingOrder.deliveryBoy,
+          eventDate: existingOrder.eventDate,
+          eventTime: existingOrder.eventTime,
+          eventGuestCount: existingOrder.eventGuestCount,
+          eventType: existingOrder.eventType,
+          tokenNumber: existingOrder.tokenNumber,
+          customerName: existingOrder.customerName,
+          depositAmount: existingOrder.depositAmount,
         );
         
         savedOrder = await _localOrderRepo.saveOrder(savedOrder);
@@ -4267,6 +4673,16 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
         createdAt: DateTime.now().toIso8601String(),
         customerId: widget.customer?.id,
         paymentMethod: paymentMethod,
+        deliveryCharge: widget.order.deliveryCharge,
+        deliveryAddress: widget.order.deliveryAddress,
+        deliveryBoy: widget.order.deliveryBoy,
+        eventDate: widget.order.eventDate,
+        eventTime: widget.order.eventTime,
+        eventGuestCount: widget.order.eventGuestCount,
+        eventType: widget.order.eventType,
+        tokenNumber: widget.order.tokenNumber,
+        customerName: widget.order.customerName,
+        depositAmount: widget.order.depositAmount,
       );
       
       savedOrder = await _localOrderRepo.saveOrder(savedOrder);
@@ -4522,7 +4938,17 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
             status: 'completed',
             createdAt: existingOrder.createdAt,
             customerId: widget.customer?.id ?? existingOrder.customerId,
-            paymentMethod: 'cash'
+            paymentMethod: 'cash',
+            deliveryCharge: existingOrder.deliveryCharge,
+            deliveryAddress: existingOrder.deliveryAddress,
+            deliveryBoy: existingOrder.deliveryBoy,
+            eventDate: existingOrder.eventDate,
+            eventTime: existingOrder.eventTime,
+            eventGuestCount: existingOrder.eventGuestCount,
+            eventType: existingOrder.eventType,
+            tokenNumber: existingOrder.tokenNumber,
+            customerName: existingOrder.customerName,
+            depositAmount: existingOrder.depositAmount,
           );
           
           savedOrder = await _localOrderRepo.saveOrder(savedOrder);
@@ -4555,6 +4981,16 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
           createdAt: DateTime.now().toIso8601String(),
           customerId: widget.customer?.id,
           paymentMethod: 'cash',
+          deliveryCharge: widget.order.deliveryCharge,
+          deliveryAddress: widget.order.deliveryAddress,
+          deliveryBoy: widget.order.deliveryBoy,
+          eventDate: widget.order.eventDate,
+          eventTime: widget.order.eventTime,
+          eventGuestCount: widget.order.eventGuestCount,
+          eventType: widget.order.eventType,
+          tokenNumber: widget.order.tokenNumber,
+          customerName: widget.order.customerName,
+          depositAmount: widget.order.depositAmount,
         );
         
         savedOrder = await _localOrderRepo.saveOrder(savedOrder);
@@ -4676,13 +5112,23 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
                 SizedBox(
                   width: 100,
                   child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(dialogContext).pop();
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(builder: (context) => const OrderListScreen()),
-                        (route) => false,
-                      );
-                    },
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                    
+                    // Check if it was a catering order to return to catering list
+                    final bool isCatering = widget.order.serviceType.toLowerCase().contains('catering');
+                    
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                        builder: (context) => OrderListScreen(
+                          isCateringOnly: isCatering,
+                          // If it's not catering, we might want to default to normal view
+                          excludeCatering: false, 
+                        ),
+                      ),
+                      (route) => false,
+                    );
+                  },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue,
                       foregroundColor: Colors.white,
@@ -4727,13 +5173,22 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
       });
       return;
     }
+    
+    // Improved Logic for Decimal input
     if (value == '.') {
-      if (!_amountInput.contains('.')) {
-        setState(() {
-          _amountInput += value;
-        });
-      }
-      return;
+       if (!_amountInput.contains('.')) {
+         setState(() {
+            // If currently '0.000' and user types '.', assume they mean '0.'
+            // But if we stick to calculator logic, '0' + '.' -> '0.'
+            // If current is default '0.000', we should preserve the '0'
+            if (_amountInput == '0.000') {
+               _amountInput = '0.';
+            } else {
+               _amountInput += value;
+            }
+         });
+       }
+       return;
     }
 
     if (value == 'Add') {
@@ -4792,23 +5247,21 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
     }
 
     if (value == '⌫') {
-      if (_amountInput.length > 1) {
-        setState(() {
+      setState(() {
+        if (_amountInput.length > 1) {
           _amountInput = _amountInput.substring(0, _amountInput.length - 1);
-          if (_amountInput.isEmpty || _amountInput == '0') {
-            _amountInput = '0.000';
-          }
-        });
-      } else {
-        setState(() {
+        } else {
           _amountInput = '0.000';
-        });
-      }
+        }
+        
+        if (_amountInput.isEmpty) _amountInput = '0.000';
+      });
       return;
     }
 
+    // Standard digit entry
     setState(() {
-      if (_amountInput == '0.000') {
+      if (_amountInput == '0.000' || _amountInput == '0') {
         _amountInput = value;
       } else {
         _amountInput += value;
@@ -4899,18 +5352,26 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
   Future<pw.Document> _generateReceipt() async {
     final amounts = _calculateAmounts();
     
+    // Explicitly extract properties to avoid type errors with dynamic/Object
+    final orderItems = _updatedOrder?.items ?? widget.order.items;
+    final serviceType = _updatedOrder?.serviceType ?? widget.order.serviceType;
+    final orderNumber = _updatedOrder?.id?.toString().padLeft(4, '0') ?? widget.order.orderNumber;
+    final depositAmount = _updatedOrder?.depositAmount;
+    
     final pdf = await BillService.generateBill(
-      items: widget.order.items.map((item) => item.toMenuItem()).toList(),
-      serviceType: widget.order.serviceType,
+      items: orderItems.map((item) => item.toMenuItem()).toList(),
+      serviceType: serviceType,
       subtotal: amounts['subtotal']!,
       tax: amounts['tax']!,
       discount: _getCurrentDiscount(),
       total: amounts['total']!,
       personName: null,
-      tableInfo: widget.order.serviceType.contains('Table') ? widget.order.serviceType : null,
+      tableInfo: serviceType.contains('Table') ? serviceType : null,
       isEdited: widget.isEdited,
-      orderNumber: widget.order.orderNumber,
+      orderNumber: orderNumber,
       taxRate: widget.taxRate,
+      depositAmount: depositAmount, 
+      deliveryCharge: widget.order.deliveryCharge,
     );
     
     return pdf;
@@ -4961,6 +5422,17 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
               createdAt: existingOrder.createdAt,
               customerId: customer.id,
               paymentMethod: 'customer_credit',
+              // ✅ Preserve catering/delivery fields
+              deliveryCharge: existingOrder.deliveryCharge,
+              deliveryAddress: existingOrder.deliveryAddress,
+              deliveryBoy: existingOrder.deliveryBoy,
+              eventDate: existingOrder.eventDate,
+              eventTime: existingOrder.eventTime,
+              eventGuestCount: existingOrder.eventGuestCount,
+              eventType: existingOrder.eventType,
+              tokenNumber: existingOrder.tokenNumber,
+              customerName: existingOrder.customerName,
+              depositAmount: existingOrder.depositAmount,
             );
             
             savedOrder = await _localOrderRepo.saveOrder(savedOrder);
@@ -5263,6 +5735,7 @@ Future<void> _processCreditCompletionPayment(double amount, String paymentMethod
           isEdited: widget.isEdited,
           orderNumber: creditTransaction.orderNumber,
           taxRate: effectiveTaxRate,
+          deliveryCharge: actualOrder.deliveryCharge,
         );
 
    
@@ -5336,6 +5809,7 @@ Future<void> _processCreditCompletionPayment(double amount, String paymentMethod
   }
 }
 // Add this new method to update the original order's payment method
+// Update original order payment method (used for Credit Completion)
 Future<void> _updateOriginalOrderPaymentMethod(String orderNumber, String paymentMethod) async {
   try {
     final localOrderRepo = LocalOrderRepository();
@@ -5381,10 +5855,24 @@ Future<void> _updateOriginalOrderPaymentMethod(String orderNumber, String paymen
         createdAt: existingOrder.createdAt,
         customerId: existingOrder.customerId,
         paymentMethod: paymentMethod, // Update the payment method
+        deliveryCharge: existingOrder.deliveryCharge,
+        deliveryAddress: existingOrder.deliveryAddress,
+        deliveryBoy: existingOrder.deliveryBoy,
+        eventDate: existingOrder.eventDate,
+        eventTime: existingOrder.eventTime,
+        eventGuestCount: existingOrder.eventGuestCount,
+        eventType: existingOrder.eventType,
+        tokenNumber: existingOrder.tokenNumber,
+        customerName: existingOrder.customerName,
+        depositAmount: existingOrder.depositAmount,
       );
       
       // Save the updated order
       await localOrderRepo.saveOrder(updatedOrder);
+      
+      // ✅ SYNC: Sync the payment method update to Firestore
+      await DeviceSyncService.syncOrderToFirestore(updatedOrder);
+      
       debugPrint('Updated order #$orderNumber payment method to: $paymentMethod');
     } else {
       debugPrint('Order #$orderNumber not found for payment method update');
@@ -5393,6 +5881,7 @@ Future<void> _updateOriginalOrderPaymentMethod(String orderNumber, String paymen
     debugPrint('Error updating original order payment method: $e');
   }
 }
+// Update original order with split payment details
 // Update original order with split payment details
 Future<void> _updateOriginalOrderPaymentMethodWithSplit(
   String orderNumber, 
@@ -5446,10 +5935,24 @@ Future<void> _updateOriginalOrderPaymentMethodWithSplit(
         paymentMethod: paymentMethod,
         cashAmount: cashAmount,  // ✅ Add cash amount
         bankAmount: bankAmount,  // ✅ Add bank amount
+        deliveryCharge: existingOrder.deliveryCharge,
+        deliveryAddress: existingOrder.deliveryAddress,
+        deliveryBoy: existingOrder.deliveryBoy,
+        eventDate: existingOrder.eventDate,
+        eventTime: existingOrder.eventTime,
+        eventGuestCount: existingOrder.eventGuestCount,
+        eventType: existingOrder.eventType,
+        tokenNumber: existingOrder.tokenNumber,
+        customerName: existingOrder.customerName,
+        depositAmount: existingOrder.depositAmount,
       );
       
       // Save the updated order
       await localOrderRepo.saveOrder(updatedOrder);
+      
+      // ✅ SYNC: Sync the split payment update to Firestore
+      await DeviceSyncService.syncOrderToFirestore(updatedOrder);
+      
       debugPrint('Updated order #$orderNumber with split payment: Cash=$cashAmount, Bank=$bankAmount');
     } else {
       debugPrint('Order #$orderNumber not found for split payment update');
@@ -5458,6 +5961,7 @@ Future<void> _updateOriginalOrderPaymentMethodWithSplit(
     debugPrint('Error updating order with split payment: $e');
   }
 }
+// Add this new method to update order with customer information
 // Add this new method to update order with customer information
 Future<void> _updateOrderWithCustomer(Person customer) async {
   try {
@@ -5487,6 +5991,10 @@ Future<void> _updateOrderWithCustomer(Person customer) async {
       
       // Save the updated order
       await localOrderRepo.saveOrder(updatedOrder);
+      
+      // ✅ SYNC: Sync the customer update to Firestore
+      await DeviceSyncService.syncOrderToFirestore(updatedOrder);
+      
       debugPrint('Updated order #${widget.order.id} with customer: ${customer.name}');
       
       // Update the OrderHistoryProvider to refresh the data

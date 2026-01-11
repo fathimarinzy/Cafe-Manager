@@ -7,20 +7,48 @@ import 'package:flutter/foundation.dart';
 class OrderHistory {
   int id;
   final String serviceType;
+  final double subtotal;
+  final double tax;
+  final double discount;
   final double total;
   final String status;
   final DateTime createdAt;
   final List<OrderItem> items;
-  final String? customerId; // Add customerId field
+  final String? customerId; 
+  final String? deliveryAddress;
+  final String? deliveryBoy;
+  final double? deliveryCharge;
+  final int? mainOrderNumber;
+  final double? depositAmount;
+  final String? eventDate;
+  final String? eventTime;
+  final int? eventGuestCount;
+  final String? eventType;
+  final String? tokenNumber;
+  final String? customerName;
 
   OrderHistory({
     required this.id,
     required this.serviceType,
+    this.subtotal = 0.0,
+    this.tax = 0.0,
+    this.discount = 0.0,
     required this.total,
     required this.status,
     required this.createdAt,
     required this.items,
-    this.customerId, // Add customerId parameter
+    this.customerId,
+    this.deliveryAddress,
+    this.deliveryBoy,
+    this.deliveryCharge,
+    this.mainOrderNumber,
+    this.depositAmount,
+    this.eventDate,
+    this.eventTime,
+    this.eventGuestCount,
+    this.eventType,
+    this.tokenNumber,
+    this.customerName,
   });
 
   // FIXED: Simplified factory method without timezone adjustments
@@ -50,7 +78,7 @@ class OrderHistory {
           // For ISO format timestamps, parse directly without timezone adjustments
           // Since local orders are stored in local time, use them as-is
           parsedDate = DateTime.parse(order.createdAt!);
-          debugPrint('Parsed timestamp as-is: $parsedDate');
+          // debugPrint('Parsed timestamp as-is: $parsedDate');
         }
       } catch (e) {
         debugPrint('Error parsing date: $e');
@@ -64,11 +92,25 @@ class OrderHistory {
     return OrderHistory(
       id: order.id ?? 0,
       serviceType: order.serviceType,
+      subtotal: order.subtotal,
+      tax: order.tax,
+      discount: order.discount,
       total: order.total,
       status: order.status,
       createdAt: parsedDate,
       items: order.items,
       customerId: order.customerId, // Include customerId from Order
+      deliveryAddress: order.deliveryAddress,
+      deliveryBoy: order.deliveryBoy,
+      deliveryCharge: order.deliveryCharge,
+      mainOrderNumber: order.mainOrderNumber,
+      depositAmount: order.depositAmount, // Include depositAmount from Order
+      eventDate: order.eventDate,
+      eventTime: order.eventTime,
+      eventGuestCount: order.eventGuestCount,
+      eventType: order.eventType,
+      tokenNumber: order.tokenNumber,
+      customerName: order.customerName,
     );
   }
 
@@ -120,7 +162,9 @@ extension OrderTimeFilterExtension on OrderTimeFilter {
   bool isInPeriod(DateTime date) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final orderDate = DateTime(date.year, date.month, date.day);
+    // FIXED: Convert to local time before extracting date components
+    final localDate = date.toLocal();
+    final orderDate = DateTime(localDate.year, localDate.month, localDate.day);
     
     switch (this) {
       case OrderTimeFilter.today:

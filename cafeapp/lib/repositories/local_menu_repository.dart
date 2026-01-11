@@ -16,14 +16,25 @@ class LocalMenuRepository {
   // Private constructor
   LocalMenuRepository._internal();
   
-  // Get database instance with retry logic
+  static Future<Database>? _dbOpenFuture;
+
+  // Get database instance with retry logic and race condition prevention
   Future<Database> get database async {
     if (_database != null && _database!.isOpen) {
       return _database!;
     }
     
-    _database = await _initDatabase();
-    return _database!;
+    if (_dbOpenFuture != null) return _dbOpenFuture!;
+    
+    _dbOpenFuture = _initDatabase();
+    
+    try {
+      _database = await _dbOpenFuture;
+      return _database!;
+    } catch (e) {
+      _dbOpenFuture = null;
+      rethrow;
+    }
   }
 
   // Initialize database with retry logic
@@ -41,8 +52,11 @@ class LocalMenuRepository {
         // Open the database with explicit version and onCreate handler
         return await openDatabase(
           path,
-          version: 2,
-          onCreate: (db, version) async {
+          version: 3,
+      onConfigure: (db) async {
+        await db.rawQuery('PRAGMA journal_mode=WAL;');
+      },
+      onCreate: (db, version) async {
             debugPrint('Creating menu_items table...');
             await db.execute('''
               CREATE TABLE menu_items (
@@ -54,7 +68,8 @@ class LocalMenuRepository {
                 isAvailable INTEGER NOT NULL,
                 isDeleted INTEGER NOT NULL DEFAULT 0,
                 lastUpdated TEXT NOT NULL,
-                taxExempt INTEGER NOT NULL DEFAULT 0
+                taxExempt INTEGER NOT NULL DEFAULT 0,
+                isPerPlate INTEGER NOT NULL DEFAULT 0
               )
             ''');
             debugPrint('menu_items table created successfully');
@@ -71,6 +86,18 @@ class LocalMenuRepository {
               debugPrint('Added taxExempt column to menu_items table');
             } catch (e) {
               debugPrint('Error adding taxExempt column (may already exist): $e');
+            }
+          }
+
+          if (oldVersion < 3) {
+            // Add isPerPlate column
+            try {
+              await db.execute('''
+                ALTER TABLE menu_items ADD COLUMN isPerPlate INTEGER NOT NULL DEFAULT 0
+              ''');
+              debugPrint('Added isPerPlate column to menu_items table');
+            } catch (e) {
+              debugPrint('Error adding isPerPlate column: $e');
             }
           }
         },
@@ -126,6 +153,7 @@ class LocalMenuRepository {
             'isDeleted': 0,
             'lastUpdated': DateTime.now().toIso8601String(),
             'taxExempt': item.taxExempt ? 1 : 0,
+            'isPerPlate': item.isPerPlate ? 1 : 0,
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
@@ -169,16 +197,8 @@ Future<List<MenuItem>> getMenuItems() async {
       final items = List.generate(maps.length, (i) {
         final imageUrl = maps[i]['imageUrl'] as String;
         
-        // Log image status
-        if (imageUrl.isNotEmpty) {
-          if (imageUrl.startsWith('data:image')) {
-            debugPrint('✅ Item "${maps[i]['name']}" has base64 image (${imageUrl.length} chars)');
-          } else {
-            debugPrint('📎 Item "${maps[i]['name']}" has URL image: ${imageUrl.substring(0, 50)}...');
-          }
-        } else {
-          debugPrint('⚠️ Item "${maps[i]['name']}" has no image');
-        }
+
+
         
         return MenuItem(
           id: maps[i]['id'] as String,
@@ -188,6 +208,7 @@ Future<List<MenuItem>> getMenuItems() async {
           category: maps[i]['category'] as String,
           isAvailable: maps[i]['isAvailable'] == 1,
           taxExempt: maps[i]['taxExempt'] == 1,
+          isPerPlate: maps[i]['isPerPlate'] == 1,
         );
       });
       
@@ -241,6 +262,7 @@ Future<List<MenuItem>> getMenuItems() async {
           category: item.category,
           isAvailable: item.isAvailable,
           taxExempt: item.taxExempt,
+          isPerPlate: item.isPerPlate,
         );
          // ⭐ CRITICAL: Ensure the boolean is converted to int correctly
         final int taxExemptValue = newItem.taxExempt ? 1 : 0;
@@ -259,6 +281,7 @@ Future<List<MenuItem>> getMenuItems() async {
             'isDeleted': 0,
             'lastUpdated': timestamp,
             'taxExempt': taxExemptValue,
+            'isPerPlate': newItem.isPerPlate ? 1 : 0,
           },
         );
         
@@ -313,6 +336,7 @@ Future<List<MenuItem>> getMenuItems() async {
             'isAvailable': item.isAvailable ? 1 : 0,
             'lastUpdated': timestamp,
             'taxExempt': item.taxExempt ? 1 : 0,
+            'isPerPlate': item.isPerPlate ? 1 : 0,
           },
           where: 'id = ?',
           whereArgs: [item.id],

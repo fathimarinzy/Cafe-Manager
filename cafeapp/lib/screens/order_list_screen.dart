@@ -10,13 +10,24 @@ import '../utils/app_localization.dart';
 import '../utils/service_type_utils.dart';
 import 'search_person_screen.dart';
 import '../models/person.dart';
+import '../widgets/clock_widget.dart';
 
 
 class OrderListScreen extends StatefulWidget {
   final String? serviceType;
   final bool fromMenuScreen;
+  final bool excludeCatering; // New parameter
+  final bool isCateringOnly;  // New parameter
+  final String? searchQuery;
 
-  const OrderListScreen({super.key, this.serviceType, this.fromMenuScreen = false});
+  const OrderListScreen({
+    super.key, 
+    this.serviceType, 
+    this.fromMenuScreen = false,
+    this.excludeCatering = true, // Default to true to hide catering from main list
+    this.isCateringOnly = false,
+    this.searchQuery,
+  });
 
   @override
   State<OrderListScreen> createState() => _OrderListScreenState();
@@ -26,8 +37,6 @@ class _OrderListScreenState extends State<OrderListScreen> {
   final _searchController = TextEditingController();
   bool _isSearching = false;
   OrderTimeFilter _selectedFilter = OrderTimeFilter.today;
-  String _currentTime = '';
-  Timer? _timer;
   Timer? _refreshTimer;
   
   // Track if pending filter is active
@@ -36,25 +45,59 @@ class _OrderListScreenState extends State<OrderListScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Handle initial search query if provided
+    if (widget.searchQuery != null && widget.searchQuery!.isNotEmpty) {
+      _searchController.text = widget.searchQuery!;
+      _isSearching = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+         final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
+         historyProvider.setTimeFilter(OrderTimeFilter.all);
+         historyProvider.searchOrdersByBillNumber(widget.searchQuery!);
+         setState(() {
+           _selectedFilter = OrderTimeFilter.all;
+         });
+      });
+    }
+
     // Refresh every 30 seconds to catch synced orders
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       if (mounted) {
-        debugPrint('🔄 Auto-refreshing order history');
-        Provider.of<OrderHistoryProvider>(context, listen: false).loadOrders();
+        try {
+          debugPrint('🔄 Auto-refreshing order history');
+          Provider.of<OrderHistoryProvider>(context, listen: false).loadOrders();
+        } catch (e) {
+          debugPrint('⚠️ Error refreshing orders from timer: $e');
+        }
       }
     });
-    _updateTime();
+    // _updateTime();
     
     // Start timer to update time every second
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      _updateTime();
-    });
+    // _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    //   _updateTime();
+    // });
     
     // Load orders on init
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
+      
+      // NEW: Reset invalid state from previous screens matches
+      historyProvider.resetFilters();
+      
       // Set the time filter to Today by default for both cases
       historyProvider.setTimeFilter(OrderTimeFilter.today);
+      
+      // Apply filters based on widget params
+      if (widget.excludeCatering) {
+        historyProvider.setExcludeCatering(true);
+      } else if (widget.isCateringOnly) {
+        historyProvider.setCateringOnly(true);
+      } else {
+        // Reset if normal view
+        historyProvider.setExcludeCatering(false);
+        historyProvider.setCateringOnly(false);
+      }
       
       if (widget.serviceType != null) {
         historyProvider.loadOrdersByServiceType(widget.serviceType!);
@@ -68,17 +111,17 @@ class _OrderListScreenState extends State<OrderListScreen> {
   void dispose() {
     _refreshTimer?.cancel();
     _searchController.dispose();
-    _timer?.cancel();
+    // _timer?.cancel();
     super.dispose();
   }
   
-  void _updateTime() {
-    final now = DateTime.now();
-    final formatter = DateFormat('hh:mm a');
-    setState(() {
-      _currentTime = formatter.format(now);
-    });
-  }
+  // void _updateTime() {
+  //   final now = DateTime.now();
+  //   final formatter = DateFormat('hh:mm a');
+  //   setState(() {
+  //     _currentTime = formatter.format(now);
+  //   });
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -91,7 +134,10 @@ class _OrderListScreenState extends State<OrderListScreen> {
         } else {
           // Navigate to dashboard screen instead of simply popping
           Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const DashboardScreen()),
+            MaterialPageRoute(
+               builder: (context) => const DashboardScreen(),
+               settings: const RouteSettings(name: 'DashboardScreen'),
+            ),
             (route) => false,
           );
         }
@@ -111,13 +157,30 @@ class _OrderListScreenState extends State<OrderListScreen> {
                 Navigator.of(context).pop(); // Simply go back
               } else {
                 Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => const DashboardScreen()),
+                  MaterialPageRoute(
+                     builder: (context) => const DashboardScreen(),
+                     settings: const RouteSettings(name: 'DashboardScreen'),
+                  ),
                   (route) => false,
                 );
               }
             },
           ),
           actions: [
+            // Refresh Button
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Refresh'.tr(),
+              onPressed: () {
+                final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
+                if (widget.serviceType != null) {
+                  historyProvider.loadOrdersByServiceType(widget.serviceType!);
+                } else {
+                  historyProvider.loadOrders();
+                }
+              },
+            ),
+            
             TextButton.icon(
                 icon: const Icon(Icons.receipt),
                 label: Text('Receipt'.tr()),
@@ -126,6 +189,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
                   foregroundColor: Colors.green[800],
                 ),
               ),
+            
             // Time display
             Padding(
               padding: const EdgeInsets.only(right: 16.0),
@@ -133,9 +197,8 @@ class _OrderListScreenState extends State<OrderListScreen> {
                 children: [
                   const Icon(Icons.access_time, color: Colors.black, size: 20),
                   const SizedBox(width: 4),
-                  Text(
-                    _currentTime,
-                    style: const TextStyle(color: Colors.black),
+                  const ClockWidget(
+                    style: TextStyle(color: Colors.black),
                   ),
                 ],
               ),
@@ -226,6 +289,25 @@ class _OrderListScreenState extends State<OrderListScreen> {
                 ),
                
                 const SizedBox(width: 150),    
+                // Catering filter button
+                _buildCateringFilterButton(),
+                
+                // Advanced filter button - Only show if Catering is active
+                Consumer<OrderHistoryProvider>(
+                  builder: (context, historyProvider, child) {
+                    if (historyProvider.isCateringOnly) {
+                      return Row(
+                        children: [
+                          const SizedBox(width: 8),
+                          _buildAdvancedFilterButton(),
+                        ],
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+                
+                const SizedBox(width: 8),
                 // Pending filter button - right after All Orders
                 _buildPendingFilterButton(),
               ],
@@ -279,6 +361,82 @@ class _OrderListScreenState extends State<OrderListScreen> {
       case OrderTimeFilter.all:
         return 'All Orders'.tr();
     }
+  }
+
+  Widget _buildCateringFilterButton() {
+    return Consumer<OrderHistoryProvider>(
+      builder: (context, historyProvider, child) {
+        final isActive = historyProvider.isCateringOnly;
+        return ElevatedButton.icon(
+          icon: Icon(
+            Icons.room_service_rounded,
+            color: isActive ? Colors.white : Colors.amber,
+            size: 18,
+          ),
+          label: Text(
+            'Catering'.tr(),
+            style: TextStyle(
+              color: isActive ? Colors.white : Colors.amber,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          onPressed: () {
+            historyProvider.toggleCateringOnly();
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: isActive ? Colors.amber : Colors.amber.withAlpha((0.1 * 255).round()),
+            foregroundColor: isActive ? Colors.white : Colors.amber,
+            elevation: isActive ? 2 : 0,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: const BorderSide(
+                color: Colors.amber,
+                width: 1,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAdvancedFilterButton() {
+    return Consumer<OrderHistoryProvider>(
+      builder: (context, historyProvider, child) {
+        final isActive = historyProvider.isAdvancedOnly;
+        return ElevatedButton.icon(
+          icon: Icon(
+            Icons.account_balance_wallet_rounded,
+            color: isActive ? Colors.white : Colors.blueAccent,
+            size: 18,
+          ),
+          label: Text(
+            'Advanced'.tr(),
+            style: TextStyle(
+              color: isActive ? Colors.white : Colors.blueAccent,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          onPressed: () {
+            historyProvider.toggleAdvancedOnly();
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: isActive ? Colors.blueAccent : Colors.blueAccent.withAlpha((0.1 * 255).round()),
+            foregroundColor: isActive ? Colors.white : Colors.blueAccent,
+            elevation: isActive ? 2 : 0,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: const BorderSide(
+                color: Colors.blueAccent,
+                width: 1,
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildPendingFilterButton() {
@@ -400,15 +558,28 @@ Widget _buildOrderList() {
           );
         }
 
-        // Determine orientation and adjust grid accordingly
+        // Determine orientation and layout based on screen width
+        final screenWidth = MediaQuery.of(context).size.width;
+        final isPhone = screenWidth < 600;
         final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
         
+        // Responsive Grid Config
+        // Phone: 2 Column Grid (Optimized for density)
+        // Tablet Portrait: 3 Column Grid
+        // Tablet Landscape / Desktop: 5 Column Grid
+        final crossAxisCount = isPhone ? 2 : (isPortrait ? 5 : 7);
+        
+        // Aspect Ratio
+        // Phone: Taller cards (~1.3) matching Dashboard Service Cards
+        // Tablet: Standard aspect ratio (~0.85)
+        final childAspectRatio = isPhone ? 1.3 : (isPortrait ? 0.85 : 0.95);
+
         return Padding(
           padding: const EdgeInsets.all(8.0),
           child: GridView.builder(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: isPortrait ? 3 : 6, // 3 columns in portrait, 6 in landscape
-              childAspectRatio: isPortrait ? 1.2 : 1.1, // Adjust aspect ratio for portrait
+              crossAxisCount: crossAxisCount, 
+              childAspectRatio: childAspectRatio,
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
             ),
@@ -447,6 +618,11 @@ Widget _buildOrderCard(OrderHistory order) {
     // Check orientation for compact layout
     final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
     
+    // Unified Grid Layout (Phone & Tablet)
+    // Both Phone and Tablet now use the Column-based Card layout
+    // Phone uses it in a 2-column grid. Tablet uses it in a 3+ column grid.
+
+    // Tablet/Grid Layout (Column - Original)
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(
@@ -459,6 +635,7 @@ Widget _buildOrderCard(OrderHistory order) {
             context,
             MaterialPageRoute(
               builder: (context) => OrderDetailsScreen(orderId: order.id),
+              settings: const RouteSettings(name: 'OrderDetailsScreen'),
             ),
           );
         },
@@ -523,8 +700,9 @@ Widget _buildOrderCard(OrderHistory order) {
                     child: Text(
                       _getTranslatedServiceType(order.serviceType),
                       style: TextStyle(
-                        color: secondaryTextColor,
+                        fontWeight: FontWeight.bold,
                         fontSize: isPortrait ? 10 : 12, // Smaller font in portrait
+                        color: Colors.black87,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -532,6 +710,30 @@ Widget _buildOrderCard(OrderHistory order) {
                 ],
               ),
               
+              // Token Number
+              if (order.tokenNumber != null && order.tokenNumber!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  child: Center(
+                    child: Container(
+                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                       decoration: BoxDecoration(
+                         color: Colors.black12,
+                         borderRadius: BorderRadius.circular(4),
+                       ),
+                      child: Text(
+                        '${'Token:'.tr()} ${order.tokenNumber}',
+                        style: TextStyle(
+                          fontSize: isPortrait ? 12 : 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                ),
+                  
               SizedBox(height: isPortrait ? 4 : 6), // Less spacing in portrait
               
               // Order date and time - more compact in portrait
@@ -555,41 +757,40 @@ Widget _buildOrderCard(OrderHistory order) {
                       ),
                     ],
                   ),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.access_time,
-                        size: isPortrait ? 10 : 12,
-                        color: secondaryTextColor,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        order.formattedTime,
-                        style: TextStyle(
-                          fontSize: isPortrait ? 9 : 10,
-                          color: secondaryTextColor,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
+
                 ],
               ),
               
               const Spacer(),
               
-              // Amount
-              Container(
-                width: double.infinity,
-                alignment: Alignment.centerRight,
-                child: Text(
-                  currencyFormat.format(order.total),
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: isPortrait ? 12 : 14,
-                    color: textColor,
+              // Footer with Advance (left) and Total (right)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  if ((order.depositAmount ?? 0) > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2.0),
+                      child: Text(
+                        '${'Adv:'.tr()} ${currencyFormat.format(order.depositAmount)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: isPortrait ? 9 : 11,
+                          color: Colors.orange.shade900,
+                        ),
+                      ),
+                    )
+                  else
+                    const SizedBox(),
+                  
+                  Text(
+                    currencyFormat.format(order.total),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: isPortrait ? 12 : 14,
+                      color: textColor,
+                    ),
                   ),
-                ),
+                ],
               ),
             ],
           ),
@@ -602,6 +803,7 @@ Widget _buildOrderCard(OrderHistory order) {
     context,
     MaterialPageRoute(
       builder: (context) => const SearchPersonScreen(isForCreditReceipt: true),
+      settings: const RouteSettings(name: 'SearchPersonScreen'),
     ),
   );
   

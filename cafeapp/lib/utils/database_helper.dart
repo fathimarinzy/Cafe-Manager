@@ -19,6 +19,7 @@ class DatabaseHelper {
   static const String personsDbName = 'cafe_persons.db';
   static const String expensesDbName = 'cafe_expenses.db';
   static const String creditTransactionsDbName = 'credit_transactions.db';
+  static const String deliveryBoysStoreDbName = 'cafe_delivery_boys_store.db';
   
   // Database references
   static Database? _menuDb;
@@ -26,6 +27,7 @@ class DatabaseHelper {
   static Database? _personsDb;
   static Database? _expensesDb;
   static Database? _creditTransactionsDb;
+  static Database? _deliveryBoysStoreDb;
   
   /// Initialize SQLite for the current platform - MUST be called first
   static Future<void> initializePlatform() async {
@@ -151,6 +153,13 @@ class DatabaseHelper {
     return _creditTransactionsDb!;
   }
   
+  Future<Database> get deliveryBoysStoreDb async {
+    await _ensurePlatformInitialized();
+    if (_deliveryBoysStoreDb != null && _deliveryBoysStoreDb!.isOpen) return _deliveryBoysStoreDb!;
+    _deliveryBoysStoreDb = await _openDatabase(deliveryBoysStoreDbName);
+    return _deliveryBoysStoreDb!;
+  }
+  
   // Ensure platform is initialized before any database operations
   Future<void> _ensurePlatformInitialized() async {
     if (!_platformInitialized) {
@@ -224,6 +233,12 @@ class DatabaseHelper {
         debugPrint('Closed credit transactions database');
       }
       
+      if (_deliveryBoysStoreDb != null && _deliveryBoysStoreDb!.isOpen) {
+        await _deliveryBoysStoreDb!.close();
+        _deliveryBoysStoreDb = null;
+        debugPrint('Closed delivery boys store database');
+      }
+      
       debugPrint('All database connections closed');
     } catch (e) {
       debugPrint('Error closing databases: $e');
@@ -240,7 +255,7 @@ class DatabaseHelper {
       await Future.delayed(const Duration(milliseconds: 500));
       
       // List of database files to delete
-      final dbFiles = [menuDbName, ordersDbName, personsDbName, expensesDbName, creditTransactionsDbName];
+      final dbFiles = [menuDbName, ordersDbName, personsDbName, expensesDbName, creditTransactionsDbName, deliveryBoysStoreDbName];
       
       // Delete each database file
       for (final dbFile in dbFiles) {
@@ -324,6 +339,7 @@ class DatabaseHelper {
       final personsPath = await _getDatabasePath(personsDbName);
       final expensesPath = await _getDatabasePath(expensesDbName);
       final creditTransactionsPath = await _getDatabasePath(creditTransactionsDbName);
+      final deliveryBoysStorePath = await _getDatabasePath(deliveryBoysStoreDbName);
       
       return {
         'platform': platformName,
@@ -354,6 +370,11 @@ class DatabaseHelper {
             'path': creditTransactionsPath,
             'exists': await File(creditTransactionsPath).exists(),
             'isOpen': _creditTransactionsDb != null && _creditTransactionsDb!.isOpen,
+          },
+          'deliveryBoysStore': {
+            'path': deliveryBoysStorePath,
+            'exists': await File(deliveryBoysStorePath).exists(),
+            'isOpen': _deliveryBoysStoreDb != null && _deliveryBoysStoreDb!.isOpen,
           },
         },
       };

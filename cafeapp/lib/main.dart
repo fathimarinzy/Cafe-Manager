@@ -33,6 +33,7 @@ import 'providers/order_provider.dart';
 import 'providers/person_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/order_history_provider.dart';
+import 'providers/delivery_boy_provider.dart';
 
 import 'repositories/local_menu_repository.dart';
 import 'repositories/local_expense_repository.dart';
@@ -260,6 +261,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (ctx) => OrderHistoryProvider()),
         ChangeNotifierProvider(create: (ctx) => SettingsProvider()),
         ChangeNotifierProvider(create: (ctx) => LogoProvider()),
+        ChangeNotifierProvider(create: (ctx) => DeliveryBoyProvider()),
       ],
       child: Consumer<SettingsProvider>(
         builder: (ctx, settingsProvider, _) {

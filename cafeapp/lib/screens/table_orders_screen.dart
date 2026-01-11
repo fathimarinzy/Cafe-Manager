@@ -218,6 +218,7 @@ class _TableOrdersScreenState extends State<TableOrdersScreen> {
             context,
             MaterialPageRoute(
               builder: (context) => OrderDetailsScreen(orderId: order.id),
+              settings: const RouteSettings(name: 'OrderDetailsScreen'),
             ),
           ).then((_) => _loadOrders());
         },

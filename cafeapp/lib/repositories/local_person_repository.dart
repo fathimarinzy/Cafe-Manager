@@ -2,16 +2,29 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/person.dart';
+import '../services/device_sync_service.dart';
 import 'package:flutter/foundation.dart';
 
 class LocalPersonRepository {
   static Database? _database;
 
+  static Future<Database>? _dbOpenFuture;
+
   // Get database instance
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDatabase();
-    return _database!;
+    
+    if (_dbOpenFuture != null) return _dbOpenFuture!;
+    
+    _dbOpenFuture = _initDatabase();
+    
+    try {
+      _database = await _dbOpenFuture;
+      return _database!;
+    } catch (e) {
+      _dbOpenFuture = null;
+      rethrow;
+    }
   }
 
   // Initialize database
@@ -22,6 +35,9 @@ class LocalPersonRepository {
     return await openDatabase(
       path,
       version: 2,
+      onConfigure: (db) async {
+        await db.rawQuery('PRAGMA journal_mode=WAL;');
+      },
       onCreate: (db, version) async {
         // Create persons table with simplified schema
         await db.execute('''
@@ -45,7 +61,7 @@ class LocalPersonRepository {
   }
 
   // Save person to local database with improved error handling
-  Future<Person> savePerson(Person person) async {
+  Future<Person> savePerson(Person person, {bool fromSync = false}) async {
     final db = await database;
     // final timestamp = DateTime.now().toIso8601String();
     
@@ -97,6 +113,12 @@ class LocalPersonRepository {
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
+      }
+      
+      
+      // SYNC: Sync person to Firestore (ONLY if not from sync)
+      if (!fromSync) {
+        await DeviceSyncService.syncPersonToFirestore(newPerson);
       }
       
       return newPerson;
@@ -153,6 +175,18 @@ Future<bool> addCreditToCustomer(String personId, double creditToAdd) async {
         whereArgs: [personId],
       );
       
+      if (count > 0) {
+        // SYNC: Fetch updated person and sync
+        try {
+          final updatedPerson = await getPersonById(personId);
+          if (updatedPerson != null) {
+            await DeviceSyncService.syncPersonToFirestore(updatedPerson);
+          }
+        } catch (e) {
+          debugPrint('Error syncing credit update: $e');
+        }
+      }
+      
       return count > 0;
     }
     
@@ -199,6 +233,14 @@ Future<bool> addCreditToCustomer(String personId, double creditToAdd) async {
         where: 'id = ?',
         whereArgs: [person.id],
       );
+      
+      if (count > 0) {
+         try {
+            await DeviceSyncService.syncPersonToFirestore(person);
+         } catch (e) {
+            debugPrint('Error syncing person update: $e');
+         }
+      }
       
       return count > 0;
     } catch (e) {
