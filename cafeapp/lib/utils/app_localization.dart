@@ -915,6 +915,12 @@ class AppLocalization {
       //crossplatform pdf
       'Printer not available. Would you like to save the receipt as PDF to your device?': 'تعذر العثور على الطابعة. هل ترغب في حفظ الإيصال كملف PDF على جهازك؟',
       'Printer not available. Would you like to save the receipt as PDF?':' تعذر العثور على الطابعة. هل ترغب في حفظ الإيصال كملف PDF؟',
+
+      //Quotation list screen
+      'Quotation': 'الإيصال',
+      'Quotation List': 'قائمة الإيصالات',
+      'Convert to Order?': 'تحويل إلى طلب؟',
+      'Are you sure you want to convert this quotation to an order?': 'هل أنت متأكد أنك تريد تحويل هذا الإيصال إلى طلب؟',
     },
   };
 
