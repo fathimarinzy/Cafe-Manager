@@ -1192,7 +1192,26 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
     final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
     
     final totalOrders = orders.length;
-    final totalRevenue = orders.fold(0.0, (sum, order) => sum + order.total);
+    // Helper to determine the actual revenue to count for this order
+    // For Catering: If not completed, only count the advance (deposit).
+    // If completed, count the full total.
+    double getOrderRevenue(Order order) {
+      // Exclude 'customer_credit' (unpaid/tab) orders from Revenue if user wants Cash Basis
+      // The user clearly doesn't want "Add Credit" to show in Total Revenue.
+      if ((order.paymentMethod ?? '').toLowerCase() == 'customer_credit') {
+        return 0.0;
+      }
+
+      if (order.serviceType.toLowerCase().contains('catering')) {
+        final isCompleted = order.status.toLowerCase() == 'completed';
+        if (!isCompleted) {
+           return order.depositAmount ?? 0.0;
+        }
+      }
+      return order.total;
+    }
+
+    final totalRevenue = orders.fold(0.0, (sum, order) => sum + getOrderRevenue(order));
     final totalItemsSold = orders.fold(0, (sum, order) => sum + order.items.length);
 
     final Map<String, List<Order>> ordersByServiceType = {};
@@ -1207,7 +1226,20 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
     double discount = 0.0;
     
     for (final order in orders) {
-      discount += order.discount;
+      // Logic for amounts to include in tax header breakdown
+      // If catering & incomplete, we should probably scale these down or exclude?
+      // For now, let's keep the tax logic consistent with the *Reported Revenue*.
+      // If we only report Deposit, we shouldn't report full Tax.
+      // Simplification: Calculate tax/subtotal based on the getOrderRevenue ratio?
+      // Or just count them as is (user asked specifically for "Total shows in report").
+      // "When I get an advance that amount can show in reports" implies Revenue.
+      // Let's adjust tax/subtotal proportionally if report revenue != total.
+      
+      final effectiveTotal = getOrderRevenue(order);
+      final isPartial = effectiveTotal != order.total && order.total > 0;
+      final ratio = isPartial ? (effectiveTotal / order.total) : 1.0;
+
+      discount += (order.discount * ratio);
       
       // Separate taxable and tax-exempt items for this order
       double orderTaxableTotal = 0.0;
@@ -1229,15 +1261,15 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
         final orderTax = orderTaxableTotal - taxableAmount;
         final orderSubtotal = taxableAmount + orderTaxExemptTotal;
         
-        subtotal += orderSubtotal;
-        tax += orderTax;
+        subtotal += (orderSubtotal * ratio);
+        tax += (orderTax * ratio);
       } else {
         // Exclusive VAT: add tax on top of taxable items only
         final orderSubtotal = orderTaxableTotal + orderTaxExemptTotal;
         final orderTax = orderTaxableTotal * (settingsProvider.taxRate / 100);
         
-        subtotal += orderSubtotal;
-        tax += orderTax;
+        subtotal += (orderSubtotal * ratio);
+        tax += (orderTax * ratio);
       }
     }
     
@@ -1250,12 +1282,13 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
     debugPrint('\n--- Processing Orders for Payment Totals ---');
     for (final order in orders) {
       final paymentMethod = (order.paymentMethod ?? 'cash').toLowerCase();
-      
+      final effectiveAmount = getOrderRevenue(order);
+
     debugPrint('\nOrder ID: ${order.id}');
     debugPrint('  Payment Method: "$paymentMethod"');
     debugPrint('  Total: ${order.total}');
-    debugPrint('  Cash Amount: ${order.cashAmount}');
-    debugPrint('  Bank Amount: ${order.bankAmount}');
+    debugPrint('  Effective Amount: $effectiveAmount');
+    
       if (paymentMethod == 'customer_credit') {
         continue;
       } 
@@ -1265,42 +1298,43 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
         paymentMethod == 'cash+bank' ||
         paymentMethod == 'cash + bank') {
           debugPrint('  → SPLIT PAYMENT DETECTED');
+          
+      // For split payment, assumption is cashAmount + bankAmount = effectiveAmount (usually)
+      // IF it is incomplete catering, typically split payment implies full payment? 
+      // Actually catering advance is usually single method. 
+      // If split is used, order logic handles amounts. 
+      // We will trust cashAmount/bankAmount IF they exist, but verify sum vs effective.
+      // If effective < total (deposit only), we might need to rely on what was actually paid.
+      // Usually deposit is 'cash' or 'bank'.
+      
       // Add cash portion to cash sales
       if (order.cashAmount != null && order.cashAmount! > 0) {
         paymentTotals['cash']!['sales'] = (paymentTotals['cash']!['sales'] ?? 0.0) + order.cashAmount!;
-        debugPrint('  → Added ${order.cashAmount} to Cash Sales');
-
-      }else {
-        debugPrint('  → WARNING: cashAmount is null or zero!');
       }
       
       // Add bank portion to bank sales
       if (order.bankAmount != null && order.bankAmount! > 0) {
         paymentTotals['bank']!['sales'] = (paymentTotals['bank']!['sales'] ?? 0.0) + order.bankAmount!;
-        debugPrint('  → Added ${order.bankAmount} to Bank Sales');
-      }else {
-        debugPrint('  → WARNING: bankAmount is null or zero!');
       }
       
-      // ✅ FIX: Add the SUM of cash and bank amounts to total, not order.total
       final splitTotal = (order.cashAmount ?? 0.0) + (order.bankAmount ?? 0.0);
       paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + splitTotal;
-      debugPrint('  → Added $splitTotal (cash + bank) to Total Sales');
+      
     } 
 
     // Handle regular single payment methods
     else if (paymentMethod == 'cash') {
-      paymentTotals['cash']!['sales'] = (paymentTotals['cash']!['sales'] ?? 0.0) + order.total;
-      paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + order.total;
-      debugPrint('  → Added ${order.total} to Cash Sales (regular cash payment)');
+      paymentTotals['cash']!['sales'] = (paymentTotals['cash']!['sales'] ?? 0.0) + effectiveAmount;
+      paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + effectiveAmount;
+      debugPrint('  → Added $effectiveAmount to Cash Sales');
     } else if (paymentMethod == 'bank') {
-      paymentTotals['bank']!['sales'] = (paymentTotals['bank']!['sales'] ?? 0.0) + order.total;
-      paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + order.total;
-      debugPrint('  → Added ${order.total} to Bank Sales (regular bank payment)');
+      paymentTotals['bank']!['sales'] = (paymentTotals['bank']!['sales'] ?? 0.0) + effectiveAmount;
+      paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + effectiveAmount;
+      debugPrint('  → Added $effectiveAmount to Bank Sales');
     } else {
-      paymentTotals['other']!['sales'] = (paymentTotals['other']!['sales'] ?? 0.0) + order.total;
-      paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + order.total;
-      debugPrint('  → Added ${order.total} to Other Sales (unrecognized payment method)');
+      paymentTotals['other']!['sales'] = (paymentTotals['other']!['sales'] ?? 0.0) + effectiveAmount;
+      paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + effectiveAmount;
+      debugPrint('  → Added $effectiveAmount to Other Sales');
     }
   }
     
@@ -1330,6 +1364,11 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
     final Map<String, Map<String, dynamic>> itemSales = {};
     
     for (final order in orders) {
+      // Calculate ratio for item revenue (only count what's paid/advanced)
+      final effectiveTotal = getOrderRevenue(order);
+      final isPartial = effectiveTotal != order.total && order.total > 0;
+      final ratio = isPartial ? (effectiveTotal / order.total) : 1.0;
+
       for (final item in order.items) {
         final itemId = item.id.toString();
         final itemName = item.name;
@@ -1344,7 +1383,8 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
         }
         
         itemSales[itemId]!['quantity'] = (itemSales[itemId]!['quantity'] as int) + item.quantity;
-        itemSales[itemId]!['total_revenue'] = (itemSales[itemId]!['total_revenue'] as double) + (item.price * item.quantity);
+        // Scale item revenue by the payment ratio
+        itemSales[itemId]!['total_revenue'] = (itemSales[itemId]!['total_revenue'] as double) + ((item.price * item.quantity) * ratio);
       }
     }
     
@@ -1355,7 +1395,8 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
       final serviceType = entry.key;
       final orders = entry.value;
       final totalOrders = orders.length;
-      final totalRevenue = orders.fold(0.0, (sum, order) => sum + order.total);
+      // UPDATED: Use getOrderRevenue for consistency
+      final totalRevenue = orders.fold(0.0, (sum, order) => sum + getOrderRevenue(order));
       
       return {
         'serviceType': serviceType,

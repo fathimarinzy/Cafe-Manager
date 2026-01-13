@@ -4455,6 +4455,14 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       if (orderIndex >= 0) {
         final existingOrder = orders[orderIndex];
         
+        // Logic for catering partial payment
+        final isCatering = existingOrder.serviceType.toLowerCase().contains('catering');
+        // Calculate total paid so far including this payment
+        final currentTotalPaid = (existingOrder.depositAmount ?? 0.0) + totalPaid;
+        final isPartial = isCatering && (currentTotalPaid < amounts['total']! - 0.01);
+        final newStatus = isPartial ? 'pending' : 'completed';
+        final newDeposit = isPartial ? currentTotalPaid : existingOrder.depositAmount;
+
         savedOrder = Order(
           id: existingOrder.id,
           staffDeviceId: existingOrder.staffDeviceId,
@@ -4464,7 +4472,7 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
           tax: amounts['tax']!,
           discount: discountAmount,
           total: amounts['total']!,
-          status: 'completed',
+          status: newStatus,
           createdAt: existingOrder.createdAt,
           customerId: widget.customer?.id ?? existingOrder.customerId,
           paymentMethod: 'bank+cash',
@@ -4479,7 +4487,7 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
           eventType: existingOrder.eventType,
           tokenNumber: existingOrder.tokenNumber,
           customerName: existingOrder.customerName,
-          depositAmount: existingOrder.depositAmount,
+          depositAmount: newDeposit,
         );
         
         savedOrder = await _localOrderRepo.saveOrder(savedOrder);
@@ -4532,7 +4540,7 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       widget.order.id = savedOrder.id ?? 0;
     }
     
-    await _updateOrderStatus('completed');
+    await _updateOrderStatus(savedOrder.status);
     
     // SKIP PRINTING - payment processed without printing
     debugPrint('Split payment processed without printing');
@@ -4621,21 +4629,28 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
         final existingOrder = orders[orderIndex];
         final finalTotal = widget.order.total - discountAmount;
 
-        savedOrder = Order(
-          id: existingOrder.id,
-          staffDeviceId: existingOrder.staffDeviceId,
-          serviceType: existingOrder.serviceType,
-          items: existingOrder.items,
-          subtotal: widget.order.total - (widget.order.total * (widget.taxRate / 100)),
-          tax: widget.order.total * (widget.taxRate / 100),
-          discount: discountAmount,
-          total: finalTotal,
-          status: 'completed',
-          createdAt: existingOrder.createdAt,
-          customerId: widget.customer?.id ?? existingOrder.customerId,
-          paymentMethod: paymentMethod,
-          deliveryCharge: existingOrder.deliveryCharge,
-          deliveryAddress: existingOrder.deliveryAddress,
+          // Logic for catering partial payment
+          final isCatering = existingOrder.serviceType.toLowerCase().contains('catering');
+          final currentTotalPaid = (existingOrder.depositAmount ?? 0.0) + amount;
+          final isPartial = isCatering && (currentTotalPaid < finalTotal - 0.01);
+          final newStatus = isPartial ? 'pending' : 'completed';
+          final newDeposit = isPartial ? currentTotalPaid : existingOrder.depositAmount;
+
+          savedOrder = Order(
+            id: existingOrder.id,
+            staffDeviceId: existingOrder.staffDeviceId,
+            serviceType: existingOrder.serviceType,
+            items: existingOrder.items,
+            subtotal: widget.order.total - (widget.order.total * (widget.taxRate / 100)),
+            tax: widget.order.total * (widget.taxRate / 100),
+            discount: discountAmount,
+            total: finalTotal,
+            status: newStatus,
+            createdAt: existingOrder.createdAt,
+            customerId: widget.customer?.id ?? existingOrder.customerId,
+            paymentMethod: paymentMethod,
+            deliveryCharge: existingOrder.deliveryCharge,
+            deliveryAddress: existingOrder.deliveryAddress,
           deliveryBoy: existingOrder.deliveryBoy,
           eventDate: existingOrder.eventDate,
           eventTime: existingOrder.eventTime,
@@ -4643,7 +4658,7 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
           eventType: existingOrder.eventType,
           tokenNumber: existingOrder.tokenNumber,
           customerName: existingOrder.customerName,
-          depositAmount: existingOrder.depositAmount,
+          depositAmount: newDeposit,
         );
         
         savedOrder = await _localOrderRepo.saveOrder(savedOrder);
@@ -4696,7 +4711,8 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       widget.order.id = savedOrder.id ?? 0;
     }
     
-    final statusUpdated = await _updateOrderStatus('completed');
+    // Use the status from the saved order
+    final statusUpdated = await _updateOrderStatus(savedOrder.status);
     
     if (!statusUpdated) {
       if (mounted) {
@@ -4926,6 +4942,14 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
         if (orderIndex >= 0) {
           final existingOrder = orders[orderIndex];
           
+          // Logic for catering partial payment
+          final isCatering = existingOrder.serviceType.toLowerCase().contains('catering');
+          final finalTotal = widget.order.total - discountAmount;
+          final currentTotalPaid = (existingOrder.depositAmount ?? 0.0) + amount;
+          final isPartial = isCatering && (currentTotalPaid < finalTotal - 0.01);
+          final newStatus = isPartial ? 'pending' : 'completed';
+          final newDeposit = isPartial ? currentTotalPaid : existingOrder.depositAmount;
+
           savedOrder = Order(
             id: existingOrder.id,
             staffDeviceId: existingOrder.staffDeviceId,
@@ -4935,7 +4959,7 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
             tax: widget.order.total * (widget.taxRate / 100),
             discount: discountAmount,
             total: widget.order.total - discountAmount,
-            status: 'completed',
+            status: newStatus,
             createdAt: existingOrder.createdAt,
             customerId: widget.customer?.id ?? existingOrder.customerId,
             paymentMethod: 'cash',
@@ -4948,7 +4972,7 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
             eventType: existingOrder.eventType,
             tokenNumber: existingOrder.tokenNumber,
             customerName: existingOrder.customerName,
-            depositAmount: existingOrder.depositAmount,
+            depositAmount: newDeposit,
           );
           
           savedOrder = await _localOrderRepo.saveOrder(savedOrder);
