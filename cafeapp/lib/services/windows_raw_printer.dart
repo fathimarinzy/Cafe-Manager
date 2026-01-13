@@ -13,15 +13,7 @@ class WindowsRawPrinter {
     bool result = false;
 
     try {
-      // 1. Open Printer
-      final pPrinterName = printerName.toNativeUtf16();
-      final openSuccess = OpenPrinter(pPrinterName, phPrinter, nullptr);
-      calloc.free(pPrinterName);
-      
-      if (openSuccess == 0) {
-        debugPrint('Failed to open printer: $printerName (Error: ${GetLastError()})');
-        return false;
-      }
+     
 
       // 2. Start Document
       final pDocName = jobName.toNativeUtf16();
