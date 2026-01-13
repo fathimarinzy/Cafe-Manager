@@ -24,9 +24,7 @@ class BackupService {
     'cafe_menu.db',
     'cafe_orders.db',
     'cafe_persons.db',
-    'cafe_expenses.db',
-    'cafe_delivery_boys_store.db', // Newly added
-    'credit_transactions.db'      // Newly added
+      // Newly added
   ];
 
   // NOW SUPPORTS ALL PLATFORMS!
