@@ -139,4 +139,18 @@ class LocalDeliveryBoyRepository {
       return false;
     }
   }
+
+
+  // Close the database connection explicitly
+  Future<void> close() async {
+    try {
+      if (_database != null && _database!.isOpen) {
+        await _database!.close();
+        _database = null;
+        debugPrint('Delivery boy database closed successfully');
+      }
+    } catch (e) {
+      debugPrint('Error closing delivery boy database: $e');
+    }
+  }
 }

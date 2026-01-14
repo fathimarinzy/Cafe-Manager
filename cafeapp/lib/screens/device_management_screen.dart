@@ -576,11 +576,11 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
     );
   }
   bool _shouldShowInitialSetup() {
-    // Show initial setup if device sync was never properly configured
-    // Even if company_id exists, if sync isn't enabled, show setup
-    return _companyId.isEmpty || 
-          !_syncEnabled || 
-          (_devices.isEmpty && !_isMainDevice);
+    // Show initial setup if:
+    // 1. Device is not registered (no company_id)
+    // 2. OR Device is not established yet (no devices found AND not marked as main)
+    return _companyId.isEmpty || (_devices.isEmpty && !_isMainDevice);
+
   }
   Widget _buildInitialSetup() {
     return Center(

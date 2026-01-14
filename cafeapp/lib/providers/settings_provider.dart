@@ -11,6 +11,10 @@ class SettingsProvider with ChangeNotifier {
   bool _autoPrintReceipts = true;
   bool _autoPrintKitchenOrders = true;
   String _selectedPrinter = 'Default Printer';
+
+  // Device Sync
+  bool _deviceSyncEnabled = false;
+
   
   // App appearance
   String _appTheme = 'Light';
@@ -57,6 +61,8 @@ String get languageCode {
   bool get autoPrintReceipts => _autoPrintReceipts;
   bool get autoPrintKitchenOrders => _autoPrintKitchenOrders;
   String get selectedPrinter => _selectedPrinter;
+  bool get deviceSyncEnabled => _deviceSyncEnabled;
+
   String get appTheme => _appTheme;
   String get appLanguage => _appLanguage;
   double get taxRate => _taxRate;
@@ -154,6 +160,10 @@ void initializeLanguage() {
       _autoPrintKitchenOrders = prefs.getBool('auto_print_kitchen') ?? _autoPrintKitchenOrders;
       _selectedPrinter = prefs.getString('selected_printer') ?? _selectedPrinter;
       
+      // Load Device Sync
+      _deviceSyncEnabled = prefs.getBool('device_sync_enabled') ?? false; // Default to false if not set
+
+      
       // Load appearance settings
       _appTheme = prefs.getString('app_theme') ?? _appTheme;
       _appLanguage = prefs.getString('app_language') ?? _appLanguage;
@@ -240,6 +250,13 @@ void initializeLanguage() {
             await prefs.setString(key, value);
           }
           break;
+        case 'device_sync_enabled':
+          if (value is bool) {
+            _deviceSyncEnabled = value;
+            await prefs.setBool(key, value);
+          }
+          break;
+
         case 'app_theme':
           if (value is String) {
             _appTheme = value;
@@ -367,6 +384,9 @@ void initializeLanguage() {
     ThemeMode? themeMode,
     bool? isVatInclusive,
 
+    bool? deviceSyncEnabled,
+
+
   }) async {
     _isLoading = true;
     notifyListeners();
@@ -472,6 +492,12 @@ void initializeLanguage() {
         _receiptFooter = receiptFooter;
         await prefs.setString('receipt_footer', receiptFooter);
       }
+      
+      if (deviceSyncEnabled != null) {
+        _deviceSyncEnabled = deviceSyncEnabled;
+        await prefs.setBool('device_sync_enabled', deviceSyncEnabled);
+      }
+
       
       // Trigger sync if needed
       if (isBusinessInfoUpdated) {

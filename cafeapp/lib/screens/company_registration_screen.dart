@@ -208,6 +208,8 @@ Future<void> _registerCompany() async {
     
     await prefs.setBool('company_registered', true);
     await prefs.setBool('device_registered', true);
+    // 🆕 Enable sync by default for offline registration (if internet becomes available later)
+    await prefs.setBool('device_sync_enabled', true);
     debugPrint('✅ Set registration flags in SharedPreferences');
 
     // Set license start date
@@ -781,32 +783,6 @@ Future<void> _verifyFirestoreSync() async {
               ),
               
               const SizedBox(height: 20),
-              
-              // NEW: Sync Status Info (optional, for debugging/user info)
-              FutureBuilder<Map<String, dynamic>>(
-                future: OfflineSyncService.getSyncStatus(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) return const SizedBox.shrink();
-                  
-                  final syncStatus = snapshot.data!;
-                  if (!syncStatus['hasPendingData']) return const SizedBox.shrink();
-                  
-                  return Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue[50],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue[300]!),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.cloud_upload, color: Colors.blue[700], size: 20),
-                        const SizedBox(width: 8),
-                      ],
-                    ),
-                  );
-                },
-              ),
             ],
           ),
         ),

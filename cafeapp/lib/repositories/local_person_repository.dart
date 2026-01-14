@@ -279,4 +279,18 @@ Future<Person?> getPersonById(String id) async {
     return null;
   }
 }
+
+  
+  // Close the database connection explicitly
+  Future<void> close() async {
+    try {
+      if (_database != null && _database!.isOpen) {
+        await _database!.close();
+        _database = null;
+        debugPrint('Person database closed successfully');
+      }
+    } catch (e) {
+      debugPrint('Error closing person database: $e');
+    }
+  }
 }

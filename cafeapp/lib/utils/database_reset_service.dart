@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as path;
+// import 'package:path/path.dart' as path;
 import 'dart:io';
 import 'database_helper.dart';
+
+// Import Repositories to close connections properly
+import '../repositories/local_menu_repository.dart';
+import '../repositories/local_order_repository.dart';
+import '../repositories/local_person_repository.dart';
+import '../repositories/local_expense_repository.dart';
+import '../repositories/credit_transaction_repository.dart';
+import '../repositories/local_delivery_boy_repository.dart';
 
 class DatabaseResetService {
   // Singleton pattern
@@ -26,22 +34,20 @@ class DatabaseResetService {
     try {
       debugPrint('Starting force reset of all databases...');
       
-      // 1. Get the database path
-      final dbPath = await DatabaseHelper.getDatabaseDirectory();
-      debugPrint('Database path: $dbPath');
-      
-      // 2. Make sure all databases are closed by SQLite
+      // 1. Make sure all databases are closed by SQLite
       await _forceCloseDatabases();
       
-      // 3. Delay to ensure all connections are closed
+      // 2. Delay to ensure all connections are closed
       await Future.delayed(const Duration(seconds: 1));
       
-      // 4. Delete each database file with retry logic
+      // 3. Delete each database file with retry logic
       for (final dbFile in _dbFiles) {
-        await _safelyDeleteDatabaseFile(dbPath, dbFile);
+        // CRITICAL FIX: Resolve path individually to ensure portable mode paths are respected
+        final fullPath = await DatabaseHelper.getDatabasePath(dbFile);
+        await _safelyDeleteDatabaseFile(fullPath, dbFile);
       }
       
-      // 5. Clear app cache files as well (optional, but helps with fresh start)
+      // 4. Clear app cache files as well (optional, but helps with fresh start)
       await _clearAppCache();
       
       debugPrint('All databases have been force reset');
@@ -55,16 +61,29 @@ class DatabaseResetService {
   Future<void> _forceCloseDatabases() async {
     try {
       debugPrint('Force closing all database connections...');
+
+      // CRITICAL FIX: Close all repository connections explicitly
+      // This resets the internal static definition of the database in each repository
+      // preventing "DatabaseException(error database_closed)" on restart
+      await LocalMenuRepository().close();
+      await LocalOrderRepository().close();
+      await LocalPersonRepository().close();
+      await LocalExpenseRepository().close();
+      await CreditTransactionRepository().close();
+      await LocalDeliveryBoyRepository().close();
+      debugPrint('All repositories closed');
       
       // This will close all database connections managed by sqflite
-      await databaseFactory.deleteDatabase('dummy.db');
+      try {
+        await databaseFactory.deleteDatabase('dummy.db');
+      } catch (e) {
+        // Ignore dummy delete error
+      }
       
       // For extra safety, try to individually close databases 
-      final dbPath = await DatabaseHelper.getDatabaseDirectory();
-      
       for (final dbFile in _dbFiles) {
         try {
-          final fullPath = path.join(dbPath, dbFile);
+          final fullPath = await DatabaseHelper.getDatabasePath(dbFile);
           if (await File(fullPath).exists()) {
             // Try to close specific database connections
             final db = await openDatabase(fullPath, readOnly: true);
@@ -83,15 +102,16 @@ class DatabaseResetService {
   }
   
   // Safely delete a database file with retry logic
-  Future<void> _safelyDeleteDatabaseFile(String dbPath, String dbFile) async {
-    final fullPath = path.join(dbPath, dbFile);
+  Future<void> _safelyDeleteDatabaseFile(String fullPath, String dbName) async {
     final file = File(fullPath);
     
     // Check if the file exists
     if (!await file.exists()) {
-      debugPrint('Database file does not exist: $dbFile');
+      debugPrint('Database file does not exist: $dbName ($fullPath)');
       return;
     }
+    
+    debugPrint('Attempting to delete database: $fullPath');
     
     // Try to delete with retry logic
     int retryCount = 0;
@@ -101,24 +121,24 @@ class DatabaseResetService {
       try {
         // Try to delete the file
         await file.delete();
-        debugPrint('Successfully deleted database file: $dbFile');
+        debugPrint('Successfully deleted database file: $dbName');
         return;
       } catch (e) {
         retryCount++;
-        debugPrint('Attempt $retryCount to delete $dbFile failed: $e');
+        debugPrint('Attempt $retryCount to delete $dbName failed: $e');
         
         if (retryCount >= maxRetries) {
-          debugPrint('Maximum retries reached for $dbFile');
+          debugPrint('Maximum retries reached for $dbName');
           break;
         }
         
         // Try an alternative approach - delete using databaseFactory
         try {
           await databaseFactory.deleteDatabase(fullPath);
-          debugPrint('Deleted database using databaseFactory: $dbFile');
+          debugPrint('Deleted database using databaseFactory: $dbName');
           return;
         } catch (e2) {
-          debugPrint('Alternative delete method failed for $dbFile: $e2');
+          debugPrint('Alternative delete method failed for $dbName: $e2');
         }
         
         // Wait before retrying
@@ -127,31 +147,51 @@ class DatabaseResetService {
     }
     
     // If we get here, all delete attempts failed
-    debugPrint('WARNING: Failed to delete database file: $dbFile');
+    debugPrint('WARNING: Failed to delete database file: $dbName');
   }
   
   // Clear application cache
   Future<void> _clearAppCache() async {
     try {
       final cacheDir = await getTemporaryDirectory();
+      debugPrint('INFO: Clearing app cache at: ${cacheDir.path}');
       
+      // SAFETY CHECK: Do not delete if path is exactly the system temp root
+      // On Windows, getTemporaryDirectory() usually returns the user's local temp folder
+      // which contains files for ALL apps. We must ONLY delete what belongs to us.
+      if (Platform.isWindows) {
+        // On Windows, we refrain from deleting everything in the temp root
+        // Instead, we only try to delete files that look like they belong to our app
+        // or specific subdirectories if we had created them.
+        // For now, let's just log and skip to prevent "Access Denied" on system files
+        debugPrint('SAFETY: Skipping wholesale temp dir deletion on Windows to avoid system conflicts.');
+        
+        // Option: Delete only specific known patterns if needed
+        // await _deleteSpecificCacheFiles(cacheDir);
+        return; 
+      }
+
       if (await cacheDir.exists()) {
-        // Delete cache directory contents
+        // For mobile platforms (Android/iOS), the cache dir is usually sandboxed, so it's safer.
+        // But still good to be careful.
         final entities = await cacheDir.list().toList();
         
         for (final entity in entities) {
           try {
+             // Skip if it looks like a system directory just in case
             if (entity is File) {
+               // Only delete if we can access it
               await entity.delete();
             } else if (entity is Directory) {
               await entity.delete(recursive: true);
             }
           } catch (e) {
-            debugPrint('Error deleting cache entity ${entity.path}: $e');
+            // Just ignore individual file errors
+            // debugPrint('Note: Could not delete cache entity ${entity.path}');
           }
         }
         
-        debugPrint('App cache cleared');
+        debugPrint('App cache cleared (Safe mode)');
       }
     } catch (e) {
       debugPrint('Error clearing app cache: $e');

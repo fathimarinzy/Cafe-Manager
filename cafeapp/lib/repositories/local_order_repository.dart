@@ -780,4 +780,18 @@ Future<void> printDatabaseContents() async {
   
   debugPrint('\n======== END DATABASE CONTENTS ========\n');
 }
+
+
+  // Close the database connection explicitly
+  Future<void> close() async {
+    try {
+      if (_database != null && _database!.isOpen) {
+        await _database!.close();
+        _database = null;
+        debugPrint('Order database closed successfully');
+      }
+    } catch (e) {
+      debugPrint('Error closing order database: $e');
+    }
+  }
 }

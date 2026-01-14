@@ -28,6 +28,8 @@ import '../services/offline_sync_service.dart';
 import '../services/connectivity_monitor.dart';
 import '../services/online_sync_service.dart';
 import '../services/logo_service.dart';
+import '../services/device_sync_service.dart'; // 🆕 Add this import
+
 
 
 class SettingsScreen extends StatefulWidget {
@@ -64,6 +66,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _autoPrintReceipts = true;
   bool _autoPrintKitchenOrders = true;
   String _selectedPrinter = 'Default Printer';
+  
+  // Device Sync
+  bool _deviceSyncEnabled = false;
+
   
   // UI Mode
   int _selectedUIMode = 5; // Default to Mobile Performance
@@ -480,6 +486,9 @@ Future<void> _checkLicenseStatus() async {
       _autoPrintKitchenOrders = settingsProvider.autoPrintKitchenOrders;
       _selectedPrinter = settingsProvider.selectedPrinter;
       
+      _deviceSyncEnabled = settingsProvider.deviceSyncEnabled;
+
+      
       _taxRateController.text = settingsProvider.taxRate.toString();
       
       _tableRows = settingsProvider.tableRows;
@@ -696,7 +705,23 @@ Future<void> _checkLicenseStatus() async {
         appTheme: _selectedTheme,
         appLanguage: _selectedLanguage,
         serverUrl: _serverUrlController.text,
+        deviceSyncEnabled: _deviceSyncEnabled,
       );
+      
+      // 🆕 Handle dynamic sync toggling
+      if (_deviceSyncEnabled) {
+        final prefs = await SharedPreferences.getInstance();
+        final companyId = prefs.getString('company_id');
+        if (companyId != null && companyId.isNotEmpty) {
+           DeviceSyncService.startAutoSync(companyId);
+           debugPrint('✅ Manual sync enable triggered');
+        }
+      } else {
+        DeviceSyncService.stopAutoSync();
+        debugPrint('🛑 Manual sync disable triggered');
+      }
+
+
       
       if (!mounted) return;
       
@@ -825,6 +850,11 @@ Future<void> _checkLicenseStatus() async {
     });
 
     try {
+      // STOP SYNC SERVICES FIRST
+      // This prevents background syncs from trying to run while we are deleting data
+      DeviceSyncService.stopAutoSync();
+      debugPrint('🛑 Stopped auto sync before reset');
+
       if (mounted) {
         showDialog(
           context: context,
@@ -1125,7 +1155,9 @@ Future<void> _checkLicenseStatus() async {
                   _buildProductSection(),
                   const Divider(),
                   
+                  
                   _buildSectionHeader('Device Management'.tr()),
+
                   _buildDeviceManagementSection(),
                   const Divider(),
 
@@ -2501,7 +2533,12 @@ void _showTaxSettingsDialog() {
         enabled: !_isDemoExpired,
       ),
     );
+
   }
+
+
+
+
   
   Widget _buildSectionHeader(String title) {
     return Padding(
