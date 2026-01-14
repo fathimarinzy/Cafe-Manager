@@ -770,6 +770,15 @@ Future<void> _processAdvance(double amount) async {
 
     await _localOrderRepo.saveOrder(updatedOrder);
     
+    // NEW: Force sync to ensure other devices see the advance payment
+    try {
+      debugPrint('🔄 Force syncing advance payment update...');
+      await DeviceSyncService.syncOrderToFirestore(updatedOrder);
+    } catch (e) {
+      debugPrint('⚠️ Error syncing advance payment: $e');
+      // Non-blocking error, user still sees success locally
+    }
+    
     if (mounted) {
       setState(() {
         _updatedOrder = updatedOrder;
