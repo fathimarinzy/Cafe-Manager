@@ -1,8 +1,9 @@
 import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
+// import 'package:path/path.dart';
 import 'package:flutter/foundation.dart';
 import '../models/delivery_boy.dart';
 import '../services/device_sync_service.dart';
+import '../utils/database_helper.dart';
 
 class LocalDeliveryBoyRepository {
   static Database? _database;
@@ -26,9 +27,8 @@ class LocalDeliveryBoyRepository {
   }
 
   Future<Database> _initDatabase() async {
-    final dbPath = await getDatabasesPath();
     // Changing DB name to force fresh creation and avoid any migration issues
-    final path = join(dbPath, 'cafe_delivery_boys_store.db'); 
+    final path = await DatabaseHelper.getDatabasePath('cafe_delivery_boys_store.db'); 
     
     debugPrint('Initializing delivery boy database at: $path');
 

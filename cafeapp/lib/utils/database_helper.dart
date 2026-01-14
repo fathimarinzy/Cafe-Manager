@@ -78,7 +78,7 @@ class DatabaseHelper {
   }
   
   /// Get the proper database path based on build mode and platform
-  static Future<String> _getDatabasePath(String dbName) async {
+  static Future<String> getDatabasePath(String dbName) async {
   // 🆕 PORTABLE MODE: Check if running from portable location
   if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
     final executableDir = Directory(Platform.resolvedExecutable).parent;
@@ -175,7 +175,7 @@ class DatabaseHelper {
     while (retryCount < maxRetries) {
       try {
         // Use the new path method that handles release vs debug mode
-        final path = await _getDatabasePath(dbName);
+        final path = await getDatabasePath(dbName);
         
         debugPrint('Initializing $dbName at: $path (Attempt ${retryCount + 1})');
         
@@ -260,7 +260,7 @@ class DatabaseHelper {
       // Delete each database file
       for (final dbFile in dbFiles) {
         try {
-          final filePath = await _getDatabasePath(dbFile);
+          final filePath = await getDatabasePath(dbFile);
           final file = File(filePath);
           
           if (await file.exists()) {
@@ -334,12 +334,12 @@ class DatabaseHelper {
   Future<Map<String, dynamic>> getDatabaseInfo() async {
     try {
       final dbDir = await getDatabaseDirectory();
-      final menuPath = await _getDatabasePath(menuDbName);
-      final ordersPath = await _getDatabasePath(ordersDbName);
-      final personsPath = await _getDatabasePath(personsDbName);
-      final expensesPath = await _getDatabasePath(expensesDbName);
-      final creditTransactionsPath = await _getDatabasePath(creditTransactionsDbName);
-      final deliveryBoysStorePath = await _getDatabasePath(deliveryBoysStoreDbName);
+      final menuPath = await getDatabasePath(menuDbName);
+      final ordersPath = await getDatabasePath(ordersDbName);
+      final personsPath = await getDatabasePath(personsDbName);
+      final expensesPath = await getDatabasePath(expensesDbName);
+      final creditTransactionsPath = await getDatabasePath(creditTransactionsDbName);
+      final deliveryBoysStorePath = await getDatabasePath(deliveryBoysStoreDbName);
       
       return {
         'platform': platformName,

@@ -1,9 +1,10 @@
 // lib/repositories/local_person_repository.dart
 import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
+// import 'package:path/path.dart';
 import '../models/person.dart';
 import '../services/device_sync_service.dart';
 import 'package:flutter/foundation.dart';
+import '../utils/database_helper.dart';
 
 class LocalPersonRepository {
   static Database? _database;
@@ -29,8 +30,7 @@ class LocalPersonRepository {
 
   // Initialize database
   Future<Database> _initDatabase() async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'cafe_persons.db');
+    final path = await DatabaseHelper.getDatabasePath('cafe_persons.db');
     
     return await openDatabase(
       path,

@@ -1,8 +1,9 @@
 // lib/repositories/local_menu_repository.dart
 import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
+// import 'package:path/path.dart';
 import '../models/menu_item.dart';
 import 'package:flutter/foundation.dart';
+import '../utils/database_helper.dart';
 
 class LocalMenuRepository {
   static Database? _database;
@@ -44,8 +45,7 @@ class LocalMenuRepository {
     
     while (retryCount < maxRetries) {
       try {
-        final dbPath = await getDatabasesPath();
-        final path = join(dbPath, 'cafe_menu.db');
+        final path = await DatabaseHelper.getDatabasePath('cafe_menu.db');
         
         debugPrint('Initializing menu database at: $path (Attempt ${retryCount + 1})');
         

@@ -15,6 +15,7 @@ import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'desktop_google_drive_service.dart'; // Import the desktop service
 import 'package:device_info_plus/device_info_plus.dart';
+import '../utils/database_helper.dart';
 
 class BackupService {
   static const String backupFileName = 'backup';
@@ -558,7 +559,7 @@ class BackupService {
     final Map<String, dynamic> databasesData = {};
     
     try {
-      final databasesPath = await getDatabasesPath();
+      final databasesPath = await DatabaseHelper.getDatabaseDirectory();
       
       for (final dbName in _databaseFiles) {
         final dbPath = join(databasesPath, dbName);
@@ -638,7 +639,7 @@ class BackupService {
     try {
       for (final dbName in _databaseFiles) {
         try {
-          final databasesPath = await getDatabasesPath();
+          final databasesPath = await DatabaseHelper.getDatabaseDirectory();
           final dbPath = join(databasesPath, dbName);
           
           if (await databaseFactory.databaseExists(dbPath)) {
@@ -656,7 +657,7 @@ class BackupService {
   
   static Future<bool> _restoreDatabases(Map<String, dynamic> databasesData) async {
     try {
-      final databasesPath = await getDatabasesPath();
+      final databasesPath = await DatabaseHelper.getDatabaseDirectory();
       
       for (final dbName in databasesData.keys) {
         if (!_databaseFiles.contains(dbName)) {

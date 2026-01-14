@@ -3,6 +3,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'dart:io';
+import 'database_helper.dart';
 
 class DatabaseResetService {
   // Singleton pattern
@@ -26,7 +27,7 @@ class DatabaseResetService {
       debugPrint('Starting force reset of all databases...');
       
       // 1. Get the database path
-      final dbPath = await getDatabasesPath();
+      final dbPath = await DatabaseHelper.getDatabaseDirectory();
       debugPrint('Database path: $dbPath');
       
       // 2. Make sure all databases are closed by SQLite
@@ -59,7 +60,7 @@ class DatabaseResetService {
       await databaseFactory.deleteDatabase('dummy.db');
       
       // For extra safety, try to individually close databases 
-      final dbPath = await getDatabasesPath();
+      final dbPath = await DatabaseHelper.getDatabaseDirectory();
       
       for (final dbFile in _dbFiles) {
         try {

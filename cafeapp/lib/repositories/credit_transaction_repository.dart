@@ -1,8 +1,9 @@
 import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
+// import 'package:path/path.dart';
 import '../models/credit_transaction.dart';
 import '../services/device_sync_service.dart';
 import 'package:flutter/foundation.dart';
+import '../utils/database_helper.dart';
 
 class CreditTransactionRepository {
   static Database? _database;
@@ -26,8 +27,7 @@ class CreditTransactionRepository {
   }
 
   Future<Database> _initDatabase() async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'credit_transactions.db');
+    final path = await DatabaseHelper.getDatabasePath('credit_transactions.db');
     
     return await openDatabase(
       path,

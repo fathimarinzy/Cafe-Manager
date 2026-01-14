@@ -1,12 +1,13 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
+// import 'package:path/path.dart';
 import '../models/order.dart';
 import '../models/order_item.dart';
 import 'package:flutter/foundation.dart';
 import '../repositories/local_expense_repository.dart';
 import '../repositories/local_menu_repository.dart';
 import '../repositories/local_person_repository.dart';
+import '../utils/database_helper.dart';
 
 class LocalOrderRepository {
   static Database? _database;
@@ -34,8 +35,7 @@ class LocalOrderRepository {
 
   // Initialize database with simplified schema
   Future<Database> _initDatabase() async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'cafe_orders.db');
+    final path = await DatabaseHelper.getDatabasePath('cafe_orders.db');
     
     return await openDatabase(
       path,

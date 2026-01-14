@@ -1,7 +1,8 @@
 // lib/repositories/local_expense_repository.dart
 import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
+// import 'package:path/path.dart';
 import 'package:flutter/foundation.dart';
+import '../utils/database_helper.dart';
 
 class LocalExpenseRepository {
   static Database? _database;
@@ -32,8 +33,7 @@ class LocalExpenseRepository {
     
     while (retryCount < maxRetries) {
       try {
-        final dbPath = await getDatabasesPath();
-        final path = join(dbPath, 'cafe_expenses.db');
+        final path = await DatabaseHelper.getDatabasePath('cafe_expenses.db');
         
         debugPrint('Initializing expense database at: $path (Attempt ${retryCount + 1})');
         
