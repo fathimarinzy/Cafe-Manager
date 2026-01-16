@@ -11,6 +11,7 @@ import '../utils/service_type_utils.dart';
 import 'search_person_screen.dart';
 import '../models/person.dart';
 import '../widgets/clock_widget.dart';
+import '../screens/quotations_list_screen.dart';
 
 
 class OrderListScreen extends StatefulWidget {
@@ -167,6 +168,18 @@ class _OrderListScreenState extends State<OrderListScreen> {
             },
           ),
           actions: [
+            TextButton.icon(
+                icon: const Icon(Icons.description_rounded),
+                label: Text('Quotations List'.tr()),
+                onPressed: () {
+                 Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const QuotationsListScreen()),
+                );
+                },
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.yellow[800],
+                ),
+              ),
             // Refresh Button
             IconButton(
               icon: const Icon(Icons.refresh),

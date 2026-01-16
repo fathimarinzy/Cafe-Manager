@@ -1006,12 +1006,23 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
 
   // Landscape layout 
   Widget _buildLandscapeLayout(MenuProvider menuProvider, OrderProvider orderProvider, List<MenuItem> displayedItems) {
+    // Dynamic responsive sizing for all tablet/desktop screens
+    final screenWidth = MediaQuery.of(context).size.width;
+    
+    // Calculate constrained widths to adapt to any screen size
+    // Sidebar: 20-25% of width, min 180, max 260
+    final double sidebarWidth = (screenWidth * 0.22).clamp(180.0, 260.0);
+    
+    // Order Panel: 30-35% of width, min 280, max 340
+    // On very small tablets (e.g. 7-8" landscape), we prioritise the grid space
+    final double orderPanelWidth = (screenWidth * 0.32).clamp(280.0, 340.0);
+    
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch, 
       children: [
         // Categories sidebar
         Container(
-          width: 250,
+          width: sidebarWidth,
           color: Colors.grey.shade50,
           child: _buildCategorySidebarContent(menuProvider.categories),
         ),
@@ -1019,7 +1030,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
           width: 1.0,
           color: Colors.grey.shade300,
         ),
-        // Product grid
+        // Product grid - flexible middle area
         Expanded(
           flex: 3,
           child: Column(
@@ -1029,7 +1040,9 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
               Expanded(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
-                    : _buildProductGrid(displayedItems, orderProvider, crossAxisCount: _menuColumns), // More columns in landscape
+                    // Pass the calculated widths to help grid decision if needed, 
+                    // though LayoutBuilder in _buildProductGrid handles the constraints.
+                    : _buildProductGrid(displayedItems, orderProvider, crossAxisCount: _menuColumns),
               ),
             ],
           ),
@@ -1039,7 +1052,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
           color: Colors.grey.shade300,
         ),
         // Order panel
-        _buildOrderPanel(orderProvider, isPortrait: false),
+        _buildOrderPanel(orderProvider, isPortrait: false, width: orderPanelWidth),
       ],
     );
   }
@@ -1178,15 +1191,16 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                 if (screenWidth < 600) {
                   // Mobile (Phone)
                   responsiveColumns = 2;
-                } // else if (screenWidth >= 600 && screenWidth < 1000) {
-                   // Tablet Portrait: Use user's saved preference
-                   // responsiveColumns = 4;
-                // } else if (screenWidth >= 1000) {
-                   // Tablet Landscape / Desktop: Use user's saved preference
-                   // responsiveColumns = 4;
-                  
-                  // Optional: Extra check for very small devices? 
-                  // if (availableWidth < 300) responsiveColumns = 1;
+                } else {
+                  // Tablet/Desktop: Adapt to available space
+                  // If the grid has limited space (e.g. landscape tablet with sidebars), reduce columns
+                  if (availableWidth < 300) {
+                    responsiveColumns = 2;
+                  } else if (availableWidth < 500) {
+                     // Ensure we don't exceed the user's preference, but at least show 3 if space allows, or user pref if lower
+                    responsiveColumns = crossAxisCount > 3 ? 3 : crossAxisCount;
+                  }
+                }
  
                 // For Tablet/Desktop (>= 600), we simply respect the 'responsiveColumns' 
                 // which is initialized to 'crossAxisCount' (the user's layout preference).
@@ -1728,14 +1742,14 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
   }
 
   // Order Panel Widget
-  Widget _buildOrderPanel(OrderProvider orderProvider, {bool isPortrait = true, bool isMobileSheet = false}) {
+  Widget _buildOrderPanel(OrderProvider orderProvider, {bool isPortrait = true, bool isMobileSheet = false, double? width}) {
     final settingsProvider = Provider.of<SettingsProvider>(context);
 
     // If it's a mobile sheet, we want to expand to fill the available space (modal)
     // If it's portrait/landscape desktop, we use fixed sizes usually
     
     return Container(
-      width: isMobileSheet ? double.infinity : 350, // Full width for mobile sheet, fixed for desktop
+      width: isMobileSheet ? double.infinity : (width ?? 350), // Responsive width support
       color: Colors.white,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

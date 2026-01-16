@@ -2,7 +2,7 @@ import 'dart:io';
 // import 'package:cafeapp/models/order.dart';
 import 'package:cafeapp/providers/auth_provider.dart';
 import 'package:cafeapp/providers/logo_provider.dart';
-import 'package:cafeapp/screens/device_management_screen.dart';
+// import 'package:cafeapp/screens/device_management_screen.dart';
 import 'package:cafeapp/screens/login_screen.dart';
 import 'package:cafeapp/screens/report_screen.dart';
 import 'package:flutter/material.dart';
@@ -660,27 +660,27 @@ class _DashboardScreenState extends State<DashboardScreen>
                 // UI Toggle
 
                 SizedBox(width: isTablet ? 12 : 8),
-                IconButton(
-                  icon: Icon(
-                    Icons.devices,
-                    color: const Color(0xFF667eea),
-                    size: isTablet ? 24 : 20,
-                  ),
-                  onPressed: () async {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const DeviceManagementScreen(),
-                      ),
-                    );
-                  },
-                  tooltip: 'Device Management'.tr(),
-                  style: IconButton.styleFrom(
-                    backgroundColor: const Color(0xFFF5F7FA),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
+                // IconButton(
+                //   icon: Icon(
+                //     Icons.devices,
+                //     color: const Color(0xFF667eea),
+                //     size: isTablet ? 24 : 20,
+                //   ),
+                //   onPressed: () async {
+                //     Navigator.of(context).push(
+                //       MaterialPageRoute(
+                //         builder: (context) => const DeviceManagementScreen(),
+                //       ),
+                //     );
+                //   },
+                //   tooltip: 'Device Management'.tr(),
+                //   style: IconButton.styleFrom(
+                //     backgroundColor: const Color(0xFFF5F7FA),
+                //     shape: RoundedRectangleBorder(
+                //       borderRadius: BorderRadius.circular(12),
+                //     ),
+                //   ),
+                // ),
                 SizedBox(width: isTablet ? 12 : 8),
                 IconButton(
                   icon: Icon(
@@ -1133,6 +1133,23 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   void _navigateToServiceFromSidebar(SidebarServiceItem service, OrderProvider orderProvider) {
+    if (service.title == 'delivery') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (context) => const DeliverySetupScreen()),
+      );
+      return;
+    } else if (service.title == 'catering') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (context) => const CateringSetupScreen()),
+      );
+      return;
+    } else if (service.title == 'driveThrough') {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (context) => const DriveThroughScreen()),
+      );
+      return;
+    }
+    
     if (service.isDining) {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (context) => const DiningTableScreen()),
@@ -1228,24 +1245,24 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
           ),
 
-          Container(
-            margin: const EdgeInsets.only(right: 12),
-            decoration: BoxDecoration(
-                color: Colors.white.withAlpha(51),
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.devices, color: Colors.white, size: 24),
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const DeviceManagementScreen(),
-                    ),
-                  );
-                },
-                tooltip: 'Device Management',
-              ),
-            ),
+          // Container(
+          //   margin: const EdgeInsets.only(right: 12),
+          //   decoration: BoxDecoration(
+          //       color: Colors.white.withAlpha(51),
+          //       borderRadius: BorderRadius.circular(15),
+          //     ),
+          //     child: IconButton(
+          //       icon: const Icon(Icons.devices, color: Colors.white, size: 24),
+          //       onPressed: () {
+          //         Navigator.of(context).push(
+          //           MaterialPageRoute(
+          //             builder: (context) => const DeviceManagementScreen(),
+          //           ),
+          //         );
+          //       },
+          //       tooltip: 'Device Management',
+          //     ),
+          // ),
            Container(
             margin: const EdgeInsets.only(right: 12),
             decoration: BoxDecoration(
@@ -1510,17 +1527,17 @@ class _DashboardScreenState extends State<DashboardScreen>
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
 
-          IconButton(
-            icon: const Icon(Icons.devices),
-            tooltip: 'Device Management'.tr(),
-            onPressed: () async {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const DeviceManagementScreen(),
-                ),
-              );
-            },
-          ),
+          // IconButton(
+          //   icon: const Icon(Icons.devices),
+          //   tooltip: 'Device Management'.tr(),
+          //   onPressed: () async {
+          //     Navigator.of(context).push(
+          //       MaterialPageRoute(
+          //         builder: (context) => const DeviceManagementScreen(),
+          //       ),
+          //     );
+          //   },
+          // ),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Logout'.tr(),
@@ -1795,17 +1812,17 @@ Widget _buildCardStyleUI() {
           tooltip: _isCardStyleDarkMode ? 'Light Mode' : 'Dark Mode',
         ),
 
-        IconButton(
-          icon: Icon(Icons.devices, color: iconColor),
-          onPressed: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => const DeviceManagementScreen(),
-              ),
-            );
-          },
-          tooltip: 'Device Management',
-        ),
+        // IconButton(
+        //   icon: Icon(Icons.devices, color: iconColor),
+        //   onPressed: () {
+        //     Navigator.of(context).push(
+        //       MaterialPageRoute(
+        //         builder: (context) => const DeviceManagementScreen(),
+        //       ),
+        //     );
+        //   },
+        //   tooltip: 'Device Management',
+        // ),
         IconButton(
             icon: Icon(Icons.logout, color: iconColor),
             onPressed: _showLogoutDialogWithReport,
@@ -2666,7 +2683,7 @@ void _showLogoutDialogWithReport() {
   }
 
   void _navigateToServiceCardStyle(String title, Color color, bool isDining) {
-    if (title == 'Delivery') {
+    if (title == 'Delivery' || title == 'delivery') {
       Navigator.of(context).push(
         NoAnimationPageRoute(
            builder: (ctx) => const DeliverySetupScreen(),
@@ -2676,11 +2693,21 @@ void _showLogoutDialogWithReport() {
       return;
     }
 
-    if (title == 'Catering') {
+    if (title == 'Catering' || title == 'catering') {
+      Navigator.of(context).push(
+         NoAnimationPageRoute(
+            builder: (ctx) => const CateringSetupScreen(),
+            settings: const RouteSettings(name: 'CateringSetupScreen'),
+         ),
+       );
+       return;
+    }
+
+    if (title == 'driveThrough') {
       Navigator.of(context).push(
         NoAnimationPageRoute(
-           builder: (ctx) => const CateringSetupScreen(),
-           settings: const RouteSettings(name: 'CateringSetupScreen'),
+          builder: (ctx) => const DriveThroughScreen(),
+          settings: const RouteSettings(name: 'DriveThroughScreen'),
         ),
       );
       return;
@@ -2739,6 +2766,59 @@ void _showLogoutDialogWithReport() {
   void _navigateToService(ServiceItem service) {
     final orderProvider = Provider.of<OrderProvider>(context, listen: false);
 
+    if (service.title == 'delivery') {
+      Navigator.of(context).push(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => const DeliverySetupScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return SlideTransition(
+              position: animation.drive(
+                Tween(begin: const Offset(1.0, 0.0), end: Offset.zero)
+                    .chain(CurveTween(curve: Curves.easeInOutCubic)),
+              ),
+              child: child,
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 300),
+        ),
+      );
+      return;
+    } else if (service.title == 'catering') {
+      Navigator.of(context).push(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => const CateringSetupScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return SlideTransition(
+              position: animation.drive(
+                Tween(begin: const Offset(1.0, 0.0), end: Offset.zero)
+                    .chain(CurveTween(curve: Curves.easeInOutCubic)),
+              ),
+              child: child,
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 300),
+        ),
+      );
+      return;
+    } else if (service.title == 'driveThrough') {
+      Navigator.of(context).push(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => const DriveThroughScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return SlideTransition(
+              position: animation.drive(
+                Tween(begin: const Offset(1.0, 0.0), end: Offset.zero)
+                    .chain(CurveTween(curve: Curves.easeInOutCubic)),
+              ),
+              child: child,
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 300),
+        ),
+      );
+      return;
+    }
+
     if (service.isDining) {
       Navigator.of(context).push(
         PageRouteBuilder(
@@ -2794,6 +2874,29 @@ void _showLogoutDialogWithReport() {
 
   void _navigateToServiceClassic(String title, Color color, bool isDining) {
     final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+
+    if (title == 'delivery') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (ctx) => const DeliverySetupScreen(),
+        ),
+      );
+      return;
+    } else if (title == 'catering') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (ctx) => const CateringSetupScreen(),
+        ),
+      );
+      return;
+    } else if (title == 'driveThrough') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (ctx) => const DriveThroughScreen(),
+        ),
+      );
+      return;
+    }
 
     if (isDining) {
       Navigator.of(context).push(

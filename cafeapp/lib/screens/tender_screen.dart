@@ -773,7 +773,7 @@ Future<void> _processAdvance(double amount) async {
     // NEW: Force sync to ensure other devices see the advance payment
     try {
       debugPrint('🔄 Force syncing advance payment update...');
-      await DeviceSyncService.syncOrderToFirestore(updatedOrder);
+      await DeviceSyncService.syncOrderUpdate(updatedOrder);
     } catch (e) {
       debugPrint('⚠️ Error syncing advance payment: $e');
       // Non-blocking error, user still sees success locally
@@ -2213,7 +2213,10 @@ void _showSplitPaymentDialog() {
   }
 
   Future<void> _showDiscountDialog() async{
-    final currentTotal = widget.order.total;
+    // Use updated order logic if available (e.g. if advance was just paid)
+    final total = _updatedOrder?.total ?? widget.order.total;
+    final deposit = _updatedOrder?.depositAmount ?? widget.order.depositAmount ?? 0.0;
+    final currentBalance = total - deposit;
     
     showDialog(
       context: context,
@@ -2227,6 +2230,11 @@ void _showSplitPaymentDialog() {
         return StatefulBuilder(
           builder: (context, setState) {
             discountAmount = double.tryParse(discountInput) ?? 0.0;
+            
+            // If we have a deposit, we should talk about "Balance", not "Total"
+            final isCateringWithDeposit = deposit > 0;
+            final labelCurrent = isCateringWithDeposit ? 'Current Balance'.tr() : 'Current Total'.tr();
+            final labelNew = isCateringWithDeposit ? 'New Balance'.tr() : 'New Total'.tr();
             
             return Material(
               type: MaterialType.transparency,
@@ -2290,9 +2298,9 @@ void _showSplitPaymentDialog() {
                                     children: [
                                       Row(
                                         children: [
-                                          Text('${'Current Total'.tr()}: ', style: const TextStyle(fontSize: 16)),
+                                          Text('$labelCurrent: ', style: const TextStyle(fontSize: 16)),
                                           Text(
-                                            currentTotal.toStringAsFixed(3),
+                                            currentBalance.toStringAsFixed(3),
                                             style: const TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: 16,
@@ -2309,9 +2317,9 @@ void _showSplitPaymentDialog() {
                                       
                                       Row(
                                         children: [
-                                          Text('${'New Total'.tr()}: ', style: const TextStyle(fontSize: 16)),
+                                          Text('$labelNew: ', style: const TextStyle(fontSize: 16)),
                                           Text(
-                                            (currentTotal - discountAmount).toStringAsFixed(3),
+                                            (currentBalance - discountAmount).toStringAsFixed(3),
                                             style: TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: 16,

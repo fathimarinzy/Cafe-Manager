@@ -1235,9 +1235,9 @@ Future<void> _checkLicenseStatus() async {
                             items: [
                               const DropdownMenuItem(value: 5, child: Text('Mobile Performance')),
                               const DropdownMenuItem(value: 4, child: Text('Ultimate (Dark)')),
-                              const DropdownMenuItem(value: 0, child: Text('Classic Grid')),
-                              const DropdownMenuItem(value: 2, child: Text('Modern')),
-                              const DropdownMenuItem(value: 1, child: Text('Sidebar')),
+                              const DropdownMenuItem(value: 1, child: Text('Classic Grid')),
+                              const DropdownMenuItem(value: 2, child: Text('Sidebar')),
+                              const DropdownMenuItem(value: 0, child: Text('Modern')),
                               const DropdownMenuItem(value: 3, child: Text('Card Style')),
                             ],
                             underline: Container(),
@@ -1771,7 +1771,7 @@ Future<void> _checkLicenseStatus() async {
     child: ListTile(
       leading: Icon(Icons.devices, color: _isDemoExpired ? Colors.grey : Colors.blue[700]),
       title: Text('Device Sync'.tr()),
-      subtitle: Text('Manage devices and enable order syncing'.tr()),
+      subtitle: Text('Manage devices and enable syncing'.tr()),
       trailing: _isDemoExpired ? null : const Icon(Icons.arrow_forward_ios, size: 16),
       onTap: _isDemoExpired ? null : () {
         Navigator.of(context).push(
@@ -2557,9 +2557,9 @@ void _showTaxSettingsDialog() {
     switch (mode) {
       case 5: return 'Mobile Performance';
       case 4: return 'Ultimate (Dark)';
-      case 0: return 'Classic Grid';
-      case 2: return 'Modern';
-      case 1: return 'Sidebar';
+      case 1: return 'Classic Grid';
+      case 0: return 'Modern';
+      case 2: return 'Sidebar';
       case 3: return 'Card Style';
       default: return 'Unknown';
     }
