@@ -429,7 +429,7 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
       builder: (ctx) => AlertDialog(
         title: Text('Set Main Device'.tr()),
         content: Text(
-          'Set "${device.deviceName}" as the main device? This device will be able to generate link codes for devices.'.tr(),
+          'Set as Main Device Confirmation'.tr().replaceAll('%name%', device.deviceName),
         ),
         actions: [
           TextButton(
@@ -484,7 +484,7 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
       builder: (ctx) => AlertDialog(
         title: Text('Remove Device'.tr()),
         content: Text(
-          'Remove "${device.deviceName}" from syncing? This device will no longer receive anything.'.tr(),
+          'Remove Device Confirmation'.tr().replaceAll('%name%', device.deviceName),
         ),
         actions: [
           TextButton(

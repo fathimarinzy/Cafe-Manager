@@ -1,3 +1,4 @@
+import 'package:cafeapp/utils/app_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -22,6 +23,7 @@ class DashboardMobile extends StatefulWidget {
   final VoidCallback? onExpensesTap;
   final VoidCallback? onLogoutTap;
   final String businessName;
+  final String secondbusinessName;
 
   const DashboardMobile({
     super.key,
@@ -39,6 +41,7 @@ class DashboardMobile extends StatefulWidget {
     this.onExpensesTap,
     this.onLogoutTap,
     this.businessName = "SIMS CAFE",
+    this.secondbusinessName = "",
   });
 
   @override
@@ -129,17 +132,18 @@ class _DashboardMobileState extends State<DashboardMobile> {
                 children: [
                   const Icon(Icons.local_cafe, color: Colors.white, size: 40),
                   const SizedBox(height: 10),
-                  Text(widget.businessName.isNotEmpty ? '${widget.businessName} Manager' : 'SIMS CAFE', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                  Text('Mobile Performance Mode', style: TextStyle(color: Colors.white.withAlpha(127), fontSize: 12)),
+                  Text(widget.businessName.isNotEmpty ? widget.businessName : 'SIMS CAFE', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(widget.secondbusinessName.isNotEmpty ? widget.secondbusinessName : '', style: TextStyle(color: Colors.white.withAlpha(127), fontSize: 12)),
+                  // Text('Mobile Performance Mode'.tr(), style: TextStyle(color: Colors.white.withAlpha(127), fontSize: 12)),
                 ],
               ),
             ),
-            _buildDrawerItem(Icons.bar_chart, 'Reports', widget.onReportsTap),
-            _buildDrawerItem(Icons.attach_money, 'Expenses', widget.onExpensesTap),
-            _buildDrawerItem(Icons.settings, 'Settings', widget.onSettingsTap),
+            _buildDrawerItem(Icons.bar_chart, 'Reports'.tr(), widget.onReportsTap),
+            _buildDrawerItem(Icons.attach_money, 'Expenses'.tr(), widget.onExpensesTap),
+            _buildDrawerItem(Icons.settings, 'Settings'.tr(), widget.onSettingsTap),
             const Divider(color: Colors.grey),
 
-            _buildDrawerItem(Icons.logout, 'Logout', widget.onLogoutTap, isDestructive: true),
+            _buildDrawerItem(Icons.logout, 'Logout'.tr(), widget.onLogoutTap, isDestructive: true),
           ],
         ),
       ),
@@ -172,11 +176,11 @@ class _DashboardMobileState extends State<DashboardMobile> {
                        return Row(
                          children: [
                            Expanded(
-                             child: _buildStatItem('Today', todayOrders.toString(), Colors.green),
+                             child: _buildStatItem('Today'.tr(), todayOrders.toString(), Colors.green),
                            ),
                            Container(width: 1, height: 40, color: Colors.white.withAlpha(25)),
                            Expanded(
-                             child: _buildStatItem('Pending', pendingOrders.toString(), Colors.orange),
+                             child: _buildStatItem('Pending'.tr(), pendingOrders.toString(), Colors.orange),
                            ),
                          ],
                        );
@@ -190,7 +194,7 @@ class _DashboardMobileState extends State<DashboardMobile> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                const Text('Services', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                Text('Services'.tr(), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
                 
                 // Services Grid
@@ -202,12 +206,12 @@ class _DashboardMobileState extends State<DashboardMobile> {
                   mainAxisSpacing: 12,
                   childAspectRatio: 1.5,
                   children: [
-                    _buildServiceCard('Dining', Icons.restaurant, const Color(0xFF3B82F6), widget.onDiningTap),
-                    _buildServiceCard('Delivery', Icons.delivery_dining, const Color(0xFFFF7D29), widget.onDeliveryTap),
-                    _buildServiceCard('Takeout', Icons.local_mall, const Color(0xFF00E676), widget.onTakeoutTap),
-                    _buildServiceCard('Online', Icons.devices, const Color(0xFF00E5FF), widget.onDelivery2Tap),
-                    _buildServiceCard('Drive Thru', Icons.drive_eta, const Color(0xFFFF2E63), widget.onDriveThroughTap),
-                    _buildServiceCard('Catering', Icons.room_service, const Color(0xFFFFD700), widget.onCateringTap),
+                    _buildServiceCard('Dining'.tr(), Icons.restaurant, const Color(0xFF3B82F6), widget.onDiningTap),
+                    _buildServiceCard('Delivery'.tr(), Icons.delivery_dining, const Color(0xFFFF7D29), widget.onDeliveryTap),
+                    _buildServiceCard('Takeout'.tr(), Icons.local_mall, const Color(0xFF00E676), widget.onTakeoutTap),
+                    _buildServiceCard('Online'.tr(), Icons.devices, const Color(0xFF00E5FF), widget.onDelivery2Tap),
+                    _buildServiceCard('Drive Thru'.tr(), Icons.drive_eta, const Color(0xFFFF2E63), widget.onDriveThroughTap),
+                    _buildServiceCard('Catering'.tr(), Icons.room_service, const Color(0xFFFFD700), widget.onCateringTap),
                   ],
                 ),
                 
@@ -216,8 +220,8 @@ class _DashboardMobileState extends State<DashboardMobile> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Actions', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                    TextButton(onPressed: widget.onOrdersTap, child: const Text('View All'))
+                    Text('Actions'.tr(), style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                     TextButton(onPressed: widget.onOrdersTap, child:  Text('View All'.tr()))
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -239,10 +243,10 @@ class _DashboardMobileState extends State<DashboardMobile> {
                        ),
                        child: Row(
                          mainAxisAlignment: MainAxisAlignment.center,
-                         children: const [
+                         children:  [
                            Icon(Icons.list_alt, size: 28, color: Colors.white),
                            SizedBox(width: 12),
-                           Text('Order List', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                           Text('Order List'.tr(), style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
                          ],
                        ),
                      ),

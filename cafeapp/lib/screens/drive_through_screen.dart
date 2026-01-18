@@ -1,7 +1,9 @@
+import 'package:cafeapp/utils/app_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/order_provider.dart';
 import 'menu_screen.dart';
+
 
 class DriveThroughScreen extends StatefulWidget {
   const DriveThroughScreen({super.key});
@@ -71,9 +73,9 @@ class _DriveThroughScreenState extends State<DriveThroughScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: const Text(
-          'Drive Through Management',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        title:  Text(
+          'Drive Through Management'.tr(),
+          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, color: Colors.black),
@@ -92,7 +94,7 @@ class _DriveThroughScreenState extends State<DriveThroughScreen> {
                  const Icon(Icons.queue_rounded, color: Colors.black54, size: 18),
                  const SizedBox(width: 8),
                  Text(
-                   'Length: ${_vehicles.length}',
+                   '${'Length: '.tr()}${_vehicles.length}',
                    style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
                  ),
                ],
@@ -166,26 +168,26 @@ class _DriveThroughScreenState extends State<DriveThroughScreen> {
       mainAxisSize: MainAxisSize.min, // Important for mobile column
       children: [
         if (!isMobile) ...[
-          const Text(
-            "New Vehicle Entry",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+          Text(
+            "New Vehicle Entry".tr(),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
           ),
           const SizedBox(height: 8),
-          const Text(
-            "Enter vehicle details to add to queue",
-            style: TextStyle(fontSize: 14, color: Colors.grey),
+          Text(
+            "Enter vehicle details to add to queue".tr(),
+            style: const TextStyle(fontSize: 14, color: Colors.grey),
           ),
           const SizedBox(height: 32),
         ],
         
         // Vehicle Number Input
-        const Text("Vehicle Number", style: TextStyle(fontWeight: FontWeight.w600)),
+        Text("Vehicle Number".tr(), style: const TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         TextField(
           controller: _numberController,
           textCapitalization: TextCapitalization.characters,
           decoration: InputDecoration(
-            hintText: "e.g. KL-01-AB-1234",
+            hintText: "e.g. KL-01-AB-1234".tr(),
             filled: true,
             fillColor: const Color(0xFFF9FAFB),
             border: OutlineInputBorder(
@@ -204,7 +206,7 @@ class _DriveThroughScreenState extends State<DriveThroughScreen> {
         SizedBox(height: isMobile ? 16 : 24),
         
         // Vehicle Type Selector
-        const Text("Vehicle Type", style: TextStyle(fontWeight: FontWeight.w600)),
+        Text("Vehicle Type".tr(), style: const TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 12),
         SizedBox( // Constrain height/width for horizontal scrolling if needed, or wrap
           width: double.infinity,
@@ -236,7 +238,7 @@ class _DriveThroughScreenState extends State<DriveThroughScreen> {
                           Icon(type['icon'], color: isSelected ? color : Colors.grey, size: 20),
                           const SizedBox(width: 8),
                           Text(
-                            type['label'],
+                            type['label'].toString().tr(),
                             style: TextStyle(
                               color: isSelected ? color : Colors.grey,
                               fontWeight: FontWeight.bold,
@@ -269,7 +271,7 @@ class _DriveThroughScreenState extends State<DriveThroughScreen> {
               elevation: 4,
             ),
             icon: const Icon(Icons.add_rounded),
-            label: const Text("Add to Queue", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            label: Text("Add to Queue".tr(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           ),
         ),
       ],
@@ -280,9 +282,9 @@ class _DriveThroughScreenState extends State<DriveThroughScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          "Active Queue",
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+         Text(
+          "Active Queue".tr(),
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
         ),
         const SizedBox(height: 16),
         
@@ -295,7 +297,7 @@ class _DriveThroughScreenState extends State<DriveThroughScreen> {
                    Icon(Icons.drive_eta_rounded, size: 60, color: Colors.grey.shade300),
                    const SizedBox(height: 16),
                    Text(
-                      "No vehicles in queue",
+                      "No vehicles in queue".tr(),
                       style: TextStyle(fontSize: 16, color: Colors.grey.shade400, fontWeight: FontWeight.w500),
                    ),
                  ],

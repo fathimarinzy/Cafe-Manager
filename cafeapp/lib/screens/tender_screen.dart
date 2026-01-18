@@ -112,8 +112,10 @@ class _TenderScreenState extends State<TenderScreen> {
     _orderStatus = widget.order.status;
     
     if (widget.preselectedPaymentMethod != null) {
-      _selectedPaymentMethod = widget.preselectedPaymentMethod;
-      _isCashSelected = _selectedPaymentMethod == 'Cash';
+      // FIX: Translate the incoming English method to match UI expectations
+      // This ensures 'Cash' becomes 'نقد' in Arabic so string comparisons pass
+      _selectedPaymentMethod = widget.preselectedPaymentMethod!.tr();
+      _isCashSelected = _selectedPaymentMethod == 'Cash'.tr();
     }
      
     if (!_serviceTotals.containsKey(_currentServiceType)) {
@@ -464,7 +466,7 @@ Future<void> _reprintMainReceipt() async {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error reprinting receipt: ${e.toString()}'.tr()),
+          content: Text('${'Error reprinting receipt'.tr()}: ${e.toString()}'),
           backgroundColor: Colors.red,
         ),
       );
@@ -508,7 +510,7 @@ Future<bool?> _showSavePdfDialog() {
   } catch (e) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error generating bill preview: $e'.tr())),
+        SnackBar(content: Text('${'Error generating bill preview'.tr()}: $e')),
       );
     }
   } finally {
@@ -575,7 +577,7 @@ Future<void> _showDesktopBillPreview(pw.Document pdf) async {
                     const Icon(Icons.picture_as_pdf, size: 80, color: Colors.grey),
                     const SizedBox(height: 24),
                     Text(
-                      'Receipt #${widget.order.orderNumber}'.tr(),
+                      '${'Receipt #'.tr()}${widget.order.orderNumber}',
                       style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 16),
@@ -802,7 +804,7 @@ Future<void> _processAdvance(double amount) async {
         _isProcessing = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error recording advance: $e'.tr())),
+        SnackBar(content: Text('${'Error recording advance'.tr()}: $e')),
       );
     }
   }
@@ -1962,26 +1964,34 @@ void _showSplitPaymentDialog() {
     }
   }
   Future<bool> _updateOrderStatus(String status) async {
-    setState(() {
-      _isProcessing = true;
-    });
-    
     try {
-      final orders = await _localOrderRepo.getAllOrders();
-      // Use _updatedOrder if available (e.g. newly created order)
+      // Use _updatedOrder if available (e.g. newly created order), otherwise use widget.order
       final targetId = _updatedOrder?.id ?? widget.order.id;
-      final orderIndex = orders.indexWhere((o) => o.id == targetId);
       
-      if (orderIndex >= 0) {
-        final order = orders[orderIndex];
-        
-        // Use copyWith to preserve all fields including depositAmount
-        final updatedOrder = order.copyWith(status: status);
-        
-        await _localOrderRepo.saveOrder(updatedOrder);
-
-        // ✅ SYNC: Sync the status update to Firestore
-        await DeviceSyncService.syncOrderToFirestore(updatedOrder);
+      if (targetId == 0) {
+        debugPrint('Cannot update order status: invalid order ID');
+        return false;
+      }
+      
+      // ✅ FIX: Use atomic updateOrderStatus instead of getAllOrders + saveOrder
+      // This prevents database locking issues
+      final success = await _localOrderRepo.updateOrderStatus(targetId, status);
+      
+      if (success) {
+        // ✅ SYNC: Sync the status update to Firestore in background
+        // Don't await this call - let it run in background to prevent UI hanging
+        // Use getOrderById instead of getAllOrders for efficiency
+        _localOrderRepo.getOrderById(targetId).then((updatedOrder) {
+          if (updatedOrder != null) {
+            DeviceSyncService.syncOrderToFirestore(updatedOrder).then((_) {
+              debugPrint('Background sync completed for order #$targetId status update');
+            }).catchError((e) {
+              debugPrint('Background sync error for order #$targetId: $e');
+            });
+          }
+        }).catchError((e) {
+          debugPrint('Error fetching order for sync: $e');
+        });
         
         if (mounted) {
           setState(() {
@@ -2000,12 +2010,6 @@ void _showSplitPaymentDialog() {
     } catch (e) {
       debugPrint('Error updating order status: $e');
       return false;
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
-      }
     }
   }
   Future<void> _processPayment(double amount, [double change = 0.0]) async {
@@ -2675,7 +2679,13 @@ void _showSplitPaymentDialog() {
   final remainingAmount = discountedTotal - depositAmount;
   
   _receivedAmountController.text = remainingAmount.toStringAsFixed(3);
+  _receivedAmountController.selection = TextSelection.fromPosition(
+    TextPosition(offset: _receivedAmountController.text.length),
+  ); // Ensure cursor is at end
   _selectedCardType = 'VISA';
+  
+  // Platform check for responsive layout
+  final isDesktop = Platform.isWindows || Platform.isLinux || Platform.isMacOS;
   
   showDialog(
     context: context,
@@ -2690,11 +2700,18 @@ void _showSplitPaymentDialog() {
           final screenWidth = MediaQuery.of(context).size.width;
           final screenHeight = MediaQuery.of(context).size.height;
           
+          // RESPONSIVE WIDTH FIX:
+          // Desktop (Windows): Keep 80% (Original)
+          // Tablet/Mobile Landscape: Increase to 95% to prevent squeezing
+          final dialogWidth = isPortrait 
+              ? screenWidth * 0.95 
+              : (isDesktop ? screenWidth * 0.8 : screenWidth * 0.96);
+          
           return Dialog(
-            insetPadding: EdgeInsets.all(isPortrait ? 10 : 20),
+            insetPadding: EdgeInsets.all(isPortrait ? 10 : (isDesktop ? 20 : 8)),
             child: Container(
-              width: isPortrait ? screenWidth * 0.95 : screenWidth * 0.8,
-              height: isPortrait ? screenHeight * 0.9 : screenHeight * 0.7,
+              width: dialogWidth,
+              height: isPortrait ? screenHeight * 0.9 : screenHeight * 0.8, // Slightly taller on landscape too if needed
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
@@ -2765,6 +2782,391 @@ void _showSplitPaymentDialog() {
   );
 }
 
+// ... existing _buildPaymentMethodSelection ...
+// ... existing _buildNumberPad ...
+// ... existing _buildNumberButton ...
+// ... existing _buildPaymentSummary ...
+// ... existing _buildOrderInfoBar ...
+// ... existing build method ...
+// ... existing _buildPortraitLayout followed immediately by _buildLandscapeLayout ... 
+// (We are replacing the definition of _buildLandscapeLayout below, so the StartLine is critical)
+
+Widget _buildLandscapeLayout(StateSetter setState, double initialDiscountedTotal, Function getCurrentDiscountedTotal) {
+   double currentDiscountedTotal = getCurrentDiscountedTotal();
+   
+   // Check platform to determine layout parameters
+   final isDesktop = Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+   
+   // Tablet/Mobile optimizations: Reduce padding, adjust flex ratios
+   final double containerPadding = isDesktop ? 16.0 : 10.0;
+   final int labelFlex = isDesktop ? 4 : 3;
+   final int inputFlex = isDesktop ? 6 : 7;
+   final double spacing = isDesktop ? 16.0 : 10.0;
+  
+   return Row(
+    children: [
+      Expanded(
+        flex: 2,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Input fields section
+            Container(
+              padding: EdgeInsets.all(containerPadding),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Column(
+                children: [
+                   // Balance amount
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: labelFlex, // Responsive flex
+                        child: Text(
+                          'Balance amount'.tr(),
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                      ),
+                      Expanded(
+                        flex: inputFlex, // Responsive flex
+                        child: Text(
+                          NumberFormat.currency(symbol: '', decimalDigits: 3).format(currentDiscountedTotal - (widget.order.depositAmount ?? 0.0)),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.right, // Align right for better visual
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: spacing),
+                  
+                  // Received amount
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: labelFlex,
+                        child: Text(
+                          'Received'.tr(),
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                      ),
+                      Expanded(
+                        flex: inputFlex,
+                        child: TextField(
+                          controller: _receivedAmountController,
+                          focusNode: _receivedFocusNode,
+                          readOnly: Platform.isAndroid || Platform.isIOS,
+                          keyboardType: (Platform.isAndroid || Platform.isIOS)
+                              ? TextInputType.none 
+                              : const TextInputType.numberWithOptions(decimal: true),
+                          decoration: InputDecoration(
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.blue.shade100, width: 2),
+                            ),
+                            focusedBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.blue.shade700, width: 2),
+                            ),
+                             contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                             isDense: !isDesktop, // Compact on tablet
+                          ),
+                          textAlign: TextAlign.right,
+                          onChanged: (value) {
+                            setState(() {}); 
+                          },
+                           onTap: () {
+                            final deposit = widget.order.depositAmount ?? 0.0;
+                            setState(() {
+                              _receivedAmountController.text = (currentDiscountedTotal - deposit).toStringAsFixed(3);
+                              // Move cursor to end
+                              _receivedAmountController.selection = TextSelection.fromPosition(
+                                TextPosition(offset: _receivedAmountController.text.length)
+                              );
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: spacing),
+                  
+                  // Last 4 digits
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: labelFlex,
+                        child: Text(
+                          'Last 4 digit'.tr(),
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                      ),
+                      Expanded(
+                        flex: inputFlex,
+                        child: TextField(
+                          controller: _lastFourDigitsController,
+                          focusNode: _lastFourFocusNode,
+                          readOnly: Platform.isAndroid || Platform.isIOS,
+                          keyboardType: (Platform.isAndroid || Platform.isIOS)
+                              ? TextInputType.none
+                              : TextInputType.number,
+                          maxLength: 4,
+                          decoration: InputDecoration(
+                            enabledBorder: const UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.grey, width: 1),
+                            ),
+                            focusedBorder: const UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.blue, width: 2),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                            counterText: '',
+                            isDense: !isDesktop,
+                          ),
+                          textAlign: TextAlign.right,
+                          onChanged: (value) {
+                            setState(() {}); 
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: spacing),
+                  
+                  // Approval code
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: labelFlex,
+                        child: Text(
+                          'Approval code'.tr(),
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                      ),
+                      Expanded(
+                         flex: inputFlex,
+                        child: TextField(
+                          controller: _approvalCodeController,
+                          focusNode: _approvalFocusNode,
+                          readOnly: Platform.isAndroid || Platform.isIOS,
+                          keyboardType: (Platform.isAndroid || Platform.isIOS)
+                              ? TextInputType.none 
+                              : TextInputType.text,
+                          decoration: InputDecoration(
+                            enabledBorder: const UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.grey, width: 1),
+                            ),
+                            focusedBorder: const UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.blue, width: 2),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                             isDense: !isDesktop,
+                          ),
+                          textAlign: TextAlign.right,
+                          onChanged: (value) {
+                            setState(() {}); 
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+             
+            SizedBox(height: isDesktop ? 20 : 12),
+            
+            // Card types section
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                 decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Select Card Type'.tr(),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: GridView.builder(
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          childAspectRatio: 2.5,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                        ),
+                        itemCount: _cardTypes.length,
+                        itemBuilder: (context, index) {
+                          // ... Grid Item Builder ...
+                           final card = _cardTypes[index];
+                          final bool isSelected = _selectedCardType == card['name'];
+                          
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedCardType = card['name'];
+                                for (var i = 0; i < _cardTypes.length; i++) {
+                                  if (i == index) {
+                                    _cardTypes[i]['color'] = Colors.blue.shade100;
+                                  } else {
+                                    _cardTypes[i]['color'] = Colors.grey.shade200;
+                                  }
+                                }
+                              });
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: card['color'],
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: isSelected ? Colors.blue.shade400 : Colors.grey.shade300,
+                                  width: isSelected ? 2 : 1,
+                                ),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                card['name'],
+                                style: TextStyle(
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: isSelected ? Colors.blue.shade800 : Colors.black87,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      
+      Expanded(
+        flex: 1,
+        child: Container(
+          padding: EdgeInsets.only(left: isDesktop ? 16 : 8),
+          child: Column(
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(child: _buildNumberPadDialogButton('7', setState)),
+                    Expanded(child: _buildNumberPadDialogButton('8', setState)),
+                    Expanded(child: _buildNumberPadDialogButton('9', setState)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(child: _buildNumberPadDialogButton('4', setState)),
+                    Expanded(child: _buildNumberPadDialogButton('5', setState)),
+                    Expanded(child: _buildNumberPadDialogButton('6', setState)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(child: _buildNumberPadDialogButton('1', setState)),
+                    Expanded(child: _buildNumberPadDialogButton('2', setState)),
+                    Expanded(child: _buildNumberPadDialogButton('3', setState)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(child: _buildNumberPadDialogButton('000', setState)),
+                    Expanded(child: _buildNumberPadDialogButton('0', setState)),
+                    Expanded(
+                      child: _buildNumberPadDialogButton('⌫', setState, isBackspace: true),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(child: _buildNumberPadDialogButton('C', setState)),
+                    Expanded(child: _buildNumberPadDialogButton('.', setState)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              
+              // Centered Payment Button
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            String receivedAmount = _receivedAmountController.text.trim();
+                            double amount = double.tryParse(receivedAmount) ?? 0.0;
+                            if (amount > 0) {
+                              _showPaymentConfirmationDialog(amount);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Please enter a valid amount'.tr())),
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: Text(
+                            'OK'.tr(),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
 // Extract payment method selection panel
 Widget _buildPaymentMethodSelection() {
   return Container(
@@ -2823,7 +3225,7 @@ Widget _buildPaymentMethodOption(String method, IconData icon) {
             
         setState(() {
           _selectedPaymentMethod = method;
-          _isCashSelected = (method == 'Cash'.tr());
+           _isCashSelected = (method == 'Cash'.tr());
           
           if (method == 'Bank'.tr()) {
             _showBankPaymentDialog();
@@ -3800,317 +4202,7 @@ Widget _buildPortraitLayout(StateSetter setState, double initialDiscountedTotal,
       );
 }
 
-Widget _buildLandscapeLayout(StateSetter setState, double initialDiscountedTotal, Function getCurrentDiscountedTotal) {
-   double currentDiscountedTotal = getCurrentDiscountedTotal();
-  
-  return Row(
-    children: [
-      Expanded(
-        flex: 2,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  flex: 4,
-                  child: Text(
-                    'Balance amount'.tr(),
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ),
-                  Expanded(
-                    flex: 6,
-                    child: Text(
-                      NumberFormat.currency(symbol: '', decimalDigits: 3).format(currentDiscountedTotal - (widget.order.depositAmount ?? 0.0)),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            
-            Row(
-              children: [
-                Expanded(
-                  flex: 4,
-                  child: Text(
-                    'Received'.tr(),
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ),
-                Expanded(
-                  flex: 6,
-                  child: TextField(
-                    controller: _receivedAmountController,
-                    focusNode: _receivedFocusNode,
-                    readOnly: Platform.isAndroid || Platform.isIOS, // Read-only on mobile, editable on desktop
-                    keyboardType: (Platform.isAndroid || Platform.isIOS)
-                        ? TextInputType.none // No keyboard on mobile
-                        : const TextInputType.numberWithOptions(decimal: true), // Allow keyboard on desktop
-                    decoration: InputDecoration(
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.blue.shade100, width: 2),
-                      ),
-                      focusedBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.blue.shade700, width: 2),
-                      ),
-                    ),
-                    onChanged: (value) {
-                      setState(() {}); // Trigger rebuild when typing
-                    },
-                     onTap: () {
-                      // Update received amount to current discounted total minus deposit when tapped
-                      final deposit = widget.order.depositAmount ?? 0.0;
-                      setState(() {
-                        _receivedAmountController.text = (currentDiscountedTotal - deposit).toStringAsFixed(3);
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            
-            Row(
-              children: [
-                Expanded(
-                  flex: 4,
-                  child: Text(
-                    'Last 4 digit'.tr(),
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ),
-                Expanded(
-                  flex: 6,
-                  child: TextField(
-                    controller: _lastFourDigitsController,
-                    focusNode: _lastFourFocusNode,
-                    readOnly: Platform.isAndroid || Platform.isIOS, // Read-only on mobile, editable on desktop
-                    keyboardType: (Platform.isAndroid || Platform.isIOS)
-                        ? TextInputType.none // No keyboard on mobile
-                        : TextInputType.number, // Allow keyboard on desktop
-                    maxLength: 4,
-                    decoration: const InputDecoration(
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.grey, width: 1),
-                      ),
-                      focusedBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.blue, width: 2),
-                      ),
-                      counterText: '', // Hide character counter
-                    ),
-                    onChanged: (value) {
-                      setState(() {}); // Trigger rebuild when typing
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            
-            Row(
-              children: [
-                Expanded(
-                  flex: 4,
-                  child: Text(
-                    'Approval code'.tr(),
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ),
-                Expanded(
-                  flex: 6,
-                  child: TextField(
-                    controller: _approvalCodeController,
-                    focusNode: _approvalFocusNode,
-                    readOnly: Platform.isAndroid || Platform.isIOS, // Read-only on mobile, editable on desktop
-                    keyboardType: (Platform.isAndroid || Platform.isIOS)
-                        ? TextInputType.none // No keyboard on mobile
-                        : TextInputType.text, // Allow keyboard on desktop
-                    decoration: const InputDecoration(
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.grey, width: 1),
-                      ),
-                      focusedBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.blue, width: 2),
-                      ),
-                    ),
-                    onChanged: (value) {
-                      setState(() {}); // Trigger rebuild when typing
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            
-            Expanded(
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  childAspectRatio: 2.5,
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                ),
-                itemCount: _cardTypes.length,
-                itemBuilder: (context, index) {
-                  final card = _cardTypes[index];
-                  final bool isSelected = _selectedCardType == card['name'];
-                  
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _selectedCardType = card['name'];
-                        
-                        for (var i = 0; i < _cardTypes.length; i++) {
-                          if (i == index) {
-                            _cardTypes[i]['color'] = Colors.blue.shade100;
-                          } else {
-                            _cardTypes[i]['color'] = Colors.grey.shade200;
-                          }
-                        }
-                      });
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: card['color'],
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: isSelected ? Colors.blue.shade400 : Colors.grey.shade300,
-                          width: isSelected ? 2 : 1,
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        card['name'],
-                        style: TextStyle(
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          color: isSelected ? Colors.blue.shade800 : Colors.black87,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-      
-      Expanded(
-        flex: 1,
-        child: Container(
-          padding: const EdgeInsets.only(left: 16),
-          child: Column(
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Expanded(child: _buildNumberPadDialogButton('7', setState)),
-                    Expanded(child: _buildNumberPadDialogButton('8', setState)),
-                    Expanded(child: _buildNumberPadDialogButton('9', setState)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              
-              Expanded(
-                child: Row(
-                  children: [
-                    Expanded(child: _buildNumberPadDialogButton('4', setState)),
-                    Expanded(child: _buildNumberPadDialogButton('5', setState)),
-                    Expanded(child: _buildNumberPadDialogButton('6', setState)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              
-              Expanded(
-                child: Row(
-                  children: [
-                    Expanded(child: _buildNumberPadDialogButton('1', setState)),
-                    Expanded(child: _buildNumberPadDialogButton('2', setState)),
-                    Expanded(child: _buildNumberPadDialogButton('3', setState)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              
-              Expanded(
-                child: Row(
-                  children: [
-                    Expanded(child: _buildNumberPadDialogButton('000', setState)),
-                    Expanded(child: _buildNumberPadDialogButton('0', setState)),
-                    Expanded(
-                      child: _buildNumberPadDialogButton('⌫', setState, isBackspace: true),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              
-              Expanded(
-                child: Row(
-                  children: [
-                    Expanded(child: _buildNumberPadDialogButton('C', setState)),
-                    Expanded(child: _buildNumberPadDialogButton('.', setState)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              
-              // NEW: Centered Payment Button for Landscape
-              Expanded(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                            String receivedAmount = _receivedAmountController.text.trim();
-                            double amount = double.tryParse(receivedAmount) ?? 0.0;
-                            if (amount > 0) {
-                              _showPaymentConfirmationDialog(amount);
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Please enter a valid amount'.tr())),
-                              );
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          child: Text(
-                            'OK'.tr(),
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
 
-            ],
-          ),
-        ),
-      ),
-    ],
-  );
-}
 
 Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool isBackspace = false}) {
   return Container(
@@ -4350,13 +4442,13 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       // For credit completion, always process the payment
      if (widget.isCreditCompletion) {
     // Determine which payment processing method to call
-    if (_selectedPaymentMethod == 'Cash') {
+    if (_selectedPaymentMethod == 'Cash'.tr()) {
       if (result == 'yes') {
         await _processCreditCompletionPayment(amount, 'cash');
       } else {
         await _processCreditCompletionPaymentWithoutPrinting(amount, 'cash');
       }
-    } else if (_selectedPaymentMethod == 'Bank') {
+    } else if (_selectedPaymentMethod == 'Bank'.tr()) {
       if (result == 'yes') {
         await _processCreditCompletionPayment(amount, 'bank');
       } else {
@@ -4375,7 +4467,7 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
   
       // Regular order payment processing (not credit completion)
   setState(() {
-    if (_selectedPaymentMethod == 'Cash') {
+    if (_selectedPaymentMethod == 'Cash'.tr()) {
       double amountToDeduct = _balanceAmount < amount ? _balanceAmount : amount;
       
       _balanceAmount -= amountToDeduct;
@@ -4417,9 +4509,9 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       }
       
       if (result == 'yes') {
-        if (_selectedPaymentMethod == 'Cash') {
+        if (_selectedPaymentMethod == 'Cash'.tr()) {
           _processCashPayment(amount, change);
-        } else  if (_selectedPaymentMethod == 'Bank') {
+        } else  if (_selectedPaymentMethod == 'Bank'.tr()) {
           _processPayment(amount, change);
         } else if (_selectedPaymentMethod == 'Bank + Cash'.tr()) {
           _processSplitPayment(_cashAmount, _bankAmount);
@@ -4618,7 +4710,19 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
   try {
     // Handle credit completion case
     if (widget.isCreditCompletion) {
-      await _processCreditCompletionPaymentWithoutPrinting(amount, _selectedPaymentMethod!.toLowerCase());
+      // Sanitize payment method
+      String methodCode = _selectedPaymentMethod!.toLowerCase();
+      if (_selectedPaymentMethod == 'Cash'.tr()) {
+        methodCode = 'cash';
+      } else if (_selectedPaymentMethod == 'Bank'.tr()) {
+        methodCode = 'bank';
+      } else if (_selectedPaymentMethod == 'Bank + Cash'.tr()) {
+        methodCode = 'bank+cash';
+      } else if (_selectedPaymentMethod == 'Customer Credit'.tr()) {
+        methodCode = 'customer_credit';
+      }
+      
+      await _processCreditCompletionPaymentWithoutPrinting(amount, methodCode);
       return;
     }
 
@@ -4630,7 +4734,17 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       change = amount - currentBalance;
     }
     
-    final paymentMethod = _selectedPaymentMethod!.toLowerCase();
+    // Sanitize payment method for DB
+    String paymentMethod = _selectedPaymentMethod!.toLowerCase();
+    if (_selectedPaymentMethod == 'Cash'.tr()) {
+      paymentMethod = 'cash';
+    } else if (_selectedPaymentMethod == 'Bank'.tr()) {
+      paymentMethod = 'bank';
+    } else if (_selectedPaymentMethod == 'Bank + Cash'.tr()) {
+      paymentMethod = 'bank+cash';
+    } else if (_selectedPaymentMethod == 'Customer Credit'.tr()) {
+      paymentMethod = 'customer_credit';
+    }
     Order? savedOrder;
     
     double discountAmount = 0.0;
@@ -4924,7 +5038,7 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error completing credit payment: ${e.toString()}'.tr()),
+          content: Text('${'Error completing credit payment'.tr()}: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -5246,7 +5360,7 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
           return;
         }
         
-        if (_selectedPaymentMethod == 'Cash') {
+        if (_selectedPaymentMethod == 'Cash'.tr()) {
           double amountToDeduct = amount > _balanceAmount ? _balanceAmount : amount;
           double change = amount > _balanceAmount ? amount - _balanceAmount : 0.0;
           
@@ -5559,7 +5673,7 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error processing customer credit: ${e.toString()}'.tr()),
+            content: Text('${'Error processing customer credit'.tr()}: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -5841,7 +5955,7 @@ Future<void> _processCreditCompletionPayment(double amount, String paymentMethod
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error completing credit payment: ${e.toString()}'.tr()),
+          content: Text('${'Error completing credit payment'.tr()}: $e'),
           backgroundColor: Colors.red,
         ),
       );

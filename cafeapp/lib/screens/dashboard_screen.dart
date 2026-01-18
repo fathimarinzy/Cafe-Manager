@@ -463,12 +463,12 @@ class _DashboardScreenState extends State<DashboardScreen>
     final settingsProvider = Provider.of<SettingsProvider>(context);
     return DashboardUltimate(
       businessName: settingsProvider.businessName,
-      onDiningTap: () => _navigateToServiceCardStyle('Dining', const Color(0xFFd48c56), true),
-      onDeliveryTap: () => _navigateToServiceCardStyle('Delivery', const Color(0xFF6aaec6), false),
-      onTakeoutTap: () => _navigateToServiceCardStyle('Takeout', const Color(0xFF6a8a4f), false),
+      onDiningTap: () => _navigateToServiceCardStyle('Dining'.tr(), const Color(0xFFd48c56), true),
+      onDeliveryTap: () => _navigateToServiceCardStyle('Delivery'.tr(), const Color(0xFF6aaec6), false),
+      onTakeoutTap: () => _navigateToServiceCardStyle('Takeout'.tr(), const Color(0xFF6a8a4f), false),
       onDriveThroughTap: _handleDriveThroughTap,
-      onCateringTap: () => _navigateToServiceCardStyle('Catering', const Color(0xFFd4b556), false),
-      onDelivery2Tap: () => _navigateToServiceCardStyle('Online Order', const Color(0xFF383b42), false),
+      onCateringTap: () => _navigateToServiceCardStyle('Catering'.tr(), const Color(0xFFd4b556), false),
+      onDelivery2Tap: () => _navigateToServiceCardStyle('Online Order'.tr(), const Color(0xFF383b42), false),
       onOrdersTap: _navigateToOrderListModern,
       onLogoutTap: _showLogoutDialogWithReport,
       onUISwitch: () {
@@ -691,7 +691,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   onPressed: () {
                     _showLogoutDialogWithReport();
                   },
-                  tooltip: 'Logout',
+                  tooltip: 'Logout'.tr(),
                   style: IconButton.styleFrom(
                     backgroundColor: const Color(0xFFF5F7FA),
                     shape: RoundedRectangleBorder(
@@ -725,7 +725,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ),
                     );
                   },
-                  tooltip: 'Settings',
+                  tooltip: 'Settings'.tr(),
                   style: IconButton.styleFrom(
                     backgroundColor: const Color(0xFFF5F7FA),
                     shape: RoundedRectangleBorder(
@@ -994,12 +994,12 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildSidebarServiceCards(OrderProvider orderProvider, double screenWidth, double screenHeight, bool isTablet) {
     final services = [
-      SidebarServiceItem('dining', Icons.restaurant, const Color(0xFFE63946),  'Manage dine-in orders'.tr(), true),
-      SidebarServiceItem('delivery', Icons.delivery_dining, const Color(0xFF1D9BF0),  'Track delivery orders'.tr()),
-      SidebarServiceItem('driveThrough', Icons.drive_eta, const Color(0xFF9333EA),  'Quick drive-through service'.tr()),
-      SidebarServiceItem('catering', Icons.cake, const Color(0xFFF97316),  'Large event orders'.tr()),
-      SidebarServiceItem('takeout', Icons.takeout_dining, const Color(0xFF10B981),  'Pickup orders ready'.tr()),
-      SidebarServiceItem('orderList', Icons.list_alt, const Color(0xFF4B5563),  'View all orders'.tr()),
+      SidebarServiceItem('dining'.tr(), Icons.restaurant, const Color(0xFFE63946),  'Manage dine-in orders'.tr(), true),
+      SidebarServiceItem('delivery'.tr(), Icons.delivery_dining, const Color(0xFF1D9BF0),  'Track delivery orders'.tr()),
+      SidebarServiceItem('driveThrough'.tr(), Icons.drive_eta, const Color(0xFF9333EA),  'Quick drive-through service'.tr()),
+      SidebarServiceItem('catering'.tr(), Icons.cake, const Color(0xFFF97316),  'Large event orders'.tr()),
+      SidebarServiceItem('takeout'.tr(), Icons.takeout_dining, const Color(0xFF10B981),  'Pickup orders ready'.tr()),
+      SidebarServiceItem('orderList'.tr(), Icons.list_alt, const Color(0xFF4B5563),  'View all orders'.tr()),
     ];
 
     return LayoutBuilder(
@@ -1133,17 +1133,17 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   void _navigateToServiceFromSidebar(SidebarServiceItem service, OrderProvider orderProvider) {
-    if (service.title == 'delivery') {
+    if (service.title == 'delivery'.tr()) {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (context) => const DeliverySetupScreen()),
       );
       return;
-    } else if (service.title == 'catering') {
+    } else if (service.title == 'catering'.tr()) {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (context) => const CateringSetupScreen()),
       );
       return;
-    } else if (service.title == 'driveThrough') {
+    } else if (service.title == 'driveThrough'.tr()) {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (context) => const DriveThroughScreen()),
       );
@@ -1154,15 +1154,15 @@ class _DashboardScreenState extends State<DashboardScreen>
       Navigator.of(context).push(
         MaterialPageRoute(builder: (context) => const DiningTableScreen()),
       );
-    } else if (service.title == 'orderList') {
+    } else if (service.title == 'orderList'.tr()) {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (context) => const OrderListScreen(excludeCatering: true)),
       );
     } else {
-      orderProvider.setCurrentServiceType(service.title.tr());
+      orderProvider.setCurrentServiceType(service.title);
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (context) => MenuScreen(serviceType: service.title.tr(), serviceColor: service.color),
+          builder: (context) => MenuScreen(serviceType: service.title, serviceColor: service.color),
         ),
       );
     }
@@ -1809,7 +1809,7 @@ Widget _buildCardStyleUI() {
               _isCardStyleDarkMode = !_isCardStyleDarkMode;
             });
           },
-          tooltip: _isCardStyleDarkMode ? 'Light Mode' : 'Dark Mode',
+          tooltip: _isCardStyleDarkMode ? 'Light Mode'.tr() : 'Dark Mode'.tr(),
         ),
 
         // IconButton(
@@ -1826,7 +1826,7 @@ Widget _buildCardStyleUI() {
         IconButton(
             icon: Icon(Icons.logout, color: iconColor),
             onPressed: _showLogoutDialogWithReport,
-            tooltip: 'Logout',
+            tooltip: 'Logout'.tr(),
           ),
         IconButton(
           icon: Icon(Icons.settings, color: iconColor),
@@ -1848,7 +1848,7 @@ Widget _buildCardStyleUI() {
               ),
             );
           },
-          tooltip: 'Settings',
+          tooltip: 'Settings'.tr(),
         ),
       ],
     ),
@@ -2093,7 +2093,7 @@ Widget _buildBusinessInfoCardStyleResponsive(
           child: Column(
             children: [
               Text(
-                businessName.isNotEmpty ? businessName : 'SIMS CAFE',
+                businessName.isNotEmpty ? businessName : 'SIMS CAFE'.tr(),
                 style: TextStyle(
                   fontSize: titleFontSize,
                   fontWeight: FontWeight.bold,
@@ -2683,7 +2683,7 @@ void _showLogoutDialogWithReport() {
   }
 
   void _navigateToServiceCardStyle(String title, Color color, bool isDining) {
-    if (title == 'Delivery' || title == 'delivery') {
+    if (title == 'Delivery'.tr() || title == 'delivery'.tr() || title == 'delivery') {
       Navigator.of(context).push(
         NoAnimationPageRoute(
            builder: (ctx) => const DeliverySetupScreen(),
@@ -2693,7 +2693,7 @@ void _showLogoutDialogWithReport() {
       return;
     }
 
-    if (title == 'Catering' || title == 'catering') {
+    if (title == 'Catering'.tr() || title == 'catering'.tr() || title == 'catering') {
       Navigator.of(context).push(
          NoAnimationPageRoute(
             builder: (ctx) => const CateringSetupScreen(),
@@ -2703,7 +2703,7 @@ void _showLogoutDialogWithReport() {
        return;
     }
 
-    if (title == 'driveThrough') {
+    if (title == 'driveThrough'.tr() || title == 'driveThrough') {
       Navigator.of(context).push(
         NoAnimationPageRoute(
           builder: (ctx) => const DriveThroughScreen(),
@@ -2722,7 +2722,7 @@ void _showLogoutDialogWithReport() {
         settings: const RouteSettings(name: 'DiningTableScreen'),
       ),
     );
-  } else if (title == 'orderList') {
+  } else if (title == 'orderList'.tr() || title == 'orderList') {
     Navigator.of(context).push(
       NoAnimationPageRoute(
         builder: (ctx) => const OrderListScreen(excludeCatering: true),
@@ -2923,12 +2923,12 @@ void _showLogoutDialogWithReport() {
   final settingsProvider = Provider.of<SettingsProvider>(context);
   return DashboardMobile(
      businessName: settingsProvider.businessName,
-     onDiningTap: () => _navigateToServiceCardStyle('Dining', const Color(0xFF3B82F6), true),
-     onDeliveryTap: () => _navigateToServiceCardStyle('Delivery', const Color(0xFFFF7D29), false),
-      onTakeoutTap: () => _navigateToServiceCardStyle('Takeout', const Color(0xFF6a8a4f), false),
+     onDiningTap: () => _navigateToServiceCardStyle('Dining'.tr(), const Color(0xFF3B82F6), true),
+     onDeliveryTap: () => _navigateToServiceCardStyle('Delivery'.tr(), const Color(0xFFFF7D29), false),
+      onTakeoutTap: () => _navigateToServiceCardStyle('Takeout'.tr(), const Color(0xFF6a8a4f), false),
       onDriveThroughTap: _handleDriveThroughTap,
-      onCateringTap: () => _navigateToServiceCardStyle('Catering', const Color(0xFFd4b556), false),
-      onDelivery2Tap: () => _navigateToServiceCardStyle('Online Order', const Color(0xFF383b42), false),
+      onCateringTap: () => _navigateToServiceCardStyle('Catering'.tr(), const Color(0xFFd4b556), false),
+      onDelivery2Tap: () => _navigateToServiceCardStyle('Online Order'.tr(), const Color(0xFF383b42), false),
       onOrdersTap: _navigateToOrderListModern,
       onUISwitch: () {
         setState(() {

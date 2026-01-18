@@ -158,7 +158,7 @@ class _QuotationsListScreenState extends State<QuotationsListScreen> {
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
-                                  'QUOTE',
+                                  'Quote'.tr().toUpperCase(),
                                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange.shade800),
                                 ),
                               ),
@@ -166,7 +166,7 @@ class _QuotationsListScreenState extends State<QuotationsListScreen> {
                           ),
                           const SizedBox(height: 8),
                           Text('${'Date'.tr()}: ${DateFormat('yyyy-MM-dd HH:mm').format(date)}'),
-                          Text('${'Service'.tr()}: ${quote.serviceType}'),
+                          Text('${'Service'.tr()}: ${quote.serviceType.tr()}'),
                           if (quote.customerId != null)
                              Text('${'Customer ID'.tr()}: ${quote.customerId}'),
                           const Divider(height: 24),
@@ -241,7 +241,7 @@ class _QuotationsListScreenState extends State<QuotationsListScreen> {
         total: quote.total,
         personName: quote.customerId, // Should ideally fetch name
         orderNumber: quote.id.toString(),
-        title: 'QUOTATION',
+        title: 'QUOTATION'.tr(),
         // Note: Tax rate isn't stored in Order, ideally pass it or fetch from settings
       );
 
@@ -249,7 +249,7 @@ class _QuotationsListScreenState extends State<QuotationsListScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error sharing quote: $e')),
+          SnackBar(content: Text('${'Error sharing quote'.tr()}: $e')),
         );
       }
     }

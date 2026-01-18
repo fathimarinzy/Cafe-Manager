@@ -992,7 +992,7 @@ Future<void> _checkLicenseStatus() async {
                 return ListTile(
                   dense: true,
                   title: Text(
-                    option['label'],
+                    option['label'].toString().tr(),
                     style: const TextStyle(
                       fontSize: 14,
                     ),
@@ -1233,12 +1233,12 @@ Future<void> _checkLicenseStatus() async {
                               }
                             },
                             items: [
-                              const DropdownMenuItem(value: 5, child: Text('Mobile Performance')),
-                              const DropdownMenuItem(value: 4, child: Text('Ultimate (Dark)')),
-                              const DropdownMenuItem(value: 1, child: Text('Classic Grid')),
-                              const DropdownMenuItem(value: 2, child: Text('Sidebar')),
-                              const DropdownMenuItem(value: 0, child: Text('Modern')),
-                              const DropdownMenuItem(value: 3, child: Text('Card Style')),
+                               DropdownMenuItem(value: 5, child: Text("Mobile Performance".tr())),
+                               DropdownMenuItem(value: 4, child: Text("Ultimate (Dark)".tr())),
+                               DropdownMenuItem(value: 1, child: Text("Classic Grid".tr())),
+                               DropdownMenuItem(value: 2, child: Text("Sidebar".tr())),
+                               DropdownMenuItem(value: 0, child: Text("Modern".tr())),
+                               DropdownMenuItem(value: 3, child: Text("Card Style".tr())),
                             ],
                             underline: Container(),
                           ),
@@ -2555,13 +2555,13 @@ void _showTaxSettingsDialog() {
   }
   String _getUIModeName(int mode) {
     switch (mode) {
-      case 5: return 'Mobile Performance';
-      case 4: return 'Ultimate (Dark)';
-      case 1: return 'Classic Grid';
-      case 0: return 'Modern';
-      case 2: return 'Sidebar';
-      case 3: return 'Card Style';
-      default: return 'Unknown';
+      case 5: return 'Mobile Performance'.tr();
+      case 4: return 'Ultimate (Dark)'.tr();
+      case 1: return 'Classic Grid'.tr();
+      case 0: return 'Modern'.tr();
+      case 2: return 'Sidebar'.tr();
+      case 3: return 'Card Style'.tr();
+      default: return 'Unknown'.tr();
     }
   }
 }

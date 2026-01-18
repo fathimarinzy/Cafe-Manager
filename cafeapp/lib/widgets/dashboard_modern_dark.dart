@@ -1,10 +1,12 @@
 
+import 'package:cafeapp/utils/app_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/logo_provider.dart';
 import '../services/logo_service.dart';
 import 'dart:async';
 import 'package:intl/intl.dart';
+
 
 class DashboardModernDark extends StatefulWidget {
   final VoidCallback onDiningTap;
@@ -186,11 +188,11 @@ class _DashboardModernDarkState extends State<DashboardModernDark> {
 
 
 
-                          _buildInfoBox(Icons.location_on_outlined, "Location: Kochi"),
+                          _buildInfoBox(Icons.location_on_outlined, "${'Location'.tr()}: Kochi"),
                           const SizedBox(height: 16),
-                          _buildInfoBox(Icons.phone_outlined, "Contact: 9876677889"),
+                          _buildInfoBox(Icons.phone_outlined, "${'Contact'.tr()}: 9876677889"),
                           const SizedBox(height: 16),
-                          _buildInfoBox(Icons.email_outlined, "Email: simscafe@gmail.com"),
+                          _buildInfoBox(Icons.email_outlined, "${'Email'.tr()}: simscafe@gmail.com"),
                         ],
                       ),
                     ),
@@ -209,7 +211,7 @@ class _DashboardModernDarkState extends State<DashboardModernDark> {
                         childAspectRatio: 1.5, // Increased aspect ratio to make widgets shorter (smaller)
                         children: [
                           _buildGradientButton(
-                            "Dining",
+                            "Dining".tr(),
                             Icons.restaurant_outlined, 
                             const LinearGradient(
                               colors: [Color(0xFFe69a6b), Color(0xFF8c4a2a)], 
@@ -218,7 +220,7 @@ class _DashboardModernDarkState extends State<DashboardModernDark> {
                             widget.onDiningTap,
                           ),
                           _buildGradientButton(
-                            "Delivery",
+                            "Online".tr(),
                             Icons.delivery_dining_outlined, 
                             const LinearGradient(
                               colors: [Color(0xFF5e636b), Color(0xFF2b2e35)],
@@ -227,7 +229,7 @@ class _DashboardModernDarkState extends State<DashboardModernDark> {
                             widget.onDelivery2Tap,
                           ),
                           _buildGradientButton(
-                            "Delivery",
+                            "Delivery".tr(),
                             Icons.shopping_bag_outlined,
                             const LinearGradient(
                               colors: [Color(0xFF8bcce3), Color(0xFF3b697b)],
@@ -236,7 +238,7 @@ class _DashboardModernDarkState extends State<DashboardModernDark> {
                             widget.onDeliveryTap,
                           ),
                           _buildGradientButton(
-                            "Takeout",
+                            "Takeout".tr(),
                             Icons.local_mall_outlined,
                             const LinearGradient(
                               colors: [Color(0xFF96aa71), Color(0xFF4b5832)],
@@ -245,7 +247,7 @@ class _DashboardModernDarkState extends State<DashboardModernDark> {
                             widget.onTakeoutTap,
                           ),
                           _buildGradientButton(
-                            "Drive Through",
+                            "Drive Through".tr(),
                             Icons.assignment_outlined,
                             const LinearGradient(
                               colors: [Color(0xFFc98693), Color(0xFF6e3c44)],
@@ -254,7 +256,7 @@ class _DashboardModernDarkState extends State<DashboardModernDark> {
                             widget.onDriveThroughTap,
                           ),
                           _buildGradientButton(
-                            "Catering",
+                            "Catering".tr(),
                             Icons.cake_outlined,
                             const LinearGradient(
                               colors: [Color(0xFFf5ca5c), Color(0xFF917224)],
@@ -280,7 +282,7 @@ class _DashboardModernDarkState extends State<DashboardModernDark> {
                              boxShadow: [BoxShadow(color: Colors.black.withAlpha(76), blurRadius: 8, offset: Offset(0,4))]
                            ),
                            alignment: Alignment.center,
-                           child: const Text("ORDER LIST", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24, letterSpacing: 2.0)), // Larger Text
+                           child:  Text("Order List".tr().toUpperCase(), style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24, letterSpacing: 2.0)), // Larger Text
                          ),
                        ),
                         ),

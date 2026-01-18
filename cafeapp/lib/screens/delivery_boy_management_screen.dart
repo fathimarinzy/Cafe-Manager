@@ -86,7 +86,7 @@ class _DeliveryBoyManagementScreenState extends State<DeliveryBoyManagementScree
                   debugPrint('Error in Save Dialog: $e');
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed to save: $e'.tr()), backgroundColor: Colors.red),
+                      SnackBar(content: Text('${'Failed to save: '.tr()}$e'), backgroundColor: Colors.red),
                     );
                   }
                 }

@@ -106,7 +106,7 @@ class _CateringSetupScreenState extends State<CateringSetupScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF1E1E1E), // Dark background
       appBar: AppBar(
-        title: const Text('Catering Event Setup'),
+        title: Text('Catering Event Setup'.tr()),
         backgroundColor: const Color(0xFF1E1E1E),
         elevation: 0,
         leading: IconButton(
@@ -116,7 +116,7 @@ class _CateringSetupScreenState extends State<CateringSetupScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.history, color: Colors.white),
-            tooltip: 'Catering Orders',
+            tooltip: 'Catering Orders'.tr(),
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
@@ -156,11 +156,11 @@ class _CateringSetupScreenState extends State<CateringSetupScreen> {
                 value: _selectedEventType,
                 dropdownColor: const Color(0xFF2C2C2C),
                 style: const TextStyle(color: Colors.white),
-                decoration: _buildInputDecoration('Event Type', Icons.event),
+                decoration: _buildInputDecoration('Event Type'.tr(), Icons.event),
                 items: _eventTypes.map((String type) {
                   return DropdownMenuItem<String>(
                     value: type,
-                    child: Text(type),
+                    child: Text(type.tr()),
                   );
                 }).toList(),
                 onChanged: (newValue) {
@@ -178,10 +178,10 @@ class _CateringSetupScreenState extends State<CateringSetupScreen> {
                     child: TextFormField(
                       controller: _eventDateController,
                       style: const TextStyle(color: Colors.white),
-                      decoration: _buildInputDecoration('Date', Icons.calendar_today),
+                      decoration: _buildInputDecoration('Date'.tr(), Icons.calendar_today),
                       readOnly: true,
                       onTap: () => _selectDate(context),
-                      validator: (value) => value!.isEmpty ? 'Select Date' : null,
+                      validator: (value) => value!.isEmpty ? 'Select Date'.tr() : null,
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -189,10 +189,10 @@ class _CateringSetupScreenState extends State<CateringSetupScreen> {
                     child: TextFormField(
                       controller: _eventTimeController,
                       style: const TextStyle(color: Colors.white),
-                      decoration: _buildInputDecoration('Time', Icons.access_time),
+                      decoration: _buildInputDecoration('Time'.tr(), Icons.access_time),
                       readOnly: true,
                       onTap: () => _selectTime(context),
-                      validator: (value) => value!.isEmpty ? 'Select Time' : null,
+                      validator: (value) => value!.isEmpty ? 'Select Time'.tr() : null,
                     ),
                   ),
                 ],
@@ -204,8 +204,8 @@ class _CateringSetupScreenState extends State<CateringSetupScreen> {
                 controller: _guestsController,
                 style: const TextStyle(color: Colors.white),
                 keyboardType: TextInputType.number,
-                decoration: _buildInputDecoration('Number of Guests', Icons.people),
-                validator: (value) => value!.isEmpty ? 'Enter guest count' : null,
+                decoration: _buildInputDecoration('Number of Guests'.tr(), Icons.people),
+                validator: (value) => value!.isEmpty ? 'Enter guest count'.tr() : null,
               ),
               const SizedBox(height: 20),
               
@@ -213,8 +213,8 @@ class _CateringSetupScreenState extends State<CateringSetupScreen> {
               TextFormField(
                 controller: _tokenController,
                 style: const TextStyle(color: Colors.white),
-                decoration: _buildInputDecoration('Token Number', Icons.confirmation_number),
-                validator: (value) => value!.isEmpty ? 'Enter token number' : null,
+                decoration: _buildInputDecoration('Token Number'.tr(), Icons.confirmation_number),
+                validator: (value) => value!.isEmpty ? 'Enter token number'.tr() : null,
               ),
               const SizedBox(height: 20),
               
@@ -287,8 +287,8 @@ class _CateringSetupScreenState extends State<CateringSetupScreen> {
                 controller: _addressController,
                 style: const TextStyle(color: Colors.white),
                 maxLines: 3,
-                decoration: _buildInputDecoration('Venue Address', Icons.location_on),
-                validator: (value) => value!.isEmpty ? 'Enter venue address' : null,
+                decoration: _buildInputDecoration('Venue Address'.tr(), Icons.location_on),
+                validator: (value) => value!.isEmpty ? 'Enter venue address'.tr() : null,
               ),
               const SizedBox(height: 40),
               
@@ -303,8 +303,8 @@ class _CateringSetupScreenState extends State<CateringSetupScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Text(
-                  'Continue to Menu',
+                child:  Text(
+                  'Continue to Menu'.tr(),
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ),

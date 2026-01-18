@@ -478,17 +478,34 @@ class LocalOrderRepository {
 
   // Helper to map DB rows to Order objects with items
   Future<List<Order>> _mapOrdersWithItems(Database db, List<Map<String, Object?>> orders) async {
+    if (orders.isEmpty) return [];
+    
     final result = <Order>[];
-      
+    
+    // ✅ FIX: Fetch ALL order items in a single query to avoid N+1 problem
+    // Extract all order IDs
+    final orderIds = orders.map((o) => o['id'] as int).toList();
+    
+    // Fetch all items for all orders in ONE query
+    final allItems = await db.query(
+      'order_items',
+      where: 'order_id IN (${orderIds.map((_) => '?').join(',')})',
+      whereArgs: orderIds,
+    );
+    
+    // Group items by order_id in memory
+    final itemsByOrderId = <int, List<Map<String, Object?>>>{};
+    for (var item in allItems) {
+      final orderId = item['order_id'] as int;
+      itemsByOrderId.putIfAbsent(orderId, () => []).add(item);
+    }
+    
+    // Now map each order with its items (no more queries!)
     for (var orderMap in orders) {
       final orderId = orderMap['id'] as int;
       
-      // Get order items
-      final items = await db.query(
-        'order_items',
-        where: 'order_id = ?',
-        whereArgs: [orderId],
-      );
+      // Get items for this order from the grouped map
+      final items = itemsByOrderId[orderId] ?? [];
       
       final orderItems = items.map((item) => OrderItem(
         id: item['menu_item_id'] as int,

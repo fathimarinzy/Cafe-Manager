@@ -857,7 +857,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
       child: Column(
         children: [
           _buildSectionCard(
-            title: 'Configuration',
+            title: 'Configuration'.tr(),
             icon: Icons.settings,
             children: [
               // Connection Type
@@ -1102,7 +1102,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
       child: Column(
         children: [
           _buildSectionCard(
-            title: 'KOT Status',
+            title: 'KOT Status'.tr(),
             icon: Icons.power_settings_new,
             children: [
               SwitchListTile(
@@ -1132,7 +1132,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
 
           if (_kotPrinterEnabled) ...[
             _buildSectionCard(
-              title: 'Configuration',
+              title: 'Configuration'.tr(),
               icon: Icons.settings,
               children: [
                 Text(

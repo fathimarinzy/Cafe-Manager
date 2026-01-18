@@ -1,3 +1,4 @@
+import 'package:cafeapp/utils/app_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:ui';
@@ -388,7 +389,7 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
                       }
                     },
                     child: Tooltip(
-                      message: "Tap to change logo",
+                      message: "Tap to change logo".tr(),
                       child: Container(
                         padding: const EdgeInsets.all(4), 
                         decoration: BoxDecoration(
@@ -525,16 +526,16 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                 Text(
-                  "Welcome Back,",
-                  style: TextStyle(
-                    color: Colors.white.withAlpha(153),
-                    fontSize: isMobile ? 14 : 16,
-                  ),
-                ),
+                  Text(
+                   "Welcome Back,".tr(),
+                   style: TextStyle(
+                     color: Colors.white.withAlpha(153),
+                     fontSize: isMobile ? 14 : 16,
+                   ),
+                 ),
                 const SizedBox(height: 4),
                 Text(
-                  widget.businessName.isNotEmpty ? widget.businessName : "SIMS Cafe Manager", 
+                  widget.businessName.isNotEmpty ? widget.businessName : "SIMS CAFE", 
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: isMobile ? 20 : 24,
@@ -565,14 +566,14 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
                       children: [
                         Icon(Icons.search, color: Colors.white.withAlpha(102)),
                         const SizedBox(width: 12),
-                        Text("Search...", style: TextStyle(color: Colors.white.withAlpha(102), fontSize: 14)),
+                        Text("Search...".tr(), style: TextStyle(color: Colors.white.withAlpha(102), fontSize: 14)),
                       ],
                     ),
                   ),
                 ),
               ),
               const SizedBox(width: 24),
-              _buildStatusIcon(Icons.wifi, "Connected"),
+              _buildStatusIcon(Icons.wifi, "Connected".tr()),
               const SizedBox(width: 16),
               _GlassContainer(
                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -680,7 +681,7 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
              final statsCards = [
                    buildCardWrapper(
                       _buildStatCard(
-                        "Orders Today",
+                        "Orders Today".tr(),
                         _AnimatedCounter(
                            end: todayOrders.toDouble(),
                            style: TextStyle(color: Colors.white, fontSize: isMobile ? 22 : 26, fontWeight: FontWeight.bold),
@@ -694,7 +695,7 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
                    if (!isMobile) const SizedBox(width: 20),
                    buildCardWrapper(
                       _buildStatCard(
-                        "Pending Orders",
+                        "Pending Orders".tr(),
                         _AnimatedCounter(
                            end: pending,
                            style: TextStyle(color: Colors.white, fontSize: isMobile ? 22 : 26, fontWeight: FontWeight.bold),
@@ -707,7 +708,7 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
                    if (!isMobile) const SizedBox(width: 20),
                    buildCardWrapper(
                       _buildStatCard(
-                        "Active Tables",
+                        "Active Tables".tr(),
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -848,12 +849,12 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
           
           physics: const NeverScrollableScrollPhysics(), // External scroll view handles it
           children: [
-            _buildServiceCard("Dining", "Table Service", Icons.restaurant_rounded, const Color(0xFF3B82F6), widget.onDiningTap),
-            _buildServiceCard("Delivery", "Local Delivery", Icons.delivery_dining_rounded, const Color(0xFFFF7D29), widget.onDeliveryTap),
-            _buildServiceCard("Online", "Web Orders", Icons.devices_rounded, const Color(0xFF00E5FF), widget.onDelivery2Tap),
-            _buildServiceCard("Takeout", "Counter Pickup", Icons.local_mall_rounded, const Color(0xFF00E676), widget.onTakeoutTap),
-            _buildServiceCard("Drive Thru", "Quick Service", Icons.drive_eta_rounded, const Color(0xFFFF2E63), widget.onDriveThroughTap),
-            _buildServiceCard("Catering", "Large Events", Icons.room_service_rounded, const Color(0xFFFFD700), widget.onCateringTap),
+            _buildServiceCard("Dining".tr(), "Table Service".tr(), Icons.restaurant_rounded, const Color(0xFF3B82F6), widget.onDiningTap),
+            _buildServiceCard("Delivery".tr(), "Local Delivery".tr(), Icons.delivery_dining_rounded, const Color(0xFFFF7D29), widget.onDeliveryTap),
+            _buildServiceCard("Online".tr(), "Web Orders".tr(), Icons.devices_rounded, const Color(0xFF00E5FF), widget.onDelivery2Tap),
+            _buildServiceCard("Takeout".tr(), "Counter Pickup".tr(), Icons.local_mall_rounded, const Color(0xFF00E676), widget.onTakeoutTap),
+            _buildServiceCard("Drive Thru".tr(), "Quick Service".tr(), Icons.drive_eta_rounded, const Color(0xFFFF2E63), widget.onDriveThroughTap),
+            _buildServiceCard("Catering".tr(), "Large Events".tr(), Icons.room_service_rounded, const Color(0xFFFFD700), widget.onCateringTap),
           ],
         );
       },
@@ -894,7 +895,7 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text("Recent Activity", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              Text("Recent Activity".tr(), style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
               Icon(Icons.history_rounded, color: Colors.white.withAlpha(102), size: 20),
             ],
           ),
@@ -912,7 +913,7 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
                            children: [
                              Icon(Icons.inbox_outlined, color: Colors.white.withAlpha(51), size: 48),
                              const SizedBox(height: 12),
-                             Text("No orders yet", style: TextStyle(color: Colors.white.withAlpha(102))),
+                             Text("No orders yet".tr(), style: TextStyle(color: Colors.white.withAlpha(102))),
                            ],
                          ),
                        );
@@ -988,7 +989,7 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
                                          crossAxisAlignment: CrossAxisAlignment.start,
                                          children: [
                                            Text(
-                                             order.serviceType.split('-')[0].trim(),
+                                             order.serviceType.split('-')[0].trim().tr(),
                                              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
                                            ),
                                            Text(
@@ -1310,8 +1311,8 @@ class _AnimatedOrderListButtonState extends State<_AnimatedOrderListButton> {
             ],
           ),
           alignment: Alignment.center,
-          child: const Text(
-            "ORDER LIST",
+          child:  Text(
+            "ORDER LIST".tr(),
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
