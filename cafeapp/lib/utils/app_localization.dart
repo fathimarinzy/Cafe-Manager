@@ -537,7 +537,10 @@ class AppLocalization {
 
      // Printer Settings Screen
       'Configuration': 'التكوين',
-     
+      'Scan Printers': 'مسح الطابعات',
+      'Save Configuration': 'حفظ التكوين',
+      'Connection Type': 'نوع الاتصال',
+      'Connection Status': 'حالة الاتصال',
       'Enable KOT Printer': 'تمكين طابعة المطبخ',
       'Print kitchen orders to separate printer': 'طباعة طلبات المطبخ على طابعة منفصلة',
       'Receipt printer settings saved': 'تم حفظ إعدادات طابعة الإيصالات',
