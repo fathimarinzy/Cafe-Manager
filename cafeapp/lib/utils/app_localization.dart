@@ -536,6 +536,8 @@ class AppLocalization {
      'Failed to add person': 'فشل إضافة الشخص',
 
      // Printer Settings Screen
+      'Configuration': 'التكوين',
+     
       'Enable KOT Printer': 'تمكين طابعة المطبخ',
       'Print kitchen orders to separate printer': 'طباعة طلبات المطبخ على طابعة منفصلة',
       'Receipt printer settings saved': 'تم حفظ إعدادات طابعة الإيصالات',
