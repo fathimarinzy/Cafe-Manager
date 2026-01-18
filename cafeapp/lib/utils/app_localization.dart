@@ -536,7 +536,19 @@ class AppLocalization {
      'Failed to add person': 'فشل إضافة الشخص',
 
      // Printer Settings Screen
+     'Network (WiFi/Ethernet)': 'الشبكة (واي فاي/إيثرنت)',
+      'System Printer (USB/Driver)': 'طابعة النظام (يو اس بي/سائق)',
       'Configuration': 'التكوين',
+      'KOT Status': 'حالة المطبخ',
+      'Network:': 'الشبكة:',
+      'USB:': 'يو اس بي:',
+      'Bluetooth:': 'بلوتوث:',
+      'WiFi:': 'واي فاي:',
+      'Ethernet:': 'إيثرنت:',
+      'Driver:': 'السائق:',
+      'Select Printer': 'اختر الطابعة',
+      'Refresh Printers': 'تحديث الطابعات',
+      'Choose a printer': 'اختر طابعة',
       'Scan Printers': 'مسح الطابعات',
       'Save Configuration': 'حفظ التكوين',
       'Connection Type': 'نوع الاتصال',
@@ -804,20 +816,7 @@ class AppLocalization {
     'Tax added on top of price': 'الضريبة مضافة على السعر',
     'Inclusive VAT': 'ضريبة القيمة المضافة الشاملة',
     'Tax included in price': 'الضريبة مشمولة في السعر',
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
     // Settings Password Dialog
     'Enter Password': 'أدخل كلمة المرور',
     'Please enter the password to access settings': 'الرجاء إدخال كلمة المرور للوصول إلى الإعدادات',
@@ -1190,7 +1189,6 @@ class AppLocalization {
       'Scan Network': 'فحص الشبكة',
       'Printer Type': 'نوع الطابعة',
       'Select Printer Type': 'ترع الطابعة',
-      'System Printer (USB/Driver)': 'طابعة النظام (USB/Driver)',
       'Network IP': 'عنوان IP للشبكة',
       'Port': 'المنفذ',
       
