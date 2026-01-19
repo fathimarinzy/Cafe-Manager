@@ -471,6 +471,9 @@ class AppLocalization {
 
 
       // Order Details Screen
+      'Print':'طباعة',
+      'Failed to print receipt':'فشل طباعة الفاتورة',
+      'Receipt printed successfully':'تم طباعة الفاتورة بنجاح',
       'Event Details': 'تفاصيل الحدث',
       'Event Type': 'نوع الحدث',
       'Guests': 'الزائرين',
