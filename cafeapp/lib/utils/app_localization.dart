@@ -535,8 +535,8 @@ class AppLocalization {
      'Person added successfully': 'تمت إضافة الشخص بنجاح',
      'Failed to add person': 'فشل إضافة الشخص',
 
-     // Printer Settings Screen
-     'Network (WiFi/Ethernet)': 'الشبكة (واي فاي/إيثرنت)',
+      // Printer Settings Screen
+      'Network (WiFi/Ethernet)': 'الشبكة (واي فاي/إيثرنت)',
       'System Printer (USB/Driver)': 'طابعة النظام (يو اس بي/سائق)',
       'Configuration': 'التكوين',
       'KOT Status': 'حالة المطبخ',

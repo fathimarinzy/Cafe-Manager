@@ -17,6 +17,7 @@ import '../utils/service_type_utils.dart';
 import '../repositories/local_person_repository.dart';
 import '../models/person.dart';
 import '../services/device_sync_service.dart';
+import '../services/thermal_printer_service.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
   final int orderId;
@@ -175,6 +176,116 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         _loadOrderDetails();
       }
     });
+  }
+
+  Future<void> _printBillReceipt() async {
+    if (_order == null) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+      
+      // Calculate amounts (Reuse logic from _buildOrderDetailsView)
+      double taxableTotal = 0.0;
+      double taxExemptTotal = 0.0;
+      
+      for (var item in _order!.items) {
+        final itemTotal = item.price * item.quantity;
+        if (item.taxExempt) {
+          taxExemptTotal += itemTotal;
+        } else {
+          taxableTotal += itemTotal;
+        }
+      }
+      
+      double subtotal;
+      double tax;
+      double total;
+      
+      double deliveryCharge = _order!.deliveryCharge ?? 0.0;
+
+      if (settingsProvider.isVatInclusive) {
+        final taxableAmount = taxableTotal / (1 + (settingsProvider.taxRate / 100));
+        tax = taxableTotal - taxableAmount;
+        subtotal = taxableAmount + taxExemptTotal;
+        total = (taxableTotal + taxExemptTotal + deliveryCharge) - _discountAmount;
+      } else {
+        subtotal = taxableTotal + taxExemptTotal;
+        tax = taxableTotal * (settingsProvider.taxRate / 100);
+        total = subtotal + tax + deliveryCharge - _discountAmount;
+      }
+
+      final items = _order!.items.map((item) => 
+        MenuItem(
+          id: item.id.toString(),
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          imageUrl: '',
+          category: '',
+          kitchenNote: item.kitchenNote,
+          taxExempt: item.taxExempt,
+        )
+      ).toList();
+
+      String? tableInfo;
+      if (_order!.serviceType.toLowerCase().contains('dining') && _order!.serviceType.contains('-')) {
+        tableInfo = _order!.serviceType.split('-').last.trim();
+      }
+
+      final success = await ThermalPrinterService.printOrderReceipt(
+        serviceType: _order!.serviceType,
+        items: items,
+        subtotal: subtotal,
+        tax: tax,
+        discount: _discountAmount,
+        total: total,
+        personName: _customer?.name,
+        tableInfo: tableInfo,
+        orderNumber: _order!.orderNumber,
+        taxRate: settingsProvider.taxRate,
+        depositAmount: _order!.status == 'pending' ? _order!.depositAmount ?? 0.0 : null,
+        deliveryCharge: deliveryCharge,
+      );
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Receipt printed successfully'.tr()),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to print receipt'.tr()),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error printing bill receipt: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error printing receipt'.tr()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<bool> _saveOrderChangesToBackend() async {
@@ -1053,7 +1164,16 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
             onPressed: () => Navigator.of(context).pop(),
           ),
           actions: [
-            if (_order != null)
+            if (_order != null) ...[
+              TextButton.icon(
+                icon: const Icon(Icons.print),
+                label: Text('Print'.tr()),
+                onPressed: _printBillReceipt,
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.blue[800],
+                ),
+              ),
+              const SizedBox(width: 8),
               TextButton.icon(
                 icon: const Icon(Icons.payment),
                 label:  Text('Tender'.tr()),
@@ -1062,6 +1182,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                   foregroundColor: Colors.blue[800],
                 ),
               ),
+            ],
             const SizedBox(width: 8),
           ],
         ),
