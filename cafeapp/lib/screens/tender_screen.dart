@@ -120,9 +120,9 @@ class _TenderScreenState extends State<TenderScreen> {
      
     if (!_serviceTotals.containsKey(_currentServiceType)) {
       _serviceTotals[_currentServiceType] = {
-        'subtotal': 0.0,
-        'tax': 0.0,
-        'discount': 0.0,
+        'subtotal': widget.order.subtotal,
+        'tax': widget.order.tax,
+        'discount': widget.order.discount,
         'total': widget.order.total,
       };
     }
@@ -5511,7 +5511,7 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
     final orderItems = _updatedOrder?.items ?? widget.order.items;
     final serviceType = _updatedOrder?.serviceType ?? widget.order.serviceType;
     final orderNumber = _updatedOrder?.id?.toString().padLeft(4, '0') ?? widget.order.orderNumber;
-    final depositAmount = _updatedOrder?.depositAmount;
+    final depositAmount = _updatedOrder?.depositAmount ?? widget.order.depositAmount;
     
     final pdf = await BillService.generateBill(
       items: orderItems.map((item) => item.toMenuItem()).toList(),
