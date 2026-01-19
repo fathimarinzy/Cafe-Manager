@@ -471,6 +471,7 @@ class AppLocalization {
 
 
       // Order Details Screen
+      'Tax settings updated (not saved yet)':'تم تحديث إعدادات الضريبة (لم يتم حفظها بعد)',
       'Print':'طباعة',
       'Failed to print receipt':'فشل طباعة الفاتورة',
       'Receipt printed successfully':'تم طباعة الفاتورة بنجاح',
