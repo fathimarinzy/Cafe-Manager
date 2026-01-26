@@ -1748,10 +1748,161 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
     // If it's a mobile sheet, we want to expand to fill the available space (modal)
     // If it's portrait/landscape desktop, we use fixed sizes usually
     
-    return Container(
-      width: isMobileSheet ? double.infinity : (width ?? 350), // Responsive width support
-      color: Colors.white,
-      child: Column(
+    // Check for short screens (landscape tablets or small windows) where fixed layout might clip content
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isShortScreen = screenHeight < 650 && !isMobileSheet;
+
+    final orderList = orderProvider.cartItems.isEmpty
+        ? _buildEmptyCartMessage()
+        : ListView.builder(
+            padding: EdgeInsets.only(bottom: isMobileSheet ? 100 : 0),
+            physics: isShortScreen ? const NeverScrollableScrollPhysics() : const AlwaysScrollableScrollPhysics(),
+            shrinkWrap: isShortScreen, // Allow expansion if short screen (wrapped in ScrollView)
+            itemCount: orderProvider.cartItems.length,
+            itemBuilder: (ctx, index) {
+              final item = orderProvider.cartItems[index];
+              return Container(
+                key: ValueKey('cart_item_${item.id}'),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Item name and price
+                    Expanded(
+                      flex: 5,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  item.name,
+                                  style: const TextStyle(fontWeight: FontWeight.w500),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (!item.isAvailable)
+                                Container(
+                                  margin: const EdgeInsets.only(left: 4),
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.shade100,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'Sold Out'.tr(),
+                                    style: TextStyle(
+                                      color: Colors.red.shade900,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                )
+                              else if (item.isPerPlate)
+                                Container(
+                                  margin: const EdgeInsets.only(left: 4),
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: Colors.purple.shade100,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'Per Person'.tr(),
+                                    style: TextStyle(
+                                      color: Colors.purple.shade900,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${item.price.toStringAsFixed(3)} x ${item.quantity}',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Quantity adjustment
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.remove, size: 14),
+                          onPressed: () {
+                            if (item.quantity > 1) {
+                              orderProvider.updateItemQuantity(item.id, item.quantity - 1);
+                            } else {
+                              orderProvider.removeItem(item.id);
+                            }
+                          },
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          style: IconButton.styleFrom(
+                            minimumSize: const Size(20, 20),
+                            padding: EdgeInsets.zero,
+                          ),
+                        ),
+                        SizedBox(
+                          width: 24,
+                          child: Text(
+                            '${item.quantity}',
+                            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add, size: 14),
+                          onPressed: () {
+                            orderProvider.updateItemQuantity(item.id, item.quantity + 1);
+                          },
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          style: IconButton.styleFrom(
+                            minimumSize: const Size(20, 20),
+                            padding: EdgeInsets.zero,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 50,
+                          child: Text(
+                            (item.price * item.quantity).toStringAsFixed(3),
+                            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                            textAlign: TextAlign.right,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.grey, size: 14),
+                          onPressed: () {
+                            orderProvider.removeItem(item.id);
+                          },
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          style: IconButton.styleFrom(
+                            minimumSize: const Size(20, 20),
+                            padding: EdgeInsets.zero,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+
+    final content = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isMobileSheet) ...[ // Hide header if in mobile sheet (custom header provided)
@@ -1780,157 +1931,10 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
           ],
           
           // Order items list
-          Expanded(
-            child: orderProvider.cartItems.isEmpty
-                ? _buildEmptyCartMessage()
-                : ListView.builder(
-                    padding: EdgeInsets.only(bottom: isMobileSheet ? 100 : 0), // Padding for floating buttons if any
-                    physics: const NeverScrollableScrollPhysics(), // Keep this for nested ListView
-                    shrinkWrap: true, // Keep this for nested ListView
-                    itemCount: orderProvider.cartItems.length,
-                    itemBuilder: (ctx, index) {
-                            final item = orderProvider.cartItems[index];
-                            return Container(
-                              key: ValueKey('cart_item_${item.id}'),
-                              decoration: BoxDecoration(
-                                border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Item name and price
-                                  Expanded(
-                                    flex: 5,
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Flexible(
-                                              child: Text(
-                                                item.name,
-                                                style: const TextStyle(fontWeight: FontWeight.w500),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                            if (!item.isAvailable)
-                                              Container(
-                                                margin: const EdgeInsets.only(left: 4),
-                                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.red.shade100,
-                                                  borderRadius: BorderRadius.circular(4),
-                                                ),
-                                                child: Text(
-                                                  'Sold Out'.tr(),
-                                                  style: TextStyle(
-                                                    color: Colors.red.shade900,
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              )
-                                            else if (item.isPerPlate)
-                                              Container(
-                                                margin: const EdgeInsets.only(left: 4),
-                                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.purple.shade100,
-                                                  borderRadius: BorderRadius.circular(4),
-                                                ),
-                                                child: Text(
-                                                  'Per Person'.tr(),
-                                                  style: TextStyle(
-                                                    color: Colors.purple.shade900,
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          '${item.price.toStringAsFixed(3)} x ${item.quantity}',
-                                          style: TextStyle(
-                                            color: Colors.grey.shade600,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  // Quantity adjustment
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        icon: const Icon(Icons.remove, size: 14),
-                                        onPressed: () {
-                                          if (item.quantity > 1) {
-                                            orderProvider.updateItemQuantity(item.id, item.quantity - 1);
-                                          } else {
-                                            orderProvider.removeItem(item.id);
-                                          }
-                                        },
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(),
-                                        style: IconButton.styleFrom(
-                                          minimumSize: const Size(20, 20),
-                                          padding: EdgeInsets.zero,
-                                        ),
-                                      ),
-                                      SizedBox(
-                                        width: 24,
-                                        child: Text(
-                                          '${item.quantity}',
-                                          style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-                                          textAlign: TextAlign.center,
-                                        ),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.add, size: 14),
-                                        onPressed: () {
-                                          orderProvider.updateItemQuantity(item.id, item.quantity + 1);
-                                        },
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(),
-                                        style: IconButton.styleFrom(
-                                          minimumSize: const Size(20, 20),
-                                          padding: EdgeInsets.zero,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      SizedBox(
-                                        width: 50,
-                                        child: Text(
-                                          (item.price * item.quantity).toStringAsFixed(3),
-                                          style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-                                          textAlign: TextAlign.right,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.close, color: Colors.grey, size: 14),
-                                        onPressed: () {
-                                          orderProvider.removeItem(item.id);
-                                        },
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(),
-                                        style: IconButton.styleFrom(
-                                          minimumSize: const Size(20, 20),
-                                          padding: EdgeInsets.zero,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                  ),
+          if (isShortScreen)
+            orderList
+          else
+            Expanded(child: orderList),
                   
                   // Separator
                   Container(
@@ -2122,7 +2126,14 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
             ),
           ),
         ],
-      ),
+      );
+
+    return Container(
+      width: isMobileSheet ? double.infinity : (width ?? 350), // Responsive width support
+      color: Colors.white,
+      child: isShortScreen 
+          ? SingleChildScrollView(child: content) 
+          : content,
     );
   }
 
