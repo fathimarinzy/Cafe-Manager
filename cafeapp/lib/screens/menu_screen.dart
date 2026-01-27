@@ -1902,238 +1902,246 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
             },
           );
 
-    final content = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    // Order Summary Widget Block
+    final orderSummary = Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
         children: [
-          if (!isMobileSheet) ...[ // Hide header if in mobile sheet (custom header provided)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Sub total'.tr(), style: TextStyle(fontWeight: FontWeight.w500)),
+              Text(orderProvider.subtotal.toStringAsFixed(3), style: const TextStyle(fontWeight: FontWeight.w500)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
                 children: [
-                  Text(
-                    'Order Items'.tr(),
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  Text('Tax amount'.tr()),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade100,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      settingsProvider.isVatInclusive ? 'Incl.' : 'Excl.',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue.shade800,
+                      ),
+                    ),
                   ),
-                  if (widget.serviceType.toLowerCase().contains('delivery'))
-                    IconButton(
-                      icon: const Icon(Icons.local_shipping, color: Colors.blue), // Hardcoded color for visibility check
-                      tooltip: 'Delivery Details',
-                      onPressed: _showDeliveryDetailsDialog,
+                  if (_hasTaxExemptItems(orderProvider))
+                    Container(
+                      margin: const EdgeInsets.only(left: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade100,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      child: Tooltip(
+                        message: 'Some items are tax-exempt'.tr(),
+                        child: Icon(
+                          Icons.info_outline,
+                          size: 12,
+                          color: Colors.orange.shade800,
+                        ),
+                      ),
                     ),
                 ],
               ),
+              Text(orderProvider.tax.toStringAsFixed(3)),
+            ],
+          ),
+          
+          if ((orderProvider.deliveryCharge ?? 0) > 0 && widget.serviceType.toLowerCase().contains('delivery'))
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Delivery Fee'.tr()),
+                  Text((orderProvider.deliveryCharge ?? 0).toStringAsFixed(3)),
+                ],
+              ),
             ),
-          ],
+            
+          const SizedBox(height: 8),
           
-          // Order items list
-          if (isShortScreen)
-            orderList
-          else
-            Expanded(child: orderList),
-                  
-                  // Separator
-                  Container(
-                    height: 10,
-                    color: Colors.grey.shade50,
-                  ),
-                  
-                  // Order Summary
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('Sub total'.tr(), style: TextStyle(fontWeight: FontWeight.w500)),
-                            Text(orderProvider.subtotal.toStringAsFixed(3), style: const TextStyle(fontWeight: FontWeight.w500)),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                Text('Tax amount'.tr()),
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue.shade100,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    settingsProvider.isVatInclusive ? 'Incl.' : 'Excl.',
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.blue.shade800,
-                                    ),
-                                  ),
-                                ),
-                                if (_hasTaxExemptItems(orderProvider))
-                                  Container(
-                                    margin: const EdgeInsets.only(left: 4),
-                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                    decoration: BoxDecoration(
-                                      color: Colors.orange.shade100,
-                                      borderRadius: BorderRadius.circular(3),
-                                    ),
-                                    child: Tooltip(
-                                      message: 'Some items are tax-exempt'.tr(),
-                                      child: Icon(
-                                        Icons.info_outline,
-                                        size: 12,
-                                        color: Colors.orange.shade800,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            Text(orderProvider.tax.toStringAsFixed(3)),
-                          ],
-                        ),
-                        
-                        if ((orderProvider.deliveryCharge ?? 0) > 0 && widget.serviceType.toLowerCase().contains('delivery'))
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text('Delivery Fee'.tr()),
-                                Text((orderProvider.deliveryCharge ?? 0).toStringAsFixed(3)),
-                              ],
-                            ),
-                          ),
-                          
-                        const SizedBox(height: 8),
-                        
-                        // Grand Total
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('Grand total'.tr(), style: TextStyle(fontWeight: FontWeight.bold)),
-                            Text(orderProvider.total.toStringAsFixed(3), style: const TextStyle(fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                        
-                        const SizedBox(height: 10),
-                        
-                        // Customer selection row 
-                        Container(
-                          padding: const EdgeInsets.only(top: 16),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              IconButton(
-                                icon: Icon(Icons.person_outline, color: widget.serviceColor),
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (context) => const PersonFormScreen())
-                                  );
-                                },
-                              ),
-                              IconButton(
-                                icon: Icon(Icons.search, color: widget.serviceColor),
-                                onPressed: () async {
-                                  final selectedPerson = await Navigator.push<Person>(
-                                    context,
-                                    MaterialPageRoute(builder: (context) => const SearchPersonScreen())
-                                  );
-                                  if (selectedPerson != null) {
-                                    orderProvider.setSelectedPerson(selectedPerson);
-                                    if (mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('Customer selected: ${selectedPerson.name}'), duration: const Duration(milliseconds: 100)),
-                                      );
-                                    }
-                                  }
-                                },
-                              ),
-                              Builder(
-                                builder: (context) {
-                                  final isDelivery = widget.serviceType.toLowerCase().contains('delivery');
-                                  // debugPrint('DEBUG: ServiceType: ${widget.serviceType}, isDelivery: $isDelivery');
-                                  if (isDelivery) {
-                                    return IconButton(
-                                      icon: Icon(Icons.local_shipping, color: widget.serviceColor),
-                                      onPressed: _showDeliveryDetailsDialog,
-                                    );
-                                  }
-                                  return const SizedBox.shrink(); // Hidden if not delivery
-                                }
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
+          // Grand Total
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Grand total'.tr(), style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(orderProvider.total.toStringAsFixed(3), style: const TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
           
-          // Payment Buttons
+          const SizedBox(height: 10),
+          
+          // Customer selection row 
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border(top: BorderSide(color: Colors.grey.shade200)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha(13),
-                  blurRadius: 4,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+            padding: const EdgeInsets.only(top: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Row(
-                  children: [
-                    Expanded(child: _buildPaymentButton('Cash'.tr(), Colors.grey.shade100)),
-                    const SizedBox(width: 8),
-                    Expanded(child: _buildPaymentButton('Credit'.tr(), Colors.grey.shade100)),
-                  ],
+                IconButton(
+                  icon: Icon(Icons.person_outline, color: widget.serviceColor),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const PersonFormScreen())
+                    );
+                  },
                 ),
-                const SizedBox(height: 8),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    if (widget.serviceType.toLowerCase().contains('catering')) ...[
-                      Expanded(
-                        child: _buildPaymentButton('Quote'.tr(), Colors.orange.shade50, textColor: Colors.orange.shade800, onTap: () => _showQuoteConfirmation()),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                    Expanded(
-                      child: _buildPaymentButton('Order'.tr(), Colors.grey.shade100),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _buildPaymentButton('Tender'.tr(), Colors.grey.shade100),
-                    ),
-                  ],
+                IconButton(
+                  icon: Icon(Icons.search, color: widget.serviceColor),
+                  onPressed: () async {
+                    final selectedPerson = await Navigator.push<Person>(
+                      context,
+                      MaterialPageRoute(builder: (context) => const SearchPersonScreen())
+                    );
+                    if (selectedPerson != null) {
+                      orderProvider.setSelectedPerson(selectedPerson);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Customer selected: ${selectedPerson.name}'), duration: const Duration(milliseconds: 100)),
+                        );
+                      }
+                    }
+                  },
+                ),
+                Builder(
+                  builder: (context) {
+                    final isDelivery = widget.serviceType.toLowerCase().contains('delivery');
+                    // debugPrint('DEBUG: ServiceType: ${widget.serviceType}, isDelivery: $isDelivery');
+                    if (isDelivery) {
+                      return IconButton(
+                        icon: Icon(Icons.local_shipping, color: widget.serviceColor),
+                        onPressed: _showDeliveryDetailsDialog,
+                      );
+                    }
+                    return const SizedBox.shrink(); // Hidden if not delivery
+                  }
                 ),
               ],
             ),
           ),
         ],
-      );
+      ),
+    );
+
+    // Payment Buttons Block
+    final paymentButtons = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(13),
+            blurRadius: 4,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(child: _buildPaymentButton('Cash'.tr(), Colors.grey.shade100)),
+              const SizedBox(width: 8),
+              Expanded(child: _buildPaymentButton('Credit'.tr(), Colors.grey.shade100)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              if (widget.serviceType.toLowerCase().contains('catering')) ...[
+                Expanded(
+                  child: _buildPaymentButton('Quote'.tr(), Colors.orange.shade50, textColor: Colors.orange.shade800, onTap: () => _showQuoteConfirmation()),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: _buildPaymentButton('Order'.tr(), Colors.grey.shade100),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildPaymentButton('Tender'.tr(), Colors.grey.shade100),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    final header = !isMobileSheet ? Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'Order Items'.tr(),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          if (widget.serviceType.toLowerCase().contains('delivery'))
+            IconButton(
+              icon: const Icon(Icons.local_shipping, color: Colors.blue), // Hardcoded color for visibility check
+              tooltip: 'Delivery Details',
+              onPressed: _showDeliveryDetailsDialog,
+            ),
+        ],
+      ),
+    ) : const SizedBox.shrink();
+
+    final separator = Container(
+      height: 10,
+      color: Colors.grey.shade50,
+    );
 
     return Container(
       width: isMobileSheet ? double.infinity : (width ?? 350), // Responsive width support
       color: Colors.white,
       child: isShortScreen 
-          ? SingleChildScrollView(child: content) 
-          : content,
+          ? Column(
+              children: [
+                header,
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        orderList,
+                        separator,
+                        orderSummary,
+                      ],
+                    ),
+                  ),
+                ),
+                paymentButtons, // Fixed at bottom
+              ],
+            )
+          : Column(
+              children: [
+                header,
+                Expanded(child: orderList),
+                separator,
+                orderSummary,
+                paymentButtons,
+              ],
+            ),
     );
   }
 
