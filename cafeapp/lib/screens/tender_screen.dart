@@ -4491,11 +4491,11 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       
       if (result == 'yes') {
         if (_selectedPaymentMethod == 'Cash'.tr()) {
-          _processCashPayment(amount, change);
+          await _processCashPayment(amount, change);
         } else  if (_selectedPaymentMethod == 'Bank'.tr()) {
-          _processPayment(amount, change);
+          await _processPayment(amount, change);
         } else if (_selectedPaymentMethod == 'Bank + Cash'.tr()) {
-          _processSplitPayment(_cashAmount, _bankAmount);
+          await _processSplitPayment(_cashAmount, _bankAmount);
         }
       }else if (result == 'no') {
         if (_selectedPaymentMethod == 'Bank + Cash'.tr()) {
