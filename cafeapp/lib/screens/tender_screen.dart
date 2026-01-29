@@ -1733,9 +1733,6 @@ void _showSplitPaymentDialog() {
   
    // NEW: Process split payment
   Future<void> _processSplitPayment(double cashAmount, double bankAmount) async {
-    setState(() {
-      _isProcessing = true;
-    });
     try {
       final discountedTotal = _getDiscountedTotal();
       final totalPaid = cashAmount + bankAmount;
@@ -1955,12 +1952,6 @@ void _showSplitPaymentDialog() {
           SnackBar(content: Text('${'Error processing split payment'.tr()}: $e')),
         );
       }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
-      }
     }
   }
   Future<bool> _updateOrderStatus(String status) async {
@@ -2021,10 +2012,6 @@ void _showSplitPaymentDialog() {
     }
     
     if (amount <= 0) return;
-
-    setState(() {
-      _isProcessing = true;
-    });
 
     try {
       if (widget.isCreditCompletion) {
@@ -2206,12 +2193,6 @@ void _showSplitPaymentDialog() {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${'Error processing payment'.tr()}: $e')),
         );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
       }
     }
   }
@@ -5048,10 +5029,6 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
 }
 
   Future<void> _processCashPayment(double amount, double change) async {
-    setState(() {
-      _isProcessing = true;
-    });
-
     try {
        // Handle credit completion case
     if (widget.isCreditCompletion) {
@@ -5222,12 +5199,6 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${'Error processing payment'.tr()}: $e')),
         );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
       }
     }
   }

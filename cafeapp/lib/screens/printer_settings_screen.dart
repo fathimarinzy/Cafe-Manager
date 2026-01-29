@@ -18,21 +18,17 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
   final _receiptIpController = TextEditingController();
   final _receiptPortController = TextEditingController();
   
-  // KOT Printer controllers
-  final _kotIpController = TextEditingController();
-  final _kotPortController = TextEditingController();
+  // KOT Printer State (Multi-Support)
+  List<KotPrinterConfig> _kotPrinters = [];
   
   bool _isLoading = true;
   bool _isTestingReceipt = false;
-  bool _isTestingKot = false;
+  bool _isTestingKot = false; // Kept for general testing flag if needed, or remove
   bool _isDiscovering = false;
-  bool _kotPrinterEnabled = true;
   
   // NEW: System Printer State
   String _receiptPrinterType = ThermalPrinterService.printerTypeNetwork;
-  String _kotPrinterType = ThermalPrinterService.printerTypeNetwork;
   String? _selectedReceiptSystemPrinter;
-  String? _selectedKotSystemPrinter;
   List<Printer> _systemPrinters = [];
   bool _isLoadingSystemPrinters = false;
   
@@ -51,8 +47,6 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
   void dispose() {
     _receiptIpController.dispose();
     _receiptPortController.dispose();
-    _kotIpController.dispose();
-    _kotPortController.dispose();
     _tabController.dispose();
     super.dispose();
   }
@@ -88,26 +82,16 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
       final receiptType = await ThermalPrinterService.getReceiptPrinterType();
       final receiptSystemName = await ThermalPrinterService.getReceiptSystemPrinterName();
       
-      // Load KOT Printer settings
-      final kotIp = await ThermalPrinterService.getKotPrinterIp();
-      final kotPort = await ThermalPrinterService.getKotPrinterPort();
-      final kotEnabled = await ThermalPrinterService.isKotPrinterEnabled();
-      final kotType = await ThermalPrinterService.getKotPrinterType();
-      final kotSystemName = await ThermalPrinterService.getKotSystemPrinterName();
+      // Load KOT Printer List
+      final kotPrinters = await ThermalPrinterService.getKotPrinters();
       
       setState(() {
         _receiptIpController.text = receiptIp;
         _receiptPortController.text = receiptPort.toString();
-        
-        _kotIpController.text = kotIp;
-        _kotPortController.text = kotPort.toString();
-        _kotPrinterEnabled = kotEnabled;
-        
-        // Load types
         _receiptPrinterType = receiptType;
-        _kotPrinterType = kotType;
         _selectedReceiptSystemPrinter = receiptSystemName;
-        _selectedKotSystemPrinter = kotSystemName;
+        
+        _kotPrinters = kotPrinters;
         
         _isLoading = false;
       });
@@ -414,18 +398,17 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () {
-                      setState(() {
-                        _kotIpController.text = printer['ip']!;
-                        _kotPortController.text = printer['port']!;
-                        _kotPrinterEnabled = true; // Auto-enable KOT printer
-                      });
+                      _addKotPrinter(KotPrinterConfig(
+                          ip: printer['ip']!,
+                          port: int.parse(printer['port']!),
+                          enabled: true,
+                          type: ThermalPrinterService.printerTypeNetwork,
+                          name: 'KOT ${printer['ip']}',
+                        ));
                       Navigator.of(ctx).pop();
-                      
-                      // Show confirmation
-                      _showSuccessMessage('KOT printer configured with ${printer['ip']}'.tr());
                     },
                     icon: const Icon(Icons.restaurant_menu, size: 18),
-                    label: Text('Set as KOT Printer'.tr()),
+                    label: Text('Add as KOT Printer'.tr()),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue.shade700,
                       foregroundColor: Colors.white,
@@ -466,18 +449,17 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: () {
-                      setState(() {
-                        _kotIpController.text = printer['ip']!;
-                        _kotPortController.text = printer['port']!;
-                        _kotPrinterEnabled = true; // Auto-enable KOT printer
-                      });
+                      _addKotPrinter(KotPrinterConfig(
+                          ip: printer['ip']!,
+                          port: int.parse(printer['port']!),
+                          enabled: true,
+                          type: ThermalPrinterService.printerTypeNetwork,
+                          name: 'KOT ${printer['ip']}',
+                        ));
                       Navigator.of(ctx).pop();
-                      
-                      // Show confirmation
-                      _showSuccessMessage('KOT printer configured with ${printer['ip']}'.tr());
                     },
                     icon: const Icon(Icons.restaurant_menu, size: 18),
-                    label: Text('Set as KOT Printer'.tr()),
+                    label: Text('Add as KOT Printer'.tr()),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue.shade700,
                       foregroundColor: Colors.white,
@@ -546,59 +528,6 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
     }
   }
 
-  Future<void> _saveKotPrinterSettings() async {
-    // Validation based on printer type
-    if (_kotPrinterType == ThermalPrinterService.printerTypeNetwork) {
-      if (!_validateIpAddress(_kotIpController.text)) {
-        _showErrorMessage("Please enter a valid IP address for KOT Printer".tr());
-        return;
-      }
-
-      final portText = _kotPortController.text.trim();
-      final port = int.tryParse(portText);
-      if (port == null || port <= 0 || port > 65535) {
-        _showErrorMessage("Please enter a valid port number (1-65535) for KOT Printer".tr());
-        return;
-      }
-    } else {
-      // System printer
-      if (_selectedKotSystemPrinter == null) {
-        _showErrorMessage("Please select a printer".tr());
-        return;
-      }
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      await ThermalPrinterService.setKotPrinterEnabled(_kotPrinterEnabled);
-      await ThermalPrinterService.setKotPrinterType(_kotPrinterType);
-      
-      if (_kotPrinterType == ThermalPrinterService.printerTypeNetwork) {
-        await ThermalPrinterService.saveKotPrinterIp(_kotIpController.text.trim());
-        final port = int.parse(_kotPortController.text.trim());
-        await ThermalPrinterService.saveKotPrinterPort(port);
-      } else {
-        await ThermalPrinterService.setKotSystemPrinterName(_selectedKotSystemPrinter);
-      }
-      
-      if (!mounted) return;
-      
-      setState(() {
-        _isLoading = false;
-      });
-      
-      _showSuccessMessage("KOT printer settings saved".tr());
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      _showErrorMessage("Error saving KOT printer settings".tr());
-    }
-  }
-
   Future<void> _testReceiptConnection() async {
     setState(() {
       _isTestingReceipt = true;
@@ -636,17 +565,36 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
     }
   }
 
-  Future<void> _testKotConnection() async {
+  Future<void> _addKotPrinter(KotPrinterConfig printer) async {
+    await ThermalPrinterService.addKotPrinter(printer);
+    _loadSettings(); // Reload to update UI
+    _showSuccessMessage("Printer added successfully".tr());
+  }
+
+  Future<void> _updateKotPrinter(int index, KotPrinterConfig printer) async {
+    await ThermalPrinterService.updateKotPrinter(index, printer);
+    _loadSettings();
+    _showSuccessMessage("Printer updated successfully".tr());
+  }
+
+  Future<void> _deleteKotPrinter(int index) async {
+    await ThermalPrinterService.removeKotPrinter(index);
+    _loadSettings();
+    _showSuccessMessage("Printer removed successfully".tr());
+  }
+
+  Future<void> _testSpecificKotConnection(KotPrinterConfig config) async {
+    // Show loading indicator in a more specific way if possible, or just global for now
     setState(() {
       _isTestingKot = true;
     });
 
     try {
       final connected = await ThermalPrinterService.testKotConnection(
-        type: _kotPrinterType,
-        ip: _kotIpController.text.trim(),
-        port: int.tryParse(_kotPortController.text.trim()),
-        systemPrinterName: _selectedKotSystemPrinter,
+        type: config.type,
+        ip: config.ip,
+        port: config.port,
+        systemPrinterName: config.systemPrinterName,
       );
       
       if (!mounted) return;
@@ -656,12 +604,12 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
       });
       
       if (connected) {
-        _showSuccessMessage("Successfully connected to KOT printer".tr());
+        _showSuccessMessage("Successfully connected to ${config.name ?? 'Printer'}".tr());
       } else {
-        if (_kotPrinterType == ThermalPrinterService.printerTypeNetwork) {
-          _showErrorMessage("Failed to connect to KOT printer. Please check IP address and port.".tr());
+        if (config.type == ThermalPrinterService.printerTypeNetwork) {
+          _showErrorMessage("Failed to connect to ${config.name}. Check IP/Port.".tr());
         } else {
-          _showErrorMessage("Failed to test KOT system printer. Please check if the printer is on and drivers are installed.".tr());
+          _showErrorMessage("Failed to test system printer.".tr());
         }
       }
     } catch (e) {
@@ -669,7 +617,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
       setState(() {
         _isTestingKot = false;
       });
-      _showErrorMessage("Error testing KOT printer connection".tr());
+      _showErrorMessage("Error testing connection".tr());
     }
   }
 
@@ -1097,276 +1045,265 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
 
 
   Widget _buildKotPrinterTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        children: [
-          _buildSectionCard(
-            title: 'KOT Status'.tr(),
-            icon: Icons.power_settings_new,
-            children: [
-              SwitchListTile(
-                title: Text('Enable KOT Printer'.tr(), style: const TextStyle(fontWeight: FontWeight.w500)),
-                subtitle: Text('Print kitchen orders to separate printer'.tr()),
-                value: _kotPrinterEnabled,
-                onChanged: (bool value) {
-                  setState(() {
-                    _kotPrinterEnabled = value;
-                  });
-                },
-                secondary: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: _kotPrinterEnabled ? Colors.green.shade50 : Colors.grey.shade100,
-                    shape: BoxShape.circle,
+    return Scaffold(
+      body: _kotPrinters.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.print_disabled, size: 64, color: Colors.grey.shade300),
+                  const SizedBox(height: 16),
+                  Text('No KOT printers configured'.tr(),
+                      style: TextStyle(fontSize: 18, color: Colors.grey.shade600)),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: () => _showAddEditKotPrinterDialog(),
+                    icon: const Icon(Icons.add),
+                    label: Text('Add Printer'.tr()),
                   ),
-                  child: Icon(
-                    _kotPrinterEnabled ? Icons.check_circle : Icons.cancel,
-                    color: _kotPrinterEnabled ? Colors.green : Colors.grey,
-                  ),
-                ),
-                contentPadding: EdgeInsets.zero,
+                ],
               ),
-            ],
-          ),
-
-          if (_kotPrinterEnabled) ...[
-            _buildSectionCard(
-              title: 'Configuration'.tr(),
-              icon: Icons.settings,
-              children: [
-                Text(
-                  'Connection Type'.tr(),
-                  style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.black87),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: ButtonTheme(
-                      alignedDropdown: true,
-                      child: DropdownButton<String>(
-                        isExpanded: true,
-                        value: _kotPrinterType,
-                        borderRadius: BorderRadius.circular(12),
-                        items: [
-                          DropdownMenuItem(
-                            value: ThermalPrinterService.printerTypeNetwork,
-                            child: Row(
-                              children: [
-                                const Icon(Icons.wifi, size: 20, color: Colors.grey),
-                                const SizedBox(width: 12),
-                                Text('Network (WiFi/Ethernet)'.tr()),
-                              ],
-                            ),
-                          ),
-                          DropdownMenuItem(
-                            value: ThermalPrinterService.printerTypeSystem,
-                            child: Row(
-                              children: [
-                                const Icon(Icons.usb, size: 20, color: Colors.grey),
-                                const SizedBox(width: 12),
-                                Text('System Printer (USB/Driver)'.tr()),
-                              ],
-                            ),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) {
-                            setState(() {
-                              _kotPrinterType = value;
-                            });
-                          }
-                        },
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _kotPrinters.length + 1, // +1 for "Add" button/card
+              itemBuilder: (context, index) {
+                if (index == _kotPrinters.length) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 16, bottom: 32),
+                    child: OutlinedButton.icon(
+                      onPressed: () => _showAddEditKotPrinterDialog(),
+                      icon: const Icon(Icons.add),
+                      label: Text('Add Another Printer'.tr()),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        side: BorderSide(color: Colors.blue.shade700, width: 2),
                       ),
                     ),
-                  ),
-                ),
-                
-                const SizedBox(height: 20),
+                  );
+                }
 
-                if (_kotPrinterType == ThermalPrinterService.printerTypeNetwork) ...[
-                  _buildTextField(
-                    controller: _kotIpController,
-                    label: 'Printer IP Address'.tr(),
-                    hint: 'e.g., 192.168.1.101',
-                    icon: Icons.dns,
-                    keyboardType: TextInputType.number,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildTextField(
-                    controller: _kotPortController,
-                    label: 'Printer Port'.tr(),
-                    hint: 'e.g., 9100',
-                    icon: Icons.numbers,
-                    keyboardType: TextInputType.number,
-                  ),
-                ] else ...[
-                   Text(
-                    'Select Printer'.tr(),
-                    style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.black87),
-                  ),
-                  const SizedBox(height: 8),
-                  if (_isLoadingSystemPrinters)
-                    const Center(child: Padding(
-                      padding: EdgeInsets.all(8.0),
-                      child: CircularProgressIndicator(),
-                    ))
-                  else if (_systemPrinters.isEmpty)
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.orange.shade200),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700, size: 20),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'No system printers found.'.tr(),
-                              style: TextStyle(color: Colors.orange.shade900, fontSize: 13),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: _loadSystemPrinters,
-                            child: Text('Refresh'.tr()),
-                          ),
-                        ],
-                      ),
-                    )
-                  else
-                    Row(
+                final printer = _kotPrinters[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.grey.shade300),
-                            ),
-                            child: DropdownButtonHideUnderline(
-                              child: ButtonTheme(
-                                alignedDropdown: true,
-                                child: DropdownButton<String>(
-                                  isExpanded: true,
-                                  value: _selectedKotSystemPrinter,
-                                  hint: Text('Choose a printer'.tr()),
-                                  borderRadius: BorderRadius.circular(12),
-                                  items: _systemPrinters.map((printer) {
-                                    return DropdownMenuItem(
-                                      value: printer.name,
-                                      child: Row(
-                                        children: [
-                                          const Icon(Icons.print, size: 18, color: Colors.grey),
-                                          const SizedBox(width: 8),
-                                          Flexible(child: Text(printer.name, overflow: TextOverflow.ellipsis)),
-                                        ],
-                                      ),
-                                    );
-                                  }).toList(),
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _selectedKotSystemPrinter = value;
-                                    });
-                                  },
+                        Row(
+                          children: [
+                            Icon(Icons.print, color: Colors.blue.shade700),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                printer.name ?? 'Printer ${index + 1}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
                                 ),
                               ),
                             ),
-                          ),
+                            Switch(
+                              value: printer.enabled,
+                              onChanged: (val) {
+                                final updated = KotPrinterConfig(
+                                  ip: printer.ip,
+                                  port: printer.port,
+                                  enabled: val,
+                                  type: printer.type,
+                                  systemPrinterName: printer.systemPrinterName,
+                                  name: printer.name,
+                                );
+                                _updateKotPrinter(index, updated);
+                              },
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: IconButton(
-                            icon: const Icon(Icons.refresh, color: Colors.blue),
-                            onPressed: _loadSystemPrinters,
-                            tooltip: 'Refresh Printers'.tr(),
-                          ),
+                        const Divider(),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Type: ${printer.type == ThermalPrinterService.printerTypeNetwork ? "Network" : "System"}'),
+                                  if (printer.type == ThermalPrinterService.printerTypeNetwork)
+                                    Text('IP: ${printer.ip}:${printer.port}')
+                                  else
+                                    Text('Name: ${printer.systemPrinterName ?? "Unknown"}'),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: _isTestingKot 
+                                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                                  : const Icon(Icons.wifi_tethering),
+                              onPressed: _isTestingKot ? null : () => _testSpecificKotConnection(printer),
+                              tooltip: 'Test Connection'.tr(),
+                              color: Colors.blue,
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.edit, color: Colors.orange),
+                              onPressed: () => _showAddEditKotPrinterDialog(printer: printer, index: index),
+                              tooltip: 'Edit'.tr(),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () => _deleteKotPrinter(index),
+                              tooltip: 'Delete'.tr(),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                ],
-                
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _saveKotPrinterSettings,
-                    icon: const Icon(Icons.save),
-                    label: Text('Save Configuration'.tr()),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: Colors.blue.shade700,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+
+  void _showAddEditKotPrinterDialog({KotPrinterConfig? printer, int? index}) {
+    final isEditing = printer != null;
+    final nameController = TextEditingController(text: printer?.name ?? 'Kitchen Printer');
+    final ipController = TextEditingController(text: printer?.ip ?? '192.168.1.101');
+    final portController = TextEditingController(text: printer?.port.toString() ?? '9100');
+    
+    String type = printer?.type ?? ThermalPrinterService.printerTypeNetwork;
+    String? systemPrinter = printer?.systemPrinterName;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Text(isEditing ? 'Edit Printer'.tr() : 'Add Printer'.tr()),
+            content: SingleChildScrollView(
+              child: SizedBox(
+                width: 400,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: InputDecoration(
+                        labelText: 'Printer Name (Label)'.tr(),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: type,
+                      decoration: InputDecoration(
+                        labelText: 'Connection Type'.tr(),
+                        border: const OutlineInputBorder(),
+                      ),
+                      items: [
+                        DropdownMenuItem(
+                          value: ThermalPrinterService.printerTypeNetwork,
+                          child: Text('Network (WiFi/LAN)'.tr()),
+                        ),
+                        DropdownMenuItem(
+                          value: ThermalPrinterService.printerTypeSystem,
+                          child: Text('System (USB/Driver)'.tr()),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        setState(() {
+                          type = val!;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    if (type == ThermalPrinterService.printerTypeNetwork) ...[
+                      TextField(
+                        controller: ipController,
+                        decoration: InputDecoration(
+                          labelText: 'IP Address'.tr(),
+                          hintText: '192.168.1.x',
+                          border: const OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: portController,
+                        decoration: InputDecoration(
+                          labelText: 'Port'.tr(),
+                          hintText: '9100',
+                          border: const OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+                    ] else ...[
+                      DropdownButtonFormField<String>(
+                        value: systemPrinter,
+                        decoration: InputDecoration(
+                          labelText: 'System Printer'.tr(),
+                          border: const OutlineInputBorder(),
+                        ),
+                        items: _systemPrinters.map((p) => DropdownMenuItem(
+                          value: p.name,
+                          child: Text(p.name, overflow: TextOverflow.ellipsis),
+                        )).toList(),
+                        onChanged: (val) {
+                          setState(() {
+                            systemPrinter = val;
+                          });
+                        },
+                      ),
+                      if (_systemPrinters.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Text('No printers found. Check connection.', style: TextStyle(color: Colors.orange)),
+                        ),
+                    ],
+                  ],
                 ),
-              ],
+              ),
             ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Cancel'.tr()),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  if (type == ThermalPrinterService.printerTypeNetwork) {
+                    if (!_validateIpAddress(ipController.text)) {
+                      // Simple validation feedback (toast or snackbar unavailable in dialog usually without ctx)
+                      // We'll rely on global snackbar or just return
+                      return; 
+                    }
+                  } else {
+                    if (systemPrinter == null) return;
+                  }
 
-            _buildSectionCard(
-              title: 'Connection Status'.tr(),
-              icon: Icons.network_check,
-              children: [
-                 Row(
-                   children: [
-                     Expanded(
-                       child: OutlinedButton.icon(
-                        onPressed: (_kotPrinterEnabled && !_isTestingKot) ? _testKotConnection : null,
-                        icon: _isTestingKot 
-                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) 
-                          : const Icon(Icons.wifi_tethering),
-                        label: Text(_isTestingKot ? 'Testing...' : 'Test Connection'.tr()),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          side: BorderSide(color: _kotPrinterEnabled ? Colors.blue.shade700 : Colors.grey),
-                          foregroundColor: _kotPrinterEnabled ? Colors.blue.shade700 : Colors.grey,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                       ),
-                     ),
-                   if (_kotPrinterType == ThermalPrinterService.printerTypeNetwork) ...[
-                     const SizedBox(width: 12),
-                     Expanded(
-                       child: OutlinedButton.icon(
-                        onPressed: (_kotPrinterEnabled && !_isDiscovering) ? _discoverPrinters : null,
-                        icon: _isDiscovering 
-                           ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) 
-                           : const Icon(Icons.search),
-                        label: Text(_isDiscovering ? 'Scanning...' : 'Scan Printers'.tr()),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          side: BorderSide(color: Colors.grey.shade400),
-                          foregroundColor: Colors.black87,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                       ),
-                     ),
-                   ],
-                   ],
-                 ),
-              ],
-            ),
-          ],
-          
-          _buildHelpSection(),
-        ],
+                  final newPrinter = KotPrinterConfig(
+                    ip: ipController.text,
+                    port: int.tryParse(portController.text) ?? 9100,
+                    type: type,
+                    systemPrinterName: systemPrinter,
+                    enabled: true,
+                    name: nameController.text.isEmpty ? 'Printer' : nameController.text,
+                  );
+
+                  if (isEditing) {
+                    _updateKotPrinter(index!, newPrinter);
+                  } else {
+                    _addKotPrinter(newPrinter);
+                  }
+                  Navigator.pop(ctx);
+                },
+                child: Text('Save'.tr()),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
