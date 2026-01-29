@@ -882,10 +882,29 @@ void _showSplitPaymentDialog() {
             setState(() {
               controller.text = current;
               double val = double.tryParse(current) ?? 0.0;
+              
+              // Update the current field amount
               if (isCashMode) {
                 _cashAmount = val;
               } else {
                 _bankAmount = val;
+              }
+              
+              // ✅ Auto-calculate the remaining amount for the other field
+              final deposit = widget.order.depositAmount ?? 0.0;
+              final remainingToPay = discountedTotal - deposit;
+              double otherAmount = remainingToPay - val;
+              
+              // Make sure other amount is not negative
+              if (otherAmount < 0) otherAmount = 0;
+              
+              // Update the other field
+              if (isCashMode) {
+                _bankAmount = otherAmount;
+                bankController.text = otherAmount.toStringAsFixed(3);
+              } else {
+                _cashAmount = otherAmount;
+                cashController.text = otherAmount.toStringAsFixed(3);
               }
             });
           }
