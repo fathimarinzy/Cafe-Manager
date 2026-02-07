@@ -432,7 +432,7 @@ class ExcelImportService {
     readmeSheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row - 1)).cellStyle = sectionStyle;
     
     readmeSheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row++))
-        .value = TextCellValue('• menu_items.xlsx - Main menu data with image references');
+        .value = TextCellValue('• menu_items.xlsx (or any .xlsx file) - Main menu data with image references');
     readmeSheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row++))
         .value = TextCellValue('• images/ - Folder containing all menu item images');
     row++;
@@ -465,16 +465,40 @@ class ExcelImportService {
 
       debugPrint('📁 Selected folder: $folderPath');
 
-      // Look for menu_items.xlsx in the selected folder
-      final excelFilePath = path.join(folderPath, 'menu_items.xlsx');
-      final excelFile = File(excelFilePath);
+      // Look for any .xlsx file in the selected folder
+      final dir = Directory(folderPath);
+      File? excelFile;
+      
+      try {
+        final List<FileSystemEntity> entities = await dir.list().toList();
+        final List<File> xlsxFiles = entities
+            .whereType<File>()
+            .where((file) => 
+                file.path.toLowerCase().endsWith('.xlsx') && 
+                !path.basename(file.path).startsWith('~\$')) // Ignore temp files
+            .toList();
 
-      if (!await excelFile.exists()) {
-        debugPrint('❌ Error: menu_items.xlsx not found in selected folder');
-        debugPrint('Expected path: $excelFilePath');
+        if (xlsxFiles.isEmpty) {
+          debugPrint('❌ Error: No .xlsx file found in selected folder');
+          return null;
+        }
+
+        // prioritize 'menu_items.xlsx' if it exists, otherwise use the first one found
+        try {
+          excelFile = xlsxFiles.firstWhere(
+            (file) => path.basename(file.path) == 'menu_items.xlsx'
+          );
+        } catch (_) {
+          // If menu_items.xlsx not found, use the first available xlsx file
+          excelFile = xlsxFiles.first;
+        }
+        
+      } catch (e) {
+        debugPrint('❌ Error scanning folder: $e');
         return null;
       }
 
+      final excelFilePath = excelFile.path;
       debugPrint('📄 Found Excel file: $excelFilePath');
 
       // Read the Excel file

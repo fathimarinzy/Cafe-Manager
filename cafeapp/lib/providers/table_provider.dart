@@ -133,6 +133,7 @@ class TableProvider with ChangeNotifier {
       await _saveTables();
       notifyListeners();
       debugPrint('Table $tableNumber status set to ${isOccupied ? 'occupied' : 'available'}');
+      // logErrorToFile('Table $tableNumber status -> ${isOccupied ? 'occupied' : 'available'}');
     } else {
       debugPrint('Table $tableNumber not found');
     }

@@ -5,7 +5,8 @@ import '../providers/person_provider.dart';
 import '../utils/app_localization.dart';
 
 class PersonFormScreen extends StatefulWidget {
-  const PersonFormScreen({super.key});
+  final Person? person;
+  const PersonFormScreen({super.key, this.person});
 
   @override
   State<PersonFormScreen> createState() => _PersonFormScreenState();
@@ -18,12 +19,22 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
   String place = '';
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.person != null) {
+      name = widget.person!.name;
+      phoneNumber = widget.person!.phoneNumber;
+      place = widget.person!.place;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final personProvider = Provider.of<PersonProvider>(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Person Details'.tr()),
+        title: Text(widget.person != null ? 'Edit Person Details'.tr() : 'Person Details'.tr()),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -32,7 +43,8 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
           child: ListView(
             children: [
               TextFormField(
-                decoration:  InputDecoration(
+                  initialValue: name,
+                  decoration:  InputDecoration(
                   labelText: 'Name'.tr(),
                   border: OutlineInputBorder(),
                 ),
@@ -48,7 +60,8 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
               ),
               const SizedBox(height: 16),
               TextFormField(
-                decoration: InputDecoration(
+                  initialValue: phoneNumber,
+                  decoration: InputDecoration(
                   labelText: 'Phone Number'.tr(),
                   border: OutlineInputBorder(),
                 ),
@@ -65,7 +78,8 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
               ),
               const SizedBox(height: 16),
               TextFormField(
-                decoration: InputDecoration(
+                  initialValue: place,
+                  decoration: InputDecoration(
                   labelText: 'Place'.tr(),
                   border: OutlineInputBorder(),
                 ),
@@ -87,16 +101,23 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
                         if (_formKey.currentState!.validate()) {
                           _formKey.currentState!.save();
                           
+                          
                           // Create person object
                           final person = Person(
+                            id: widget.person?.id,
                             name: name,
                             phoneNumber: phoneNumber,
                             place: place,
-                            dateVisited: DateTime.now().toIso8601String(),
+                            dateVisited: widget.person?.dateVisited ?? DateTime.now().toIso8601String(),
+                            credit: widget.person?.credit ?? 0.0,
                           );
                           
                           try {
-                            await personProvider.addPerson(person);
+                            if (widget.person != null) {
+                              await personProvider.updatePerson(person);
+                            } else {
+                              await personProvider.addPerson(person);
+                            }
 
                             if (!context.mounted) return;
                             final messenger = ScaffoldMessenger.of(context); // ✅ assign first
@@ -105,7 +126,7 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
                             if (personProvider.error.isEmpty) {
                               messenger.showSnackBar(
                                 SnackBar(
-                                  content: Text('Person added successfully'.tr()),
+                                  content: Text(widget.person != null ? 'Person updated successfully'.tr() : 'Person added successfully'.tr()),
                                 ),
                               );
                               navigator.pop();
@@ -117,7 +138,7 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
                           } catch (e) {
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Failed to add person'.tr())),
+                              SnackBar(content: Text(widget.person != null ? 'Failed to update person'.tr() : 'Failed to add person'.tr())),
                             );
                           }
                         }

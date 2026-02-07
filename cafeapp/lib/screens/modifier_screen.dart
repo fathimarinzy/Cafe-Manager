@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../providers/menu_provider.dart';
 import '../models/menu_item.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -503,6 +504,122 @@ void _showPermissionDeniedDialog(BuildContext context) {
         ],
       ),
     );
+  }
+
+
+
+  /// Show confirmation dialog for deleting ALL items
+  void _showDeleteAllConfirmationDialog() {
+    final passwordController = TextEditingController();
+    bool isPasswordVisible = false;
+    String? errorMessage;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+                const SizedBox(width: 12),
+                Text('Delete All Items?'.tr(), style: TextStyle(color: Colors.red)),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'This action will permanently delete ALL menu items and categories.\nThis cannot be undone.'.tr(),
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                Text('Enter the password to confirm:'.tr()),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: passwordController,
+                  obscureText: !isPasswordVisible,
+                  decoration: InputDecoration(
+                    labelText: 'Password'.tr(),
+                    border: OutlineInputBorder(),
+                    errorText: errorMessage,
+                    prefixIcon: Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          isPasswordVisible = !isPasswordVisible;
+                        });
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text('Cancel'.tr()),
+              ),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final enteredPassword = passwordController.text;
+                  final correctPassword = dotenv.env['MENU_DELETE_PASSWORD'];
+
+                  if (enteredPassword == correctPassword) {
+                    Navigator.of(ctx).pop(); // Close password dialog
+                    
+                    // Proceed with deletion logic
+                     _performDeleteAll();
+
+                  } else {
+                    setState(() {
+                      errorMessage = 'Incorrect password'.tr();
+                    });
+                  }
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                icon: Icon(Icons.delete_forever),
+                label: Text('Delete All'.tr()),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+  
+  Future<void> _performDeleteAll() async {
+      // Show loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => const Center(child: CircularProgressIndicator()),
+      );
+
+      final success = await Provider.of<MenuProvider>(context, listen: false).deleteAllMenuItems();
+      
+      if (!mounted) return;
+      Navigator.of(context).pop(); // Close loading
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('All menu items deleted successfully'.tr()),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete all items'.tr()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
   }
 
   // Show import dialog with category selection
@@ -1245,7 +1362,7 @@ void _showPermissionDeniedDialog(BuildContext context) {
     try {
       final XFile? pickedFile = await _imagePicker.pickImage(
         source: ImageSource.gallery,
-        imageQuality: 25, // Lower quality for smaller size
+        imageQuality: 85, // Higher quality
         maxWidth: 300,
         maxHeight: 300,
       );
@@ -1309,7 +1426,7 @@ void _showPermissionDeniedDialog(BuildContext context) {
       // Use image_picker for mobile (existing code)
       final XFile? pickedFile = await _imagePicker.pickImage(
         source: ImageSource.camera,
-        imageQuality: 25,
+        imageQuality: 85,
         maxWidth: 300,
         maxHeight: 300,
       );
@@ -2351,6 +2468,13 @@ void _showPermissionDeniedDialog(BuildContext context) {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_forever, color: Colors.red),
+            tooltip: 'Delete All Items'.tr(),
+            onPressed: _showDeleteAllConfirmationDialog,
+          ),
+        ],
       ),
       // Make the body responsive with LayoutBuilder
       body: SafeArea(

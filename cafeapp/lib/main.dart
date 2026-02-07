@@ -11,6 +11,7 @@ import 'package:window_manager/window_manager.dart';
 
 // Database helper
 import 'utils/database_helper.dart';
+import 'utils/logger.dart';
 
 import 'screens/login_screen.dart';
 import 'screens/person_form_screen.dart';
@@ -44,45 +45,101 @@ import 'services/connectivity_monitor.dart';
 import 'services/device_sync_service.dart';
 
 
+const bool forceSafeMode = true; // 🛡️ SAFEMODE: Disables Firebase & WindowManager for old CPUs
+
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-   await _setupPortableDataPaths();
-  // CRITICAL FIX: Initialize database with proper error handling
-  bool isDatabaseInitialized = false;
-  try {
-    await DatabaseHelper.initializePlatform();
-    isDatabaseInitialized = true;
-    debugPrint('✅ Database helper initialized for platform: ${DatabaseHelper.platformName}');
-  } catch (e) {
-    debugPrint('⚠️ Error initializing database helper: $e');
-    if (!DatabaseHelper.isSupported) {
-      debugPrint('❌ SQLite is not supported on this platform');
-      // For web, show error. For desktop, continue with warning
-      if (!isDesktop()) {
-        // runApp(const UnsupportedPlatformApp());
-        return;
+  // 🛡️ CRITICAL: Set up global error logging immediately
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    
+    // Log app start
+    await logErrorToFile('App starting... (Safe Mode: $forceSafeMode)');
+    
+    await _setupPortableDataPaths();
+    
+    // CRITICAL FIX: Initialize database with proper error handling
+    bool isDatabaseInitialized = false;
+    try {
+      await DatabaseHelper.initializePlatform();
+      isDatabaseInitialized = true;
+      await logErrorToFile('✅ Database helper initialized for platform: ${DatabaseHelper.platformName}');
+    } catch (e, stack) {
+      await logErrorToFile('⚠️ Error initializing database helper: $e\n$stack');
+      if (!DatabaseHelper.isSupported) {
+        await logErrorToFile('❌ SQLite is not supported on this platform');
+        if (!isDesktop()) {
+          return;
+        }
       }
     }
-  }
 
-  // Desktop-specific window configuration
-  if (isDesktop()) {
-    await configureDesktopWindow();
-  }
+    // Desktop-specific window configuration
+    if (isDesktop()) {
+      try {
+        if (forceSafeMode) {
+           await logErrorToFile('🛡️ Safe Mode: Skipping WindowManager configuration');
+        } else {
+           await configureDesktopWindow();
+        }
+      } catch (e, stack) {
+        await logErrorToFile('❌ Error configuring window: $e\n$stack');
+      }
+    }
 
-  // Quick initialization - only critical components
-  await quickInitialization(isDatabaseInitialized);
+    // Quick initialization - only critical components
+    try {
+      await quickInitialization(isDatabaseInitialized);
+    } catch (e, stack) {
+      await logErrorToFile('❌ Error in quick initialization: $e\n$stack');
+    }
 
-  // Load environment variables with better error handling
-  try {
-    await dotenv.load(fileName: ".env");
-    debugPrint('✅ Environment variables loaded');
-  } catch (e) {
-    debugPrint('⚠️ Error loading .env file: $e - Continuing without .env');
-  }
+    // Load environment variables with better error handling
+    try {
+      await dotenv.load(fileName: ".env");
+      await logErrorToFile('✅ Environment variables loaded');
+    } catch (e) {
+      await logErrorToFile('⚠️ Error loading .env file: $e - Continuing without .env');
+    }
 
-  runApp(const MyApp());
+    FlutterError.onError = (FlutterErrorDetails details) {
+      FlutterError.presentError(details);
+      final errorMsg = '❌ Flutter Error: ${details.exception}\n${details.stack}';
+      logErrorToFile(errorMsg);
+    };
+
+    runApp(const MyApp());
+  }, (error, stackTrace) async {
+    final errorMsg = '☠️ UNCAUGHT ERROR: $error\n$stackTrace';
+    await logErrorToFile(errorMsg);
+    // 🔔 Show visible popup for fatal crashes
+    if (Platform.isWindows) {
+      await showWindowsErrorDialog('Critical App Crash', 'The app has encountered a critical error and needs to close.\n\nError: $error\n\nPlease send this photo to support.');
+    }
+  });
 }
+
+
+
+// 🔔 Show native Windows MessageBox
+Future<void> showWindowsErrorDialog(String title, String message) async {
+  try {
+    // Escape quotes for PowerShell
+    final safeTitle = title.replaceAll('"', '\\"');
+    final safeMessage = message.replaceAll('"', '\\"').replaceAll('\n', '`n');
+    
+    await Process.run(
+      'powershell', 
+      [
+        '-Command', 
+        'Add-Type -AssemblyName PresentationFramework;[System.Windows.MessageBox]::Show("$safeMessage", "$safeTitle")'
+      ],
+      runInShell: true,
+    );
+  } catch (e) {
+    debugPrint('Failed to show error dialog: $e');
+  }
+}
+
 Future<void> _setupPortableDataPaths() async {
   try {
     if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
@@ -94,10 +151,10 @@ Future<void> _setupPortableDataPaths() async {
         await portableDataDir.create(recursive: true);
       }
       
-      debugPrint('📁 Portable data directory: ${portableDataDir.path}');
+      await logErrorToFile('📁 Portable data directory: ${portableDataDir.path}');
     }
   } catch (e) {
-    debugPrint('⚠️ Portable data setup error: $e');
+    await logErrorToFile('⚠️ Portable data setup error: $e');
   }
 }
 bool isDesktop() {
@@ -110,6 +167,7 @@ bool isDesktop() {
 
 Future<void> configureDesktopWindow() async {
   try {
+    await logErrorToFile('🪟 Configuring desktop window...');
     await WindowManager.instance.ensureInitialized();
 
     WindowOptions windowOptions = const WindowOptions(
@@ -127,22 +185,23 @@ Future<void> configureDesktopWindow() async {
       await WindowManager.instance.focus();
     });
 
-    debugPrint('✅ Desktop window configured');
+    await logErrorToFile('✅ Desktop window configured');
   } catch (e) {
-    debugPrint('⚠️ Error configuring desktop window: $e');
+    await logErrorToFile('⚠️ Error configuring desktop window: $e');
   }
 }
 
 Future<void> quickInitialization(bool isDatabaseInitialized) async {
   try {
+    await logErrorToFile('🚀 Starting quick initialization...');
     await Future.any([
       _performQuickInitialization(isDatabaseInitialized),
       Future.delayed(const Duration(seconds: 3), () {
-        debugPrint('⚠️ Quick initialization timed out - continuing anyway');
+        logErrorToFile('⚠️ Quick initialization timed out - continuing anyway');
       }),
     ]);
   } catch (e) {
-    debugPrint('⚠️ Quick initialization error: $e');
+    await logErrorToFile('⚠️ Quick initialization error: $e');
   }
 }
 
@@ -151,24 +210,29 @@ Future<void> _performQuickInitialization(bool isDatabaseInitialized) async {
   if (isDatabaseInitialized) {
     try {
       await initializeLocalDatabase();
+      await logErrorToFile('✅ Local databases initialized in quick init');
     } catch (e) {
-      debugPrint('⚠️ Could not initialize local database: $e');
+      await logErrorToFile('⚠️ Could not initialize local database: $e');
     }
   }
 
   // Initialize Firebase - works for all platforms now
   try {
-    debugPrint('🔥 Initializing Firebase for all platforms...');
-    FirebaseService.initializeQuickly();
-    debugPrint('✅ Firebase initialization started');
+    if (forceSafeMode) {
+       await logErrorToFile('🛡️ Safe Mode: Skipping Firebase initialization');
+    } else {
+      await logErrorToFile('🔥 Initializing Firebase...');
+      FirebaseService.initializeQuickly();
+      await logErrorToFile('✅ Firebase initialization started');
+    }
   } catch (e) {
-    debugPrint('⚠️ Firebase initialization error: $e');
+    await logErrorToFile('⚠️ Firebase initialization error: $e');
   }
 
   // Start connectivity monitoring with delay
   _startConnectivityMonitoring();
 
-  debugPrint('✅ Quick initialization completed');
+  await logErrorToFile('✅ Quick initialization completed');
 }
 
 
@@ -200,11 +264,11 @@ Future<bool> _checkInternetConnection() async {
         .timeout(const Duration(seconds: 3));
     
     if (result.isNotEmpty && result[0].rawAddress.isNotEmpty) {
-      debugPrint('✅ Internet connection verified');
+      // debugPrint('✅ Internet connection verified');
       return true;
     }
   } catch (e) {
-    debugPrint('❌ No internet connection: $e');
+    // debugPrint('❌ No internet connection: $e');
   }
   return false;
 }
@@ -214,14 +278,13 @@ void _startConnectivityMonitoring() {
     try {
       // Check internet connectivity first on desktop
       if (isDesktop()) {
-        final hasInternet = await _checkInternetConnection();
-        debugPrint('Connectivity check: $hasInternet');
+        await _checkInternetConnection();
       }
       
       final hasPendingData = await OfflineSyncService.hasPendingOfflineData();
 
       if (hasPendingData) {
-        debugPrint('📡 Found pending offline data - starting connectivity monitoring');
+        // debugPrint('📡 Found pending offline data - starting connectivity monitoring');
         ConnectivityMonitor.instance.startMonitoring();
         OfflineSyncService.autoSync();
       }
@@ -239,9 +302,9 @@ Future<void> initializeLocalDatabase() async {
     final localExpenseRepo = LocalExpenseRepository();
     await localExpenseRepo.database;
 
-    debugPrint('✅ Local databases initialized');
+    // debugPrint('✅ Local databases initialized');
   } catch (e) {
-    debugPrint('❌ Error initializing local databases: $e');
+    await logErrorToFile('❌ Error initializing local databases: $e');
     rethrow;
   }
 }
@@ -251,17 +314,18 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    logErrorToFile('🏗️ MyApp build started');
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (ctx) => AuthProvider()),
-        ChangeNotifierProvider(create: (ctx) => MenuProvider()),
-        ChangeNotifierProvider(create: (ctx) => OrderProvider()),
-        ChangeNotifierProvider(create: (ctx) => PersonProvider()),
-        ChangeNotifierProvider(create: (ctx) => TableProvider()),
-        ChangeNotifierProvider(create: (ctx) => OrderHistoryProvider()),
-        ChangeNotifierProvider(create: (ctx) => SettingsProvider()),
-        ChangeNotifierProvider(create: (ctx) => LogoProvider()),
-        ChangeNotifierProvider(create: (ctx) => DeliveryBoyProvider()),
+        ChangeNotifierProvider(create: (ctx) { logErrorToFile('• Provider: AuthProvider'); return AuthProvider(); }),
+        ChangeNotifierProvider(create: (ctx) { logErrorToFile('• Provider: MenuProvider'); return MenuProvider(); }),
+        ChangeNotifierProvider(create: (ctx) { logErrorToFile('• Provider: OrderProvider'); return OrderProvider(); }),
+        ChangeNotifierProvider(create: (ctx) { logErrorToFile('• Provider: PersonProvider'); return PersonProvider(); }),
+        ChangeNotifierProvider(create: (ctx) { logErrorToFile('• Provider: TableProvider'); return TableProvider(); }),
+        ChangeNotifierProvider(create: (ctx) { logErrorToFile('• Provider: OrderHistoryProvider'); return OrderHistoryProvider(); }),
+        ChangeNotifierProvider(create: (ctx) { logErrorToFile('• Provider: SettingsProvider'); return SettingsProvider(); }),
+        ChangeNotifierProvider(create: (ctx) { logErrorToFile('• Provider: LogoProvider'); return LogoProvider(); }),
+        ChangeNotifierProvider(create: (ctx) { logErrorToFile('• Provider: DeliveryBoyProvider'); return DeliveryBoyProvider(); }),
       ],
       child: Consumer<SettingsProvider>(
         builder: (ctx, settingsProvider, _) {
@@ -330,11 +394,13 @@ class _AppInitializerState extends State<AppInitializer> {
   @override
   void initState() {
     super.initState();
+    logErrorToFile('🏁 AppInitializer initState called');
     _initializeApp();
   }
 
   Future<void> _initializeApp() async {
     try {
+      await logErrorToFile('🚀 _initializeApp started');
       final List<Future> futures = [
         Future.delayed(const Duration(milliseconds: 500)),
         _performAppInitialization(),
@@ -343,11 +409,11 @@ class _AppInitializerState extends State<AppInitializer> {
       await Future.any([
         Future.wait(futures),
         Future.delayed(const Duration(seconds: 4), () {
-          debugPrint('⚠️ App initialization timed out - proceeding anyway');
+          logErrorToFile('⚠️ App initialization timed out - proceeding anyway');
         }),
       ]);
     } catch (e) {
-      debugPrint('⚠️ App initialization error: $e');
+      await logErrorToFile('⚠️ App initialization error: $e');
     }
 
     if (mounted) {
@@ -357,6 +423,7 @@ class _AppInitializerState extends State<AppInitializer> {
 
   Future<void> _performAppInitialization() async {
     try {
+      await logErrorToFile('⚙️ _performAppInitialization started');
       final prefs = await SharedPreferences.getInstance();
       final isDeviceRegistered = prefs.getBool('device_registered') ?? false;
 

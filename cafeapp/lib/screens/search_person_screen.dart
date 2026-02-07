@@ -8,6 +8,7 @@ import '../repositories/credit_transaction_repository.dart';
 import '../models/order_history.dart';
 import '../screens/tender_screen.dart';
 import '../models/credit_transaction.dart';
+import 'person_form_screen.dart'; // Add import
 
 class SearchPersonScreen extends StatefulWidget {
     final bool isForCreditReceipt;
@@ -252,43 +253,96 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
                 
                 return ListView.builder(
                   itemCount: displayList.length,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemBuilder: (context, index) {
                     final person = displayList[index];
                     return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 2,
                       child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.blue.withAlpha(26),
+                          child: Text(
+                            person.name.isNotEmpty ? person.name[0].toUpperCase() : '?',
+                            style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                          ),
+                        ),
                         title: Text(
                           person.name,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                         subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 4),
-                          Text('📞 ${person.phoneNumber}'),
-                          Text('📍 ${person.place}'),
-                          Text(
-                            '${'Credit:'.tr()} ${person.credit.toStringAsFixed(3)}',
-                            style: TextStyle(
-                              color: person.credit > 0 ? Colors.green.shade700 : Colors.grey.shade600,
-                              fontWeight: person.credit > 0 ? FontWeight.w500 : FontWeight.normal,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 4),
+                            if (person.phoneNumber.isNotEmpty)
+                              Row(
+                                children: [
+                                  Icon(Icons.phone, size: 14, color: Colors.grey[600]),
+                                  const SizedBox(width: 4),
+                                  Text(person.phoneNumber, style: TextStyle(color: Colors.grey[800])),
+                                ],
+                              ),
+                            if (person.place.isNotEmpty)
+                              Row(
+                                children: [
+                                  Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
+                                  const SizedBox(width: 4),
+                                  Text(person.place, style: TextStyle(color: Colors.grey[800])),
+                                ],
+                              ),
+                            const SizedBox(height: 4),
+                             Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: person.credit > 0 ? Colors.red.withAlpha(26) : Colors.green.withAlpha(26),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                '${'Credit:'.tr()} ${person.credit.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  color: person.credit > 0 ? Colors.red[700] : Colors.green[700],
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
                             ),
-                          ),
-                          Text(
-                            '${'Visited On :'.tr()} ${DateTime.parse(person.dateVisited).toString().substring(0, 10)}',
-                            style: const TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
-                        ],
-                      ),
-
-                      trailing: person.credit > 0
-                          ? IconButton(
-                              icon: const Icon(Icons.credit_card, size: 30),
-                              onPressed: () => _showCreditTransactions(person),
-                              tooltip: 'Credit List',
+                            Text(
+                                '${'Visited On :'.tr()} ${DateTime.parse(person.dateVisited).toString().substring(0, 10)}',
+                                style: const TextStyle(fontSize: 12, color: Colors.grey),
                             )
-                          : null,
-                      isThreeLine: true,
+                          ],
+                        ),
+
+                      trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (person.credit > 0)
+                              IconButton(
+                                icon: const Icon(Icons.credit_card, size: 30),
+                                onPressed: () => _showCreditTransactions(person),
+                                tooltip: 'Credit List',
+                              ),
+                             IconButton(
+                              icon: const Icon(Icons.edit,color: Colors.grey),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => PersonFormScreen(person: person),
+                                  ),
+                                ).then((_) {
+                                   if (context.mounted) {
+                                      Provider.of<PersonProvider>(context, listen: false).loadPersons();
+                                   }
+                                });
+                              },
+                              tooltip: 'Edit Person',
+                            ),
+                          ],
+                        ),
                         
                         onTap: () {
                           // Return the selected person when tapped

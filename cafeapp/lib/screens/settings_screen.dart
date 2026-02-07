@@ -2,8 +2,9 @@ import 'dart:io';
 import 'package:cafeapp/main.dart';
 import 'package:cafeapp/providers/logo_provider.dart';
 import 'package:cafeapp/screens/device_management_screen.dart';
+import 'package:cafeapp/screens/search_person_screen.dart';
 import 'package:cafeapp/utils/database_helper.dart';
-import 'customer_management_screen.dart';
+// import 'customer_management_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 // import 'company_registration_screen.dart';
@@ -72,7 +73,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   
   // UI Mode
-  int _selectedUIMode = 5; // Default to Mobile Performance
+  int _selectedUIMode = 4; // Default to Mobile Performance
   
   // Tax Settings
   final _taxRateController = TextEditingController(text: '0.0');
@@ -503,7 +504,7 @@ Future<void> _checkLicenseStatus() async {
       
       // Load Dashboard UI Mode
       final prefs = await SharedPreferences.getInstance();
-      _selectedUIMode = prefs.getInt('ui_mode_v2') ?? 5;
+      _selectedUIMode = prefs.getInt('ui_mode_v2') ?? 4;
     } catch (e) {
       debugPrint('Error loading settings: $e');
       
@@ -1105,7 +1106,7 @@ Future<void> _checkLicenseStatus() async {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => const CustomerManagementScreen(),
+                              builder: (context) => const SearchPersonScreen(),
                             ),
                           );
                         },
@@ -1235,6 +1236,7 @@ Future<void> _checkLicenseStatus() async {
                             items: [
                                DropdownMenuItem(value: 5, child: Text("Mobile Performance".tr())),
                                DropdownMenuItem(value: 4, child: Text("Ultimate (Dark)".tr())),
+                               DropdownMenuItem(value: 6, child: Text("Square POS".tr())),
                                DropdownMenuItem(value: 1, child: Text("Classic Grid".tr())),
                                DropdownMenuItem(value: 2, child: Text("Sidebar".tr())),
                                DropdownMenuItem(value: 0, child: Text("Modern".tr())),
@@ -1538,7 +1540,7 @@ Future<void> _checkLicenseStatus() async {
                                   const SizedBox(width: 16),
                                   
                                   // Renew button (right side) - Show renewal option in last week
-                                  if (_remainingDemoDays <= 7)
+                                  if (_remainingDemoDays <= 10)
                                     Container(
                                       alignment: Alignment.topCenter,
                                       child: ElevatedButton(
@@ -1741,7 +1743,7 @@ Future<void> _checkLicenseStatus() async {
                   ),
                   subtitle: Padding(
                     padding: const EdgeInsets.only(top: 8),
-                    child: Text('Version 1.0.1'.tr()),
+                    child: Text('Version 1.0.2'.tr()),
                   ),
                   leading: const Icon(Icons.contact_support),
                 ),
@@ -2533,12 +2535,7 @@ void _showTaxSettingsDialog() {
         enabled: !_isDemoExpired,
       ),
     );
-
   }
-
-
-
-
   
   Widget _buildSectionHeader(String title) {
     return Padding(
@@ -2561,6 +2558,7 @@ void _showTaxSettingsDialog() {
       case 0: return 'Modern'.tr();
       case 2: return 'Sidebar'.tr();
       case 3: return 'Card Style'.tr();
+      case 6: return 'Square POS'.tr();
       default: return 'Unknown'.tr();
     }
   }

@@ -1408,8 +1408,8 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
         fit: BoxFit.cover,
         key: imageKey,
         gaplessPlayback: true,
-        cacheWidth: 100, // Aggressively reduced for low-end devices
-        cacheHeight: 100,
+        cacheWidth: 500, // Increased for better quality
+        cacheHeight: 500,
       );
     } catch (e) {
       return Container(color: Colors.grey.shade300, child: const Icon(Icons.broken_image, size: 20));
@@ -1421,8 +1421,8 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
     imageUrl: item.imageUrl,
     fit: BoxFit.cover,
     key: imageKey,
-    memCacheWidth: 100, // Aggressively reduced for low-end devices
-    memCacheHeight: 100,
+    memCacheWidth: 500, // Increased for better quality
+    memCacheHeight: 500,
     fadeInDuration: const Duration(milliseconds: 0),
     fadeOutDuration: const Duration(milliseconds: 0),
     placeholder: (context, url) => Container(

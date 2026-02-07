@@ -30,6 +30,7 @@ class DashboardUltimate extends StatefulWidget {
   final VoidCallback? onExpensesTap; // Callback for Expenses
   final VoidCallback? onLogoutTap;
   final String businessName;
+  final bool forceSquareLayout; // New parameter to force 7th UI
 
   const DashboardUltimate({
     super.key,
@@ -47,6 +48,7 @@ class DashboardUltimate extends StatefulWidget {
     this.onExpensesTap,
     this.onLogoutTap,
     this.businessName = "SIMS CAFE",
+    this.forceSquareLayout = false, // Default false
   });
 
   @override
@@ -110,11 +112,16 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     // Enable dynamic blobs on Non-Android OR Android Tablets (>600 width)
     final showBlobs = !Platform.isAndroid || screenWidth > 600;
 
-    // Mobile Breakpoint
-    // final isMobile = screenWidth < 800;
+    final aspectRatio = screenWidth / screenHeight;
+    // Square POS Detection: 
+    // Typical Square POS is 1:1 or 4:3 (1.33). Standard Wide is 16:9 (1.77).
+    // Let's define "Square-ish" as aspectRatio < 1.4 AND it's a "Desktop/Tablet" width (> 600)
+    // Add override from widget param
+    final isSquarePOS = widget.forceSquareLayout || (screenWidth > 600 && aspectRatio < 1.4);
 
     return Scaffold(
       // Mobile Bottom Bar (Replaces Sidebar)
@@ -239,9 +246,10 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
 
           
           // 2. Main Layout (Responsive)
-          // 2. Main Layout (Responsive)
           if (screenWidth < 600)
              _buildPhoneLayout(context)
+          else if (isSquarePOS)
+             _buildSquarePOSLayout(context) // New Specific Square POS Layout
           else if (screenWidth < 1100)
              _buildTabletLayout(context)
           else
@@ -325,6 +333,58 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
           ),
         ],
       ),
+    );
+  }
+
+  /// 2. Square POS Layout (Similar to Tablet but optimized for 1:1)
+  /// Uses a vertical stack approach because Sidebar takes too much space
+  /// 2. Square POS Layout (1:1 Aspect Ratio)
+  /// Uses standard Sidebar + Main Content, but HIDDEN Right Panel to fit square screen.
+  /// 2. Square POS Layout (1:1 Aspect Ratio)
+  /// Uses standard Sidebar + Main Content + Right Panel
+  /// Optimized with Flex factors to fit narrow width (1024px)
+  Widget _buildSquarePOSLayout(BuildContext context) {
+    return Row(
+      children: [
+        _buildSidebar(context),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 24, right: 24, bottom: 24),
+            child: Column(
+              children: [
+                _buildHeader(isMobile: false),
+                const SizedBox(height: 24),
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Content (Stats + Services) - Flex 2
+                      Expanded(
+                        flex: 2, 
+                        child: Column(
+                          children: [
+                            // Stats Row (Horizontal)
+                            _buildStatsRow(context, isMobile: false),
+                            const SizedBox(height: 24),
+                            // Services Grid takes full remaining space
+                            Expanded(child: _buildServicesGrid(isPhone: false, isMobile: false)), 
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16), // Tighter gap
+                      // Right Panel (Recent Activity) - Flex 1
+                      Expanded(
+                        flex: 1,
+                        child: _buildRightPanel(context),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1078,6 +1138,9 @@ class _GlassContainerState extends State<_GlassContainer> with SingleTickerProvi
   Widget build(BuildContext context) {
     // OPTIMIZATION: Check platform once
     final isAndroid = Platform.isAndroid;
+    // Fix for Windows POS crashing: Disable blur on Windows
+    final isWindows = Platform.isWindows; 
+    final disableBlur = isAndroid || isWindows;
 
     return AnimatedBuilder(
       animation: _pulseAnimation,
@@ -1100,7 +1163,7 @@ class _GlassContainerState extends State<_GlassContainer> with SingleTickerProvi
             color: Colors.white.withAlpha((_pulseAnimation.value * 255).toInt()),
             width: 1.0,
           ),
-          boxShadow: isAndroid ? [] : [ // Remove shadow on Android for performance unless critical
+          boxShadow: disableBlur ? [] : [ // Remove shadow on Android/Windows for performance/stability
              BoxShadow(
               color: Colors.black.withAlpha(26),
               blurRadius: 20,
@@ -1119,11 +1182,11 @@ class _GlassContainerState extends State<_GlassContainer> with SingleTickerProvi
           width: widget.width,
           height: widget.height,
           margin: widget.margin,
-          // OPTIMIZATION: Remove BackdropFilter (Blur) on Android
-          child: isAndroid 
+          // OPTIMIZATION: Remove BackdropFilter (Blur) on Android AND Windows
+          child: disableBlur 
               ? Container(
                   decoration: BoxDecoration(
-                     color: Colors.black.withAlpha(76), // Fallback semi-transparent bg
+                     color: Colors.black.withAlpha(100), // Darker fallback for Windows/Android
                      borderRadius: BorderRadius.circular(widget.borderRadius),
                   ),
                   child: content

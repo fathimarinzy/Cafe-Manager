@@ -1490,6 +1490,11 @@ static Future<Uint8List?> _generateKotImage({
       bytes += generator.image(bw);
       bytes += generator.cut();
 
+      // Open Cash Drawer (Only for Receipts, not KOT)
+      if (!isKot) {
+        bytes += generator.drawer();
+      }
+
       // 3. Send Bytes via Win32 Spooler API
       final success = WindowsRawPrinter.printBytes(
         printerName: printerName,
@@ -1589,6 +1594,11 @@ static Future<Uint8List?> _generateKotImage({
 
       final resized = img.copyResize(image, width: 512);
       final bw = img.grayscale(resized);
+      
+      // Open Cash Drawer (Only for Receipts)
+      if (!isKot) {
+        printer.drawer();
+      }
       
       printer.image(bw);
       printer.cut();
@@ -2445,7 +2455,40 @@ static Future<Uint8List?> _generateKotImage({
 
       if (printerName == null || printerName.isEmpty) return false;
 
-      return WindowsRawPrinter.printBytes(printerName: printerName, bytes: bytes);
+      // Detect if bytes are an image and convert to ESC/POS if so
+      List<int> dataToSend = bytes;
+      
+      try {
+        final image = img.decodeImage(Uint8List.fromList(bytes));
+        if (image != null) {
+           debugPrint('Converted PNG to ESC/POS for System Printer: $printerName');
+           final profile = await CapabilityProfile.load();
+           final generator = Generator(PaperSize.mm80, profile);
+           List<int> escPosBytes = [];
+
+           // Reset
+           escPosBytes += generator.reset();
+
+           // Resize to 512px (standard thermal width)
+           final resized = img.copyResize(image, width: 512); 
+           final bw = img.grayscale(resized);
+
+           // Raster Image
+           escPosBytes += generator.image(bw);
+           escPosBytes += generator.cut();
+
+           if (!isKot) {
+             escPosBytes += generator.drawer();
+           }
+           
+           dataToSend = escPosBytes;
+        }
+      } catch (e) {
+        // If decode fails, assume it's already raw commands or some other format
+        debugPrint('Bytes are not an image or conversion failed, sending as-is: $e');
+      }
+
+      return WindowsRawPrinter.printBytes(printerName: printerName, bytes: dataToSend);
     } catch (e) {
       debugPrint('Error printing to system printer: $e');
       return false;

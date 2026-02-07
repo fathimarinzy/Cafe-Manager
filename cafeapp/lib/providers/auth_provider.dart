@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
 import '../services/demo_service.dart'; // Add demo service import
 import 'dart:async';
+import '../utils/logger.dart';
 
 class AuthProvider with ChangeNotifier {
   bool _isAuthenticated = false;
@@ -34,57 +35,69 @@ class AuthProvider with ChangeNotifier {
   notifyListeners();
   
   try {
-    debugPrint('🔵 Attempting auto-login...');
+    logErrorToFile('🔵 AuthProvider: Attempting auto-login...');
     
     final prefs = await SharedPreferences.getInstance();
+    logErrorToFile('🔵 AuthProvider: SharedPreferences got');
     
     // CRITICAL: Check device_mode first (more reliable than demo check)
     final deviceMode = prefs.getString('device_mode');
     final registrationMode = prefs.getString('registration_mode');
     
-    debugPrint('Device mode: $deviceMode');
-    debugPrint('Registration mode: $registrationMode');
+    logErrorToFile('Device mode: $deviceMode, Reg mode: $registrationMode');
     
     // Check if demo mode (only if not already marked as online)
     final isDemoMode = await DemoService.isDemoMode();
-    debugPrint('Demo mode check: $isDemoMode');
+    logErrorToFile('Demo mode check: $isDemoMode');
     
     // Determine actual registration mode
-    if (deviceMode == 'online' || registrationMode == 'online') {
+    if (!FirebaseService.isFirebaseAvailable) {
+       _registrationMode = 'offline';
+       logErrorToFile('⚠️ Firebase unavailable (Safe Mode?) - Forcing offline mode');
+    } else if (deviceMode == 'online' || registrationMode == 'online') {
       // If explicitly marked as online, trust that
       _registrationMode = 'online';
-      debugPrint('📱 Registration mode: online (from device_mode/registration_mode)');
+      logErrorToFile('📱 Registration mode: online (from device_mode/registration_mode)');
     } else if (isDemoMode) {
       // Only use demo mode if not marked as online
       _registrationMode = 'demo';
-      debugPrint('📱 Registration mode: demo');
+      logErrorToFile('📱 Registration mode: demo');
     } else {
       // Default to offline
       _registrationMode = deviceMode ?? registrationMode ?? 'offline';
-      debugPrint('📱 Registration mode: $_registrationMode');
+      logErrorToFile('📱 Registration mode: $_registrationMode');
     }
     
     // Check if user is logged in
     final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+    logErrorToFile('isLoggedIn: $isLoggedIn');
     
     if (isLoggedIn) {
       // Get stored username
       _username = prefs.getString('username') ?? '';
-      debugPrint('👤 Found stored login for: $_username');
+      logErrorToFile('👤 Found stored login for: $_username');
       
       if (_registrationMode == 'demo') {
         // For demo mode, auto-login without Firebase check
         _isAuthenticated = true;
         _isOfflineMode = false;
-        debugPrint('✅ Auto-login successful (demo mode)');
+        logErrorToFile('✅ Auto-login successful (demo mode)');
       } else if (_registrationMode == 'online') {
         // For online mode, verify with Firebase (with timeout)
-        await _verifyOnlineRegistration(prefs);
+        if (FirebaseService.isFirebaseAvailable) {
+          logErrorToFile('🔵 Verifying online registration...');
+          await _verifyOnlineRegistration(prefs);
+          logErrorToFile('✅ Verified online registration');
+        } else {
+           _isAuthenticated = true;
+           _isOfflineMode = true;
+           logErrorToFile('⚠️ Firebase unavailable - Falling back to offline mode for online-registered device');
+        }
       } else {
         // For offline mode, use local authentication
         _isAuthenticated = true;
         _isOfflineMode = false;
-        debugPrint('✅ Auto-login successful (offline mode)');
+        logErrorToFile('✅ Auto-login successful (offline mode)');
       }
       
       _isInitialized = true;
@@ -92,10 +105,10 @@ class AuthProvider with ChangeNotifier {
       notifyListeners();
       return _isAuthenticated;
     } else {
-      debugPrint('ℹ️ No stored login found');
+      logErrorToFile('ℹ️ No stored login found');
     }
-  } catch (error) {
-    debugPrint('❌ Auto-login error: $error');
+  } catch (error, stack) {
+    logErrorToFile('❌ Auto-login error: $error\n$stack');
     // Continue with offline mode if there's an error
     _isOfflineMode = true;
   }

@@ -573,4 +573,52 @@ Future<List<MenuItem>> getMenuItems() async {
       }
     }
   }
+
+  // Delete all items and categories (reset menu)
+  Future<void> deleteAllMenuItems() async {
+    int retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        final db = await database;
+        final timestamp = DateTime.now().toIso8601String();
+        
+        // Soft delete all items
+        await db.update(
+          'menu_items',
+          {
+            'isDeleted': 1,
+            'lastUpdated': timestamp,
+          },
+          where: 'isDeleted = ?',
+          whereArgs: [0],
+        );
+        
+        debugPrint('Deleted ALL menu items from local database');
+        return;
+      } catch (e) {
+        retryCount++;
+        debugPrint('Error deleting all menu items (Attempt $retryCount): $e');
+        
+        if (retryCount >= maxRetries) {
+           debugPrint('Maximum retries reached for deleting all menu items');
+           rethrow;
+        }
+        
+        // Reset database connection
+        try {
+          if (_database != null) {
+            await _database!.close();
+            _database = null;
+          }
+        } catch (closeError) {
+          debugPrint('Error closing database after error: $closeError');
+        }
+        
+        // Wait before retrying
+        await Future.delayed(Duration(milliseconds: 500 * retryCount));
+      }
+    }
+  }
 }

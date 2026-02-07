@@ -700,6 +700,7 @@ class AppLocalization {
     'Device Sync':'مزامنة الجهاز',
     'Manage devices and enable syncing':'إدارة الأجهزة وتمكين المزامنة',
     "Customers":"العملاء",
+    'Dashboard layout updated':'تم تحديث تخطيط لوحة القيادة',
     'Dashboard Layout':'تخطيط لوحة القيادة',
     'Delivery Boys':'موظفو التوصيل',
     'View and manage customer list':'عرض وإدارة قائمة العملاء',
@@ -1173,12 +1174,25 @@ class AppLocalization {
       'Original Amount:': 'المبلغ الأصلي:',
       
       // Printer Settings
-      
+      'Kitchen Printer': 'طابعة المطبخ',
+      'Type': 'نوع',
+      'Network (WiFi/LAN)': 'شبكة (WiFi/LAN)',
+      'System (USB/Driver)': 'نظام (USB/Driver)',
+      'IP Address': 'عنوان IP',
+      'System Printer': 'طابعة النظام',
+      'No printers found. Check connection.': 'لم يتم العثور على طابعات. تحقق من الاتصال.',
+      'Printer Name (Label)': 'اسم الطابعة (التسمية)',
+      'Edit Printer': 'تعديل الطابعة',
+      'Add Printer': 'إضافة طابعة',
+      "Failed to test system printer.": "فشل اختبار طابعة النظام.",
+     'Add Another Printer': 'إضافة طابعة أخرى',
+      "Printer updated successfully": "تم تحديث الطابعة بنجاح",
+      "Printer added successfully": "تم إضافة الطابعة بنجاح",
       'Loading settings...': 'جارٍ تحميل الإعدادات...',
-      
+      "Printer removed successfully": "تم حذف الطابعة بنجاح",
       'Receipt printer configured with': 'تم إعداد طابعة الإيصالات مع',
       'KOT printer configured with': 'تم إعداد طابعة المطبخ مع',
-      
+     ' Square POS': 'سكوير بو',
       'Please select a printer': 'يرجى اختيار طابعة',
       
       'Failed to test system printer. Please check if the printer is on and drivers are installed.': 'فشل اختبار طابعة النظام. يرجى التحقق مما إذا كانت الطابعة قيد التشغيل وبرامج التشغيل مثبتة.',
@@ -1191,10 +1205,9 @@ class AppLocalization {
       'Select Printer Type': 'ترع الطابعة',
       'Network IP': 'عنوان IP للشبكة',
       'Port': 'المنفذ',
-      
-      'System Printer': 'طابعة النظام',
       'Select System Printer': 'اختر طابعة النظام',
-      
+      'Network': 'شبكة',
+      'System': 'نظام',
       'Use KOT Printer': 'استخدام طابعة المطبخ',
       'Troubleshooting Guide': 'دليل استكشاف الأخطاء وإصلاحها',
       '1. Network Printers': '1. طابعات الشبكة',

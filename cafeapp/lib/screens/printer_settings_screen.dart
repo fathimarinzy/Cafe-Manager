@@ -639,7 +639,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
         duration: const Duration(seconds: 3),
         behavior: SnackBarBehavior.floating,
         action: SnackBarAction(
-          label: 'Dismiss',
+          label: 'Dismiss'.tr(),
           textColor: Colors.white,
           onPressed: () {
             ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -659,7 +659,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
         duration: const Duration(seconds: 3),
         behavior: SnackBarBehavior.floating,
         action: SnackBarAction(
-          label: 'Dismiss',
+          label: 'Dismiss'.tr(),
           textColor: Colors.white,
           onPressed: () {
             ScaffoldMessenger.of(context).hideCurrentSnackBar();

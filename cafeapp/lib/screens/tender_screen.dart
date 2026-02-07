@@ -31,6 +31,7 @@ import '../repositories/credit_transaction_repository.dart';
 import '../models/credit_transaction.dart';
 import '../services/cross_platform_pdf_service.dart';
 import '../services/device_sync_service.dart';
+import '../utils/logger.dart';
 
 
 class TenderScreen extends StatefulWidget {
@@ -2183,14 +2184,34 @@ void _showSplitPaymentDialog() {
       }
       
       if (widget.order.serviceType.contains('Dining - Table')) {
-        final tableNumberStr = widget.order.serviceType.split('Table ').last;
-        final tableNumber = int.tryParse(tableNumberStr);
+        // 🔍 ROBUST PARSING: Use Regex to find the table number
+        // Matches "Table " followed by digits, even if there's extra text like "(4 guests)"
+        final RegExp tableRegex = RegExp(r'Table\s+(\d+)');
+        final match = tableRegex.firstMatch(widget.order.serviceType);
+        
+        int? tableNumber;
+        if (match != null) {
+          tableNumber = int.tryParse(match.group(1) ?? '');
+        }
+
+        debugPrint('TenderScreen: ServiceType="${widget.order.serviceType}", ParsedTableNumber=$tableNumber');
         
         if (tableNumber != null && mounted) {
-          final tableProvider = Provider.of<TableProvider>(context, listen: false);
-          
-          await tableProvider.setTableStatus(tableNumber, false);
-          debugPrint('Table $tableNumber status set to available after payment');
+           try {
+             final tableProvider = Provider.of<TableProvider>(context, listen: false);
+             await tableProvider.setTableStatus(tableNumber, false);
+             
+             // 🛡️ FORCE REFRESH: Ensure UI updates immediately
+             await tableProvider.refreshTables();
+             
+             // Log success to file for debugging
+             logErrorToFile('✅ Table $tableNumber freed after payment (Safe/Offline Mode compatible)');
+           } catch (e) {
+             debugPrint('Error freeing table: $e');
+             logErrorToFile('⚠️ Error freeing table $tableNumber: $e');
+           }
+        } else {
+           logErrorToFile('⚠️ Could not parse table number from: ${widget.order.serviceType}');
         }
       }
       

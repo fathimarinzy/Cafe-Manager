@@ -374,6 +374,48 @@ class MenuProvider with ChangeNotifier {
     }
   }
 
+
+
+  /// Delete ALL menu items and categories (reset menu)
+  Future<bool> deleteAllMenuItems() async {
+    try {
+      debugPrint('🚨 Deleting ALL menu items and categories');
+      
+      // Get all item IDs before deleting to sync the deletions
+      final allItems = [..._items];
+      
+      await _localRepo.deleteAllMenuItems();
+      debugPrint('Local database cleared');
+      
+      // Update local state
+      _items.clear();
+      _categories.clear();
+      
+      notifyListeners();
+      
+      // Sync to Firestore if enabled
+      if (_syncEnabled) {
+        // We sync deletions for each item
+        for (var item in allItems) {
+           MenuSyncService.syncMenuItemDeletionToFirestore(item.id);
+        }
+        // Sync empty categories list
+        MenuSyncService.syncCategoriesToFirestore([]);
+      }
+      
+      return true;
+    } catch (e) {
+      debugPrint('Error deleting all menu items: $e');
+      // Attempt to reload state if something went wrong
+      try {
+        await fetchMenu(forceRefresh: true);
+        await fetchCategories(forceRefresh: true);
+      } catch (_) {}
+      
+      return false;
+    }
+  }
+
   @override
   void dispose() {
     MenuSyncService.stopAllListeners();
