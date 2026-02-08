@@ -11,8 +11,14 @@ class LocalPersonRepository {
 
   static Future<Database>? _dbOpenFuture;
 
+  static bool _isResetting = false; // 🛡️ Guard flag
+
   // Get database instance
   Future<Database> get database async {
+    if (_isResetting) {
+      throw StateError('Database is currently resetting - access denied');
+    }
+
     if (_database != null) return _database!;
     
     if (_dbOpenFuture != null) return _dbOpenFuture!;
@@ -281,16 +287,38 @@ Future<Person?> getPersonById(String id) async {
 }
 
   
-  // Close the database connection explicitly
-  Future<void> close() async {
+  // Clear all data from the database
+  Future<void> clearData() async {
     try {
-      if (_database != null && _database!.isOpen) {
-        await _database!.close();
+      final db = await database;
+      await db.delete('persons');
+      debugPrint('Person data cleared');
+    } catch (e) {
+      debugPrint('Error clearing person data: $e');
+    }
+  }
+
+  // Force reset the database connection
+  static Future<void> resetConnection() async {
+    try {
+      _isResetting = true; // 🛡️ Block access during reset
+      if (_database != null) {
+        if (_database!.isOpen) {
+          await _database!.close();
+        }
         _database = null;
-        debugPrint('Person database closed successfully');
+        debugPrint('Person database connection reset');
       }
     } catch (e) {
-      debugPrint('Error closing person database: $e');
+      debugPrint('Error resetting person database connection: $e');
+    } finally {
+      // Allow re-initialization if accessed again later
+      _isResetting = false; 
     }
+  }
+
+  // Close the database connection explicitly
+  Future<void> close() async {
+    await resetConnection();
   }
 }

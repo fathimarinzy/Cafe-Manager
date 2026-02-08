@@ -14,8 +14,14 @@ class LocalOrderRepository {
 
   static Future<Database>? _dbOpenFuture;
 
+  static bool _isResetting = false; // 🛡️ Guard flag
+
   // Get database instance safely (avoid race conditions)
   Future<Database> get database async {
+    if (_isResetting) {
+      throw StateError('Database is currently resetting - access denied');
+    }
+    
     if (_database != null) return _database!;
     
     // If initialization is already in progress, return that future
@@ -689,6 +695,51 @@ class LocalOrderRepository {
       return 0;
     }
   }
+
+  // Clear all data from the database
+  Future<void> clearData() async {
+    try {
+      final db = await database;
+      await db.transaction((txn) async {
+        await txn.delete('order_items');
+        await txn.delete('orders');
+      });
+      debugPrint('Order data cleared');
+    } catch (e) {
+      debugPrint('Error clearing order data: $e');
+    }
+  }
+
+  // Force reset the database connection
+  static Future<void> resetConnection() async {
+    try {
+      _isResetting = true; // 🛡️ Block access during reset
+      if (_database != null) {
+        if (_database!.isOpen) {
+          await _database!.close();
+        }
+        _database = null;
+        debugPrint('Order database connection reset');
+      }
+    } catch (e) {
+      debugPrint('Error resetting order database connection: $e');
+    } finally {
+      // NOTE: We do NOT set _isResetting = false here.
+      // The app is expected to restart or navigate to/from AppInitializer
+      // which creates a fresh environment (or we assume static reset on reload if hot restart).
+      // However, if we just navigate, static fields PERSIST.
+      // So we MUST allow re-initialization if accessed again later (e.g. after reset completes).
+       _isResetting = false; 
+    }
+  }
+
+  // Force reset the database connection
+
+
+  // Close the database connection
+  Future<void> close() async {
+     await resetConnection();
+  }
  /// Print the contents of all database tables for debugging
 Future<void> printDatabaseContents() async {
   debugPrint('\n======== DATABASE CONTENTS DUMP ========');
@@ -799,16 +850,4 @@ Future<void> printDatabaseContents() async {
 }
 
 
-  // Close the database connection explicitly
-  Future<void> close() async {
-    try {
-      if (_database != null && _database!.isOpen) {
-        await _database!.close();
-        _database = null;
-        debugPrint('Order database closed successfully');
-      }
-    } catch (e) {
-      debugPrint('Error closing order database: $e');
-    }
-  }
 }

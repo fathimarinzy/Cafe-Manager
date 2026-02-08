@@ -108,10 +108,7 @@ flutter:
       fonts:
         - asset: assets/fonts/noto-sans-arabic.ttf
 
-flutter_icons:
-  android: "launcher_icon"
-  ios: true
-  image_path: "assets/icon/icon.png"
+
 
 # Add this MSIX configuration to your pubspec.yaml
 

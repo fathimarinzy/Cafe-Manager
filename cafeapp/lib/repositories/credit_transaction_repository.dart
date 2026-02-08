@@ -10,7 +10,13 @@ class CreditTransactionRepository {
 
   static Future<Database>? _dbOpenFuture;
 
+  static bool _isResetting = false; // 🛡️ Guard flag
+
   Future<Database> get database async {
+    if (_isResetting) {
+      throw StateError('Database is currently resetting - access denied');
+    }
+
     if (_database != null) return _database!;
     
     if (_dbOpenFuture != null) return _dbOpenFuture!;
@@ -144,16 +150,37 @@ class CreditTransactionRepository {
   }
 
 
-  // Close the database connection explicitly
-  Future<void> close() async {
+  // Clear all data from the database
+  Future<void> clearData() async {
     try {
-      if (_database != null && _database!.isOpen) {
-        await _database!.close();
+      final db = await database;
+      await db.delete('credit_transactions');
+      debugPrint('Credit transaction data cleared');
+    } catch (e) {
+      debugPrint('Error clearing credit transaction data: $e');
+    }
+  }
+
+  // Force reset the database connection
+  static Future<void> resetConnection() async {
+    try {
+      _isResetting = true; // 🛡️ Block access during reset
+      if (_database != null) {
+        if (_database!.isOpen) {
+          await _database!.close();
+        }
         _database = null;
-        debugPrint('Credit transaction database closed successfully');
+        debugPrint('Credit transaction database connection reset');
       }
     } catch (e) {
-      debugPrint('Error closing credit transaction database: $e');
+      debugPrint('Error resetting credit transaction database connection: $e');
+    } finally {
+      _isResetting = false;
     }
+  }
+
+  // Close the database connection explicitly
+  Future<void> close() async {
+     await resetConnection();
   }
 }

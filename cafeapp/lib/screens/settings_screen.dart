@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:cafeapp/main.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:cafeapp/providers/logo_provider.dart';
 import 'package:cafeapp/screens/device_management_screen.dart';
 import 'package:cafeapp/screens/search_person_screen.dart';
@@ -755,9 +756,9 @@ Future<void> _checkLicenseStatus() async {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Reset All Data'.tr()),
+        title: Text('Reset Data (Partial Reset)'.tr()),
         content: Text(
-          'This will delete all app data. This action cannot be undone. Are you sure you want to continue?'.tr(),
+          'Are you sure you want to reset all operational data? This will delete:\n• All Orders\n• All Customers\n• All Expenses\n• All Delivery Boys\n\nYour Menu and Device Registration will be PRESERVED.'.tr(),
         ),
         actions: [
           TextButton(
@@ -826,7 +827,8 @@ Future<void> _checkLicenseStatus() async {
           ),
           TextButton(
             onPressed: () {
-              if (passwordController.text == '1234') {
+              final correctPassword = dotenv.env['MENU_DELETE_PASSWORD'] ?? '1234';
+              if (passwordController.text == correctPassword) {
                 Navigator.of(ctx).pop();
                 _resetAllData();
               } else {
@@ -868,10 +870,10 @@ Future<void> _checkLicenseStatus() async {
                 children: [
                   const CircularProgressIndicator(),
                   const SizedBox(height: 16),
-                  Text('Resetting data... Please wait.'.tr()),
+                  Text('Resetting operational data...'.tr()),
                   const SizedBox(height: 8),
                   Text(
-                    'This may take a moment. Do not close the app.'.tr(),
+                    'Only orders, customers, and expenses will be cleared.'.tr(),
                     style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
                   ),
                 ],
@@ -880,17 +882,18 @@ Future<void> _checkLicenseStatus() async {
           ),
         );
       }
-      // Clear ALL SharedPreferences (including registration)
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.clear();
+      // DO NOT Clear SharedPreferences for partial reset
+      // final prefs = await SharedPreferences.getInstance();
+      // await prefs.clear();
       
       final dbResetService = DatabaseResetService();
-      await dbResetService.forceResetAllDatabases();
+      // Use new operational reset method - preserves menu and registration
+      await dbResetService.resetOperationalData();
       
-        // Reset settings provider
+      // Reset settings provider (optional but safer to reload)
       if (!mounted) return;
-      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-      await settingsProvider.resetSettings();
+      // final settingsProvider = Provider.of<SettingsProvider>(context, listen: false); // Removed unused variable
+      // await settingsProvider.resetSettings(); // Don't reset settings for partial reset
         
         // Close loading dialog
       if (mounted) Navigator.of(context).pop();
@@ -902,7 +905,7 @@ Future<void> _checkLicenseStatus() async {
           builder: (ctx) => AlertDialog(
             title: Text('Reset Complete'.tr()),
             content: Text(
-              'All data has been reset successfully.'.tr(),
+              'Operational data (Orders, Customers, Expenses) has been reset. Menu and helper data preserved.'.tr(),
             ),
             actions: [
               TextButton(
@@ -1910,6 +1913,9 @@ Future<void> _performFirstTimeReset() async {
   });
 
   try {
+      // STOP SYNC SERVICES FIRST (Added for safety)
+      DeviceSyncService.stopAutoSync();
+      
     // Show loading dialog
     if (mounted) {
       showDialog(

@@ -16,8 +16,14 @@ class LocalExpenseRepository {
   // Private constructor
   LocalExpenseRepository._internal();
   
+  static bool _isResetting = false; // 🛡️ Guard flag
+  
   // Get database instance with proper checks
   Future<Database> get database async {
+    if (_isResetting) {
+      throw StateError('Database is currently resetting - access denied');
+    }
+
     if (_database != null && _database!.isOpen) {
       return _database!;
     }
@@ -410,16 +416,40 @@ class LocalExpenseRepository {
     return false;
   }
   
-  // Close the database connection explicitly
-  Future<void> close() async {
+  // Clear all data from the database
+  Future<void> clearData() async {
     try {
-      if (_database != null && _database!.isOpen) {
-        await _database!.close();
+      final db = await database;
+      await db.transaction((txn) async {
+        await txn.delete('expense_items');
+        await txn.delete('expenses');
+      });
+      debugPrint('Expense data cleared');
+    } catch (e) {
+      debugPrint('Error clearing expense data: $e');
+    }
+  }
+
+  // Force reset the database connection
+  static Future<void> resetConnection() async {
+    try {
+      _isResetting = true; // 🛡️ Block access during reset
+      if (_database != null) {
+        if (_database!.isOpen) {
+          await _database!.close();
+        }
         _database = null;
-        debugPrint('Expense database closed successfully');
+        debugPrint('Expense database connection reset');
       }
     } catch (e) {
-      debugPrint('Error closing expense database: $e');
+      debugPrint('Error resetting expense database connection: $e');
+    } finally {
+      _isResetting = false;
     }
+  }
+
+  // Close the database connection explicitly
+  Future<void> close() async {
+     await resetConnection();
   }
 }

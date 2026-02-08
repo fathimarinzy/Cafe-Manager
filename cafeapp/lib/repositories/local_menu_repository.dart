@@ -18,9 +18,15 @@ class LocalMenuRepository {
   LocalMenuRepository._internal();
   
   static Future<Database>? _dbOpenFuture;
+  
+  static bool _isResetting = false; // 🛡️ Guard flag
 
   // Get database instance with retry logic and race condition prevention
   Future<Database> get database async {
+    if (_isResetting) {
+      throw StateError('Database is currently resetting - access denied');
+    }
+
     if (_database != null && _database!.isOpen) {
       return _database!;
     }
@@ -466,17 +472,30 @@ Future<List<MenuItem>> getMenuItems() async {
     debugPrint('Category "$categoryName" ready to use (no database operation needed)');
   }
   
-  // Close the database connection explicitly
-  Future<void> close() async {
+
+  
+  // Force reset the database connection
+  static Future<void> resetConnection() async {
     try {
-      if (_database != null && _database!.isOpen) {
-        await _database!.close();
+      _isResetting = true; // 🛡️ Block access during reset
+      if (_database != null) {
+        if (_database!.isOpen) {
+          await _database!.close();
+        }
         _database = null;
-        debugPrint('Menu database closed successfully');
+        debugPrint('Menu database connection reset');
       }
     } catch (e) {
-      debugPrint('Error closing menu database: $e');
+      debugPrint('Error resetting menu database connection: $e');
+    } finally {
+      // Allow re-initialization if accessed again later
+      _isResetting = false; 
     }
+  }
+
+  // Close the database connection explicitly
+  Future<void> close() async {
+    await resetConnection();
   }
   // Update category name for all items with that category
   Future<void> updateCategory(String oldCategory, String newCategory) async {

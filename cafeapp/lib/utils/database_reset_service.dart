@@ -28,7 +28,8 @@ class DatabaseResetService {
     'credit_transactions.db',
     'cafe_delivery_boys_store.db'
   ];
-  
+
+
   // Force close all databases and delete database files
   Future<void> forceResetAllDatabases() async {
     try {
@@ -56,22 +57,45 @@ class DatabaseResetService {
       rethrow;
     }
   }
+
+  // Reset operational data only (Preserves Menu, Device Registration, and Settings)
+  // UPDATED: Now clears tables instead of deleting files to prevent "database closed" errors
+  Future<void> resetOperationalData() async {
+    try {
+      debugPrint('Starting reset of operational data (clearing tables)...');
+      
+      // Clear data using repository methods
+      // This keeps the database connection open but removes all records
+      await LocalOrderRepository().clearData();
+      await LocalPersonRepository().clearData();
+      await LocalExpenseRepository().clearData();
+      await CreditTransactionRepository().clearData();
+      await LocalDeliveryBoyRepository().clearData();
+      
+      // We do NOT close databases or delete files for partial reset anymore
+      
+      debugPrint('Operational data has been cleared');
+    } catch (e) {
+      debugPrint('Error in resetOperationalData: $e');
+      rethrow;
+    }
+  }
   
   // Force close all database connections by closing SQLite
   Future<void> _forceCloseDatabases() async {
     try {
       debugPrint('Force closing all database connections...');
 
-      // CRITICAL FIX: Close all repository connections explicitly
+      // CRITICAL FIX: Close all repository connections explicitly and reset their static instances
       // This resets the internal static definition of the database in each repository
       // preventing "DatabaseException(error database_closed)" on restart
-      await LocalMenuRepository().close();
-      await LocalOrderRepository().close();
-      await LocalPersonRepository().close();
-      await LocalExpenseRepository().close();
-      await CreditTransactionRepository().close();
-      await LocalDeliveryBoyRepository().close();
-      debugPrint('All repositories closed');
+      await LocalMenuRepository.resetConnection();
+      await LocalOrderRepository.resetConnection();
+      await LocalPersonRepository.resetConnection();
+      await LocalExpenseRepository.resetConnection();
+      await CreditTransactionRepository.resetConnection();
+      await LocalDeliveryBoyRepository.resetConnection();
+      debugPrint('All repositories closed and connections reset');
       
       // This will close all database connections managed by sqflite
       try {
