@@ -793,6 +793,19 @@ class OrderProvider with ChangeNotifier {
     }
   }
 
+  // Reset entire provider state (Factory Reset)
+  void resetState() {
+    debugPrint('Clearing OrderProvider in-memory state');
+    _serviceTypeCarts.clear();
+    _serviceTotals.clear();
+    _currentServiceType = '';
+    _currentOrderId = null;
+    _selectedPerson = null;
+    clearDeliveryDetails();
+    clearCateringDetails();
+    notifyListeners();
+  }
+
   // Add item to cart without incrementing quantity for existing items
   void _addToCartWithoutIncrementing(MenuItem item) {
     if (_currentServiceType.isEmpty) {

@@ -189,7 +189,15 @@ Future<Person?> getPersonById(String personId) async {
     debugPrint('Error getting person by ID: $e');
     return null;
   }
-}
+  }
+
+  // Reset entire provider state (Factory Reset)
+  void resetState() {
+    debugPrint('Clearing PersonProvider in-memory state');
+    _persons = [];
+    _searchResults = [];
+    notifyListeners();
+  }
 
 
 }

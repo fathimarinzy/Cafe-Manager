@@ -416,6 +416,14 @@ class MenuProvider with ChangeNotifier {
     }
   }
 
+  /// Clear in-memory state (used after factory reset)
+  void resetState() {
+    debugPrint('Clearing MenuProvider in-memory state');
+    _items = [];
+    _categories = [];
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     MenuSyncService.stopAllListeners();

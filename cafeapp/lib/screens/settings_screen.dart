@@ -4,7 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:cafeapp/providers/logo_provider.dart';
 import 'package:cafeapp/screens/device_management_screen.dart';
 import 'package:cafeapp/screens/search_person_screen.dart';
-import 'package:cafeapp/utils/database_helper.dart';
+
 // import 'customer_management_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -28,6 +28,9 @@ import '../services/license_service.dart';
 import 'renewal_screen.dart';
 import '../services/offline_sync_service.dart';
 import '../services/connectivity_monitor.dart';
+import '../providers/menu_provider.dart';
+import '../providers/order_provider.dart';
+import '../providers/person_provider.dart';
 import '../services/online_sync_service.dart';
 import '../services/logo_service.dart';
 import '../services/device_sync_service.dart'; // 🆕 Add this import
@@ -771,7 +774,7 @@ Future<void> _checkLicenseStatus() async {
           TextButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              _showPasswordDialog();
+              _showPasswordDialog(onSuccess: _resetAllData);
             },
             style: TextButton.styleFrom(
               foregroundColor: Colors.red,
@@ -783,7 +786,7 @@ Future<void> _checkLicenseStatus() async {
     );
   }
 
-  void _showPasswordDialog() {
+  void _showPasswordDialog({required VoidCallback onSuccess}) {
     final passwordController = TextEditingController();
     final formKey = GlobalKey<FormState>();
     bool isPasswordIncorrect = false;
@@ -830,7 +833,7 @@ Future<void> _checkLicenseStatus() async {
               final correctPassword = dotenv.env['MENU_DELETE_PASSWORD'] ?? '1234';
               if (passwordController.text == correctPassword) {
                 Navigator.of(ctx).pop();
-                _resetAllData();
+                onSuccess();
               } else {
                 setState(() {
                   isPasswordIncorrect = true;
@@ -1829,7 +1832,11 @@ Widget _buildDataBackupSection() {
           title: Text('Reset to First Time Setup'.tr()),
           subtitle: Text('Clear registration and restart app'.tr()),
           trailing: _isDemoExpired ? null : const Icon(Icons.arrow_forward_ios, size: 16),
-          onTap: _isDemoExpired ? null : _showFirstTimeResetConfirmation,
+          onTap: _isDemoExpired ? null : () {
+            _showPasswordDialog(
+              onSuccess: _showFirstTimeResetConfirmation,
+            );
+          },
           enabled: !_isDemoExpired,
         ),
         const Divider(height: 1, indent: 70),
@@ -1937,9 +1944,9 @@ Future<void> _performFirstTimeReset() async {
       );
     }
     
-    // Close all databases first
-    final dbHelper = DatabaseHelper();
-    await dbHelper.closeAllDatabases();
+    // Close all databases first - NO LONGER NEEDED with clearData strategy
+    // final dbHelper = DatabaseHelper();
+    // await dbHelper.closeAllDatabases();
     
     // Clear ALL SharedPreferences (including registration)
     final prefs = await SharedPreferences.getInstance();
@@ -1953,6 +1960,13 @@ Future<void> _performFirstTimeReset() async {
     if (!mounted) return;
     final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
     await settingsProvider.resetSettings();
+    
+    // Reset other providers to clear in-memory state
+    if (mounted) {
+      Provider.of<MenuProvider>(context, listen: false).resetState();
+      Provider.of<OrderProvider>(context, listen: false).resetState();
+      Provider.of<PersonProvider>(context, listen: false).resetState();
+    }
     
     // Close loading dialog
     if (mounted) Navigator.of(context).pop();

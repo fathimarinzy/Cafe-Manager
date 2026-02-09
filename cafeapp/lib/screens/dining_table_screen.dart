@@ -6,6 +6,7 @@ import 'menu_screen.dart';
 import 'table_orders_screen.dart'; 
 import '../providers/order_provider.dart';
 import '../providers/table_provider.dart';
+import '../providers/settings_provider.dart'; // Add SettingsProvider
 // import '../providers/order_history_provider.dart';   
 import '../utils/app_localization.dart';
 
@@ -100,6 +101,11 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
           style: const TextStyle(color: Colors.black),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.grid_view, color: Colors.black),
+            onPressed: _showLayoutDialog,
+            tooltip: 'Change Layout'.tr(),
+          ),
           const SizedBox(width: 10),
           // Time display
           Padding(
@@ -184,6 +190,97 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
       ),
     );
   }
+
+  void _showLayoutDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        final screenWidth = MediaQuery.of(context).size.width;
+        
+        return AlertDialog(
+          title: Text(
+            'Select Table Layout'.tr(),
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+          content: SizedBox(
+            width: screenWidth * 0.5, // Adjusted width for dialog
+            child: ListView(
+              shrinkWrap: true,
+              children: _layoutOptions.map((option) {
+                return ListTile(
+                  dense: true,
+                  title: Text(
+                    option['label'].toString().tr(),
+                    style: const TextStyle(
+                      fontSize: 14,
+                    ),
+                  ),
+                  onTap: () {
+                    setState(() {
+                      _rows = option['rows'];
+                      _columns = option['columns'];
+                    });
+                    _saveLayout(option['rows'], option['columns']);
+                    Navigator.pop(context);
+                  },
+                  trailing: (_rows == option['rows'] && _columns == option['columns']) 
+                    ? const Icon(Icons.check, color: Colors.green, size: 18)
+                    : null,
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Cancel'.tr(),
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+  
+  Future<void> _saveLayout(int rows, int columns) async {
+    try {
+      final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+      await settingsProvider.saveAllSettings(
+        tableRows: rows,
+        tableColumns: columns,
+      );
+      
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('dining_table_rows', rows);
+      await prefs.setInt('dining_table_columns', columns);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Table layout saved'.tr()),
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error saving layout settings: $e');
+    }
+  }
+  
+  final List<Map<String, dynamic>> _layoutOptions = [
+    {'label': '3x3 Layout', 'rows': 3, 'columns': 3},
+    {'label': '4x4 Layout', 'rows': 4, 'columns': 4},
+    {'label': '4x5 Layout', 'rows': 4, 'columns': 5},
+    {'label': '4x6 Layout', 'rows': 4, 'columns': 6},
+    {'label': '4x7 Layout', 'rows': 4, 'columns': 7},
+    {'label': '5x8 Layout', 'rows': 5, 'columns': 8},
+  ];
 
   // Navigate to Menu Screen and handle return
   Future<void> _navigateToMenuScreen(String serviceType, OrderProvider orderProvider) async {
