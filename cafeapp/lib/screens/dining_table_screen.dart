@@ -90,33 +90,57 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
     final tables = tableProvider.tables;
     
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
         backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black87, size: 20),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
           'Dining Tables'.tr(),
-          style: const TextStyle(color: Colors.black),
+          style: const TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+            letterSpacing: 0.5,
+          ),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.grid_view, color: Colors.black),
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.grid_view_rounded, color: Colors.black87, size: 20),
+            ),
             onPressed: _showLayoutDialog,
             tooltip: 'Change Layout'.tr(),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           // Time display
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(20),
+            ),
             child: Row(
               children: [
-                const Icon(Icons.access_time, color: Colors.black, size: 20),
-                const SizedBox(width: 4),
+                const Icon(Icons.access_time_rounded, color: Colors.black54, size: 16),
+                const SizedBox(width: 6),
                 Text(
                   _currentTime,
-                  style: const TextStyle(color: Colors.black),
+                  style: const TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
                 ),
               ],
             ),
@@ -125,20 +149,49 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1.0),
           child: Container(
-            color: Colors.grey.shade300,
+            color: Colors.grey.shade200,
             height: 1.0,
           ),
         ),
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(8.0), // Reduced padding
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 8), // Reduced spacing
+              // Statistics / Summary Row (Optional - keep simple for now)
+              Row(
+                children: [
+                   _buildStatusChip('Total: ${tables.length}', Colors.blueGrey),
+                   const SizedBox(width: 8),
+                   _buildStatusChip('Occupied: ${tables.where((t) => t.isOccupied).length}', Colors.orange),
+                   const SizedBox(width: 8),
+                   _buildStatusChip('Available: ${tables.where((t) => !t.isOccupied).length}', Colors.green),
+                ],
+              ),
+              const SizedBox(height: 16), 
+
               Expanded(
                 child: tables.isEmpty 
-                  ? Center(child: Text('No tables available. Add tables from the Tables menu.'.tr()))
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.table_restaurant_outlined, size: 64, color: Colors.grey[300]),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No tables available'.tr(),
+                            style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Add tables from the Tables menu.'.tr(),
+                            style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    )
                   : LayoutBuilder(
                       builder: (context, constraints) {
                         // Calculate the size for each table card based on available space
@@ -146,8 +199,8 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
                         final double maxHeight = constraints.maxHeight;
                         
                         // Calculate card width and height with spacing considered
-                        final cardWidth = (maxWidth - ((_columns - 1) * 8)) / _columns;
-                        final cardHeight = (maxHeight - ((_rows - 1) * 8)) / _rows;
+                        final cardWidth = (maxWidth - ((_columns - 1) * 12)) / _columns;
+                        final cardHeight = (maxHeight - ((_rows - 1) * 12)) / _rows;
                         
                         // Use a fixed aspect ratio
                         final aspectRatio = cardWidth / cardHeight;
@@ -155,8 +208,8 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
                         return GridView.builder(
                           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: _columns,
-                            crossAxisSpacing: 8, // Reduced spacing
-                            mainAxisSpacing: 8, // Reduced spacing
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
                             childAspectRatio: aspectRatio > 0 ? aspectRatio : 1.0,
                           ),
                           itemCount: tables.length,
@@ -169,8 +222,6 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
                             
                             // Get the OrderProvider
                             final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-                            // IMPORTANT: Always use English for internal service type
-                            // This ensures consistency with payment processing logic
                             final String serviceType = 'Dining - Table ${table.number}';
 
                             return _buildTableCard(
@@ -191,6 +242,25 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
     );
   }
 
+  Widget _buildStatusChip(String label, MaterialColor color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color[100]!),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color[800],
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
   void _showLayoutDialog() {
     showDialog(
       context: context,
@@ -198,6 +268,7 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
         final screenWidth = MediaQuery.of(context).size.width;
         
         return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Text(
             'Select Table Layout'.tr(),
             style: const TextStyle(
@@ -205,31 +276,46 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
-          contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+          contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
           content: SizedBox(
-            width: screenWidth * 0.5, // Adjusted width for dialog
+            width: screenWidth * 0.4,
             child: ListView(
               shrinkWrap: true,
               children: _layoutOptions.map((option) {
-                return ListTile(
-                  dense: true,
-                  title: Text(
-                    option['label'].toString().tr(),
-                    style: const TextStyle(
-                      fontSize: 14,
-                    ),
+                final isSelected = _rows == option['rows'] && _columns == option['columns'];
+                return Container(
+                  margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? Colors.blue[50] : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  onTap: () {
-                    setState(() {
-                      _rows = option['rows'];
-                      _columns = option['columns'];
-                    });
-                    _saveLayout(option['rows'], option['columns']);
-                    Navigator.pop(context);
-                  },
-                  trailing: (_rows == option['rows'] && _columns == option['columns']) 
-                    ? const Icon(Icons.check, color: Colors.green, size: 18)
-                    : null,
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(
+                      Icons.grid_view, 
+                      color: isSelected ? Colors.blue[700] : Colors.grey[600],
+                      size: 20,
+                    ),
+                    title: Text(
+                      option['label'].toString().tr(),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: isSelected ? Colors.blue[900] : Colors.black87,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    onTap: () {
+                      setState(() {
+                        _rows = option['rows'];
+                        _columns = option['columns'];
+                      });
+                      _saveLayout(option['rows'], option['columns']);
+                      Navigator.pop(context);
+                    },
+                    trailing: isSelected 
+                      ? const Icon(Icons.check_circle, color: Colors.blue, size: 20)
+                      : null,
+                  ),
                 );
               }).toList(),
             ),
@@ -239,7 +325,7 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
               onPressed: () => Navigator.pop(context),
               child: Text(
                 'Cancel'.tr(),
-                style: const TextStyle(fontSize: 14),
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -439,9 +525,15 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
     OrderProvider orderProvider,
     String serviceType,
   ) {
-    // Calculate appropriate font size based on columns
-    final double fontSize = _columns > 6 ? 14.0 : 18.0;
-    final double iconSize = _columns > 6 ? 24.0 : 36.0;
+    // Determine card styling based on state
+    final Color backgroundColor = isOccupied ? const Color(0xFFFFF0F0) : Colors.white;
+    final Color borderColor = isOccupied ? const Color(0xFFFFCDD2) : const Color(0xFFE0E0E0);
+    final Color iconColor = isOccupied ? const Color(0xFFE57373) : const Color(0xFF81C784);
+    final Color textColor = isOccupied ? const Color(0xFFC62828) : const Color(0xFF2E7D32);
+    final String statusText = isOccupied ? 'Occupied'.tr() : 'Available'.tr();
+    
+    // Scale sizes slightly based on column count
+    final double titleSize = _columns > 6 ? 14.0 : 18.0;
     
     return InkWell(
       onTap: () {
@@ -451,39 +543,71 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
           _showOccupiedTableDialog(tableNumber, serviceType, orderProvider);
         }
       },
-      child: Card(
-        elevation: 2, // Reduced elevation
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8), // Reduced border radius
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor, width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: isOccupied 
+                  ? Colors.red.withAlpha(13) 
+                  : Colors.grey.withAlpha(13),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        color: isOccupied ? Colors.grey.shade200 : Colors.white,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.table_restaurant,
-              size: iconSize,
-              color: isOccupied ? Colors.red : Colors.blue[900],
+            // Table Icon with Circle Background
+            Container(
+              padding: EdgeInsets.all(_columns > 6 ? 8 : 12),
+              decoration: BoxDecoration(
+                color: isOccupied ? Colors.red[50] : Colors.green[50], // Lighter background for circle
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.table_restaurant_rounded,
+                size: _columns > 6 ? 20.0 : 28.0,
+                color: iconColor,
+              ),
             ),
-            const SizedBox(height: 4), // Reduced spacing
+            
+            SizedBox(height: _columns > 6 ? 6 : 10),
+            
+            // Table Number
             Text(
               '${'Table'.tr()} $tableNumber',
               style: TextStyle(
-                fontSize: fontSize,
+                fontSize: titleSize,
                 fontWeight: FontWeight.bold,
-                color: isOccupied ? Colors.grey.shade800 : Colors.black87,
+                color: Colors.black87,
+                letterSpacing: 0.3,
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 2), // Reduced spacing
-            Text(
-              isOccupied ? 'Occupied'.tr() : 'Available'.tr(),
-              style: TextStyle(
-                fontSize: fontSize - 4, // Smaller text for status
-                color: isOccupied ? Colors.red : Colors.green,
-                fontWeight: FontWeight.bold,
+            
+            SizedBox(height: _columns > 6 ? 4 : 6),
+            
+            // Status Badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: isOccupied ? Colors.red[100] : Colors.green[100],
+                borderRadius: BorderRadius.circular(8),
               ),
-              textAlign: TextAlign.center,
+              child: Text(
+                statusText,
+                style: TextStyle(
+                  fontSize: _columns > 6 ? 10.0 : 12.0,
+                  color: textColor,
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ),
           ],
         ),
