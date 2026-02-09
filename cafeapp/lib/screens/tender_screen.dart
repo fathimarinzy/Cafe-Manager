@@ -5543,166 +5543,175 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
     return pdf;
   }
   // Add this method to handle customer credit payment
- Future<void> _processCustomerCreditPayment(Person customer) async {
-  final discountedTotal = _getDiscountedTotal();
+  Future<void> _processCustomerCreditPayment(Person customer) async {
+    final discountedTotal = _getDiscountedTotal();
+    final deposit = widget.order.depositAmount ?? 0.0;
+    // FIX: Calculate remaining amount to credit
+    final amountToPay = discountedTotal - deposit;
+    
+    if (amountToPay <= 0) {
+       if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No remaining balance to pay'.tr())),
+        );
+      }
+      return;
+    }
   
-  // Show confirmation dialog
-  final confirmed = await _showCustomerCreditDialog(customer, discountedTotal);
+    // Show confirmation dialog with remaining amount
+    final confirmed = await _showCustomerCreditDialog(customer, amountToPay);
   
-  if (confirmed == true) {
-    setState(() {
-      _isProcessing = true;
-    });
+    if (confirmed == true) {
+      setState(() {
+        _isProcessing = true;
+      });
 
-    try {
-      if (!mounted) return;
-      // Add credit to customer
-      final personProvider = Provider.of<PersonProvider>(context, listen: false);
-      final success = await personProvider.updateCustomerCredit(
-        customer.id!,
-        discountedTotal,
-      );  
+      try {
+        if (!mounted) return;
+        // Add credit to customer
+        final personProvider = Provider.of<PersonProvider>(context, listen: false);
+        final success = await personProvider.updateCustomerCredit(
+          customer.id!,
+          amountToPay, // Use calculated amount
+        );  
 
-      if (success) {
-        // ✅ FIX: Calculate amounts properly before saving
-        final amounts = _calculateAmounts();
-        final discountAmount = _getCurrentDiscount();
-         // ✅ Save the order with CORRECT subtotal and tax
-        Order savedOrder;
-        if (widget.order.id != 0) {
-          final orders = await _localOrderRepo.getAllOrders();
-          final orderIndex = orders.indexWhere((o) => o.id == widget.order.id);
+        if (success) {
+          // ✅ FIX: Calculate amounts properly before saving
+          final amounts = _calculateAmounts();
+          final discountAmount = _getCurrentDiscount();
+           // ✅ Save the order with CORRECT subtotal and tax
+          Order savedOrder;
+          if (widget.order.id != 0) {
+            final orders = await _localOrderRepo.getAllOrders();
+            final orderIndex = orders.indexWhere((o) => o.id == widget.order.id);
+            
+            if (orderIndex >= 0) {
+              final existingOrder = orders[orderIndex];
+              savedOrder = Order(
+                id: existingOrder.id,
+                staffDeviceId: existingOrder.staffDeviceId,
+                serviceType: existingOrder.serviceType,
+                items: existingOrder.items,
+                subtotal: amounts['subtotal']!,  // ✅ Use calculated subtotal
+                tax: amounts['tax']!,            // ✅ Use calculated tax
+                discount: discountAmount,
+                total: amounts['total']!,
+                status: 'completed',
+                createdAt: existingOrder.createdAt,
+                customerId: customer.id,
+                paymentMethod: 'customer_credit',
+                // ✅ Preserve catering/delivery fields
+                deliveryCharge: existingOrder.deliveryCharge,
+                deliveryAddress: existingOrder.deliveryAddress,
+                deliveryBoy: existingOrder.deliveryBoy,
+                eventDate: existingOrder.eventDate,
+                eventTime: existingOrder.eventTime,
+                eventGuestCount: existingOrder.eventGuestCount,
+                eventType: existingOrder.eventType,
+                tokenNumber: existingOrder.tokenNumber,
+                customerName: existingOrder.customerName,
+                depositAmount: existingOrder.depositAmount,
+              );
+              
+              savedOrder = await _localOrderRepo.saveOrder(savedOrder);
+            } else {
+              throw Exception('Order not found');
+            }
+          } else {
+            throw Exception('Invalid order ID');
+          }
           
-          if (orderIndex >= 0) {
-            final existingOrder = orders[orderIndex];
-            savedOrder = Order(
-              id: existingOrder.id,
-              staffDeviceId: existingOrder.staffDeviceId,
-              serviceType: existingOrder.serviceType,
-              items: existingOrder.items,
-              subtotal: amounts['subtotal']!,  // ✅ Use calculated subtotal
-              tax: amounts['tax']!,            // ✅ Use calculated tax
-              discount: discountAmount,
-              total: amounts['total']!,
-              status: 'completed',
-              createdAt: existingOrder.createdAt,
-              customerId: customer.id,
-              paymentMethod: 'customer_credit',
-              // ✅ Preserve catering/delivery fields
-              deliveryCharge: existingOrder.deliveryCharge,
-              deliveryAddress: existingOrder.deliveryAddress,
-              deliveryBoy: existingOrder.deliveryBoy,
-              eventDate: existingOrder.eventDate,
-              eventTime: existingOrder.eventTime,
-              eventGuestCount: existingOrder.eventGuestCount,
-              eventType: existingOrder.eventType,
-              tokenNumber: existingOrder.tokenNumber,
-              customerName: existingOrder.customerName,
-              depositAmount: existingOrder.depositAmount,
+  
+           // Save credit transaction
+          final creditRepo = CreditTransactionRepository();
+          final transaction = CreditTransaction(
+            id: 'credit_${DateTime.now().millisecondsSinceEpoch}',
+            customerId: customer.id!,
+            customerName: customer.name,
+            orderNumber: savedOrder.id.toString(),
+            amount: amountToPay, // Use calculated amount
+            createdAt: DateTime.now(),
+            serviceType: widget.order.serviceType,
+            isCompleted: false,
+          );
+          
+          await creditRepo.saveCreditTransaction(transaction);
+          
+          // Synced
+          await DeviceSyncService.syncCreditTransactionToFirestore(transaction);
+          
+          // Update order status to completed (without cash payment processing)
+          await _updateOrderStatus('completed');
+          
+          // Update table status if needed
+          if (widget.order.serviceType.contains('Dining - Table')) {
+            final tableNumberStr = widget.order.serviceType.split('Table ').last;
+            final tableNumber = int.tryParse(tableNumberStr);
+            
+            if (tableNumber != null && mounted) {
+              final tableProvider = Provider.of<TableProvider>(context, listen: false);
+              await tableProvider.setTableStatus(tableNumber, false);
+            }
+          }
+          
+          // Clear cart and customer selection
+          if (mounted) {
+            final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+            orderProvider.clearSelectedPerson();
+            orderProvider.clearCart();
+          }
+          
+          if (mounted) {
+            Provider.of<OrderHistoryProvider>(context, listen: false).refreshOrdersAndConnectivity();
+          }
+  
+          if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('${'Credit of'.tr()} ${amountToPay.toStringAsFixed(3)} ${'added to'.tr()} ${customer.name}${_getCurrentDiscount() > 0 ? ' (${'after discount of'.tr()} ${_getCurrentDiscount().toStringAsFixed(3)})' : ''}'),
+                backgroundColor: Colors.green,
+              ),
             );
             
-            savedOrder = await _localOrderRepo.saveOrder(savedOrder);
-          } else {
-            throw Exception('Order not found');
+            // Navigate back to order list
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const DashboardScreen()),
+              (route) => false,
+            );
           }
         } else {
-          throw Exception('Invalid order ID');
-        }
-        
-
-         // Save credit transaction
-        final creditRepo = CreditTransactionRepository();
-        final transaction = CreditTransaction(
-          id: 'credit_${DateTime.now().millisecondsSinceEpoch}',
-          customerId: customer.id!,
-          customerName: customer.name,
-          orderNumber: savedOrder.id.toString(),
-          amount: discountedTotal,
-          createdAt: DateTime.now(),
-          serviceType: widget.order.serviceType,
-          isCompleted: false,
-        );
-        
-        await creditRepo.saveCreditTransaction(transaction);
-        
-        // Synced
-        await DeviceSyncService.syncCreditTransactionToFirestore(transaction);
-        
-         // Update the original order with customer_credit payment method
-        // await _updateOrderPaymentMethodForCredit(widget.order.id, 'customer_credit', _getCurrentDiscount());
-
-        // Update order status to completed (without cash payment processing)
-        await _updateOrderStatus('completed');
-        
-        // Update table status if needed
-        if (widget.order.serviceType.contains('Dining - Table')) {
-          final tableNumberStr = widget.order.serviceType.split('Table ').last;
-          final tableNumber = int.tryParse(tableNumberStr);
-          
-          if (tableNumber != null && mounted) {
-            final tableProvider = Provider.of<TableProvider>(context, listen: false);
-            await tableProvider.setTableStatus(tableNumber, false);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to add credit to customer'.tr()),
+                backgroundColor: Colors.red,
+              ),
+            );
           }
         }
-        
-        // Clear cart and customer selection
-        if (mounted) {
-          final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-          orderProvider.clearSelectedPerson();
-          orderProvider.clearCart();
-        }
-        
-        if (mounted) {
-          Provider.of<OrderHistoryProvider>(context, listen: false).refreshOrdersAndConnectivity();
-        }
-
-        if (mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('${'Credit of'.tr()} ${discountedTotal.toStringAsFixed(3)} ${'added to'.tr()} ${customer.name}${_getCurrentDiscount() > 0 ? ' (${'after discount of'.tr()} ${_getCurrentDiscount().toStringAsFixed(3)})' : ''}'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          
-          // Navigate back to order list
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const DashboardScreen()),
-            (route) => false,
-          );
-        }
-      } else {
+      } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to add credit to customer'.tr()),
+              content: Text('${'Error processing customer credit'.tr()}: $e'),
               backgroundColor: Colors.red,
             ),
           );
         }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isProcessing = false;
+          });
+        }
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${'Error processing customer credit'.tr()}: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
-      }
+    } else {
+      // User cancelled, reset payment method
+      setState(() {
+        _selectedPaymentMethod = null;
+      });
     }
-  } else {
-    // User cancelled, reset payment method
-    setState(() {
-      _selectedPaymentMethod = null;
-    });
   }
-}
   // Add dialog to confirm customer credit
   Future<bool?> _showCustomerCreditDialog(Person customer, double amount) async {
     final originalTotal = widget.order.total;

@@ -747,7 +747,34 @@ Widget _buildOrderCard(OrderHistory order) {
                   ),
                 ),
                   
-              SizedBox(height: isPortrait ? 4 : 6), // Less spacing in portrait
+                  
+              // Customer Name
+              if (order.customerName != null && order.customerName!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4.0),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.person,
+                        size: isPortrait ? 10 : 12,
+                        color: Colors.black87,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          order.customerName!,
+                          style: TextStyle(
+                            fontSize: isPortrait ? 10 : 12,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               
               // Order date and time - more compact in portrait
               Column(
