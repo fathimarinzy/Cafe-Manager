@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:io'; // For Platform check
+
 import 'dart:async'; // For Timer
 import 'package:provider/provider.dart';
 import 'package:cafeapp/utils/app_localization.dart';
@@ -29,9 +29,15 @@ class _DeliverySetupScreenState extends State<DeliverySetupScreen> {
   final _searchController = TextEditingController();
 
   Person? _selectedCustomer;
-  bool _isSearching = false;
+  // bool _isSearching = false; // Removed in favor of Overlay
   bool _useCustomerAddress = false;
   Timer? _debounce; // Timer for search debounce
+  
+  // Overlay controls
+  final LayerLink _layerLink = LayerLink();
+  OverlayEntry? _overlayEntry;
+  final FocusNode _searchFocusNode = FocusNode();
+
 
   @override
   void initState() {
@@ -62,12 +68,25 @@ class _DeliverySetupScreenState extends State<DeliverySetupScreen> {
         });
       }
     });
+
+    _searchFocusNode.addListener(() {
+      if (_searchFocusNode.hasFocus) {
+        _showOverlay();
+      } else {
+        // Delay hiding to allow tap on overlay items
+        Future.delayed(const Duration(milliseconds: 200), () {
+          if (!_searchFocusNode.hasFocus) {
+             _hideOverlay();
+          }
+        });
+      }
+    });
   }
 
   void _onCustomerSelected(Person person) {
     setState(() {
       _selectedCustomer = person;
-      _isSearching = false;
+      // _isSearching = false; // logic handled by overlay
       _searchController.clear();
       // Auto-fill address from customer location if address field is empty or user wants
       if (_useCustomerAddress || _addressController.text.isEmpty) {
@@ -76,6 +95,8 @@ class _DeliverySetupScreenState extends State<DeliverySetupScreen> {
     });
     // Update Person Provider search 
     Provider.of<PersonProvider>(context, listen: false).clearSearch();
+    _hideOverlay();
+    _searchFocusNode.unfocus();
   }
 
   void _addNewCustomer() async {
@@ -132,7 +153,115 @@ class _DeliverySetupScreenState extends State<DeliverySetupScreen> {
     _deliveryBoyController.dispose();
     _chargeController.dispose();
     _searchController.dispose();
+    _searchFocusNode.dispose();
+    _hideOverlay();
     super.dispose();
+  }
+
+  // Overlay Methods
+  void _toggleOverlay() {
+    if (_overlayEntry != null) {
+      _hideOverlay();
+    } else {
+      _searchFocusNode.requestFocus();
+      _showOverlay();
+    }
+  }
+
+  void _hideOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  void _showOverlay() {
+    if (_overlayEntry != null) return;
+
+    final overlay = Overlay.of(context);
+
+
+    
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        width: _layerLink.leaderSize?.width ?? 300, 
+        child: CompositedTransformFollower(
+          link: _layerLink,
+          showWhenUnlinked: false,
+          offset: const Offset(0.0, 50.0), // Dropdown offset
+          child: Material(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(12),
+            color: Colors.white,
+            child: Container(
+              constraints: const BoxConstraints(maxHeight: 250),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: Consumer<PersonProvider>(
+                builder: (context, personProvider, child) {
+                  // If query is empty, show all. If not, show results.
+                  final List<Person> displayList = _searchController.text.isEmpty 
+                      ? personProvider.persons 
+                      : personProvider.searchResults;
+
+                  if (displayList.isEmpty) {
+                    if (_searchController.text.isNotEmpty && personProvider.persons.isNotEmpty) {
+                       return Padding(
+                         padding: const EdgeInsets.all(16.0),
+                         child: Text('No matching customers found'.tr(), style: TextStyle(color: Colors.grey[600])),
+                       );
+                    }
+                    if (personProvider.persons.isEmpty) {
+                         return Padding(
+                         padding: const EdgeInsets.all(16.0),
+                         child: Text('No customers yet. Add one!'.tr(), style: TextStyle(color: Colors.grey[600])),
+                       );
+                    }
+                  }
+
+                  return ListView.separated(
+                    padding: EdgeInsets.zero,
+                    shrinkWrap: true,
+                    itemCount: displayList.length,
+                    separatorBuilder: (ctx, i) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final person = displayList[index];
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.blue[100],
+                          foregroundColor: Colors.blue[800],
+                          child: Text(person.name.isNotEmpty ? person.name[0].toUpperCase() : '?'),
+                        ),
+                        title: Text(person.name),
+                        subtitle: Text('${person.phoneNumber} • ${person.place}'),
+                        onTap: () => _onCustomerSelected(person),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(_overlayEntry!);
+  }
+
+  // Update search when typing
+  void _onSearchChanged(String val, PersonProvider provider) {
+      if (_debounce?.isActive ?? false) _debounce!.cancel();
+      
+      _debounce = Timer(const Duration(milliseconds: 100), () { // Faster debounce for local filtering if needed
+        if (val.isEmpty) {
+           // If empty, we just refresh the overlay to show all (handled by builder)
+           _overlayEntry?.markNeedsBuild();
+        } else {
+           provider.searchPersons(val);
+           _overlayEntry?.markNeedsBuild();
+        }
+      });
   }
 
   @override
@@ -380,28 +509,29 @@ class _DeliverySetupScreenState extends State<DeliverySetupScreen> {
             Expanded(
               child: Consumer<PersonProvider>(
                 builder: (context, personProvider, child) {
-                  return TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Search customer name or phone...'.tr(),
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      filled: true,
-                      fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  return CompositedTransformTarget(
+                    link: _layerLink,
+                    child: TextField(
+                      controller: _searchController,
+                      focusNode: _searchFocusNode,
+                      decoration: InputDecoration(
+                        hintText: 'Select or Search Customer...'.tr(),
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.arrow_drop_down),
+                          onPressed: _toggleOverlay,
+                        ),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                      onChanged: (val) => _onSearchChanged(val, personProvider),
+                      onTap: () {
+                         // Ensure overlay shows on tap
+                         _showOverlay();
+                      },
                     ),
-                    onChanged: (val) {
-                      if (_debounce?.isActive ?? false) _debounce!.cancel();
-                      
-                      _debounce = Timer(const Duration(milliseconds: 300), () {
-                        setState(() {
-                           _isSearching = val.isNotEmpty;
-                        });
-                        if (_isSearching) {
-                          personProvider.searchPersons(val);
-                        }
-                      });
-                    },
                   );
                 },
               ),
@@ -422,46 +552,6 @@ class _DeliverySetupScreenState extends State<DeliverySetupScreen> {
             ),
           ],
         ),
-        
-        // Search Results Dropdown
-        if (_isSearching)
-          Container(
-            margin: const EdgeInsets.only(top: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: (Platform.isAndroid) ? [] : [
-                BoxShadow(color: Colors.black.withAlpha(25), blurRadius: 10, offset: const Offset(0, 5)),
-              ],
-            ),
-            constraints: const BoxConstraints(maxHeight: 200),
-            child: Consumer<PersonProvider>(
-              builder: (context, personProvider, child) {
-                  final results = personProvider.searchResults;
-                  if (results.isEmpty) {
-                     return Padding(
-                       padding: const EdgeInsets.all(16.0),
-                       child: Text('No customers found'.tr(), style: TextStyle(color: Colors.grey[600])),
-                     );
-                  }
-                  
-                  return ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: results.length,
-                    separatorBuilder: (ctx, i) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final person = results[index];
-                      return ListTile(
-                        leading: CircleAvatar(child: Text(person.name[0])),
-                        title: Text(person.name),
-                        subtitle: Text('${person.phoneNumber} • ${person.place}'),
-                        onTap: () => _onCustomerSelected(person),
-                      );
-                    },
-                  );
-              },
-            ),
-          ),
       ],
     );
   }
