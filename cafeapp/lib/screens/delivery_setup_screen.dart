@@ -11,6 +11,7 @@ import '../providers/delivery_boy_provider.dart';
 // import '../providers/person_provider.dart';
 import 'menu_screen.dart';
 import 'person_form_screen.dart';
+import '../utils/keyboard_utils.dart';
 
 class DeliverySetupScreen extends StatefulWidget {
   const DeliverySetupScreen({super.key});
@@ -37,6 +38,8 @@ class _DeliverySetupScreenState extends State<DeliverySetupScreen> {
   final LayerLink _layerLink = LayerLink();
   OverlayEntry? _overlayEntry;
   final FocusNode _searchFocusNode = FocusNode();
+  final FocusNode _addressFocusNode = FocusNode();
+  final FocusNode _chargeFocusNode = FocusNode();
 
 
   @override
@@ -84,15 +87,20 @@ class _DeliverySetupScreenState extends State<DeliverySetupScreen> {
   }
 
   void _onCustomerSelected(Person person) {
+    _debounce?.cancel();
+    if (!mounted) return;
+    
     setState(() {
       _selectedCustomer = person;
-      // _isSearching = false; // logic handled by overlay
       _searchController.clear();
+      
       // Auto-fill address from customer location if address field is empty or user wants
-      if (_useCustomerAddress || _addressController.text.isEmpty) {
+      if (_useCustomerAddress || _addressController.text.trim().isEmpty) {
           _addressController.text = person.place;
+          _useCustomerAddress = true; // Auto-select checkbox
       }
     });
+
     // Update Person Provider search 
     Provider.of<PersonProvider>(context, listen: false).clearSearch();
     _hideOverlay();
@@ -154,6 +162,8 @@ class _DeliverySetupScreenState extends State<DeliverySetupScreen> {
     _chargeController.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
+    _addressFocusNode.dispose();
+    _chargeFocusNode.dispose();
     _hideOverlay();
     super.dispose();
   }
@@ -254,6 +264,7 @@ class _DeliverySetupScreenState extends State<DeliverySetupScreen> {
       if (_debounce?.isActive ?? false) _debounce!.cancel();
       
       _debounce = Timer(const Duration(milliseconds: 100), () { // Faster debounce for local filtering if needed
+        if (!mounted) return;
         if (val.isEmpty) {
            // If empty, we just refresh the overlay to show all (handled by builder)
            _overlayEntry?.markNeedsBuild();
@@ -321,17 +332,21 @@ class _DeliverySetupScreenState extends State<DeliverySetupScreen> {
                       const SizedBox(height: 16),
                       
                       // Address Field
-                      TextFormField(
-                        controller: _addressController,
-                        decoration: InputDecoration(
-                          labelText: 'Delivery Address'.tr(),
-                          prefixIcon: const Icon(Icons.location_on_outlined),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          filled: true,
-                          fillColor: Colors.grey[50],
+                      DoubleTapKeyboardListener(
+                        focusNode: _addressFocusNode,
+                        child: TextFormField(
+                          controller: _addressController,
+                          focusNode: _addressFocusNode,
+                          decoration: InputDecoration(
+                            labelText: 'Delivery Address'.tr(),
+                            prefixIcon: const Icon(Icons.location_on_outlined),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            filled: true,
+                            fillColor: Colors.grey[50],
+                          ),
+                          maxLines: 2,
+                          validator: (value) => value!.isEmpty ? 'Please enter address'.tr() : null,
                         ),
-                        maxLines: 2,
-                        validator: (value) => value!.isEmpty ? 'Please enter address'.tr() : null,
                       ),
                       const SizedBox(height: 16),
                       
@@ -380,22 +395,26 @@ class _DeliverySetupScreenState extends State<DeliverySetupScreen> {
                           // Delivery Charge Field
                           Expanded(
                             flex: 1,
-                            child: TextFormField(
-                              controller: _chargeController,
-                              keyboardType: TextInputType.number,
-                              decoration: InputDecoration(
-                                labelText: 'Charge'.tr(),
-                                prefixIcon: const Icon(Icons.attach_money),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                filled: true,
-                                fillColor: Colors.grey[50],
+                            child: DoubleTapKeyboardListener(
+                              focusNode: _chargeFocusNode,
+                              child: TextFormField(
+                                controller: _chargeController,
+                                focusNode: _chargeFocusNode,
+                                keyboardType: TextInputType.number,
+                                decoration: InputDecoration(
+                                  labelText: 'Charge'.tr(),
+                                  prefixIcon: const Icon(Icons.attach_money),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                  filled: true,
+                                  fillColor: Colors.grey[50],
+                                ),
+                                validator: (value) {
+                                   if (value != null && value.isNotEmpty) {
+                                     if (double.tryParse(value) == null) return 'Invalid'.tr();
+                                   }
+                                   return null;
+                                },
                               ),
-                              validator: (value) {
-                                 if (value != null && value.isNotEmpty) {
-                                   if (double.tryParse(value) == null) return 'Invalid'.tr();
-                                 }
-                                 return null;
-                              },
                             ),
                           ),
                         ],
@@ -509,30 +528,33 @@ class _DeliverySetupScreenState extends State<DeliverySetupScreen> {
             Expanded(
               child: Consumer<PersonProvider>(
                 builder: (context, personProvider, child) {
-                  return CompositedTransformTarget(
-                    link: _layerLink,
-                    child: TextField(
-                      controller: _searchController,
-                      focusNode: _searchFocusNode,
-                      decoration: InputDecoration(
-                        hintText: 'Select or Search Customer...'.tr(),
-                        prefixIcon: const Icon(Icons.search),
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.arrow_drop_down),
-                          onPressed: _toggleOverlay,
+                    return CompositedTransformTarget(
+                      link: _layerLink,
+                      child: DoubleTapKeyboardListener(
+                        focusNode: _searchFocusNode,
+                        child: TextField(
+                          controller: _searchController,
+                          focusNode: _searchFocusNode,
+                          decoration: InputDecoration(
+                            hintText: 'Select or Search Customer...'.tr(),
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.arrow_drop_down),
+                              onPressed: _toggleOverlay,
+                            ),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                          onChanged: (val) => _onSearchChanged(val, personProvider),
+                          onTap: () {
+                             // Ensure overlay shows on tap
+                             _showOverlay();
+                          },
                         ),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       ),
-                      onChanged: (val) => _onSearchChanged(val, personProvider),
-                      onTap: () {
-                         // Ensure overlay shows on tap
-                         _showOverlay();
-                      },
-                    ),
-                  );
+                    );
                 },
               ),
             ),

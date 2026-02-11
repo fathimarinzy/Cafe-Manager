@@ -15,6 +15,9 @@ class SettingsProvider with ChangeNotifier {
   // Device Sync
   bool _deviceSyncEnabled = false;
 
+  // Input settings
+  bool _doubleTapToOpenKeyboard = false;
+
   
   // App appearance
   String _appTheme = 'Light';
@@ -45,16 +48,17 @@ class SettingsProvider with ChangeNotifier {
   
   // Theme mode
   ThemeMode _themeMode = ThemeMode.light;
+
   // Get the language code from language name
-String get languageCode {
-  switch (_appLanguage.toLowerCase()) {
-    case 'arabic':
-      return 'ar';
-    case 'english':
-    default:
-      return 'en';
+  String get languageCode {
+    switch (_appLanguage.toLowerCase()) {
+      case 'arabic':
+        return 'ar';
+      case 'english':
+      default:
+        return 'en';
+    }
   }
-}
 
   // Getters
   String get serverUrl => _serverUrl;
@@ -62,6 +66,7 @@ String get languageCode {
   bool get autoPrintKitchenOrders => _autoPrintKitchenOrders;
   String get selectedPrinter => _selectedPrinter;
   bool get deviceSyncEnabled => _deviceSyncEnabled;
+  bool get doubleTapToOpenKeyboard => _doubleTapToOpenKeyboard;
 
   String get appTheme => _appTheme;
   String get appLanguage => _appLanguage;
@@ -111,24 +116,24 @@ String get languageCode {
     }
   }
   // Update the setLanguage method
-Future<void> setLanguage(String language) async {
-  if (_appLanguage != language) {
-    await setSetting('app_language', language);
-    _appLanguage = language;
-    
-    // Update the AppLocalization instance with the new language code
-    AppLocalization().setLanguage(languageCode);
-    
-    notifyListeners();
+  Future<void> setLanguage(String language) async {
+    if (_appLanguage != language) {
+      await setSetting('app_language', language);
+      _appLanguage = language;
+      
+      // Update the AppLocalization instance with the new language code
+      AppLocalization().setLanguage(languageCode);
+      
+      notifyListeners();
+    }
   }
-}
 
-// Initialize language on app start
-void initializeLanguage() {
-  AppLocalization().setLanguage(languageCode);
-}
+  // Initialize language on app start
+  void initializeLanguage() {
+    AppLocalization().setLanguage(languageCode);
+  }
  
- // Method specifically for updating tax rate
+  // Method specifically for updating tax rate
   Future<void> updateTaxRate(double newRate) async {
     if (newRate < 0 || newRate > 100) {
       throw Exception('Tax rate must be between 0 and 100');
@@ -162,6 +167,9 @@ void initializeLanguage() {
       
       // Load Device Sync
       _deviceSyncEnabled = prefs.getBool('device_sync_enabled') ?? false; // Default to false if not set
+
+      // Load Input settings
+      _doubleTapToOpenKeyboard = prefs.getBool('double_tap_keyboard') ?? false;
 
       
       // Load appearance settings
@@ -198,8 +206,6 @@ void initializeLanguage() {
     }
   }
   
-
-
   // Helper to sync business info
   Future<void> _triggerBusinessInfoSync() async {
     try {
@@ -253,6 +259,12 @@ void initializeLanguage() {
         case 'device_sync_enabled':
           if (value is bool) {
             _deviceSyncEnabled = value;
+            await prefs.setBool(key, value);
+          }
+          break;
+        case 'double_tap_keyboard':
+          if (value is bool) {
+            _doubleTapToOpenKeyboard = value;
             await prefs.setBool(key, value);
           }
           break;
@@ -385,7 +397,7 @@ void initializeLanguage() {
     bool? isVatInclusive,
 
     bool? deviceSyncEnabled,
-
+    bool? doubleTapToOpenKeyboard,
 
   }) async {
     _isLoading = true;
@@ -498,6 +510,11 @@ void initializeLanguage() {
         await prefs.setBool('device_sync_enabled', deviceSyncEnabled);
       }
 
+      if (doubleTapToOpenKeyboard != null) {
+        _doubleTapToOpenKeyboard = doubleTapToOpenKeyboard;
+        await prefs.setBool('double_tap_keyboard', doubleTapToOpenKeyboard);
+      }
+
       
       // Trigger sync if needed
       if (isBusinessInfoUpdated) {
@@ -536,6 +553,9 @@ void initializeLanguage() {
       // Reset tax settings
       _taxRate = 0.0;
       _isVatInclusive = false;
+      
+      // Input settings
+      _doubleTapToOpenKeyboard = false;
 
       
       // Reset table layout
@@ -574,6 +594,7 @@ void initializeLanguage() {
         receiptFooter: _receiptFooter,
         themeMode: _themeMode,
         isVatInclusive: _isVatInclusive,
+        doubleTapToOpenKeyboard: _doubleTapToOpenKeyboard,
 
       );
     } catch (e) {

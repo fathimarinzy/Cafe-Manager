@@ -25,6 +25,7 @@ import '../models/order_item.dart';
 import '../models/person.dart';
 import '../screens/printer_settings_screen.dart';
 import '../services/thermal_printer_service.dart';
+import '../utils/keyboard_utils.dart';
 
 
 class MenuScreen extends StatefulWidget {
@@ -58,6 +59,10 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
   bool _isCheckingKotPrinter = false;
   int _menuRows = 4;
   int _menuColumns = 5;
+  
+  final FocusNode _sidebarSearchFocusNode = FocusNode();
+  final FocusNode _phoneMainSearchFocusNode = FocusNode();
+  final FocusNode _phoneCategorySearchFocusNode = FocusNode();
 
   // Helper method to check if there are any tax-exempt items in the cart
   bool _hasTaxExemptItems(OrderProvider orderProvider) {
@@ -323,6 +328,9 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
+    _sidebarSearchFocusNode.dispose();
+    _phoneMainSearchFocusNode.dispose();
+    _phoneCategorySearchFocusNode.dispose();
     super.dispose();
   }
 
@@ -678,7 +686,10 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
            // Search Bar for Categories/Items
            Padding(
              padding: const EdgeInsets.all(16.0),
-             child: TextField(
+             child: DoubleTapKeyboardListener(
+               focusNode: _phoneMainSearchFocusNode,
+               child: TextField(
+               focusNode: _phoneMainSearchFocusNode,
                decoration: InputDecoration(
                  hintText: "Search menu...".tr(),
                  prefixIcon: const Icon(Icons.search),
@@ -694,6 +705,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                  });
                },
              ),
+           ),
            ),
            Expanded(child: _buildCategoryGrid(menuProvider.categories)),
            _buildMobileBottomBar(orderProvider),
@@ -741,7 +753,10 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                if (_selectedCategory.isNotEmpty)
                  Padding(
                    padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                   child: TextField(
+                   child: DoubleTapKeyboardListener(
+                    focusNode: _phoneCategorySearchFocusNode,
+                    child: TextField(
+                    focusNode: _phoneCategorySearchFocusNode,
                     decoration: InputDecoration(
                       hintText: "Search in $_selectedCategory...".tr(),
                       prefixIcon: const Icon(Icons.search, size: 20),
@@ -753,9 +768,13 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                        setState(() {
                          _itemSearchQuery = val; 
                          _cachedItems = null;
+                         if (val.isEmpty) {
+                           // Stay in category view but clear search
+                         }
                        });
                     },
                    ),
+                 ),
                  ),
 
                Expanded(
@@ -1067,7 +1086,10 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
         // Search field for menu items
         Padding(
           padding: const EdgeInsets.all(8.0),
-          child: TextField(
+          child: DoubleTapKeyboardListener(
+            focusNode: _sidebarSearchFocusNode,
+            child: TextField(
+            focusNode: _sidebarSearchFocusNode,
             decoration: InputDecoration(
               hintText: "Search Menu...".tr(),
               prefixIcon: const Icon(Icons.search, size: 20),
@@ -1090,6 +1112,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
               });
             },
           ),
+        ),
         ),
         Container(
           height: 1.0,
@@ -2490,13 +2513,17 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
   }
 
   // Show Quote Confirmation Dialog
-  void _showDeliveryDetailsDialog() {
+  Future<void> _showDeliveryDetailsDialog() async {
     final orderProvider = Provider.of<OrderProvider>(context, listen: false);
     final deliveryChargeController = TextEditingController(text: (orderProvider.deliveryCharge ?? 0.0).toString());
     final deliveryAddressController = TextEditingController(text: orderProvider.deliveryAddress ?? '');
     final deliveryBoyController = TextEditingController(text: orderProvider.deliveryBoy ?? '');
+    
+    final chargeFocus = FocusNode();
+    final addressFocus = FocusNode();
+    final boyFocus = FocusNode();
 
-    showDialog(
+    await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Delivery Details'.tr()),
@@ -2504,21 +2531,33 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
-                controller: deliveryChargeController,
-                decoration: InputDecoration(labelText: 'Delivery Charge'.tr()),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              DoubleTapKeyboardListener(
+                focusNode: chargeFocus,
+                child: TextField(
+                  focusNode: chargeFocus,
+                  controller: deliveryChargeController,
+                  decoration: InputDecoration(labelText: 'Delivery Charge'.tr()),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                ),
               ),
               const SizedBox(height: 10),
-              TextField(
-                controller: deliveryAddressController,
-                decoration: InputDecoration(labelText: 'Delivery Address'.tr()),
-                maxLines: 2,
+              DoubleTapKeyboardListener(
+                focusNode: addressFocus,
+                child: TextField(
+                  focusNode: addressFocus,
+                  controller: deliveryAddressController,
+                  decoration: InputDecoration(labelText: 'Delivery Address'.tr()),
+                  maxLines: 2,
+                ),
               ),
               const SizedBox(height: 10),
-              TextField(
-                controller: deliveryBoyController,
-                decoration: InputDecoration(labelText: 'Delivery Boy'.tr()),
+              DoubleTapKeyboardListener(
+                focusNode: boyFocus,
+                child: TextField(
+                  focusNode: boyFocus,
+                  controller: deliveryBoyController,
+                  decoration: InputDecoration(labelText: 'Delivery Boy'.tr()),
+                ),
               ),
             ],
           ),
@@ -2543,6 +2582,13 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
         ],
       ),
     );
+    
+    chargeFocus.dispose();
+    addressFocus.dispose();
+    boyFocus.dispose();
+    deliveryChargeController.dispose();
+    deliveryAddressController.dispose();
+    deliveryBoyController.dispose();
   }
 
   void _showQuoteConfirmation() {

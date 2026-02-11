@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../repositories/local_expense_repository.dart';
 import '../screens/expense_history_screen.dart';
 import '../utils/app_localization.dart';
+import '../utils/keyboard_utils.dart';
 
 class ExpenseScreen extends StatefulWidget {
   final Map<String, dynamic>? expenseToEdit;
@@ -57,6 +58,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
   final List<bool> _searchActiveStates = [];
   // Search text controllers for each expense item
   final List<TextEditingController> _searchControllers = [];
+  final List<FocusNode> _searchFocusNodes = []; // FocusNodes for search fields
   // Filtered account options for each expense item
   final List<List<String>> _filteredOptions = [];
 
@@ -80,10 +82,16 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     for (var controller in _searchControllers) {
       controller.dispose();
     }
+    for (var node in _searchFocusNodes) {
+      node.dispose();
+    }
     for (var item in _expenseItems) {
       item.narrationController.dispose();
       item.amountController.dispose();
       item.remarksController.dispose();
+      item.narrationFocus.dispose();
+      item.amountFocus.dispose();
+      item.remarksFocus.dispose();
     }
     
     super.dispose();
@@ -130,6 +138,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       final remarksController = TextEditingController(text: item['remarks'] ?? '');
       
       _searchControllers.add(accountController);
+      _searchFocusNodes.add(FocusNode());
       _filteredOptions.add([..._expenseCategories]);
       _searchActiveStates.add(false);
       
@@ -195,6 +204,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     final remarksController = TextEditingController();
     
     _searchControllers.add(accountController);
+    _searchFocusNodes.add(FocusNode());
     _filteredOptions.add([..._expenseCategories]);
     _searchActiveStates.add(false);
     
@@ -246,12 +256,18 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       // Dispose the controllers for this item
       _searchControllers[index].dispose();
       _searchControllers.removeAt(index);
+      _searchFocusNodes[index].dispose();
+      _searchFocusNodes.removeAt(index);
       _filteredOptions.removeAt(index);
       _searchActiveStates.removeAt(index);
       
       _expenseItems[index].narrationController.dispose();
       _expenseItems[index].amountController.dispose();
+      _expenseItems[index].amountController.dispose();
       _expenseItems[index].remarksController.dispose();
+      _expenseItems[index].narrationFocus.dispose();
+      _expenseItems[index].amountFocus.dispose();
+      _expenseItems[index].remarksFocus.dispose();
       
       setState(() {
         _expenseItems.removeAt(index);
@@ -875,23 +891,27 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                           });
                         }
                       },
-                      child: TextField(
-                        controller: _searchControllers[index],
-                        decoration: InputDecoration(
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                          border: const OutlineInputBorder(),
-                          suffixIcon: IconButton(
-                            icon: Icon(_searchActiveStates[index] 
-                              ? Icons.keyboard_arrow_up 
-                              : Icons.keyboard_arrow_down),
-                            onPressed: () => _toggleDropdown(index),
+                      child: DoubleTapKeyboardListener(
+                        focusNode: _searchFocusNodes[index],
+                        child: TextField(
+                          controller: _searchControllers[index],
+                          focusNode: _searchFocusNodes[index],
+                          decoration: InputDecoration(
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                            border: const OutlineInputBorder(),
+                            suffixIcon: IconButton(
+                              icon: Icon(_searchActiveStates[index] 
+                                ? Icons.keyboard_arrow_up 
+                                : Icons.keyboard_arrow_down),
+                              onPressed: () => _toggleDropdown(index),
+                            ),
                           ),
+                          onChanged: (value) {
+                            _filterOptions(index, value);
+                            _updateExpenseItem(index, account: value);
+                          },
                         ),
-                        onChanged: (value) {
-                          _filterOptions(index, value);
-                          _updateExpenseItem(index, account: value);
-                        },
                       ),
                     ),
                     
@@ -935,17 +955,21 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
               flex: 3,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                child: TextField(
-                  controller: item.narrationController,
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                    border: OutlineInputBorder(),
+                child: DoubleTapKeyboardListener(
+                  focusNode: item.narrationFocus,
+                  child: TextField(
+                    controller: item.narrationController,
+                    focusNode: item.narrationFocus,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (value) {
+                      // Directly update model without triggering rebuild
+                      _expenseItems[index].narration = value;
+                    },
                   ),
-                  onChanged: (value) {
-                    // Directly update model without triggering rebuild
-                    _expenseItems[index].narration = value;
-                  },
                 ),
               ),
             ),
@@ -955,17 +979,21 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
               flex: 2,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                child: TextField(
-                  controller: item.remarksController,
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                    border: OutlineInputBorder(),
+                child: DoubleTapKeyboardListener(
+                  focusNode: item.remarksFocus,
+                  child: TextField(
+                    controller: item.remarksController,
+                    focusNode: item.remarksFocus,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (value) {
+                      // Directly update model without triggering rebuild
+                      _expenseItems[index].remarks = value;
+                    },
                   ),
-                  onChanged: (value) {
-                    // Directly update model without triggering rebuild
-                    _expenseItems[index].remarks = value;
-                  },
                 ),
               ),
             ),
@@ -975,21 +1003,25 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
               flex: 2,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                child: TextField(
-                  controller: item.amountController,
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                    border: OutlineInputBorder(),
+                child: DoubleTapKeyboardListener(
+                  focusNode: item.amountFocus,
+                  child: TextField(
+                    controller: item.amountController,
+                    focusNode: item.amountFocus,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (value) {
+                      double? amount = double.tryParse(value);
+                      _updateExpenseItem(
+                        index,
+                        amount: amount ?? 0.0,
+                      );
+                    },
                   ),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  onChanged: (value) {
-                    double? amount = double.tryParse(value);
-                    _updateExpenseItem(
-                      index,
-                      amount: amount ?? 0.0,
-                    );
-                  },
                 ),
               ),
             ),
@@ -1036,6 +1068,9 @@ class ExpenseItem {
   TextEditingController narrationController; 
   TextEditingController amountController;
   TextEditingController remarksController;
+  final FocusNode narrationFocus = FocusNode();
+  final FocusNode amountFocus = FocusNode();
+  final FocusNode remarksFocus = FocusNode();
   
   ExpenseItem({
     required this.slNo,

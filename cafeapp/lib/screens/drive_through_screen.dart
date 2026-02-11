@@ -1,4 +1,5 @@
 import 'package:cafeapp/utils/app_localization.dart';
+import '../utils/keyboard_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/order_provider.dart';
@@ -17,6 +18,7 @@ class _DriveThroughScreenState extends State<DriveThroughScreen> {
   final List<Map<String, dynamic>> _vehicles = [];
   
   final TextEditingController _numberController = TextEditingController();
+  final FocusNode _numberFocus = FocusNode();
   String _selectedType = 'Car'; // Default
 
   final List<Map<String, dynamic>> _vehicleTypes = [
@@ -64,6 +66,13 @@ class _DriveThroughScreenState extends State<DriveThroughScreen> {
     setState(() {
       _vehicles.removeAt(index);
     });
+  }
+
+  @override
+  void dispose() {
+    _numberController.dispose();
+    _numberFocus.dispose();
+    super.dispose();
   }
 
   @override
@@ -183,24 +192,28 @@ class _DriveThroughScreenState extends State<DriveThroughScreen> {
         // Vehicle Number Input
         Text("Vehicle Number".tr(), style: const TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
-        TextField(
-          controller: _numberController,
-          textCapitalization: TextCapitalization.characters,
-          decoration: InputDecoration(
-            hintText: "e.g. KL-01-AB-1234".tr(),
-            filled: true,
-            fillColor: const Color(0xFFF9FAFB),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
+        DoubleTapKeyboardListener(
+          focusNode: _numberFocus,
+          child: TextField(
+            controller: _numberController,
+            focusNode: _numberFocus,
+            textCapitalization: TextCapitalization.characters,
+            decoration: InputDecoration(
+              hintText: "e.g. KL-01-AB-1234".tr(),
+              filled: true,
+              fillColor: const Color(0xFFF9FAFB),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.blueAccent, width: 1.5),
+              ),
+              prefixIcon: const Icon(Icons.tag_rounded, color: Colors.grey),
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.blueAccent, width: 1.5),
-            ),
-            prefixIcon: const Icon(Icons.tag_rounded, color: Colors.grey),
+            onSubmitted: (_) => _addVehicle(),
           ),
-          onSubmitted: (_) => _addVehicle(),
         ),
 
         SizedBox(height: isMobile ? 16 : 24),

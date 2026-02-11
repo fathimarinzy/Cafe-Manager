@@ -21,6 +21,7 @@ import 'table_management_screen.dart';
 import 'printer_settings_screen.dart'; 
 import '../utils/app_localization.dart';
 import '../screens/expense_screen.dart';
+import '../utils/keyboard_utils.dart';
 import '../screens/report_screen.dart';
 import '../widgets/backup_manager_widget.dart';
 import '../utils/database_reset_service.dart';
@@ -74,6 +75,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   
   // Device Sync
   bool _deviceSyncEnabled = false;
+
+  // Input Settings
+  bool _doubleTapToOpenKeyboard = false;
 
   
   // UI Mode
@@ -492,6 +496,8 @@ Future<void> _checkLicenseStatus() async {
       _selectedPrinter = settingsProvider.selectedPrinter;
       
       _deviceSyncEnabled = settingsProvider.deviceSyncEnabled;
+      
+      _doubleTapToOpenKeyboard = settingsProvider.doubleTapToOpenKeyboard;
 
       
       _taxRateController.text = settingsProvider.taxRate.toString();
@@ -711,6 +717,7 @@ Future<void> _checkLicenseStatus() async {
         appLanguage: _selectedLanguage,
         serverUrl: _serverUrlController.text,
         deviceSyncEnabled: _deviceSyncEnabled,
+        doubleTapToOpenKeyboard: _doubleTapToOpenKeyboard,
       );
       
       // 🆕 Handle dynamic sync toggling
@@ -787,64 +794,9 @@ Future<void> _checkLicenseStatus() async {
   }
 
   void _showPasswordDialog({required VoidCallback onSuccess}) {
-    final passwordController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    bool isPasswordIncorrect = false;
-    
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Enter Password:'.tr()),
-        content: Form(
-          key: formKey,
-          child: TextFormField(
-            controller: passwordController,
-            obscureText: true,
-            decoration: InputDecoration(
-              labelText: 'Password'.tr(),
-              border: const OutlineInputBorder(),
-            ),
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter the password'.tr();
-              }
-              if (isPasswordIncorrect) {
-                return 'Incorrect password'.tr();
-              }
-              return null;
-            },
-            onChanged: (value) {
-              if (isPasswordIncorrect) {
-                setState(() {
-                  isPasswordIncorrect = false;
-                });
-                formKey.currentState?.validate();
-              }
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancel'.tr()),
-          ),
-          TextButton(
-            onPressed: () {
-              final correctPassword = dotenv.env['MENU_DELETE_PASSWORD'] ?? '1234';
-              if (passwordController.text == correctPassword) {
-                Navigator.of(ctx).pop();
-                onSuccess();
-              } else {
-                setState(() {
-                  isPasswordIncorrect = true;
-                });
-                formKey.currentState?.validate();
-              }
-            },
-            child: Text('Verify'.tr()),
-          ),
-        ],
-      ),
+      builder: (ctx) => _SettingsPasswordDialog(onSuccess: onSuccess),
     );
   }
 
@@ -1157,6 +1109,10 @@ Future<void> _checkLicenseStatus() async {
                   
                   _buildSectionHeader('Printer Settings'.tr()),
                   _buildPrinterSettingsSection(),
+                  const Divider(),
+                  
+                  _buildSectionHeader('Input Settings'.tr()),
+                  _buildInputSettingsSection(),
                   const Divider(),
                   _buildSectionHeader('Products'.tr()),
                   _buildProductSection(),
@@ -2581,5 +2537,106 @@ void _showTaxSettingsDialog() {
       case 6: return 'Square POS'.tr();
       default: return 'Unknown'.tr();
     }
+  }
+  Widget _buildInputSettingsSection() {
+    return Card(
+      child: Column(
+        children: [
+          SwitchListTile(
+            title: Text('Double Tap to Open Keyboard'.tr()),
+            subtitle: Text('Enable double tap on input fields to open on-screen keyboard'.tr()),
+            value: _doubleTapToOpenKeyboard,
+            onChanged: (bool value) {
+              setState(() {
+                _doubleTapToOpenKeyboard = value;
+              });
+            },
+            secondary: const Icon(Icons.keyboard, color: Colors.blue),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsPasswordDialog extends StatefulWidget {
+  final VoidCallback onSuccess;
+  const _SettingsPasswordDialog({required this.onSuccess});
+
+  @override
+  State<_SettingsPasswordDialog> createState() => _SettingsPasswordDialogState();
+}
+
+class _SettingsPasswordDialogState extends State<_SettingsPasswordDialog> {
+  final _passwordController = TextEditingController();
+  final _passwordFocus = FocusNode();
+  final _formKey = GlobalKey<FormState>();
+  bool _isPasswordIncorrect = false;
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    _passwordFocus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Enter Password:'.tr()),
+      content: Form(
+        key: _formKey,
+        child: DoubleTapKeyboardListener(
+          focusNode: _passwordFocus,
+            child: TextFormField(
+            controller: _passwordController,
+            focusNode: _passwordFocus,
+            obscureText: true,
+            decoration: InputDecoration(
+              labelText: 'Password'.tr(),
+              border: const OutlineInputBorder(),
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter the password'.tr();
+              }
+              if (_isPasswordIncorrect) {
+                return 'Incorrect password'.tr();
+              }
+              return null;
+            },
+            onChanged: (value) {
+              if (_isPasswordIncorrect) {
+                setState(() {
+                  _isPasswordIncorrect = false;
+                });
+                _formKey.currentState?.validate();
+              }
+            },
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('Cancel'.tr()),
+        ),
+        TextButton(
+          onPressed: () {
+            final correctPassword = dotenv.env['MENU_DELETE_PASSWORD'] ?? '1234';
+            if (_passwordController.text == correctPassword) {
+              Navigator.of(context).pop();
+              widget.onSuccess();
+            } else {
+              setState(() {
+                _isPasswordIncorrect = true;
+              });
+              _formKey.currentState?.validate();
+            }
+          },
+          child: Text('Verify'.tr()),
+        ),
+      ],
+    );
   }
 }

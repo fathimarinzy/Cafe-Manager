@@ -18,6 +18,7 @@ import '../repositories/local_person_repository.dart';
 import '../models/person.dart';
 import '../services/device_sync_service.dart';
 import '../services/thermal_printer_service.dart';
+import '../utils/keyboard_utils.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
   final int orderId;
@@ -830,7 +831,9 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     
     List<MenuItem> filteredItems = menuItems;
 
-    showDialog(
+    final searchFocus = FocusNode();
+
+    await showDialog(
       context: context,
       builder: (BuildContext ctx) {
         return StatefulBuilder(
@@ -856,17 +859,21 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: TextField(
-                            decoration:  InputDecoration(
-                              labelText: 'Search Items'.tr(),
-                              prefixIcon: Icon(Icons.search),
-                              border: OutlineInputBorder(),
+                          child: DoubleTapKeyboardListener(
+                            focusNode: searchFocus,
+                            child: TextField(
+                              focusNode: searchFocus,
+                              decoration:  InputDecoration(
+                                labelText: 'Search Items'.tr(),
+                                prefixIcon: Icon(Icons.search),
+                                border: OutlineInputBorder(),
+                              ),
+                              onChanged: (value) {
+                                setDialogState(() {
+                                  searchQuery = value;
+                                });
+                              },
                             ),
-                            onChanged: (value) {
-                              setDialogState(() {
-                                searchQuery = value;
-                              });
-                            },
                           ),
                         ),
                         
@@ -1072,6 +1079,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         );
       },
     );
+    searchFocus.dispose();
   }
 
   Future<void> _reprintReceipt() async {
@@ -1244,14 +1252,17 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   }
   
   // Show dialog to edit delivery details
-  void _showEditDeliveryDetailsDialog() {
+  Future<void> _showEditDeliveryDetailsDialog() async {
     if (_order == null) return;
     
     final addressController = TextEditingController(text: _order!.deliveryAddress ?? '');
     final chargeController = TextEditingController(text: (_order!.deliveryCharge ?? 0.0).toStringAsFixed(2));
     final formKey = GlobalKey<FormState>();
+
+    final addressFocus = FocusNode();
+    final chargeFocus = FocusNode();
     
-    showDialog(
+    await showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
@@ -1262,39 +1273,47 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextFormField(
-                    controller: addressController,
-                    decoration: InputDecoration(
-                      labelText: 'Delivery Address'.tr(),
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.location_on),
+                  DoubleTapKeyboardListener(
+                    focusNode: addressFocus,
+                    child: TextFormField(
+                      controller: addressController,
+                      focusNode: addressFocus,
+                      decoration: InputDecoration(
+                        labelText: 'Delivery Address'.tr(),
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.location_on),
+                      ),
+                      maxLines: 3,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please enter delivery address'.tr();
+                        }
+                        return null;
+                      },
                     ),
-                    maxLines: 3,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter delivery address'.tr();
-                      }
-                      return null;
-                    },
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
-                    controller: chargeController,
-                    decoration: InputDecoration(
-                      labelText: 'Delivery Charge'.tr(),
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.attach_money),
+                  DoubleTapKeyboardListener(
+                    focusNode: chargeFocus,
+                    child: TextFormField(
+                      controller: chargeController,
+                      focusNode: chargeFocus,
+                      decoration: InputDecoration(
+                        labelText: 'Delivery Charge'.tr(),
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.attach_money),
+                      ),
+                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter charge'.tr();
+                        }
+                        if (double.tryParse(value) == null) {
+                          return 'Invalid amount'.tr();
+                        }
+                        return null;
+                      },
                     ),
-                    keyboardType: TextInputType.numberWithOptions(decimal: true),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter charge'.tr();
-                      }
-                      if (double.tryParse(value) == null) {
-                        return 'Invalid amount'.tr();
-                      }
-                      return null;
-                    },
                   ),
                 ],
               ),
@@ -1364,6 +1383,10 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         );
       },
     );
+    addressFocus.dispose();
+    chargeFocus.dispose();
+    addressController.dispose();
+    chargeController.dispose();
   }
 
   Widget _buildOrderDetailsView() {

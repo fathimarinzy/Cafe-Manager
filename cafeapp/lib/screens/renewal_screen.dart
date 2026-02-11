@@ -6,6 +6,7 @@ import '../services/firebase_service.dart';
 import '../services/demo_service.dart';
 import '../services/license_service.dart';
 import 'dashboard_screen.dart';
+import '../utils/keyboard_utils.dart';
 
 enum RenewalType { demo, license }
 
@@ -550,37 +551,40 @@ class _RenewalScreenState extends State<RenewalScreen> {
                         padding: EdgeInsets.only(
                           right: index < 4 ? 8.0 : 0,
                         ),
-                        child: TextField(
-                          controller: _keyControllers[index],
+                        child: DoubleTapKeyboardListener(
                           focusNode: _keyFocusNodes[index],
-                          onChanged: (value) => _onKeyChanged(index, value),
-                          textAlign: TextAlign.center,
-                          textCapitalization: TextCapitalization.characters,
-                          maxLength: 6,
-                          inputFormatters: [
-                            UpperCaseTextFormatter(),
-                          ],
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1,
-                          ),
-                          decoration: InputDecoration(
-                            counterText: '',
-                            // hintText: 'KEY ${index + 1}',
-                            hintStyle: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 10,
+                          child: TextField(
+                            controller: _keyControllers[index],
+                            focusNode: _keyFocusNodes[index],
+                            onChanged: (value) => _onKeyChanged(index, value),
+                            textAlign: TextAlign.center,
+                            textCapitalization: TextCapitalization.characters,
+                            maxLength: 6,
+                            inputFormatters: [
+                              UpperCaseTextFormatter(),
+                            ],
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1,
                             ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.grey[300]!),
+                            decoration: InputDecoration(
+                              counterText: '',
+                              // hintText: 'KEY ${index + 1}',
+                              hintStyle: TextStyle(
+                                color: Colors.grey[400],
+                                fontSize: 10,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(color: Colors.grey[300]!),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(color: renewalColor.shade700, width: 2),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                             ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: renewalColor.shade700, width: 2),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                           ),
                         ),
                       ),

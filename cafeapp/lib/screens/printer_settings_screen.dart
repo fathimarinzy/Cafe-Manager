@@ -5,6 +5,7 @@ import 'dart:io';
 import 'dart:async';
 import '../services/thermal_printer_service.dart';
 import '../utils/app_localization.dart';
+import '../utils/keyboard_utils.dart';
 
 class PrinterSettingsScreen extends StatefulWidget {
   const PrinterSettingsScreen({super.key});
@@ -17,6 +18,8 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
   // Receipt Printer controllers
   final _receiptIpController = TextEditingController();
   final _receiptPortController = TextEditingController();
+  final _receiptIpFocus = FocusNode();
+  final _receiptPortFocus = FocusNode();
   
   // KOT Printer State (Multi-Support)
   List<KotPrinterConfig> _kotPrinters = [];
@@ -47,6 +50,8 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
   void dispose() {
     _receiptIpController.dispose();
     _receiptPortController.dispose();
+    _receiptIpFocus.dispose();
+    _receiptPortFocus.dispose();
     _tabController.dispose();
     super.dispose();
   }
@@ -772,31 +777,71 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
     required IconData icon,
     TextInputType keyboardType = TextInputType.text,
     bool enabled = true,
+    FocusNode? focusNode,
   }) {
-    return TextFormField(
-      controller: controller,
-      enabled: enabled,
-      keyboardType: keyboardType,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        prefixIcon: Icon(icon, color: Colors.grey.shade600),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+    // If no focus node provided, create a dummy one that won't be used (or handle null)
+    // DoubleTapKeyboardListener requires a FocusNode.
+    // However, if we don't provide one, we can't use the listener effectively for external control, 
+    // but the listener needs one to function.
+    // Better to make focusNode required or creating one if null is tricky in a stateless method.
+    // Let's make it optional and if null, we don't wrap with DoubleTapKeyboardListener?
+    // No, we want the feature. So we should pass it.
+    
+    if (focusNode != null) {
+      return DoubleTapKeyboardListener(
+        focusNode: focusNode,
+        child: TextFormField(
+          controller: controller,
+          focusNode: focusNode,
+          enabled: enabled,
+          keyboardType: keyboardType,
+          decoration: InputDecoration(
+            labelText: label,
+            hintText: hint,
+            prefixIcon: Icon(icon, color: Colors.grey.shade600),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.blue.shade700, width: 2),
+            ),
+            filled: !enabled,
+            fillColor: enabled ? null : Colors.grey.shade100,
+          ),
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+      );
+    } else {
+       return TextFormField(
+        controller: controller,
+        enabled: enabled,
+        keyboardType: keyboardType,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          prefixIcon: Icon(icon, color: Colors.grey.shade600),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Colors.blue.shade700, width: 2),
+          ),
+          filled: !enabled,
+          fillColor: enabled ? null : Colors.grey.shade100,
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.blue.shade700, width: 2),
-        ),
-        filled: !enabled,
-        fillColor: enabled ? null : Colors.grey.shade100,
-      ),
-    );
+      );
+    }
   }
 
   Widget _buildReceiptPrinterTab() {
@@ -864,6 +909,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
               if (_receiptPrinterType == ThermalPrinterService.printerTypeNetwork) ...[
                 _buildTextField(
                   controller: _receiptIpController,
+                  focusNode: _receiptIpFocus,
                   label: 'Printer IP Address'.tr(),
                   hint: 'e.g., 192.168.1.100',
                   icon: Icons.dns,
@@ -872,6 +918,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
                 const SizedBox(height: 16),
                 _buildTextField(
                   controller: _receiptPortController,
+                  focusNode: _receiptPortFocus,
                   label: 'Printer Port'.tr(),
                   hint: 'e.g., 9100',
                   icon: Icons.numbers,
@@ -1167,16 +1214,20 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
     );
   }
 
-  void _showAddEditKotPrinterDialog({KotPrinterConfig? printer, int? index}) {
+  Future<void> _showAddEditKotPrinterDialog({KotPrinterConfig? printer, int? index}) async {
     final isEditing = printer != null;
     final nameController = TextEditingController(text: printer?.name ?? 'Kitchen Printer');
     final ipController = TextEditingController(text: printer?.ip ?? '192.168.1.101');
     final portController = TextEditingController(text: printer?.port.toString() ?? '9100');
     
+    final nameFocus = FocusNode();
+    final ipFocus = FocusNode();
+    final portFocus = FocusNode();
+    
     String type = printer?.type ?? ThermalPrinterService.printerTypeNetwork;
     String? systemPrinter = printer?.systemPrinterName;
 
-    showDialog(
+    await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setState) {
@@ -1188,11 +1239,15 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    TextField(
-                      controller: nameController,
-                      decoration: InputDecoration(
-                        labelText: 'Printer Name (Label)'.tr(),
-                        border: const OutlineInputBorder(),
+                    DoubleTapKeyboardListener(
+                      focusNode: nameFocus,
+                      child: TextField(
+                        controller: nameController,
+                        focusNode: nameFocus,
+                        decoration: InputDecoration(
+                          labelText: 'Printer Name (Label)'.tr(),
+                          border: const OutlineInputBorder(),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -1220,24 +1275,32 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
                     ),
                     const SizedBox(height: 16),
                     if (type == ThermalPrinterService.printerTypeNetwork) ...[
-                      TextField(
-                        controller: ipController,
-                        decoration: InputDecoration(
-                          labelText: 'IP Address'.tr(),
-                          hintText: '192.168.1.x',
-                          border: const OutlineInputBorder(),
+                      DoubleTapKeyboardListener(
+                        focusNode: ipFocus,
+                        child: TextField(
+                          controller: ipController,
+                          focusNode: ipFocus,
+                          decoration: InputDecoration(
+                            labelText: 'IP Address'.tr(),
+                            hintText: '192.168.1.x',
+                            border: const OutlineInputBorder(),
+                          ),
+                          keyboardType: TextInputType.number,
                         ),
-                        keyboardType: TextInputType.number,
                       ),
                       const SizedBox(height: 16),
-                      TextField(
-                        controller: portController,
-                        decoration: InputDecoration(
-                          labelText: 'Port'.tr(),
-                          hintText: '9100',
-                          border: const OutlineInputBorder(),
+                      DoubleTapKeyboardListener(
+                        focusNode: portFocus,
+                        child: TextField(
+                          controller: portController,
+                          focusNode: portFocus,
+                          decoration: InputDecoration(
+                            labelText: 'Port'.tr(),
+                            hintText: '9100',
+                            border: const OutlineInputBorder(),
+                          ),
+                          keyboardType: TextInputType.number,
                         ),
-                        keyboardType: TextInputType.number,
                       ),
                     ] else ...[
                       DropdownButtonFormField<String>(
@@ -1306,6 +1369,13 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
         },
       ),
     );
+    
+    nameFocus.dispose();
+    ipFocus.dispose();
+    portFocus.dispose();
+    nameController.dispose();
+    ipController.dispose();
+    portController.dispose();
   }
 
   Widget _buildHelpSection() {

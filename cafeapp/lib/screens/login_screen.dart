@@ -4,6 +4,7 @@ import '../providers/auth_provider.dart';
 import 'dashboard_screen.dart';
 import '../utils/app_localization.dart';
 import '../providers/settings_provider.dart';
+import '../utils/keyboard_utils.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,6 +16,8 @@ class LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _usernameFocus = FocusNode();
+  final _passwordFocus = FocusNode();
   bool _isLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
@@ -38,6 +41,8 @@ class LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
+    _usernameFocus.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 
@@ -121,92 +126,100 @@ class LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 32),
                 
                 // Username field
-                TextFormField(
-                  controller: _usernameController,
-                  decoration: InputDecoration(
-                    labelText: 'Username'.tr(),
-                    border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.person),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(
-                        color: Colors.blue[900] ?? Colors.blue,
-                        width: 2.0
-                      )
+                DoubleTapKeyboardListener(
+                  focusNode: _usernameFocus,
+                  child: TextFormField(
+                    controller: _usernameController,
+                    focusNode: _usernameFocus,
+                    decoration: InputDecoration(
+                      labelText: 'Username'.tr(),
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.person),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(
+                          color: Colors.blue[900] ?? Colors.blue,
+                          width: 2.0
+                        )
+                      ),
+                      labelStyle: const TextStyle(
+                        color: Colors.black,
+                      ),
+                      floatingLabelStyle: TextStyle(
+                        color: Colors.blue[900],
+                      ),
                     ),
-                    labelStyle: const TextStyle(
-                      color: Colors.black,
-                    ),
-                    floatingLabelStyle: TextStyle(
-                      color: Colors.blue[900],
-                    ),
+                    // Add input formatters to prevent/handle whitespace
+                    onChanged: (value) {
+                      // Optional: Remove this if you want to allow whitespace and just trim it
+                      if (value.endsWith(' ')) {
+                        _usernameController.text = value.trimRight();
+                        _usernameController.selection = TextSelection.fromPosition(
+                          TextPosition(offset: _usernameController.text.length),
+                        );
+                      }
+                    },
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter your username'.tr();
+                      }
+                      return null;
+                    },
                   ),
-                  // Add input formatters to prevent/handle whitespace
-                  onChanged: (value) {
-                    // Optional: Remove this if you want to allow whitespace and just trim it
-                    if (value.endsWith(' ')) {
-                      _usernameController.text = value.trimRight();
-                      _usernameController.selection = TextSelection.fromPosition(
-                        TextPosition(offset: _usernameController.text.length),
-                      );
-                    }
-                  },
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter your username'.tr();
-                    }
-                    return null;
-                  },
                 ),
                 
                 const SizedBox(height: 16),
                 
                 // Password field
-                TextFormField(
-                  controller: _passwordController,
-                  decoration: InputDecoration(
-                    labelText: 'Password'.tr(),
-                    border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.lock),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                        color: Colors.grey,
+                DoubleTapKeyboardListener(
+                  focusNode: _passwordFocus,
+                  child: TextFormField(
+                    controller: _passwordController,
+                    focusNode: _passwordFocus,
+                    decoration: InputDecoration(
+                      labelText: 'Password'.tr(),
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.lock),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                          color: Colors.grey,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(
+                          color: Colors.blue[900] ?? Colors.blue,
+                          width: 2.0
+                        )
+                      ),
+                      labelStyle: const TextStyle(
+                        color: Colors.black,
+                      ),
+                      floatingLabelStyle: TextStyle(
+                        color: Colors.blue[900],
+                      ),
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(
-                        color: Colors.blue[900] ?? Colors.blue,
-                        width: 2.0
-                      )
-                    ),
-                    labelStyle: const TextStyle(
-                      color: Colors.black,
-                    ),
-                    floatingLabelStyle: TextStyle(
-                      color: Colors.blue[900],
-                    ),
+                    obscureText: _obscurePassword,
+                    onChanged: (value) {
+                      // Optional: Remove this if you want to allow whitespace and just trim it
+                      if (value.endsWith(' ')) {
+                        _passwordController.text = value.trimRight();
+                        _passwordController.selection = TextSelection.fromPosition(
+                          TextPosition(offset: _passwordController.text.length),
+                        );
+                      }
+                    },
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter your password'.tr();
+                      }
+                      return null;
+                    },
                   ),
-                  obscureText: _obscurePassword,
-                  onChanged: (value) {
-                    // Optional: Remove this if you want to allow whitespace and just trim it
-                    if (value.endsWith(' ')) {
-                      _passwordController.text = value.trimRight();
-                      _passwordController.selection = TextSelection.fromPosition(
-                        TextPosition(offset: _passwordController.text.length),
-                      );
-                    }
-                  },
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter your password'.tr();
-                    }
-                    return null;
-                  },
                 ),
                 
                 // Error message

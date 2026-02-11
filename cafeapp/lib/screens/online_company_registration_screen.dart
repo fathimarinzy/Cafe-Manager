@@ -13,6 +13,7 @@ import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/license_service.dart';
 import '../services/logo_service.dart';
+import '../utils/keyboard_utils.dart';
 
 class OnlineCompanyRegistrationScreen extends StatefulWidget {
   const OnlineCompanyRegistrationScreen({super.key});
@@ -666,34 +667,40 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                 const SizedBox(height: 16),
                 
                 // Business Name
-                TextField(
-                  controller: _businessNameController,
+                DoubleTapKeyboardListener(
                   focusNode: _businessNameFocus,
-                  decoration: InputDecoration(
-                    labelText: 'Business Name'.tr(),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                  child: TextField(
+                    controller: _businessNameController,
+                    focusNode: _businessNameFocus,
+                    decoration: InputDecoration(
+                      labelText: 'Business Name'.tr(),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.green[700]!, width: 2),
+                      ),
+                      prefixIcon: const Icon(Icons.business),
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.green[700]!, width: 2),
-                    ),
-                    prefixIcon: const Icon(Icons.business),
                   ),
                 ),
                 
                 const SizedBox(height: 16),
                 
                 // Second Business Name field
-                TextField(
-                  controller: _secondBusinessNameController,
+                DoubleTapKeyboardListener(
                   focusNode: _secondBusinessNameFocus,
-                  decoration: InputDecoration(
-                    labelText: 'Second Business Name (Optional)'.tr(),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.green[700]!, width: 2),
+                  child: TextField(
+                    controller: _secondBusinessNameController,
+                    focusNode: _secondBusinessNameFocus,
+                    decoration: InputDecoration(
+                      labelText: 'Second Business Name (Optional)'.tr(),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.green[700]!, width: 2),
+                      ),
                     ),
                   ),
                 ),
@@ -701,60 +708,69 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                 const SizedBox(height: 16),
                 
                 // Business Address
-                TextField(
-                  controller: _businessAddressController,
+                DoubleTapKeyboardListener(
                   focusNode: _businessAddressFocus,
-                  maxLines: 2,
-                  decoration: InputDecoration(
-                    labelText: 'Address'.tr(),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                  child: TextField(
+                    controller: _businessAddressController,
+                    focusNode: _businessAddressFocus,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      labelText: 'Address'.tr(),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.green[700]!, width: 2),
+                      ),
+                      prefixIcon: const Icon(Icons.location_on),
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.green[700]!, width: 2),
-                    ),
-                    prefixIcon: const Icon(Icons.location_on),
                   ),
                 ),
                 
                 const SizedBox(height: 16),
                 
                 // Business Phone
-                TextField(
-                  controller: _businessPhoneController,
+                DoubleTapKeyboardListener(
                   focusNode: _businessPhoneFocus,
-                  keyboardType: TextInputType.phone,
-                  decoration: InputDecoration(
-                    labelText: 'Phone Number'.tr(),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                  child: TextField(
+                    controller: _businessPhoneController,
+                    focusNode: _businessPhoneFocus,
+                    keyboardType: TextInputType.phone,
+                    decoration: InputDecoration(
+                      labelText: 'Phone Number'.tr(),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.green[700]!, width: 2),
+                      ),
+                      prefixIcon: const Icon(Icons.phone),
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.green[700]!, width: 2),
-                    ),
-                    prefixIcon: const Icon(Icons.phone),
                   ),
                 ),
                 
                 const SizedBox(height: 16),
                 
                 // Business Email
-                TextField(
-                  controller: _businessEmailController,
+                DoubleTapKeyboardListener(
                   focusNode: _businessEmailFocus,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    labelText: 'Email Address'.tr(),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                  child: TextField(
+                    controller: _businessEmailController,
+                    focusNode: _businessEmailFocus,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                      labelText: 'Email Address'.tr(),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.green[700]!, width: 2),
+                      ),
+                      prefixIcon: const Icon(Icons.email),
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.green[700]!, width: 2),
-                    ),
-                    prefixIcon: const Icon(Icons.email),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -1111,37 +1127,40 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                         padding: EdgeInsets.only(
                           right: index < 4 ? 8.0 : 0,
                         ),
-                        child: TextField(
-                          controller: _keyControllers[index],
+                        child: DoubleTapKeyboardListener(
                           focusNode: _keyFocusNodes[index],
-                          onChanged: (value) => _onKeyChanged(index, value),
-                          textAlign: TextAlign.center,
-                          textCapitalization: TextCapitalization.characters,
-                          maxLength: 6,
-                          inputFormatters: [
-                            UpperCaseTextFormatter(),
-                          ],
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1,
-                          ),
-                          decoration: InputDecoration(
-                            counterText: '',
-                            // hintText: 'KEY ${index + 1}',
-                            hintStyle: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 10,
+                          child: TextField(
+                            controller: _keyControllers[index],
+                            focusNode: _keyFocusNodes[index],
+                            onChanged: (value) => _onKeyChanged(index, value),
+                            textAlign: TextAlign.center,
+                            textCapitalization: TextCapitalization.characters,
+                            maxLength: 6,
+                            inputFormatters: [
+                              UpperCaseTextFormatter(),
+                            ],
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1,
                             ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.grey[300]!),
+                            decoration: InputDecoration(
+                              counterText: '',
+                              // hintText: 'KEY ${index + 1}',
+                              hintStyle: TextStyle(
+                                color: Colors.grey[400],
+                                fontSize: 10,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(color: Colors.grey[300]!),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                             ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                           ),
                         ),
                       ),
@@ -1193,92 +1212,107 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                 ],
                 
                 // Business Name
-                TextField(
-                  controller: _businessNameController,
+                DoubleTapKeyboardListener(
                   focusNode: _businessNameFocus,
-                  decoration: InputDecoration(
-                    labelText: 'Business Name'.tr(),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                  child: TextField(
+                    controller: _businessNameController,
+                    focusNode: _businessNameFocus,
+                    decoration: InputDecoration(
+                      labelText: 'Business Name'.tr(),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
+                      ),
+                      prefixIcon: const Icon(Icons.business),
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
-                    ),
-                    prefixIcon: const Icon(Icons.business),
                   ),
                 ),
                 
                 const SizedBox(height: 16),
                 // Second Business Name field
-                TextField(
-                  controller: _secondBusinessNameController,
+                DoubleTapKeyboardListener(
                   focusNode: _secondBusinessNameFocus,
-                  decoration: InputDecoration(
-                    labelText: 'Second Business Name (Optional)'.tr(),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
+                  child: TextField(
+                    controller: _secondBusinessNameController,
+                    focusNode: _secondBusinessNameFocus,
+                    decoration: InputDecoration(
+                      labelText: 'Second Business Name (Optional)'.tr(),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
                 // Business Address
-                TextField(
-                  controller: _businessAddressController,
+                DoubleTapKeyboardListener(
                   focusNode: _businessAddressFocus,
-                  maxLines: 2,
-                  decoration: InputDecoration(
-                    labelText: 'Address'.tr(),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                  child: TextField(
+                    controller: _businessAddressController,
+                    focusNode: _businessAddressFocus,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      labelText: 'Address'.tr(),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
+                      ),
+                      prefixIcon: const Icon(Icons.location_on),
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
-                    ),
-                    prefixIcon: const Icon(Icons.location_on),
                   ),
                 ),
                 
                 const SizedBox(height: 16),
                 
                 // Business Phone
-                TextField(
-                  controller: _businessPhoneController,
+                DoubleTapKeyboardListener(
                   focusNode: _businessPhoneFocus,
-                  keyboardType: TextInputType.phone,
-                  decoration: InputDecoration(
-                    labelText: 'Phone Number'.tr(),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                  child: TextField(
+                    controller: _businessPhoneController,
+                    focusNode: _businessPhoneFocus,
+                    keyboardType: TextInputType.phone,
+                    decoration: InputDecoration(
+                      labelText: 'Phone Number'.tr(),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
+                      ),
+                      prefixIcon: const Icon(Icons.phone),
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
-                    ),
-                    prefixIcon: const Icon(Icons.phone),
                   ),
                 ),
                 
                 const SizedBox(height: 16),
                 
                 // Business Email
-                TextField(
-                  controller: _businessEmailController,
+                DoubleTapKeyboardListener(
                   focusNode: _businessEmailFocus,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    labelText: 'Email Address'.tr(),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                  child: TextField(
+                    controller: _businessEmailController,
+                    focusNode: _businessEmailFocus,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                      labelText: 'Email Address'.tr(),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
+                      ),
+                      prefixIcon: const Icon(Icons.email),
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: Colors.blue[700]!, width: 2),
-                    ),
-                    prefixIcon: const Icon(Icons.email),
                   ),
                 ),
                 const SizedBox(height: 16),

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/person.dart';
 import '../providers/person_provider.dart';
 import '../utils/app_localization.dart';
+import '../utils/keyboard_utils.dart';
 
 class PersonFormScreen extends StatefulWidget {
   final Person? person;
@@ -17,6 +18,9 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
   String name = '';
   String phoneNumber = '';
   String place = '';
+  final _nameFocus = FocusNode();
+  final _phoneFocus = FocusNode();
+  final _placeFocus = FocusNode();
 
   @override
   void initState() {
@@ -29,12 +33,20 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
   }
 
   @override
+  void dispose() {
+    _nameFocus.dispose();
+    _phoneFocus.dispose();
+    _placeFocus.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final personProvider = Provider.of<PersonProvider>(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.person != null ? 'Edit Person Details'.tr() : 'Person Details'.tr()),
+        title: Text(widget.person != null ? 'Edit Customer Details'.tr() : 'Customer Details'.tr()),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -42,56 +54,68 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
           key: _formKey,
           child: ListView(
             children: [
-              TextFormField(
+              DoubleTapKeyboardListener(
+                focusNode: _nameFocus,
+                child: TextFormField(
+                  focusNode: _nameFocus,
                   initialValue: name,
                   decoration:  InputDecoration(
-                  labelText: 'Name'.tr(),
-                  border: OutlineInputBorder(),
+                    labelText: 'Name'.tr(),
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter a name'.tr();
+                    }
+                    return null;
+                  },
+                  onSaved: (value) {
+                    name = value!;
+                  },
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a name'.tr();
-                  }
-                  return null;
-                },
-                onSaved: (value) {
-                  name = value!;
-                },
               ),
               const SizedBox(height: 16),
-              TextFormField(
+              DoubleTapKeyboardListener(
+                focusNode: _phoneFocus,
+                child: TextFormField(
+                  focusNode: _phoneFocus,
                   initialValue: phoneNumber,
                   decoration: InputDecoration(
-                  labelText: 'Phone Number'.tr(),
-                  border: OutlineInputBorder(),
+                    labelText: 'Phone Number'.tr(),
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.phone,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter a phone number'.tr();
+                    }
+                    return null;
+                  },
+                  onSaved: (value) {
+                    phoneNumber = value!;
+                  },
                 ),
-                keyboardType: TextInputType.phone,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a phone number'.tr();
-                  }
-                  return null;
-                },
-                onSaved: (value) {
-                  phoneNumber = value!;
-                },
               ),
               const SizedBox(height: 16),
-              TextFormField(
+              DoubleTapKeyboardListener(
+                focusNode: _placeFocus,
+                child: TextFormField(
+                  focusNode: _placeFocus,
                   initialValue: place,
                   decoration: InputDecoration(
-                  labelText: 'Place'.tr(),
-                  border: OutlineInputBorder(),
+                    labelText: 'Place'.tr(),
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter a place'.tr();
+                    }
+                    return null;
+                  },
+                  onSaved: (value) {
+                    place = value!;
+                  },
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a place'.tr();
-                  }
-                  return null;
-                },
-                onSaved: (value) {
-                  place = value!;
-                },
               ),
               const SizedBox(height: 24),
               ElevatedButton(
@@ -126,7 +150,7 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
                             if (personProvider.error.isEmpty) {
                               messenger.showSnackBar(
                                 SnackBar(
-                                  content: Text(widget.person != null ? 'Person updated successfully'.tr() : 'Person added successfully'.tr()),
+                                  content: Text(widget.person != null ? 'Customer updated successfully'.tr() : 'Customer added successfully'.tr()),
                                 ),
                               );
                               navigator.pop();
@@ -138,7 +162,7 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
                           } catch (e) {
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(widget.person != null ? 'Failed to update person'.tr() : 'Failed to add person'.tr())),
+                              SnackBar(content: Text(widget.person != null ? 'Failed to update Customer'.tr() : 'Failed to add Customer'.tr())),
                             );
                           }
                         }

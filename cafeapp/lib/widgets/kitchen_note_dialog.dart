@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/menu_item.dart';
 import '../services/kitchen_print_service.dart';
 import '../utils/app_localization.dart';
+import '../utils/keyboard_utils.dart';
 
 class KitchenNoteDialog extends StatefulWidget {
   final String initialNote;
@@ -19,6 +20,7 @@ class KitchenNoteDialog extends StatefulWidget {
 
 class _KitchenNoteDialogState extends State<KitchenNoteDialog> {
   late TextEditingController _noteController;
+  final FocusNode _noteFocusNode = FocusNode();
   bool _isPrinting = false;
 
   @override
@@ -30,6 +32,7 @@ class _KitchenNoteDialogState extends State<KitchenNoteDialog> {
   @override
   void dispose() {
     _noteController.dispose();
+    _noteFocusNode.dispose();
     super.dispose();
   }
 
@@ -114,7 +117,10 @@ class _KitchenNoteDialogState extends State<KitchenNoteDialog> {
                 border: Border.all(color: Colors.grey.shade300),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: TextField(
+              child: DoubleTapKeyboardListener(
+                focusNode: _noteFocusNode,
+                child: TextField(
+                focusNode: _noteFocusNode,
                 controller: _noteController,
                 maxLines: null,
                 expands: true,
@@ -124,6 +130,7 @@ class _KitchenNoteDialogState extends State<KitchenNoteDialog> {
                   hintText: 'Enter kitchen note here...'.tr(),
                 ),
               ),
+            ),
             ),
             
             const SizedBox(height: 16),

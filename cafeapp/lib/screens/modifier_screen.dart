@@ -12,6 +12,7 @@ import '../providers/menu_provider.dart';
 import '../models/menu_item.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../utils/app_localization.dart';
+import '../utils/keyboard_utils.dart';
 
 
 class ModifierScreen extends StatefulWidget {
@@ -32,6 +33,9 @@ class _ModifierScreenState extends State<ModifierScreen> {
   
   final _nameController = TextEditingController();
   final _priceController = TextEditingController();
+  final _nameFocus = FocusNode();
+  final _priceFocus = FocusNode();
+  final _categoryFocus = FocusNode();
   bool _isAvailable = true;
   bool _isAddingNewCategory = false;
   bool _isTaxExempt = false;
@@ -69,6 +73,9 @@ class _ModifierScreenState extends State<ModifierScreen> {
     _nameController.dispose();
     _priceController.dispose();
     _categoryController.dispose();
+    _nameFocus.dispose();
+    _priceFocus.dispose();
+    _categoryFocus.dispose();
     super.dispose();
   }
   /// Export menu with proper permission handling and user feedback
@@ -2134,40 +2141,48 @@ void _showPermissionDeniedDialog(BuildContext context) {
                 const SizedBox(height: 20),
 
                 // Name field
-                TextFormField(
-                  controller: _nameController,
-                  decoration: InputDecoration(
-                    labelText: 'Name'.tr(),
-                    border: OutlineInputBorder(),
+                DoubleTapKeyboardListener(
+                  focusNode: _nameFocus,
+                  child: TextFormField(
+                    controller: _nameController,
+                    focusNode: _nameFocus,
+                    decoration: InputDecoration(
+                      labelText: 'Name'.tr(),
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter a name'.tr();
+                      }
+                      return null;
+                    },
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter a name'.tr();
-                    }
-                    return null;
-                  },
                 ),
                 const SizedBox(height: 16),
 
                 // Price field
-                TextFormField(
-                  controller: _priceController,
-                  decoration:  InputDecoration(
-                    labelText: 'Price'.tr(),
-                    border: OutlineInputBorder(),
+                DoubleTapKeyboardListener(
+                  focusNode: _priceFocus,
+                  child: TextFormField(
+                    controller: _priceController,
+                    focusNode: _priceFocus,
+                    decoration:  InputDecoration(
+                      labelText: 'Price'.tr(),
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter a price'.tr();
+                      }
+                      try {
+                        double.parse(value);
+                      } catch (e) {
+                        return 'Please enter a valid number'.tr();
+                      }
+                      return null;
+                    },
                   ),
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter a price'.tr();
-                    }
-                    try {
-                      double.parse(value);
-                    } catch (e) {
-                      return 'Please enter a valid number'.tr();
-                    }
-                    return null;
-                  },
                 ),
                 const SizedBox(height: 16),
 
@@ -2176,18 +2191,22 @@ void _showPermissionDeniedDialog(BuildContext context) {
                   ? Row(
                       children: [
                         Expanded(
-                          child: TextFormField(
-                            controller: _categoryController,
-                            decoration:  InputDecoration(
-                              labelText: 'New Category'.tr(),
-                              border: OutlineInputBorder(),
+                          child: DoubleTapKeyboardListener(
+                            focusNode: _categoryFocus,
+                            child: TextFormField(
+                              controller: _categoryController,
+                              focusNode: _categoryFocus,
+                              decoration:  InputDecoration(
+                                labelText: 'New Category'.tr(),
+                                border: OutlineInputBorder(),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter a category name'.tr();
+                                }
+                                return null;
+                              },
                             ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter a category name'.tr();
-                              }
-                              return null;
-                            },
                           ),
                         ),
                         IconButton(

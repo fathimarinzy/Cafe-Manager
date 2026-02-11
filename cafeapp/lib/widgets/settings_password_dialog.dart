@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/settings_password_service.dart';
 // import '../screens/settings_screen.dart';
 import '../utils/app_localization.dart';
+import '../utils/keyboard_utils.dart';
 
 class SettingsPasswordDialog extends StatefulWidget {
   final Function(String userType)? onVerified;
@@ -136,27 +137,29 @@ class _SettingsPasswordDialogState extends State<SettingsPasswordDialog> {
           //   textAlign: TextAlign.center,
           // ),
           const SizedBox(height: 20),
-          TextField(
-            controller: _passwordController,
-            obscureText: _obscurePassword,
-            decoration: InputDecoration(
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              labelText: 'Password'.tr(),
-              errorText: _isError ? _errorMessage : null,
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscurePassword ? Icons.visibility_off : Icons.visibility,
+          DoubleTapKeyboardListener(
+            child: TextField(
+              controller: _passwordController,
+              obscureText: _obscurePassword,
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                onPressed: () {
-                  setState(() {
-                    _obscurePassword = !_obscurePassword;
-                  });
-                },
+                labelText: 'Password'.tr(),
+                errorText: _isError ? _errorMessage : null,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscurePassword = !_obscurePassword;
+                    });
+                  },
+                ),
               ),
+              onSubmitted: (_) => _verifyPassword(),
             ),
-            onSubmitted: (_) => _verifyPassword(),
           ),
           const SizedBox(height: 20),
           Row(

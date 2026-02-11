@@ -9,6 +9,7 @@ import '../models/order_history.dart';
 import '../screens/tender_screen.dart';
 import '../models/credit_transaction.dart';
 import 'person_form_screen.dart'; // Add import
+import '../utils/keyboard_utils.dart';
 
 class SearchPersonScreen extends StatefulWidget {
     final bool isForCreditReceipt;
@@ -21,6 +22,7 @@ class SearchPersonScreen extends StatefulWidget {
 
 class SearchPersonScreenState extends State<SearchPersonScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
   bool _isSearching = false;
 
   @override
@@ -184,7 +186,7 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.isForCreditReceipt ? 'People'.tr() : 'People'.tr()),
+        title: Text(widget.isForCreditReceipt ? 'Customers'.tr() : 'Customers'.tr()),
       ),
       body: Column(
         children: [
@@ -192,33 +194,37 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
             padding: const EdgeInsets.all(16.0),
             child: Consumer<PersonProvider>(
               builder: (ctx, personProvider, child) {
-                return TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    labelText: 'Search by name'.tr(),
-                    prefixIcon: const Icon(Icons.search),
-                    border: const OutlineInputBorder(),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() {
-                                _isSearching = false;
-                              });
-                              personProvider.clearSearch();
-                            },
-                          )
-                        : null,
+                return DoubleTapKeyboardListener(
+                  focusNode: _searchFocus,
+                  child: TextField(
+                    controller: _searchController,
+                    focusNode: _searchFocus,
+                    decoration: InputDecoration(
+                      labelText: 'Search by name'.tr(),
+                      prefixIcon: const Icon(Icons.search),
+                      border: const OutlineInputBorder(),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {
+                                  _isSearching = false;
+                                });
+                                personProvider.clearSearch();
+                              },
+                            )
+                          : null,
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _isSearching = value.isNotEmpty;
+                      });
+                      if (_isSearching) {
+                        personProvider.searchPersons(value);
+                      }
+                    },
                   ),
-                  onChanged: (value) {
-                    setState(() {
-                      _isSearching = value.isNotEmpty;
-                    });
-                    if (_isSearching) {
-                      personProvider.searchPersons(value);
-                    }
-                  },
                 );
               },
             ),
@@ -245,7 +251,7 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
                       children: [
                         Text(_isSearching
                             ? 'No results found'.tr()
-                            : 'No people added yet'.tr()),
+                            : 'No Customers added yet'.tr()),
                       ],
                     ),
                   );
@@ -339,7 +345,7 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
                                    }
                                 });
                               },
-                              tooltip: 'Edit Person',
+                              tooltip: 'Edit Customer',
                             ),
                           ],
                         ),
@@ -372,6 +378,7 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 }

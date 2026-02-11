@@ -5,6 +5,7 @@ import 'package:cafeapp/providers/logo_provider.dart';
 // import 'package:cafeapp/screens/device_management_screen.dart';
 import 'package:cafeapp/screens/login_screen.dart';
 import 'package:cafeapp/screens/report_screen.dart';
+import 'package:cafeapp/utils/keyboard_utils.dart';
 import 'package:flutter/material.dart';
 import 'drive_through_screen.dart';
 import 'delivery_setup_screen.dart';
@@ -515,78 +516,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       onSearchTap: () {
         showDialog(
           context: context,
-          builder: (context) {
-            String searchQuery = '';
-            return AlertDialog(
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: Text('Search Orders'.tr(), style: TextStyle(fontWeight: FontWeight.bold)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    autofocus: true,
-                    decoration: InputDecoration(
-                      hintText: 'Enter Order #, Token #, or Customer Name'.tr(),
-                      prefixIcon: Icon(Icons.search, color:  Colors.blue.shade700),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                    ),
-                    onChanged: (value) {
-                      searchQuery = value;
-                    },
-                    onSubmitted: (value) {
-                       Navigator.pop(context); // Close dialog
-                       if (value.isNotEmpty) {
-                         Navigator.push(
-                            context,
-                            NoAnimationPageRoute(
-                              builder: (context) => OrderListScreen(
-                                searchQuery: value,
-                                excludeCatering: false, // Search everything
-                                serviceType: null, // Global search
-                              ),
-                            ),
-                         );
-                       }
-                    },
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text('Cancel'.tr(), style: const TextStyle(color: Colors.grey)),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context); // Close dialog
-                    if (searchQuery.isNotEmpty) {
-                       Navigator.push(
-                          context,
-                          NoAnimationPageRoute(
-                            builder: (context) => OrderListScreen(
-                              searchQuery: searchQuery,
-                              excludeCatering: false, // Search everything
-                              serviceType: null, // Global search
-                            ),
-                          ),
-                       );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade700,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: Text('Search'.tr()),
-                ),
-              ],
-            );
-          },
+          builder: (context) => const _SearchOrderDialog(),
         );
       },
       onExpensesTap: () {
@@ -3303,4 +3233,87 @@ class NoAnimationPageRoute<T> extends PageRouteBuilder<T> {
           transitionDuration: Duration.zero,
           reverseTransitionDuration: Duration.zero,
         );
+}
+
+class _SearchOrderDialog extends StatefulWidget {
+  const _SearchOrderDialog();
+
+  @override
+  State<_SearchOrderDialog> createState() => _SearchOrderDialogState();
+}
+
+class _SearchOrderDialogState extends State<_SearchOrderDialog> {
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocus.dispose();
+    super.dispose();
+  }
+
+  void _performSearch() {
+    Navigator.pop(context); // Close dialog
+    final query = _searchController.text;
+    if (query.isNotEmpty) {
+      Navigator.push(
+        context,
+        NoAnimationPageRoute(
+          builder: (context) => OrderListScreen(
+            searchQuery: query,
+            excludeCatering: false, // Search everything
+            serviceType: null, // Global search
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text('Search Orders'.tr(), style: const TextStyle(fontWeight: FontWeight.bold)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DoubleTapKeyboardListener(
+            focusNode: _searchFocus, // Pass focus node
+            child: TextField(
+              controller: _searchController,
+              focusNode: _searchFocus,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'Enter Order #, Token #, or Customer Name'.tr(),
+                prefixIcon: Icon(Icons.search, color:  Colors.blue.shade700),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+              ),
+              onSubmitted: (_) => _performSearch(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Cancel'.tr(), style: const TextStyle(color: Colors.grey)),
+        ),
+        ElevatedButton(
+          onPressed: _performSearch,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue.shade700,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          child: Text('Search'.tr()),
+        ),
+      ],
+    );
+  }
 }

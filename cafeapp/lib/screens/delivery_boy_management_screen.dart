@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:cafeapp/utils/app_localization.dart';
 import '../providers/delivery_boy_provider.dart';
 import '../models/delivery_boy.dart';
+import '../utils/keyboard_utils.dart';
 
 class DeliveryBoyManagementScreen extends StatefulWidget {
   const DeliveryBoyManagementScreen({super.key});
@@ -21,81 +22,9 @@ class _DeliveryBoyManagementScreenState extends State<DeliveryBoyManagementScree
   }
 
   void _showAddEditDialog([DeliveryBoy? boy]) {
-    final nameController = TextEditingController(text: boy?.name ?? '');
-    final phoneController = TextEditingController(text: boy?.phoneNumber ?? '');
-    final formKey = GlobalKey<FormState>();
-
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(boy == null ? 'Add Delivery Boy'.tr() : 'Edit Delivery Boy'.tr()),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: nameController,
-                decoration: InputDecoration(labelText: 'Name'.tr()),
-                validator: (value) => value!.isEmpty ? 'Please enter name'.tr() : null,
-              ),
-              TextFormField(
-                controller: phoneController,
-                decoration: InputDecoration(labelText: 'Phone'.tr()),
-                keyboardType: TextInputType.phone,
-                validator: (value) => value!.isEmpty ? 'Please enter phone'.tr() : null,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('Cancel'.tr()),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (formKey.currentState!.validate()) {
-                try {
-                  final newBoy = DeliveryBoy(
-                    id: boy?.id,
-                    name: nameController.text,
-                    phoneNumber: phoneController.text,
-                  );
-                  
-                  final provider = Provider.of<DeliveryBoyProvider>(context, listen: false);
-                  
-                  if (boy == null) {
-                    await provider.addDeliveryBoy(newBoy);
-                    if (mounted) {
-                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Delivery Boy added successfully'.tr()), backgroundColor: Colors.green),
-                      );
-                    }
-                  } else {
-                    await provider.updateDeliveryBoy(newBoy);
-                    if (mounted) {
-                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Delivery Boy updated successfully'.tr()), backgroundColor: Colors.green),
-                      );
-                    }
-                  }
-                  
-                  if (context.mounted) Navigator.of(ctx).pop();
-                } catch (e) {
-                  debugPrint('Error in Save Dialog: $e');
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${'Failed to save: '.tr()}$e'), backgroundColor: Colors.red),
-                    );
-                  }
-                }
-              }
-            },
-            child: Text('Save'.tr()),
-          ),
-        ],
-      ),
+      builder: (ctx) => _AddEditDeliveryBoyDialog(boy: boy),
     );
   }
 
@@ -198,6 +127,119 @@ class _DeliveryBoyManagementScreenState extends State<DeliveryBoyManagementScree
           );
         },
       ),
+    );
+  }
+}
+
+class _AddEditDeliveryBoyDialog extends StatefulWidget {
+  final DeliveryBoy? boy;
+  const _AddEditDeliveryBoyDialog({this.boy});
+
+  @override
+  State<_AddEditDeliveryBoyDialog> createState() => _AddEditDeliveryBoyDialogState();
+}
+
+class _AddEditDeliveryBoyDialogState extends State<_AddEditDeliveryBoyDialog> {
+  late TextEditingController _nameController;
+  late TextEditingController _phoneController;
+  final _nameFocus = FocusNode();
+  final _phoneFocus = FocusNode();
+  final _formKey = GlobalKey<FormState>();
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.boy?.name ?? '');
+    _phoneController = TextEditingController(text: widget.boy?.phoneNumber ?? '');
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _nameFocus.dispose();
+    _phoneFocus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.boy == null ? 'Add Delivery Boy'.tr() : 'Edit Delivery Boy'.tr()),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DoubleTapKeyboardListener(
+              focusNode: _nameFocus,
+              child: TextFormField(
+                controller: _nameController,
+                focusNode: _nameFocus,
+                decoration: InputDecoration(labelText: 'Name'.tr()),
+                validator: (value) => value!.isEmpty ? 'Please enter name'.tr() : null,
+              ),
+            ),
+            DoubleTapKeyboardListener(
+              focusNode: _phoneFocus,
+              child: TextFormField(
+                controller: _phoneController,
+                focusNode: _phoneFocus,
+                decoration: InputDecoration(labelText: 'Phone'.tr()),
+                keyboardType: TextInputType.phone,
+                validator: (value) => value!.isEmpty ? 'Please enter phone'.tr() : null,
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('Cancel'.tr()),
+        ),
+        ElevatedButton(
+          onPressed: () async {
+            if (_formKey.currentState!.validate()) {
+              try {
+                final newBoy = DeliveryBoy(
+                  id: widget.boy?.id,
+                  name: _nameController.text,
+                  phoneNumber: _phoneController.text,
+                );
+                
+                final provider = Provider.of<DeliveryBoyProvider>(context, listen: false);
+                
+                if (widget.boy == null) {
+                  await provider.addDeliveryBoy(newBoy);
+                  if (context.mounted) {
+                     ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Delivery Boy added successfully'.tr()), backgroundColor: Colors.green),
+                    );
+                  }
+                } else {
+                  await provider.updateDeliveryBoy(newBoy);
+                  if (context.mounted) {
+                     ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Delivery Boy updated successfully'.tr()), backgroundColor: Colors.green),
+                    );
+                  }
+                }
+                
+                if (context.mounted) Navigator.of(context).pop();
+              } catch (e) {
+                debugPrint('Error in Save Dialog: $e');
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('${'Failed to save: '.tr()}$e'), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            }
+          },
+          child: Text('Save'.tr()),
+        ),
+      ],
     );
   }
 }

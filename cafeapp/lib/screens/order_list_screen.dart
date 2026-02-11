@@ -12,6 +12,7 @@ import 'search_person_screen.dart';
 import '../models/person.dart';
 import '../widgets/clock_widget.dart';
 import '../screens/quotations_list_screen.dart';
+import '../utils/keyboard_utils.dart';
 
 
 class OrderListScreen extends StatefulWidget {
@@ -36,6 +37,7 @@ class OrderListScreen extends StatefulWidget {
 
 class _OrderListScreenState extends State<OrderListScreen> {
   final _searchController = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
   bool _isSearching = false;
   OrderTimeFilter _selectedFilter = OrderTimeFilter.today;
   Timer? _refreshTimer;
@@ -112,6 +114,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
   void dispose() {
     _refreshTimer?.cancel();
     _searchController.dispose();
+    _searchFocus.dispose();
     // _timer?.cancel();
     super.dispose();
   }
@@ -242,7 +245,10 @@ class _OrderListScreenState extends State<OrderListScreen> {
       child: Column(
         children: [
           // Search bar
-          TextField(
+          DoubleTapKeyboardListener(
+            focusNode: _searchFocus,
+            child: TextField(
+            focusNode: _searchFocus,
             controller: _searchController,
             decoration: InputDecoration(
               hintText: 'Search order number...'.tr(),
@@ -281,6 +287,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
                   .searchOrdersByBillNumber(value);
               }
             },
+          ),
           ),
           
           const SizedBox(height: 16),

@@ -8,6 +8,7 @@ import 'order_list_screen.dart' as import_order_list;
 import '../models/person.dart';
 import 'search_person_screen.dart';
 import '../utils/app_localization.dart';
+import '../utils/keyboard_utils.dart';
 
 class CateringSetupScreen extends StatefulWidget {
   const CateringSetupScreen({super.key});
@@ -23,6 +24,9 @@ class _CateringSetupScreenState extends State<CateringSetupScreen> {
   final _guestsController = TextEditingController();
   final _addressController = TextEditingController();
   final _tokenController = TextEditingController(); // Token number controller
+  final _guestsFocusNode = FocusNode();
+  final _tokenFocusNode = FocusNode();
+  final _addressFocusNode = FocusNode();
   Person? _selectedPerson; // Selected customer
   
   String _selectedEventType = 'Wedding';
@@ -35,6 +39,9 @@ class _CateringSetupScreenState extends State<CateringSetupScreen> {
     _guestsController.dispose();
     _addressController.dispose();
     _tokenController.dispose();
+    _guestsFocusNode.dispose();
+    _tokenFocusNode.dispose();
+    _addressFocusNode.dispose();
     super.dispose();
   }
 
@@ -200,21 +207,29 @@ class _CateringSetupScreenState extends State<CateringSetupScreen> {
               const SizedBox(height: 20),
               
               // Guest Count
-              TextFormField(
-                controller: _guestsController,
-                style: const TextStyle(color: Colors.white),
-                keyboardType: TextInputType.number,
-                decoration: _buildInputDecoration('Number of Guests'.tr(), Icons.people),
-                validator: (value) => value!.isEmpty ? 'Enter guest count'.tr() : null,
+              DoubleTapKeyboardListener(
+                focusNode: _guestsFocusNode,
+                child: TextFormField(
+                  controller: _guestsController,
+                  focusNode: _guestsFocusNode,
+                  style: const TextStyle(color: Colors.white),
+                  keyboardType: TextInputType.number,
+                  decoration: _buildInputDecoration('Number of Guests'.tr(), Icons.people),
+                  validator: (value) => value!.isEmpty ? 'Enter guest count'.tr() : null,
+                ),
               ),
               const SizedBox(height: 20),
               
               // Token Number
-              TextFormField(
-                controller: _tokenController,
-                style: const TextStyle(color: Colors.white),
-                decoration: _buildInputDecoration('Token Number'.tr(), Icons.confirmation_number),
-                validator: (value) => value!.isEmpty ? 'Enter token number'.tr() : null,
+              DoubleTapKeyboardListener(
+                focusNode: _tokenFocusNode,
+                child: TextFormField(
+                  controller: _tokenController,
+                  focusNode: _tokenFocusNode,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: _buildInputDecoration('Token Number'.tr(), Icons.confirmation_number),
+                  validator: (value) => value!.isEmpty ? 'Enter token number'.tr() : null,
+                ),
               ),
               const SizedBox(height: 20),
               
@@ -283,12 +298,16 @@ class _CateringSetupScreenState extends State<CateringSetupScreen> {
               const SizedBox(height: 20),
 
               // Venue Address
-              TextFormField(
-                controller: _addressController,
-                style: const TextStyle(color: Colors.white),
-                maxLines: 3,
-                decoration: _buildInputDecoration('Venue Address'.tr(), Icons.location_on),
-                validator: (value) => value!.isEmpty ? 'Enter venue address'.tr() : null,
+              DoubleTapKeyboardListener(
+                focusNode: _addressFocusNode,
+                child: TextFormField(
+                  controller: _addressController,
+                  focusNode: _addressFocusNode,
+                  style: const TextStyle(color: Colors.white),
+                  maxLines: 3,
+                  decoration: _buildInputDecoration('Venue Address'.tr(), Icons.location_on),
+                  validator: (value) => value!.isEmpty ? 'Enter venue address'.tr() : null,
+                ),
               ),
               const SizedBox(height: 40),
               
