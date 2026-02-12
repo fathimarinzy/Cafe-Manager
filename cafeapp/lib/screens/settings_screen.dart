@@ -1198,7 +1198,6 @@ Future<void> _checkLicenseStatus() async {
                             items: [
                                DropdownMenuItem(value: 5, child: Text("Mobile Performance".tr())),
                                DropdownMenuItem(value: 4, child: Text("Ultimate (Dark)".tr())),
-                               DropdownMenuItem(value: 6, child: Text("Square POS".tr())),
                                DropdownMenuItem(value: 1, child: Text("Classic Grid".tr())),
                                DropdownMenuItem(value: 2, child: Text("Sidebar".tr())),
                                DropdownMenuItem(value: 0, child: Text("Modern".tr())),

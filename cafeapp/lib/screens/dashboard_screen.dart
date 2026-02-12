@@ -141,7 +141,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           // If tablet (>600), default to 4 (Premium Dark/Tablet), else 5 (Mobile)
           if (width > 600) {
             // Default to Sidebar UI (2) for Windows, Ultimate (4) for others
-            savedUIMode = Platform.isWindows ? 2 : 4;
+            savedUIMode = Platform.isWindows ? 4 : 4;
           } else {
             savedUIMode = 5;
           }
@@ -457,21 +457,18 @@ class _DashboardScreenState extends State<DashboardScreen>
       case 3:
         return _buildCardStyleUI();
       case 4:
-        return _buildPremiumDarkUI(forceSquare: false); // New Premium Dark Mode
+        return _buildPremiumDarkUI(); // New Premium Dark Mode
       case 5:
         return _buildMobilePerformanceUI();
-      case 6:
-        return _buildPremiumDarkUI(forceSquare: true); // Square POS Manual Mode
       default:
         return _buildModernUI();
     }
   }
 
-  Widget _buildPremiumDarkUI({bool forceSquare = false}) {
+  Widget _buildPremiumDarkUI() {
     final settingsProvider = Provider.of<SettingsProvider>(context);
     return DashboardUltimate(
       businessName: settingsProvider.businessName,
-      forceSquareLayout: forceSquare, // Pass user preference
       onDiningTap: () => _navigateToServiceCardStyle('Dining'.tr(), const Color(0xFFd48c56), true),
       onDeliveryTap: () => _navigateToServiceCardStyle('Delivery'.tr(), const Color(0xFF6aaec6), false),
       onTakeoutTap: () => _navigateToServiceCardStyle('Takeout'.tr(), const Color(0xFF6a8a4f), false),

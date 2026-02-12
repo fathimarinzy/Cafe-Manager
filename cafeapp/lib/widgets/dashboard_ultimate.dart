@@ -30,7 +30,6 @@ class DashboardUltimate extends StatefulWidget {
   final VoidCallback? onExpensesTap; // Callback for Expenses
   final VoidCallback? onLogoutTap;
   final String businessName;
-  final bool forceSquareLayout; // New parameter to force 7th UI
 
   const DashboardUltimate({
     super.key,
@@ -48,7 +47,6 @@ class DashboardUltimate extends StatefulWidget {
     this.onExpensesTap,
     this.onLogoutTap,
     this.businessName = "SIMS CAFE",
-    this.forceSquareLayout = false, // Default false
   });
 
   @override
@@ -112,16 +110,9 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
     // Enable dynamic blobs on Non-Android OR Android Tablets (>600 width)
     final showBlobs = !Platform.isAndroid || screenWidth > 600;
 
-    final aspectRatio = screenWidth / screenHeight;
-    // Square POS Detection: 
-    // Typical Square POS is 1:1 or 4:3 (1.33). Standard Wide is 16:9 (1.77).
-    // Let's define "Square-ish" as aspectRatio < 1.4 AND it's a "Desktop/Tablet" width (> 600)
-    // Add override from widget param
-    final isSquarePOS = widget.forceSquareLayout || (screenWidth > 600 && aspectRatio < 1.4);
 
     return Scaffold(
       // Mobile Bottom Bar (Replaces Sidebar)
@@ -248,8 +239,6 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
           // 2. Main Layout (Responsive)
           if (screenWidth < 600)
              _buildPhoneLayout(context)
-          else if (isSquarePOS)
-             _buildSquarePOSLayout(context) // New Specific Square POS Layout
           else if (screenWidth < 1100)
              _buildTabletLayout(context)
           else
@@ -336,79 +325,29 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
     );
   }
 
-  /// 2. Square POS Layout (Similar to Tablet but optimized for 1:1)
-  /// Uses a vertical stack approach because Sidebar takes too much space
-  /// 2. Square POS Layout (1:1 Aspect Ratio)
-  /// Uses standard Sidebar + Main Content, but HIDDEN Right Panel to fit square screen.
-  /// 2. Square POS Layout (1:1 Aspect Ratio)
-  /// Uses standard Sidebar + Main Content + Right Panel
-  /// Optimized with Flex factors to fit narrow width (1024px)
-  Widget _buildSquarePOSLayout(BuildContext context) {
-    return Row(
-      children: [
-        _buildSidebar(context),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.only(top: 24, right: 24, bottom: 24),
-            child: Column(
-              children: [
-                _buildHeader(isMobile: false),
-                const SizedBox(height: 24),
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Main Content (Stats + Services) - Flex 2
-                      Expanded(
-                        flex: 2, 
-                        child: Column(
-                          children: [
-                            // Stats Row (Horizontal)
-                            _buildStatsRow(context, isMobile: false),
-                            const SizedBox(height: 24),
-                            // Services Grid takes full remaining space
-                            Expanded(child: _buildServicesGrid(isPhone: false, isMobile: false)), 
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 16), // Tighter gap
-                      // Right Panel (Recent Activity) - Flex 1
-                      Expanded(
-                        flex: 1,
-                        child: _buildRightPanel(context),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 
   /// 2. Tablet Layout (600dp - 1100dp)
-  /// Scrollable layout, larger fonts, 3-column grid.
+  /// Non-scrollable layout, fits to screen.
   Widget _buildTabletLayout(BuildContext context) {
     return SafeArea(
       bottom: false,
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              _buildHeader(isMobile: true), // Re-use mobile header for compactness
-              const SizedBox(height: 24),
-              _buildStatsRow(context, isMobile: true), // Horizontal scroll stats
-              const SizedBox(height: 24),
-              // Tablet uses 3 columns (isPhone: false -> shrinks to fit)
-              _buildServicesGrid(isMobile: true, isPhone: false),
-              const SizedBox(height: 32),
-              _AnimatedOrderListButton(onTap: widget.onOrdersTap),
-              const SizedBox(height: 80),
-            ],
-          ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            _buildHeader(isMobile: true), // Re-use mobile header for compactness
+            const SizedBox(height: 16),
+            _buildStatsRow(context, isMobile: true), 
+            const SizedBox(height: 16),
+            // Tablet uses 3 columns (isPhone: false -> shrinks to fit)
+            // Use Expanded to fill remaining space
+            Expanded(
+              child: _buildServicesGrid(isMobile: true, isPhone: false),
+            ),
+            const SizedBox(height: 16),
+            _AnimatedOrderListButton(onTap: widget.onOrdersTap),
+            const SizedBox(height: 16), // Bottom padding
+          ],
         ),
       ),
     );
@@ -873,13 +812,45 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
         // Phone: 1.3 (Standard)
         // Tablet Portrait: 1.8 (Shorter cards, per "Reduce widget size")
         // Tablet Landscape / Desktop: 1.3
-        final aspectRatio = (isMobile && isPortrait && !isPhone) ? 1.8 : 1.3; 
+        final baseAspectRatio = (isMobile && isPortrait && !isPhone) ? 1.8 : 1.3;
+        
+        // Dynamic Aspect Ratio Calculation
+        // Goal: Ensure all 6 items fit within the available height without scrolling
+        double finalAspectRatio = baseAspectRatio;
+        
+        if (constraints.maxHeight.isFinite) {
+          try {
+            final int totalItems = 6;
+            final int rowCount = (totalItems / crossAxisCount).ceil();
+            
+            // Calculate available height for cards (subtracting vertical spacing)
+            // Vertical spacing: (rows - 1) * spacing
+            // Also consider some padding if needed, but GridView padding is separate
+            final double totalVerticalSpacing = (rowCount - 1) * spacing;
+            final double availableHeight = constraints.maxHeight - totalVerticalSpacing;
+            
+            if (availableHeight > 0) {
+              final double itemHeight = availableHeight / rowCount;
+              
+              // Calculate item width
+              final double totalHorizontalSpacing = (crossAxisCount - 1) * spacing;
+              final double availableWidth = constraints.maxWidth - totalHorizontalSpacing;
+              final double itemWidth = availableWidth / crossAxisCount;
+              
+              if (itemHeight > 50) { // Safety check: reasonable minimum height
+                finalAspectRatio = itemWidth / itemHeight;
+              }
+            }
+          } catch (e) {
+            debugPrint("Error calculating dynamic aspect ratio: $e");
+          }
+        }
 
         return GridView.count(
           crossAxisCount: crossAxisCount,
           crossAxisSpacing: spacing,
           mainAxisSpacing: spacing,
-          childAspectRatio: aspectRatio,
+          childAspectRatio: finalAspectRatio,
  
           // If in a ScrollView (Tablet), shrinkWrap=true. 
           // If in Expanded (Phone/Desktop), shrinkWrap=false.
@@ -1236,10 +1207,10 @@ class _AnimatedServiceCardState extends State<_AnimatedServiceCard> {
 
     // Sizes
     // Phone: 22
-    // Tablet Portrait: 38 (Increased further per request)
+    // Tablet Portrait: 28 (Reduced from 38 to prevent overflow)
     // Desktop/Landscape: 32
-    final double iconSize = isPhone ? 22 : (isTabletPortrait ? 38 : 32);
-    final double titleSize = isPhone ? 12 : (isTabletPortrait ? 11 : 18);
+    final double iconSize = isPhone ? 22 : (isTabletPortrait ? 28 : 32);
+    final double titleSize = isPhone ? 12 : (isTabletPortrait ? 10 : 18); // Reduced title size for tablet
     final double subtitleSize = isPhone ? 9 : (isTabletPortrait ? 8 : 12);
     
     // Performance Optimization: STATIC Widget Tree (No Animations)
@@ -1356,8 +1327,8 @@ class _AnimatedOrderListButtonState extends State<_AnimatedOrderListButton> {
         borderRadius: BorderRadius.circular(8),
         child: Container(
           width: double.infinity,
-          // Tablet Portrait: Increase size (Padding 32). Phone/Desktop: 14.
-          padding: EdgeInsets.symmetric(vertical: (MediaQuery.of(context).size.width >= 600 && MediaQuery.of(context).size.width < 900) ? 32 : 14),
+          // Tablet Portrait: Increase size (Padding 18). Phone/Desktop: 14.
+          padding: EdgeInsets.symmetric(vertical: (MediaQuery.of(context).size.width >= 600 && MediaQuery.of(context).size.width < 900) ? 18 : 14),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               colors: [Color(0xFFFF2E63), Color(0xFFC2185B)],
