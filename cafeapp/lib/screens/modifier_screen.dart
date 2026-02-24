@@ -33,6 +33,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
   
   final _nameController = TextEditingController();
   final _priceController = TextEditingController();
+  final _purchasePriceController = TextEditingController(); // NEW
   final _nameFocus = FocusNode();
   final _priceFocus = FocusNode();
   final _categoryFocus = FocusNode();
@@ -72,6 +73,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
   void dispose() {
     _nameController.dispose();
     _priceController.dispose();
+    _purchasePriceController.dispose(); // NEW
     _categoryController.dispose();
     _nameFocus.dispose();
     _priceFocus.dispose();
@@ -1320,6 +1322,7 @@ void _showPermissionDeniedDialog(BuildContext context) {
   void _resetForm() {
     _nameController.clear();
     _priceController.clear();
+    _purchasePriceController.clear(); // NEW
     _categoryController.clear();
     setState(() {
       _isAvailable = true;
@@ -1344,6 +1347,7 @@ void _showPermissionDeniedDialog(BuildContext context) {
       _editingItem = item;
       _nameController.text = item.name;
       _priceController.text = item.price.toString();
+      _purchasePriceController.text = item.purchasePrice > 0 ? item.purchasePrice.toStringAsFixed(2) : ''; // NEW
       _selectedCategory = item.category;
       _isAvailable = item.isAvailable;
       _isTaxExempt = item.taxExempt; 
@@ -1734,6 +1738,7 @@ void _showPermissionDeniedDialog(BuildContext context) {
     final bool capturedIsPerPlate = _isPerPlate; // NEW
     final String capturedName = _nameController.text.trim();
     final double capturedPrice = double.parse(_priceController.text);
+    final double capturedPurchasePrice = double.tryParse(_purchasePriceController.text) ?? 0.0; // NEW
 
     // Add debug log to verify
     debugPrint('💾 Saving item - taxExempt: $capturedTaxExempt, isAvailable: $capturedIsAvailable');
@@ -1822,6 +1827,7 @@ void _showPermissionDeniedDialog(BuildContext context) {
 
       taxExempt: capturedTaxExempt,
       isPerPlate: capturedIsPerPlate, // NEW
+      purchasePrice: capturedPurchasePrice, // NEW
     );
      // Debug log to verify the item being saved
      debugPrint('💾 MenuItem created - taxExempt: ${item.taxExempt}');
@@ -2183,6 +2189,27 @@ void _showPermissionDeniedDialog(BuildContext context) {
                       return null;
                     },
                   ),
+                ),
+                const SizedBox(height: 16),
+
+                // Purchase Price field
+                TextFormField(
+                  controller: _purchasePriceController,
+                  decoration: InputDecoration(
+                    labelText: 'Cost (Purchase Price)'.tr(),
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (value) {
+                    if (value != null && value.isNotEmpty) {
+                      try {
+                        double.parse(value);
+                      } catch (e) {
+                        return 'Please enter a valid number'.tr();
+                      }
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
 

@@ -7,9 +7,10 @@ import '../models/sync_menu_item_model.dart';
 import '../repositories/local_menu_repository.dart';
 import 'firebase_service.dart';
 import 'dart:async';
+import 'firestore_adapter.dart';
 
 class MenuSyncService {
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final FirestoreInterface _firestore = FirestoreAdapter.instance;
   static const String _menuItemsCollection = 'synced_menu_items';
   static const String _businessInfoCollection = 'synced_business_info';
   static const String _categoriesCollection = 'synced_categories';
@@ -62,7 +63,7 @@ class MenuSyncService {
           .doc(docId)
           .set({
         ...syncItem.toJson(),
-        'syncedAt': FieldValue.serverTimestamp(),
+        'syncedAt': FirebaseService.getServerTimestamp(),
       }, SetOptions(merge: true));
 
       debugPrint('✅ Menu item synced to Firestore: $docId');
@@ -175,7 +176,7 @@ class MenuSyncService {
           .doc(companyId)
           .set({
         ...businessInfo.toJson(),
-        'syncedAt': FieldValue.serverTimestamp(),
+        'syncedAt': FirebaseService.getServerTimestamp(),
       }, SetOptions(merge: true));
 
       debugPrint('✅ Business info synced to Firestore');
@@ -225,7 +226,7 @@ class MenuSyncService {
         'categories': categories,
         'companyId': companyId,
         'lastUpdated': DateTime.now().toIso8601String(),
-        'syncedAt': FieldValue.serverTimestamp(),
+        'syncedAt': FirebaseService.getServerTimestamp(),
       }, SetOptions(merge: true));
 
       debugPrint('✅ Categories synced to Firestore');
@@ -251,7 +252,14 @@ class MenuSyncService {
     Function(String) onItemDeleted,
   ) async {
     try {
-      await FirebaseService.ensureInitialized();
+      // Wait for Firebase to be ready
+      if (!FirebaseService.isInitialized) {
+        try {
+           await FirebaseService.ensureInitialized();
+        } catch (e) {
+           debugPrint('⚠️ Waiting for Firebase init in menu listener...');
+        }
+      }
       
       if (!FirebaseService.isFirebaseAvailable) {
         debugPrint('⚠️ Firebase not available, cannot listen to menu items');
@@ -276,7 +284,7 @@ class MenuSyncService {
             // do not include the document data payload. We want deletions
             // to be applied on staff devices regardless of the originating
             // device id, so call onItemDeleted directly for removed events.
-            if (change.type == DocumentChangeType.removed) {
+            if (change.type == DocumentChangeTypeInterface.removed) {
               try {
                 final docId = change.doc.id; // format: <companyId>_<itemId>
                 final itemId = docId.split('_').last;
@@ -289,12 +297,12 @@ class MenuSyncService {
             }
 
             // For added/modified events we expect data to be present.
-            if (change.type == DocumentChangeType.added ||
-                change.type == DocumentChangeType.modified) {
+            if (change.type == DocumentChangeTypeInterface.added ||
+                change.type == DocumentChangeTypeInterface.modified) {
               final data = change.doc.data();
               // Only process items coming from other devices (avoid re-applying
               // changes emitted by this same device).
-              if (data != null && data['deviceId'] != currentDeviceId) {
+              if (data['deviceId'] != currentDeviceId) {
                 try {
                   final syncItem = SyncMenuItemModel.fromJson(data);
                   debugPrint('📥 Received menu item from device: ${data['deviceId']}');
@@ -323,7 +331,14 @@ class MenuSyncService {
     Function(SyncBusinessInfoModel) onBusinessInfoReceived,
   ) async {
     try {
-      await FirebaseService.ensureInitialized();
+      // Wait for Firebase to be ready
+      if (!FirebaseService.isInitialized) {
+        try {
+           await FirebaseService.ensureInitialized();
+        } catch (e) {
+           debugPrint('⚠️ Waiting for Firebase init in business info listener...');
+        }
+      }
       
       if (!FirebaseService.isFirebaseAvailable) {
         debugPrint('⚠️ Firebase not available, cannot listen to business info');
@@ -370,7 +385,14 @@ class MenuSyncService {
     Function(List<String>) onCategoriesReceived,
   ) async {
     try {
-      await FirebaseService.ensureInitialized();
+      // Wait for Firebase to be ready
+      if (!FirebaseService.isInitialized) {
+        try {
+           await FirebaseService.ensureInitialized();
+        } catch (e) {
+           debugPrint('⚠️ Waiting for Firebase init in categories listener...');
+        }
+      }
       
       if (!FirebaseService.isFirebaseAvailable) {
         debugPrint('⚠️ Firebase not available, cannot listen to categories');

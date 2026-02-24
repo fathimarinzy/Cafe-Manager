@@ -4,6 +4,7 @@ class TableModel {
   bool isOccupied;
   int capacity;
   String note;
+  String category;
 
   TableModel({
     required this.id,
@@ -11,6 +12,7 @@ class TableModel {
     this.isOccupied = false,
     this.capacity = 4,
     this.note = '',
+    this.category = 'Main Area',
   });
 
   factory TableModel.fromJson(Map<String, dynamic> json) {
@@ -20,6 +22,7 @@ class TableModel {
       isOccupied: json['isOccupied'] ?? false,
       capacity: json['capacity'] ?? 4,
       note: json['note'] ?? '',
+      category: json['category'] ?? 'Main Area',
     );
   }
 
@@ -30,6 +33,7 @@ class TableModel {
       'isOccupied': isOccupied,
       'capacity': capacity,
       'note': note,
+      'category': category,
     };
   }
 }

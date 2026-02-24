@@ -58,7 +58,7 @@ class LocalMenuRepository {
         // Open the database with explicit version and onCreate handler
         return await openDatabase(
           path,
-          version: 3,
+          version: 5,
       onConfigure: (db) async {
         await db.rawQuery('PRAGMA journal_mode=WAL;');
       },
@@ -75,7 +75,8 @@ class LocalMenuRepository {
                 isDeleted INTEGER NOT NULL DEFAULT 0,
                 lastUpdated TEXT NOT NULL,
                 taxExempt INTEGER NOT NULL DEFAULT 0,
-                isPerPlate INTEGER NOT NULL DEFAULT 0
+                isPerPlate INTEGER NOT NULL DEFAULT 0,
+                purchasePrice REAL NOT NULL DEFAULT 0.0
               )
             ''');
             debugPrint('menu_items table created successfully');
@@ -105,6 +106,18 @@ class LocalMenuRepository {
             } catch (e) {
               debugPrint('Error adding isPerPlate column: $e');
             }
+          }
+
+          if (oldVersion < 5) {
+             // Add purchasePrice column
+             try {
+               await db.execute('''
+                 ALTER TABLE menu_items ADD COLUMN purchasePrice REAL NOT NULL DEFAULT 0.0
+               ''');
+               debugPrint('Added purchasePrice column to menu_items table');
+             } catch (e) {
+               debugPrint('Error adding purchasePrice column (may already exist): $e');
+             }
           }
         },
           onOpen: (db) {
@@ -160,6 +173,7 @@ class LocalMenuRepository {
             'lastUpdated': DateTime.now().toIso8601String(),
             'taxExempt': item.taxExempt ? 1 : 0,
             'isPerPlate': item.isPerPlate ? 1 : 0,
+            'purchasePrice': item.purchasePrice,
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
@@ -215,6 +229,7 @@ Future<List<MenuItem>> getMenuItems() async {
           isAvailable: maps[i]['isAvailable'] == 1,
           taxExempt: maps[i]['taxExempt'] == 1,
           isPerPlate: maps[i]['isPerPlate'] == 1,
+          purchasePrice: maps[i]['purchasePrice'] != null ? (maps[i]['purchasePrice'] as num).toDouble() : 0.0,
         );
       });
       
@@ -269,6 +284,7 @@ Future<List<MenuItem>> getMenuItems() async {
           isAvailable: item.isAvailable,
           taxExempt: item.taxExempt,
           isPerPlate: item.isPerPlate,
+          purchasePrice: item.purchasePrice,
         );
          // ⭐ CRITICAL: Ensure the boolean is converted to int correctly
         final int taxExemptValue = newItem.taxExempt ? 1 : 0;
@@ -288,6 +304,7 @@ Future<List<MenuItem>> getMenuItems() async {
             'lastUpdated': timestamp,
             'taxExempt': taxExemptValue,
             'isPerPlate': newItem.isPerPlate ? 1 : 0,
+            'purchasePrice': newItem.purchasePrice,
           },
         );
         
@@ -343,6 +360,7 @@ Future<List<MenuItem>> getMenuItems() async {
             'lastUpdated': timestamp,
             'taxExempt': item.taxExempt ? 1 : 0,
             'isPerPlate': item.isPerPlate ? 1 : 0,
+            'purchasePrice': item.purchasePrice,
           },
           where: 'id = ?',
           whereArgs: [item.id],

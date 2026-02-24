@@ -45,15 +45,39 @@ import 'services/connectivity_monitor.dart';
 import 'services/device_sync_service.dart';
 
 
-const bool forceSafeMode = true; // 🛡️ SAFEMODE: Disables Firebase & WindowManager for old CPUs
+// const bool forceSafeMode = true; // 🛡️ REMOVED: Replaced by dynamic detection
 
 void main() async {
   // 🛡️ CRITICAL: Set up global error logging immediately
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
     
-    // Log app start
-    await logErrorToFile('App starting... (Safe Mode: $forceSafeMode)');
+    // Load environment variables early
+    try {
+      await dotenv.load(fileName: ".env");
+      await logErrorToFile('✅ Environment variables loaded');
+    } catch (e) {
+      await logErrorToFile('⚠️ Error loading .env file: $e - Continuing without .env');
+    }
+
+    // 🛡️ DYNAMIC SAFE MODE DETECTION
+    bool isSafeMode = false;
+    
+    // 1. Check for marker file (easiest for users)
+    final markerFile = File('safe_mode.txt');
+    if (markerFile.existsSync()) {
+      isSafeMode = true;
+      await logErrorToFile('🛡️ Safe Mode detected via safe_mode.txt marker file');
+    }
+    
+    // 2. Check .env variable
+    if (!isSafeMode && dotenv.env['SAFE_MODE'] == 'true') {
+      isSafeMode = true;
+      await logErrorToFile('🛡️ Safe Mode detected via .env SAFE_MODE=true');
+    }
+
+    // Log app start with mode
+    await logErrorToFile('App starting... (Safe Mode: $isSafeMode)');
     
     await _setupPortableDataPaths();
     
@@ -76,7 +100,7 @@ void main() async {
     // Desktop-specific window configuration
     if (isDesktop()) {
       try {
-        if (forceSafeMode) {
+        if (isSafeMode) {
            await logErrorToFile('🛡️ Safe Mode: Skipping WindowManager configuration');
         } else {
            await configureDesktopWindow();
@@ -88,17 +112,9 @@ void main() async {
 
     // Quick initialization - only critical components
     try {
-      await quickInitialization(isDatabaseInitialized);
+      await quickInitialization(isDatabaseInitialized, isSafeMode);
     } catch (e, stack) {
       await logErrorToFile('❌ Error in quick initialization: $e\n$stack');
-    }
-
-    // Load environment variables with better error handling
-    try {
-      await dotenv.load(fileName: ".env");
-      await logErrorToFile('✅ Environment variables loaded');
-    } catch (e) {
-      await logErrorToFile('⚠️ Error loading .env file: $e - Continuing without .env');
     }
 
     FlutterError.onError = (FlutterErrorDetails details) {
@@ -191,11 +207,11 @@ Future<void> configureDesktopWindow() async {
   }
 }
 
-Future<void> quickInitialization(bool isDatabaseInitialized) async {
+Future<void> quickInitialization(bool isDatabaseInitialized, bool isSafeMode) async {
   try {
     await logErrorToFile('🚀 Starting quick initialization...');
     await Future.any([
-      _performQuickInitialization(isDatabaseInitialized),
+      _performQuickInitialization(isDatabaseInitialized, isSafeMode),
       Future.delayed(const Duration(seconds: 3), () {
         logErrorToFile('⚠️ Quick initialization timed out - continuing anyway');
       }),
@@ -205,7 +221,7 @@ Future<void> quickInitialization(bool isDatabaseInitialized) async {
   }
 }
 
-Future<void> _performQuickInitialization(bool isDatabaseInitialized) async {
+Future<void> _performQuickInitialization(bool isDatabaseInitialized, bool isSafeMode) async {
   // Initialize local database only if it was properly initialized
   if (isDatabaseInitialized) {
     try {
@@ -218,12 +234,15 @@ Future<void> _performQuickInitialization(bool isDatabaseInitialized) async {
 
   // Initialize Firebase - works for all platforms now
   try {
-    if (forceSafeMode) {
-       await logErrorToFile('🛡️ Safe Mode: Skipping Firebase initialization');
+    if (isSafeMode) {
+       await logErrorToFile('🛡️ Safe Mode (Legacy): Initializing Firebase with Firedart (No AVX2)');
+       // Pass true to enable Legacy Mode (Firedart)
+       FirebaseService.initializeQuickly(useLegacyMode: true);
+       await logErrorToFile('✅ Firebase Legacy initialization started');
     } else {
-      await logErrorToFile('🔥 Initializing Firebase...');
-      FirebaseService.initializeQuickly();
-      await logErrorToFile('✅ Firebase initialization started');
+      await logErrorToFile('🔥 Initializing Firebase (Native)...');
+      FirebaseService.initializeQuickly(useLegacyMode: false);
+      await logErrorToFile('✅ Firebase Native initialization started');
     }
   } catch (e) {
     await logErrorToFile('⚠️ Firebase initialization error: $e');

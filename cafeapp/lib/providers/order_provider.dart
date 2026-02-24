@@ -223,6 +223,7 @@ class OrderProvider with ChangeNotifier {
         kitchenNote: noteToUse,
         taxExempt: item.taxExempt,
         isPerPlate: item.isPerPlate,
+        purchasePrice: item.purchasePrice,
       );
       
       // Insert the updated item at the beginning of the list
@@ -238,7 +239,6 @@ class OrderProvider with ChangeNotifier {
         }
       }
 
-      // If it's a new item, add it to the beginning of the list
       final newItem = MenuItem(
         id: item.id,
         name: item.name,
@@ -250,6 +250,7 @@ class OrderProvider with ChangeNotifier {
         kitchenNote: item.kitchenNote,
         taxExempt: item.taxExempt,
         isPerPlate: item.isPerPlate,
+        purchasePrice: item.purchasePrice,
       );
       _serviceTypeCarts[_currentServiceType]!.insert(0, newItem);
     }
@@ -497,6 +498,7 @@ class OrderProvider with ChangeNotifier {
             quantity: item.quantity,
             kitchenNote: item.kitchenNote,
             taxExempt: item.taxExempt, // FIX: Copy taxExempt from MenuItem
+            purchasePrice: item.purchasePrice,
           )
         ).toList();
         
@@ -538,6 +540,7 @@ class OrderProvider with ChangeNotifier {
             quantity: item.quantity,
             kitchenNote: item.kitchenNote,
             taxExempt: item.taxExempt, // FIX: Copy taxExempt from MenuItem
+            purchasePrice: item.purchasePrice,
           )
         ).toList();
         
@@ -701,6 +704,7 @@ class OrderProvider with ChangeNotifier {
         quantity: item.quantity,
         kitchenNote: note,
         taxExempt: item.taxExempt,
+        purchasePrice: item.purchasePrice,
       );
       
       // Replace the item in the cart
@@ -884,6 +888,7 @@ class OrderProvider with ChangeNotifier {
           quantity: item.quantity,
           kitchenNote: item.kitchenNote,
           taxExempt: item.taxExempt,
+          purchasePrice: item.purchasePrice,
         )
       ).toList();
 

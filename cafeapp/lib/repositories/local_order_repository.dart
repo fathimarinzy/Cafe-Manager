@@ -45,7 +45,7 @@ class LocalOrderRepository {
     
     return await openDatabase(
       path,
-      version: 12, // Increment version to trigger repair
+      version: 14, // Increment version to trigger repair
       onConfigure: (db) async {
         await db.rawQuery('PRAGMA journal_mode=WAL;');
       },
@@ -95,6 +95,7 @@ class LocalOrderRepository {
             quantity INTEGER NOT NULL,
             kitchen_note TEXT,
             tax_exempt INTEGER NOT NULL DEFAULT 0,
+            purchase_price REAL NOT NULL DEFAULT 0.0,
             FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE
           )
         ''');
@@ -209,6 +210,26 @@ class LocalOrderRepository {
           try {
              await db.execute('ALTER TABLE orders ADD COLUMN customer_name TEXT');
              debugPrint('Repaired: Added customer_name to orders table');
+          } catch (e) {
+            // Ignore error if column exists
+          }
+        }
+        
+        if (oldVersion < 13) {
+          // Add purchase_price column
+          try {
+             await db.execute('ALTER TABLE order_items ADD COLUMN purchase_price REAL NOT NULL DEFAULT 0.0');
+             debugPrint('Added purchase_price to order_items table');
+          } catch (e) {
+            debugPrint('Error adding purchase_price to order_items: $e');
+          }
+        }
+
+        if (oldVersion < 14) {
+          // Repair: Ensure purchase_price exists
+          try {
+             await db.execute('ALTER TABLE order_items ADD COLUMN purchase_price REAL NOT NULL DEFAULT 0.0');
+             debugPrint('Repaired: Added purchase_price to order_items table');
           } catch (e) {
             // Ignore error if column exists
           }
@@ -398,6 +419,7 @@ class LocalOrderRepository {
             'quantity': item.quantity,
             'kitchen_note': item.kitchenNote,
             'tax_exempt': item.taxExempt ? 1 : 0, // NEW
+            'purchase_price': item.purchasePrice,
           });
         }
         
@@ -520,6 +542,7 @@ class LocalOrderRepository {
         quantity: item['quantity'] as int,
         kitchenNote: item['kitchen_note'] as String? ?? '',
         taxExempt: (item['tax_exempt'] as int?) == 1,
+        purchasePrice: item['purchase_price'] != null ? (item['purchase_price'] as num).toDouble() : 0.0,
       )).toList();
       
       // Extract and verify fields
@@ -617,6 +640,7 @@ class LocalOrderRepository {
         quantity: item['quantity'] as int,
         kitchenNote: item['kitchen_note'] as String? ?? '',
         taxExempt: (item['tax_exempt'] as int?) == 1, // NEW
+        purchasePrice: item['purchase_price'] != null ? (item['purchase_price'] as num).toDouble() : 0.0,
       )).toList();
       
        // ✅ NEW: Read cash_amount and bank_amount

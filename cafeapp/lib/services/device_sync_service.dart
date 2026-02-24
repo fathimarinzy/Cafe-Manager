@@ -20,6 +20,7 @@ import '../services/menu_sync_service.dart';
 import '../models/order_item.dart' as local_order_item;
 import '../models/delivery_boy.dart';
 import '../repositories/local_delivery_boy_repository.dart';
+import 'firestore_adapter.dart';
 
 // Helper extension for firstWhereOrNull
 extension IterableExtension<T> on Iterable<T> {
@@ -32,7 +33,7 @@ extension IterableExtension<T> on Iterable<T> {
 }
 
 class DeviceSyncService {
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static final FirestoreInterface _firestore = FirestoreAdapter.instance;
   static const String _devicesCollection = 'devices';
   static const String _ordersCollection = 'synced_orders';
   static const String _linkCodesCollection = 'device_link_codes';
@@ -173,18 +174,20 @@ class DeviceSyncService {
       final docId = '${companyId}_${deviceId}_${order.staffOrderNumber}';
       
       // Store order
-      await _firestore
-          .collection(_ordersCollection)
-          .doc(docId)
-          .set({
+      final payload = {
         ...syncOrder.toJson(),
-        'syncedAt': FieldValue.serverTimestamp(),
+        'syncedAt': FirebaseService.getServerTimestamp(),
         'isSynced': true,
         // Only set to null if not already assigned. If assigned, preserve it.
         'mainOrderNumber': order.mainNumberAssigned ? order.mainOrderNumber : null,
         'mainNumberAssigned': order.mainNumberAssigned,
         'lastUpdatedBy': deviceId,
-      }, SetOptions(merge: true));
+      };
+
+      await _firestore
+          .collection(_ordersCollection)
+          .doc(docId)
+          .set(payload, SetOptions(merge: true));
 
       // Update local order sync status
       final localRepo = LocalOrderRepository();
@@ -292,7 +295,7 @@ class DeviceSyncService {
           await doc.reference.update({
             'mainOrderNumber': mainOrderNumber,
             'mainNumberAssigned': true,
-            'mainNumberAssignedAt': FieldValue.serverTimestamp(),
+            'mainNumberAssignedAt': FirebaseService.getServerTimestamp(),
           });
           debugPrint('✅ Firestore updated with main number');
 
@@ -441,8 +444,8 @@ class DeviceSyncService {
           .doc(docId)
           .update({
         ...syncOrder.toJson(),
-        'syncedAt': FieldValue.serverTimestamp(),
-        'lastUpdatedAt': FieldValue.serverTimestamp(), // Track when it was last edited
+        'syncedAt': FirebaseService.getServerTimestamp(),
+        'lastUpdatedAt': FirebaseService.getServerTimestamp(), // Track when it was last edited
         'lastUpdatedBy': deviceId, // 🆕 Track which device made the edit
         'lastUpdatedByMain': isMainDevice, // 🆕 Track if edit was by main device
         'isEdited': true,
@@ -510,8 +513,8 @@ class DeviceSyncService {
       await counterRef.set({
         'companyId': companyId,
         'counter': nextCounter,
-        'lastUpdated': FieldValue.serverTimestamp(),
-        if (!snapshot.exists) 'createdAt': FieldValue.serverTimestamp(),
+        'lastUpdated': FirebaseService.getServerTimestamp(),
+        if (!snapshot.exists) 'createdAt': FirebaseService.getServerTimestamp(),
       }, SetOptions(merge: true)).timeout(
         const Duration(seconds: 5),
         onTimeout: () {
@@ -555,25 +558,55 @@ class DeviceSyncService {
         await processUnassignedOrders();
       });
       
-      // Process immediately on startup
+      // Process immediately on startup with a slight delay to ensure init
       Timer(const Duration(seconds: 5), () async {
         await processUnassignedOrders();
       });
     }
 
-    // Listen to orders from other devices
+    // LISTENER INITIALIZATION WITH RETRY LOGIC
+    // We wrap listeners in a robust initialization sequence
+    _initializeListeners(companyId);
+
+    // NOTE: Menu sync listeners are handled by MenuProvider directly.
+    
+    debugPrint('✅ Auto-sync routine started (listeners initializing in background)');
+  }
+
+  /// Robust listener initialization
+  static Future<void> _initializeListeners(String companyId) async {
+    // Wait for Firebase to be ready
+    int retryCount = 0;
+    while (!FirebaseService.isFirebaseAvailable && retryCount < 10) {
+      await Future.delayed(const Duration(seconds: 2));
+      try {
+        await FirebaseService.ensureInitialized();
+      } catch (e) {
+        debugPrint('⚠️ Waiting for Firebase init before starting listeners ($retryCount/10)...');
+      }
+      retryCount++;
+    }
+
+    if (!FirebaseService.isFirebaseAvailable) {
+      debugPrint('❌ Failed to initialize Firebase for listeners after retries');
+      return;
+    }
+
+    debugPrint('✅ Firebase ready, starting real-time listeners...');
+
+    // 1. Orders
     startListeningToOrders(companyId, (sync_models.SyncOrderModel syncOrder) async {
       debugPrint('📦 Processing incoming order: ${syncOrder.id}');
       await saveSyncedOrderLocally(syncOrder);
     });
 
-    // NOTE: Menu sync listeners are handled by MenuProvider directly
-    // to ensure UI updates happen immediately when menu items change.
-    // See MenuProvider._startMenuSync() for the implementation.
-
-    // 🆕 Start listening to Persons and Credit Transactions
+    // 2. Persons
     startListeningToPersons(companyId);
+    
+    // 3. Credit Transactions
     startListeningToCreditTransactions(companyId);
+    
+    // 4. Delivery Boys
     startListeningToDeliveryBoys(companyId);
 
     debugPrint('✅ Auto-sync started successfully');
@@ -626,28 +659,26 @@ class DeviceSyncService {
             if (change.type == DocumentChangeType.added || 
                 change.type == DocumentChangeType.modified) {
               final data = change.doc.data();
-              if (data != null) {
-                // ⭐ CRITICAL FIX: Check lastUpdatedBy instead of staffDeviceId
-                // This allows devices to receive updates even on orders they created
-                final lastUpdatedBy = data['lastUpdatedBy'] as String?;
-                final staffDeviceId = data['staffDeviceId'] as String?;
-                
-                // Only skip if WE made the last update (prevents processing our own changes)
-                if (lastUpdatedBy != null && lastUpdatedBy == currentDeviceId) {
-                  debugPrint('⏭️ Skipping order update - we made this change (lastUpdatedBy: $lastUpdatedBy)');
-                  continue;
-                }
-                
-                try {
-                  final syncOrder = sync_models.SyncOrderModel.fromJson(data);
-                  final updateType = change.type == DocumentChangeType.modified ? "UPDATE" : "NEW";
-                  debugPrint('📥 Received order $updateType from device: $staffDeviceId (lastUpdatedBy: $lastUpdatedBy)');
-                  onOrderReceived(syncOrder);
-                } catch (e) {
-                  debugPrint('❌ Error parsing synced order: $e');
-                }
+              // ⭐ CRITICAL FIX: Check lastUpdatedBy instead of staffDeviceId
+              // This allows devices to receive updates even on orders they created
+              final lastUpdatedBy = data['lastUpdatedBy'] as String?;
+              final staffDeviceId = data['staffDeviceId'] as String?;
+              
+              // Only skip if WE made the last update (prevents processing our own changes)
+              if (lastUpdatedBy != null && lastUpdatedBy == currentDeviceId) {
+                debugPrint('⏭️ Skipping order update - we made this change (lastUpdatedBy: $lastUpdatedBy)');
+                continue;
               }
-            }
+              
+              try {
+                final syncOrder = sync_models.SyncOrderModel.fromJson(data);
+                final updateType = change.type == DocumentChangeType.modified ? "UPDATE" : "NEW";
+                debugPrint('📥 Received order $updateType from device: $staffDeviceId (lastUpdatedBy: $lastUpdatedBy)');
+                onOrderReceived(syncOrder);
+              } catch (e) {
+                debugPrint('❌ Error parsing synced order: $e');
+              }
+                        }
           }
         },
         onError: (error) {
@@ -847,6 +878,7 @@ class DeviceSyncService {
   /// Sync all pending orders that haven't been synced yet
   static Future<void> syncPendingOrders() async {
     try {
+      await FirebaseService.ensureInitialized();
       final prefs = await SharedPreferences.getInstance();
       final deviceSyncEnabled = prefs.getBool('device_sync_enabled') ?? false;
       
@@ -1083,7 +1115,7 @@ class DeviceSyncService {
         'isUsed': true,
         'usedByDeviceId': currentDeviceId,
         'usedByDeviceName': staffDeviceName,
-        'usedAt': FieldValue.serverTimestamp(),
+        'usedAt': FirebaseService.getServerTimestamp(),
       });
 
       // Save to local preferences
@@ -1244,7 +1276,7 @@ class DeviceSyncService {
         // Update existing device
         await existingDevice.docs.first.reference.update({
           ...deviceData,
-          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FirebaseService.getServerTimestamp(),
         });
       } else {
         // Create new device
@@ -1335,7 +1367,7 @@ class DeviceSyncService {
 
       batch.update(targetDevice.reference, {
         'isMainDevice': true,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FirebaseService.getServerTimestamp(),
       });
 
       await batch.commit();
@@ -1386,7 +1418,7 @@ class DeviceSyncService {
       for (var doc in deviceDocs.docs) {
         await doc.reference.update({
           'isActive': false,
-          'deactivatedAt': FieldValue.serverTimestamp(),
+          'deactivatedAt': FirebaseService.getServerTimestamp(),
         });
       }
 
@@ -1438,7 +1470,7 @@ class DeviceSyncService {
       if (deviceDocs.docs.isNotEmpty) {
         await deviceDocs.docs.first.reference.update({
           'lastSyncedAt': DateTime.now().toIso8601String(),
-          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FirebaseService.getServerTimestamp(),
         });
         
         debugPrint('✅ Updated last sync time');
@@ -1499,7 +1531,7 @@ class DeviceSyncService {
   // ---------------------------------------------------------------------------
 
   static const String _syncedPersonsCollection = 'synced_persons';
-  static StreamSubscription<QuerySnapshot>? _personsSubscription;
+  static StreamSubscription<QuerySnapshotInterface>? _personsSubscription;
   static Function()? _onPersonsChangedCallback;
 
   static void setOnPersonsChangedCallback(Function() callback) {
@@ -1532,7 +1564,7 @@ class DeviceSyncService {
           .snapshots()
           .listen((snapshot) {
         for (var change in snapshot.docChanges) {
-          if (change.type == DocumentChangeType.added || change.type == DocumentChangeType.modified) {
+          if (change.type == DocumentChangeTypeInterface.added || change.type == DocumentChangeTypeInterface.modified) {
             _processincomingPerson(change.doc);
           }
         }
@@ -1550,7 +1582,7 @@ class DeviceSyncService {
   }
 
   /// Process incoming person data
-  static Future<void> _processincomingPerson(DocumentSnapshot doc) async {
+  static Future<void> _processincomingPerson(DocumentSnapshotInterface doc) async {
     try {
       final data = doc.data() as Map<String, dynamic>;
       final lastUpdatedBy = data['lastUpdatedBy'] as String?;
@@ -1603,7 +1635,7 @@ class DeviceSyncService {
         'companyId': companyId,
         'person': person.toJson(),
         'lastUpdatedBy': deviceId,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FirebaseService.getServerTimestamp(),
       }, SetOptions(merge: true));
 
     } catch (e) {
@@ -1616,7 +1648,7 @@ class DeviceSyncService {
   // ---------------------------------------------------------------------------
 
   static const String _syncedCreditCollection = 'synced_credit_transactions';
-  static StreamSubscription<QuerySnapshot>? _creditSubscription;
+  static StreamSubscription<QuerySnapshotInterface>? _creditSubscription;
   static Function()? _onCreditChangedCallback;
 
   static void setOnCreditChangedCallback(Function() callback) {
@@ -1648,7 +1680,7 @@ class DeviceSyncService {
           .snapshots()
           .listen((snapshot) {
         for (var change in snapshot.docChanges) {
-          if (change.type == DocumentChangeType.added || change.type == DocumentChangeType.modified) {
+          if (change.type == DocumentChangeTypeInterface.added || change.type == DocumentChangeTypeInterface.modified) {
             _processIncomingCredit(change.doc);
           }
         }
@@ -1665,7 +1697,7 @@ class DeviceSyncService {
     _creditSubscription = null;
   }
 
-  static Future<void> _processIncomingCredit(DocumentSnapshot doc) async {
+  static Future<void> _processIncomingCredit(DocumentSnapshotInterface doc) async {
     try {
       final data = doc.data() as Map<String, dynamic>;
       final lastUpdatedBy = data['lastUpdatedBy'] as String?;
@@ -1711,7 +1743,7 @@ class DeviceSyncService {
         'companyId': companyId,
         'transaction': jsonMap,
         'lastUpdatedBy': deviceId,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FirebaseService.getServerTimestamp(),
       }, SetOptions(merge: true));
 
     } catch (e) {
@@ -1736,7 +1768,7 @@ class DeviceSyncService {
   // DELIVERY BOY SYNCING
   // ---------------------------------------------------------------------------
 
-  static StreamSubscription<QuerySnapshot>? _deliveryBoysSubscription;
+  static StreamSubscription<QuerySnapshotInterface>? _deliveryBoysSubscription;
  
   static void startListeningToDeliveryBoys(String companyId) async {
     if (_deliveryBoysSubscription != null) return;
@@ -1757,9 +1789,9 @@ class DeviceSyncService {
           .snapshots()
           .listen((snapshot) {
         for (var change in snapshot.docChanges) {
-          if (change.type == DocumentChangeType.added || change.type == DocumentChangeType.modified) {
+          if (change.type == DocumentChangeTypeInterface.added || change.type == DocumentChangeTypeInterface.modified) {
             _processIncomingDeliveryBoy(change.doc);
-          } else if (change.type == DocumentChangeType.removed) {
+          } else if (change.type == DocumentChangeTypeInterface.removed) {
             _processDeletedDeliveryBoy(change.doc);
           }
         }
@@ -1788,7 +1820,7 @@ class DeviceSyncService {
     }
   }
 
-  static Future<void> _processIncomingDeliveryBoy(DocumentSnapshot doc) async {
+  static Future<void> _processIncomingDeliveryBoy(DocumentSnapshotInterface doc) async {
     try {
       final data = doc.data() as Map<String, dynamic>;
       final lastUpdatedBy = data['lastUpdatedBy'] as String?;
@@ -1812,7 +1844,7 @@ class DeviceSyncService {
     }
   }
 
-  static Future<void> _processDeletedDeliveryBoy(DocumentSnapshot doc) async {
+  static Future<void> _processDeletedDeliveryBoy(DocumentSnapshotInterface doc) async {
     try {
       final data = doc.data() as Map<String, dynamic>;
       final boyData = data['deliveryBoy'] as Map<String, dynamic>;
@@ -1845,7 +1877,7 @@ class DeviceSyncService {
         'companyId': companyId,
         'deliveryBoy': jsonMap,
         'lastUpdatedBy': deviceId,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FirebaseService.getServerTimestamp(),
       }, SetOptions(merge: true));
 
     } catch (e) {

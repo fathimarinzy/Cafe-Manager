@@ -6,6 +6,7 @@ class OrderItem {
   final int quantity;
   final String kitchenNote;
   final bool taxExempt; // NEW: Add this field
+  final double purchasePrice;
 
   OrderItem({
     required this.id,
@@ -14,6 +15,7 @@ class OrderItem {
     required this.quantity,
     this.kitchenNote = '',
     this.taxExempt = false, // NEW: Default to false
+    this.purchasePrice = 0.0,
   });
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
@@ -24,6 +26,7 @@ class OrderItem {
       quantity: json['quantity'],
       kitchenNote: json['kitchenNote'] ?? '',
       taxExempt: json['taxExempt'] ?? false, // NEW
+      purchasePrice: json['purchasePrice'] != null ? (json['purchasePrice'] as num).toDouble() : 0.0,
     );
   }
 
@@ -35,6 +38,7 @@ class OrderItem {
       'quantity': quantity,
       'kitchenNote': kitchenNote,
       'taxExempt': taxExempt, // NEW
+      'purchasePrice': purchasePrice,
     };
   }
 }

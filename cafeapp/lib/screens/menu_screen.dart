@@ -2684,6 +2684,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                 price: menuItem.price,
                 quantity: menuItem.quantity,
                 kitchenNote: menuItem.kitchenNote,
+                purchasePrice: menuItem.purchasePrice,
               );
             }).toList();
 

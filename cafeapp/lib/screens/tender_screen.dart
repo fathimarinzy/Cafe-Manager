@@ -1844,6 +1844,8 @@ void _showSplitPaymentDialog() {
             price: item.price,
             quantity: item.quantity,
             kitchenNote: item.kitchenNote,
+            taxExempt: item.taxExempt,
+            purchasePrice: item.purchasePrice,
           )
         ).toList();
         
@@ -2098,6 +2100,8 @@ void _showSplitPaymentDialog() {
             price: item.price,
             quantity: item.quantity,
             kitchenNote: item.kitchenNote,
+            taxExempt: item.taxExempt,
+            purchasePrice: item.purchasePrice,
           )
         ).toList();
         
@@ -3152,6 +3156,12 @@ Widget _buildLandscapeLayout(StateSetter setState, double initialDiscountedTotal
                             String receivedAmount = _receivedAmountController.text.trim();
                             double amount = double.tryParse(receivedAmount) ?? 0.0;
                             if (amount > 0) {
+                              // AUTO-SPLIT: If bank amount is less than balance, split remaining to cash
+                              final currentBalance = _getDiscountedTotal() - (widget.order.depositAmount ?? 0.0);
+                              if (amount < currentBalance && amount > 0) {
+                                _bankAmount = amount;
+                                _cashAmount = currentBalance - amount;
+                              }
                               _showPaymentConfirmationDialog(amount);
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -3199,7 +3209,7 @@ Widget _buildPaymentMethodSelection() {
         children: [
           _buildPaymentMethodOption('Bank'.tr(), Icons.account_balance),
           _buildPaymentMethodOption('Cash'.tr(), Icons.money),
-          _buildPaymentMethodOption('Bank + Cash'.tr(), Icons.payment),
+          // _buildPaymentMethodOption('Bank + Cash'.tr(), Icons.payment),
           _buildPaymentMethodOption('Customer Credit'.tr(), Icons.person),
         ],
       ),
@@ -3250,8 +3260,8 @@ Widget _buildPaymentMethodOption(String method, IconData icon) {
           
           if (method == 'Bank'.tr()) {
             _showBankPaymentDialog();
-          }  else if (method == 'Bank + Cash'.tr()) { // NEW BLOCK
-            _showSplitPaymentDialog();
+          // } else if (method == 'Bank + Cash'.tr()) { // NEW BLOCK
+          //   _showSplitPaymentDialog();
           } else if (method == 'Customer Credit'.tr() && !widget.isCreditCompletion) {
             _handleCustomerCreditPayment();
           }
@@ -4186,6 +4196,12 @@ Widget _buildPortraitLayout(StateSetter setState, double initialDiscountedTotal,
                                 String receivedAmount = _receivedAmountController.text.trim();
                                 double amount = double.tryParse(receivedAmount) ?? 0.0;
                                 if (amount > 0) {
+                                  // AUTO-SPLIT: If bank amount is less than balance, split remaining to cash
+                                  final currentBalance = _getDiscountedTotal() - (widget.order.depositAmount ?? 0.0);
+                                  if (amount < currentBalance && amount > 0) {
+                                    _bankAmount = amount;
+                                    _cashAmount = currentBalance - amount;
+                                  }
                                   _showPaymentConfirmationDialog(amount);
                                 } else {
                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -4462,8 +4478,20 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
     if (result == 'yes' || result == 'no') {
       // For credit completion, always process the payment
      if (widget.isCreditCompletion) {
+    // Check for auto-split in credit completion too
+    final bool isCreditAutoSplit = _cashAmount > 0 && _bankAmount > 0;
+    
     // Determine which payment processing method to call
-    if (_selectedPaymentMethod == 'Cash'.tr()) {
+    if (isCreditAutoSplit) {
+      // Auto-split payment for credit completion
+      if (result == 'yes') {
+        await _processCreditCompletionPayment(amount, 'bank+cash');
+      } else {
+        await _processCreditCompletionPaymentWithoutPrinting(amount, 'bank+cash');
+      }
+      _cashAmount = 0;
+      _bankAmount = 0;
+    } else if (_selectedPaymentMethod == 'Cash'.tr()) {
       if (result == 'yes') {
         await _processCreditCompletionPayment(amount, 'cash');
       } else {
@@ -4475,31 +4503,27 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       } else {
         await _processCreditCompletionPaymentWithoutPrinting(amount, 'bank');
       }
-    } else if (_selectedPaymentMethod == 'Bank + Cash'.tr()) {
-      // ✅ Handle split payment for credit completion
-      if (result == 'yes') {
-        await _processCreditCompletionPayment(amount, 'bank+cash');
-      } else {
-        await _processCreditCompletionPaymentWithoutPrinting(amount, 'bank+cash');
-      }
     }
     return; // Exit early for credit completion
   }
   
       // Regular order payment processing (not credit completion)
+  // Check if this is an auto-split payment (both amounts set)
+  final bool isAutoSplit = _cashAmount > 0 && _bankAmount > 0;
+  
   setState(() {
-    if (_selectedPaymentMethod == 'Cash'.tr()) {
+    if (isAutoSplit) {
+      // Auto-split: full amount is covered
+      final discountedTotal = _getDiscountedTotal();
+      _paidAmount = discountedTotal;
+      _balanceAmount = 0;
+    } else if (_selectedPaymentMethod == 'Cash'.tr()) {
       double amountToDeduct = _balanceAmount < amount ? _balanceAmount : amount;
       
       _balanceAmount -= amountToDeduct;
       if (_balanceAmount < 0) _balanceAmount = 0;
       
       _paidAmount += amountToDeduct;
-    } else if (_selectedPaymentMethod == 'Bank + Cash'.tr()) {
-      // ✅ Handle split payment state update
-      final discountedTotal = _getDiscountedTotal();
-      _paidAmount = discountedTotal;
-      _balanceAmount = 0;
     } else {
       final discountedTotal = _getDiscountedTotal();
       _paidAmount = discountedTotal;
@@ -4530,21 +4554,24 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       }
       
       if (result == 'yes') {
-        if (_selectedPaymentMethod == 'Cash'.tr()) {
-          await _processCashPayment(amount, change);
-        } else  if (_selectedPaymentMethod == 'Bank'.tr()) {
-          await _processPayment(amount, change);
-        } else if (_selectedPaymentMethod == 'Bank + Cash'.tr()) {
+        if (isAutoSplit) {
           await _processSplitPayment(_cashAmount, _bankAmount);
+        } else if (_selectedPaymentMethod == 'Cash'.tr()) {
+          await _processCashPayment(amount, change);
+        } else if (_selectedPaymentMethod == 'Bank'.tr()) {
+          await _processPayment(amount, change);
         }
-      }else if (result == 'no') {
-        if (_selectedPaymentMethod == 'Bank + Cash'.tr()) {
+      } else if (result == 'no') {
+        if (isAutoSplit) {
           await _processSplitPaymentWithoutPrinting(_cashAmount, _bankAmount);
         } else {
           await _processPaymentWithoutPrinting(amount, change);
         }
-
       }
+      
+      // Reset split amounts after processing
+      _cashAmount = 0;
+      _bankAmount = 0;
     }
   }
   Future<void> _processSplitPaymentWithoutPrinting(double cashAmount, double bankAmount) async {
@@ -4630,6 +4657,8 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
           price: item.price,
           quantity: item.quantity,
           kitchenNote: item.kitchenNote,
+          taxExempt: item.taxExempt,
+          purchasePrice: item.purchasePrice,
         )
       ).toList();
       
@@ -4825,6 +4854,8 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
           price: item.price,
           quantity: item.quantity,
           kitchenNote: item.kitchenNote,
+          taxExempt: item.taxExempt,
+          purchasePrice: item.purchasePrice,
         )
       ).toList();
       
@@ -5138,6 +5169,8 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
             price: item.price,
             quantity: item.quantity,
             kitchenNote: item.kitchenNote,
+            taxExempt: item.taxExempt,
+            purchasePrice: item.purchasePrice,
           )
         ).toList();
         
@@ -5374,6 +5407,17 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
         if (_selectedPaymentMethod == 'Cash'.tr()) {
           double amountToDeduct = amount > _balanceAmount ? _balanceAmount : amount;
           double change = amount > _balanceAmount ? amount - _balanceAmount : 0.0;
+          
+          // AUTO-SPLIT: If cash amount is less than balance, split remaining to bank
+          if (amount < _balanceAmount && amount > 0) {
+            _cashAmount = amount;
+            _bankAmount = _balanceAmount - amount;
+            setState(() {
+              _amountInput = '0.000';
+            });
+            _showPaymentConfirmationDialog(_balanceAmount);
+            return;
+          }
           
           setState(() {
             _balanceAmount -= amountToDeduct;

@@ -88,23 +88,26 @@ class SyncOrderModel {
         'kitchenNote': item.kitchenNote,
         'taxExempt': item.taxExempt,
       }).toList(),
-      'subtotal': subtotal,
-      'tax': tax,
-      'discount': discount,
-      'total': total,
+      'subtotal': subtotal.toDouble(),
+      'tax': tax.toDouble(),
+      'discount': discount.toDouble(),
+      'total': total.toDouble(),
       'status': status,
       'createdAt': createdAt,
       'isSynced': isSynced,
       'syncedAt': syncedAt,
       'mainNumberAssigned': mainNumberAssigned,
       
+      // Strict rule: mainOrderNumber is either not present OR is explicitly null when not assigned
+      if (mainOrderNumber != null) 'mainOrderNumber': mainOrderNumber,
+      
       // Conditional fields - omit if null to satisfy Firestore strict type checks
       if (customerId != null) 'customerId': customerId,
       if (paymentMethod != null) 'paymentMethod': paymentMethod,
-      if (cashAmount != null) 'cashAmount': cashAmount,
-      if (bankAmount != null) 'bankAmount': bankAmount,
+      if (cashAmount != null) 'cashAmount': cashAmount!.toDouble(),
+      if (bankAmount != null) 'bankAmount': bankAmount!.toDouble(),
       if (lastUpdatedBy != null) 'lastUpdatedBy': lastUpdatedBy,
-      if (deliveryCharge != null) 'deliveryCharge': deliveryCharge,
+      if (deliveryCharge != null) 'deliveryCharge': deliveryCharge!.toDouble(),
       if (deliveryAddress != null) 'deliveryAddress': deliveryAddress,
       if (deliveryBoy != null) 'deliveryBoy': deliveryBoy,
       if (eventDate != null) 'eventDate': eventDate,
@@ -113,7 +116,7 @@ class SyncOrderModel {
       if (eventType != null) 'eventType': eventType,
       if (tokenNumber != null) 'tokenNumber': tokenNumber,
       if (customerName != null) 'customerName': customerName,
-      if (depositAmount != null) 'depositAmount': depositAmount,
+      if (depositAmount != null) 'depositAmount': depositAmount!.toDouble(),
     };
   }
 

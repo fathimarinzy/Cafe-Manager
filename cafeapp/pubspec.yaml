@@ -70,6 +70,7 @@ dependencies:
   camera_macos: ^0.0.9
   image_cropper: ^11.0.0
   crop_your_image: ^2.0.0
+  firedart: ^0.9.8
 
 
 dev_dependencies:

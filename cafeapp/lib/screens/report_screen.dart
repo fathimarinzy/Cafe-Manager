@@ -29,7 +29,8 @@ class _ReportScreenState extends State<ReportScreen> {
   
   bool _isLoading = false;
   Map<String, dynamic>? _reportData;
-  String _selectedReportType = 'daily';
+  String _selectedReportType = 'daily'; // 'daily', 'monthly', 'custom', 'profit'
+  String _profitReportPeriod = 'daily'; // 'daily', 'weekly', 'monthly', 'yearly', 'custom'
   DateTime _selectedDate = DateTime.now();
   
   // Cache to store previously loaded reports
@@ -38,7 +39,11 @@ class _ReportScreenState extends State<ReportScreen> {
   // Date range for custom period reports
   late DateTime _startDate;
   late DateTime _endDate;
-  bool _isCustomDateRange = false;
+  
+  // Date range specifically for profit reports
+  late DateTime _profitStartDate;
+  late DateTime _profitEndDate;
+  
   bool _isPrinting = false;
   bool _isSavingPdf = false; // Add PDF saving state
 
@@ -53,6 +58,8 @@ class _ReportScreenState extends State<ReportScreen> {
     final now = DateTime.now();
     _startDate = DateTime(now.year, now.month, 1);
     _endDate = DateTime.now();
+    _profitStartDate = DateTime(now.year, now.month, now.day);
+    _profitEndDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
     _loadReport();
   }
  // Helper method to format time range text for display
@@ -192,6 +199,8 @@ class _ReportScreenState extends State<ReportScreen> {
         filename = 'Report_${DateFormat('dd-MM-yyyy').format(_selectedDate)}.pdf';
       } else if (_selectedReportType == 'monthly') {
         filename = 'Report_${DateFormat('MMMM_yyyy').format(_startDate)}.pdf';
+      } else if (_selectedReportType == 'profit') {
+        filename = 'Profit_Report_${DateFormat('dd-MM-yyyy').format(_profitStartDate)}_to_${DateFormat('dd-MM-yyyy').format(_profitEndDate)}.pdf';
       } else {
         filename = 'Report_${DateFormat('dd-MM-yyyy').format(_startDate)}_to_${DateFormat('dd-MM-yyyy').format(_endDate)}.pdf';
       }
@@ -311,6 +320,13 @@ class _ReportScreenState extends State<ReportScreen> {
       } else if (_selectedReportType == 'monthly') {
         reportTitle = 'Monthly Report';
         dateRangeText = DateFormat('MMMM yyyy').format(_startDate)+_getTimeRangeText();
+      } else if (_selectedReportType == 'profit') {
+        reportTitle = 'Profit Report';
+        if (_profitReportPeriod == 'daily') {
+          dateRangeText = DateFormat('dd MMM yyyy').format(_profitStartDate) + _getTimeRangeText();
+        } else {
+          dateRangeText = '${DateFormat('dd MMM yyyy').format(_profitStartDate)} - ${DateFormat('dd MMM yyyy').format(_profitEndDate)}${_getTimeRangeText()}';
+        }
       } else {
         reportTitle = 'Monthly Report';
         dateRangeText = '${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}${_getTimeRangeText()}';
@@ -372,6 +388,13 @@ Future<pw.Document> _generateReportPdf() async {
   } else if (_selectedReportType == 'monthly') {
     reportTitle = 'Monthly Report'.tr();
     dateRangeText = DateFormat('MMMM yyyy').format(_startDate) + _getTimeRangeText();
+  } else if (_selectedReportType == 'profit') {
+       reportTitle = 'Profit Report'.tr();
+       if (_profitReportPeriod == 'daily') {
+          dateRangeText = DateFormat('dd MMM yyyy').format(_profitStartDate) + _getTimeRangeText();
+       } else {
+          dateRangeText = '${DateFormat('dd MMM yyyy').format(_profitStartDate)} - ${DateFormat('dd MMM yyyy').format(_profitEndDate)}${_getTimeRangeText()}';
+       }
   } else {
     reportTitle = 'Monthly Report'.tr();
     dateRangeText = '${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}${_getTimeRangeText()}';
@@ -471,6 +494,86 @@ Future<pw.Document> _generateReportPdf() async {
         );
       },
       build: (pw.Context context) {
+        if (_selectedReportType == 'profit') {
+            final orders = _reportData!['orders'] as List? ?? [];
+            final totalProfit = _reportData!['totalProfit'] as double? ?? 0.0;
+            final totalCost = _reportData!['totalCost'] as double? ?? 0.0;
+            
+             return [
+               pw.SizedBox(height: 15),
+               pw.Container(
+                  padding: const pw.EdgeInsets.all(10),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: PdfColors.grey300),
+                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(5)),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                       _createText(
+                        'Profit Summary'.tr(),
+                        arabicFont: arabicFont,
+                        fallbackFont: fallbackFont,
+                        style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+                       ),
+                       pw.SizedBox(height: 10),
+                       pw.Row(
+                         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                         children: [
+                           _createText('Total Revenue:'.tr(), fallbackFont: fallbackFont, arabicFont: arabicFont),
+                           _createText(currencyFormat.format(revenue['total'] as double? ?? 0.0), fallbackFont: fallbackFont, arabicFont: arabicFont, style: pw.TextStyle(color: PdfColors.green800)),
+                         ]
+                       ),
+                       pw.Row(
+                         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                         children: [
+                           _createText('Total Cost:'.tr(), fallbackFont: fallbackFont, arabicFont: arabicFont),
+                           _createText(currencyFormat.format(totalCost), fallbackFont: fallbackFont, arabicFont: arabicFont, style: pw.TextStyle(color: PdfColors.orange800)),
+                         ]
+                       ),
+                       pw.Divider(),
+                       pw.Row(
+                         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                         children: [
+                           _createText('Total Profit:'.tr(), fallbackFont: fallbackFont, arabicFont: arabicFont, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                           _createText(currencyFormat.format(totalProfit), fallbackFont: fallbackFont, arabicFont: arabicFont, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: totalProfit >= 0 ? PdfColors.blue800 : PdfColors.red800)),
+                         ]
+                       ),
+                    ]
+                  )
+               ),
+               pw.SizedBox(height: 15),
+               pw.Text('Bill-wise Breakdown'.tr(), style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+               pw.SizedBox(height: 10),
+               pw.Table(
+                  border: pw.TableBorder.all(color: PdfColors.grey300),
+                  children: [
+                    pw.TableRow(
+                      decoration: const pw.BoxDecoration(color: PdfColors.blue100),
+                      children: [
+                        pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText('Order #'.tr(), fallbackFont: fallbackFont, arabicFont: arabicFont, style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                        pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText('Sale'.tr(), fallbackFont: fallbackFont, arabicFont: arabicFont, textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                        pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText('Cost'.tr(), fallbackFont: fallbackFont, arabicFont: arabicFont, textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                        pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText('Profit'.tr(), fallbackFont: fallbackFont, arabicFont: arabicFont, textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                      ]
+                    ),
+                    ...orders.map((order) {
+                       final orderMap = order as Map<String, dynamic>;
+                       final profit = orderMap['profit'] as double? ?? 0.0;
+                       return pw.TableRow(
+                         children: [
+                            pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText(orderMap['id'].toString(), fallbackFont: fallbackFont, arabicFont: arabicFont)),
+                            pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText(currencyFormat.format(orderMap['effectiveRevenue'] as double? ?? 0.0), fallbackFont: fallbackFont, arabicFont: arabicFont, textAlign: pw.TextAlign.right)),
+                            pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText(currencyFormat.format(orderMap['cost'] as double? ?? 0.0), fallbackFont: fallbackFont, arabicFont: arabicFont, textAlign: pw.TextAlign.right)),
+                            pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText(currencyFormat.format(profit), fallbackFont: fallbackFont, arabicFont: arabicFont, textAlign: pw.TextAlign.right, style: pw.TextStyle(color: profit >= 0 ? PdfColors.green800 : PdfColors.red800))),
+                         ]
+                       );
+                    }),
+                  ]
+               )
+             ];
+        }
+        
         return [
           pw.SizedBox(height: 15),
           
@@ -825,6 +928,8 @@ pw.Widget _buildPdfBalanceRow(Map<String, dynamic> paymentTotals, NumberFormat f
         filename = 'Report_${DateFormat('dd-MM-yyyy').format(_selectedDate)}.pdf';
       } else if (_selectedReportType == 'monthly') {
         filename = 'Report_${DateFormat('MMMM_yyyy').format(_startDate)}.pdf';
+      } else if (_selectedReportType == 'profit') {
+        filename = 'Profit_Report_${DateFormat('dd-MM-yyyy').format(_profitStartDate)}_to_${DateFormat('dd-MM-yyyy').format(_profitEndDate)}.pdf';
       } else {
         filename = 'Report_${DateFormat('dd-MM-yyyy').format(_startDate)}_to_${DateFormat('dd-MM-yyyy').format(_endDate)}.pdf';
       }
@@ -1039,6 +1144,26 @@ pw.Widget _buildPdfBalanceRow(Map<String, dynamic> paymentTotals, NumberFormat f
         } else {
           endDate = DateTime(_startDate.year + 1, 1, 0, 23, 59, 59);
         }
+      }
+    } else if (_selectedReportType == 'profit') {
+      if (_useTimeFilter) {
+        startDate = DateTime(
+          _profitStartDate.year, 
+          _profitStartDate.month, 
+          _profitStartDate.day,
+          _startTime.hour,
+          _startTime.minute,
+        );
+        endDate = DateTime(
+          _profitEndDate.year, 
+          _profitEndDate.month, 
+          _profitEndDate.day,
+          _endTime.hour,
+          _endTime.minute,
+        );
+      } else {
+        startDate = _profitStartDate;
+        endDate = _profitEndDate;
       }
     } else {
       startDate = DateTime(_startDate.year, _startDate.month, _startDate.day);
@@ -1421,12 +1546,27 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
       'paymentTotals': paymentTotals,
       'serviceTypeSales': serviceTypeSales,
       'topItems': topItems,
-      'orders': orders.map((order) => {
-        'id': order.id,
-        'serviceType': order.serviceType,
-        'total': order.total,
-        'status': order.status,
-        'createdAt': order.createdAt,
+      // NEW: Compute total cost and total profit
+      'totalCost': orders.fold(0.0, (sum, order) {
+         return sum + order.items.fold(0.0, (itemSum, item) => itemSum + (item.purchasePrice * item.quantity));
+      }),
+      'totalProfit': totalRevenue - orders.fold(0.0, (sum, order) {
+         return sum + order.items.fold(0.0, (itemSum, item) => itemSum + (item.purchasePrice * item.quantity));
+      }),
+      'orders': orders.map((order) {
+        final orderCost = order.items.fold(0.0, (itemSum, item) => itemSum + (item.purchasePrice * item.quantity));
+        final effectiveRev = getOrderRevenue(order);
+        final orderProfit = effectiveRev - orderCost;
+        return {
+          'id': order.id,
+          'serviceType': order.serviceType,
+          'total': order.total,
+          'effectiveRevenue': effectiveRev,
+          'cost': orderCost,
+          'profit': orderProfit,
+          'status': order.status,
+          'createdAt': order.createdAt,
+        };
       }).toList(),
     };
   }
@@ -1441,40 +1581,11 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
     if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = picked;
-        _isCustomDateRange = false;
       });
       _loadReport();
     }
   }
 
-  Future<void> _selectDateRange() async {
-    final DateTimeRange? picked = await showDateRangePicker(
-      context: context,
-      initialDateRange: DateTimeRange(start: _startDate, end: _endDate),
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      builder: (BuildContext context, Widget? child) {
-        return Theme(
-          data: ThemeData.light().copyWith(
-            primaryColor: Colors.blue,
-            colorScheme: const ColorScheme.light(primary: Colors.blue),
-            buttonTheme: const ButtonThemeData(textTheme: ButtonTextTheme.primary),
-          ),
-          child: child!,
-        );
-      },
-    );
-    
-    if (picked != null) {
-      setState(() {
-        _startDate = picked.start;
-        _endDate = picked.end;
-        _isCustomDateRange = true;
-        _selectedReportType = 'custom';
-      });
-      _loadReport();
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1554,13 +1665,22 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
                         _selectedReportType == 'daily',
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: _buildReportTypeCard(
-                        'custom',
+                        'custom', // This is actually Monthly based on your code
                         'Monthly Report'.tr(),
                         Icons.calendar_month,
                         _selectedReportType == 'custom',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildReportTypeCard(
+                        'profit', // NEW: Profit
+                        'Profit Report'.tr(),
+                        Icons.insights,
+                        _selectedReportType == 'profit',
                       ),
                     ),
                   ],
@@ -1571,6 +1691,8 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
                   _buildDateSelector()
                 else if (_selectedReportType == 'monthly')
                   _buildMonthSelector()
+                else if (_selectedReportType == 'profit')
+                  _buildProfitDateSelector()
                 else
                   _buildDateRangeSelector(),
               ],
@@ -1596,13 +1718,14 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
           setState(() {
             _selectedReportType = type;
             if (type == 'daily') {
-              _isCustomDateRange = false;
             } else if (type == 'monthly') {
-              _isCustomDateRange = false;
               final now = DateTime.now();
               _startDate = DateTime(now.year, now.month, 1);
             } else if (type == 'custom') {
-              _isCustomDateRange = true;
+            } else if (type == 'profit') {
+              // Maintain the last selected sub-period when toggling to profit
+              // but update the dates according to what it is.
+              _updateProfitDates(_profitReportPeriod);
             }
           });
           _loadReport();
@@ -1685,6 +1808,258 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
           ),
         ),
       ),
+      // Time selection (shown when checkbox is enabled)
+      if (_useTimeFilter) ...[
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: InkWell(
+                onTap: () => _selectTime(true),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(4),
+                    color: Colors.white,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.access_time, color: Colors.grey.shade600, size: 16),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${'From:'.tr()} ${_startTime.format(context)}',
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ],
+                      ),
+                      Icon(Icons.arrow_drop_down, color: Colors.grey.shade600, size: 16),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: InkWell(
+                onTap: () => _selectTime(false),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(4),
+                    color: Colors.white,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.access_time, color: Colors.grey.shade600, size: 16),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${'To:'.tr()} ${_endTime.format(context)}',
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ],
+                      ),
+                      Icon(Icons.arrow_drop_down, color: Colors.grey.shade600, size: 16),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    ],
+  );
+}
+
+void _updateProfitDates(String period) {
+  final now = DateTime.now();
+  setState(() {
+    _profitReportPeriod = period;
+    
+    switch (period) {
+      case 'daily':
+        _profitStartDate = DateTime(now.year, now.month, now.day);
+        _profitEndDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+        break;
+      case 'weekly':
+        // Start of week (assuming Monday)
+        final int daysToSubtract = now.weekday - 1;
+        _profitStartDate = DateTime(now.year, now.month, now.day - daysToSubtract);
+        _profitEndDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+        break;
+      case 'monthly':
+        _profitStartDate = DateTime(now.year, now.month, 1);
+        _profitEndDate = DateTime(now.year, now.month + 1, 0, 23, 59, 59); // Last day of month
+        break;
+      case 'yearly':
+        _profitStartDate = DateTime(now.year, 1, 1);
+        _profitEndDate = DateTime(now.year, 12, 31, 23, 59, 59);
+        break;
+      case 'custom':
+        // Custom dates are handled by the _selectProfitDateRange dialog.
+        break;
+    }
+  });
+}
+
+Widget _buildProfitDateSelector() {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      // Filter Chips
+      Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 8.0,
+        runSpacing: 8.0,
+        children: ['daily', 'weekly', 'monthly', 'yearly', 'custom'].map((String period) {
+          final isSelected = _profitReportPeriod == period;
+          return ChoiceChip(
+            label: Text(period.tr().toUpperCase(), style: TextStyle(fontSize: 12)),
+            selected: isSelected,
+            onSelected: (bool selected) {
+              if (selected) {
+                if (period == 'custom') {
+                  _updateProfitDates(period); // Update state to custom
+                } else {
+                  _updateProfitDates(period);
+                  _loadReport();            // Automatically fetch data on select
+                }
+              }
+            },
+            selectedColor: Colors.blue.shade100,
+            labelStyle: TextStyle(
+              color: isSelected ? Colors.blue.shade800 : Colors.black87,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            ),
+          );
+        }).toList(),
+      ),
+      const SizedBox(height: 12),
+      
+      // Selected date display
+      _profitReportPeriod == 'custom'
+      ? Row(
+          children: [
+            Expanded(
+              child: InkWell(
+                onTap: () => _selectProfitCustomDate(true),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.blue.shade300, width: 1.5),
+                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.blue.shade50,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.calendar_today, color: Colors.blue.shade700, size: 16),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          DateFormat('dd MMM yy').format(_profitStartDate),
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text('-', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+            const SizedBox(width: 4),
+            Expanded(
+              child: InkWell(
+                onTap: () => _selectProfitCustomDate(false),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.blue.shade300, width: 1.5),
+                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.blue.shade50,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.calendar_today, color: Colors.blue.shade700, size: 16),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          DateFormat('dd MMM yy').format(_profitEndDate),
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Time filter checkbox
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Checkbox(
+                  value: _useTimeFilter,
+                  onChanged: (bool? value) {
+                    setState(() {
+                      _useTimeFilter = value ?? false;
+                    });
+                    _loadReport();
+                  },
+                ),
+                Icon(Icons.access_time, color: Colors.grey.shade600, size: 20),
+              ],
+            ),
+          ],
+        )
+      : Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(8),
+            color: Colors.white,
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.calendar_today, color: Colors.grey.shade600, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _profitReportPeriod == 'daily'
+                      ? DateFormat('dd MMM yyyy').format(_profitStartDate)
+                      : '${DateFormat('dd MMM yyyy').format(_profitStartDate)} - ${DateFormat('dd MMM yyyy').format(_profitEndDate)}',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+              ),
+              // Time filter checkbox
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Checkbox(
+                    value: _useTimeFilter,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        _useTimeFilter = value ?? false;
+                      });
+                      _loadReport();
+                    },
+                  ),
+                  Icon(Icons.access_time, color: Colors.grey.shade600, size: 20),
+                ],
+              ),
+            ],
+          ),
+        ),
+      
       // Time selection (shown when checkbox is enabled)
       if (_useTimeFilter) ...[
         const SizedBox(height: 12),
@@ -1875,6 +2250,45 @@ Widget _buildMonthSelector() {
   );
 }
 
+  Future<void> _selectProfitCustomDate(bool isStart) async {
+    // Strip time components for the date picker initial date
+    final DateTime baseDate = isStart ? _profitStartDate : _profitEndDate;
+    DateTime initialDate = DateTime(baseDate.year, baseDate.month, baseDate.day);
+    
+    // Ensure initialDate is not after the maximum allowed date (today)
+    final DateTime now = DateTime.now();
+    final DateTime maxDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    if (initialDate.isAfter(maxDate)) {
+      initialDate = DateTime(now.year, now.month, now.day);
+    }
+    
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2020),
+      lastDate: maxDate,
+    );
+    
+    if (picked != null) {
+      setState(() {
+        if (isStart) {
+          _profitStartDate = DateTime(picked.year, picked.month, picked.day);
+          // ensure start date isn't after end date
+          if (_profitStartDate.isAfter(_profitEndDate)) {
+             _profitEndDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
+          }
+        } else {
+          _profitEndDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
+          // ensure end date isn't before start date
+          if (_profitEndDate.isBefore(_profitStartDate)) {
+            _profitStartDate = DateTime(picked.year, picked.month, picked.day);
+          }
+        }
+      });
+      _loadReport();
+    }
+  }
+
   Future<void> _selectMonth() async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -1887,91 +2301,102 @@ Widget _buildMonthSelector() {
     if (picked != null) {
       setState(() {
         _startDate = DateTime(picked.year, picked.month, 1);
-        _isCustomDateRange = false;
       });
       _loadReport();
     }
   }
 
 Widget _buildDateRangeSelector() {
-  return InkWell(
-    onTap: _selectDateRange,
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: _isCustomDateRange ? Colors.blue.shade300 : Colors.grey.shade300,
-          width: _isCustomDateRange ? 2 : 1,
-        ),
-        borderRadius: BorderRadius.circular(8),
-        color: _isCustomDateRange ? Colors.blue.shade50 : Colors.white,
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+    decoration: BoxDecoration(
+      border: Border.all(
+        color: Colors.blue.shade300,
+        width: 1.5,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
+      borderRadius: BorderRadius.circular(8),
+      color: Colors.blue.shade50,
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: InkWell(
+                onTap: () => _selectCustomDate(true),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300),
-                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: Colors.blue.shade300, width: 1.5),
+                    borderRadius: BorderRadius.circular(8),
                     color: Colors.white,
                   ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        '${'From:'.tr()} ${DateFormat('dd MMM yyyy').format(_startDate)}',
-                        style: const TextStyle(fontSize: 14),
+                      Icon(Icons.calendar_today, color: Colors.blue.shade700, size: 16),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          DateFormat('dd MMM yy').format(_startDate),
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      const Icon(Icons.calendar_today, size: 16),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
+            ),
+            const SizedBox(width: 4),
+            Text('-', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+            const SizedBox(width: 4),
+            Expanded(
+              child: InkWell(
+                onTap: () => _selectCustomDate(false),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300),
-                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: Colors.blue.shade300, width: 1.5),
+                    borderRadius: BorderRadius.circular(8),
                     color: Colors.white,
                   ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        '${'To:'.tr()} ${DateFormat('dd MMM yyyy').format(_endDate)}',
-                        style: const TextStyle(fontSize: 14),
+                      Icon(Icons.calendar_today, color: Colors.blue.shade700, size: 16),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          DateFormat('dd MMM yy').format(_endDate),
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      const Icon(Icons.calendar_today, size: 16),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              // Time filter checkbox on the right
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Checkbox(
-                    value: _useTimeFilter,
-                    onChanged: (bool? value) {
-                      setState(() {
-                        _useTimeFilter = value ?? false;
-                      });
-                      _loadReport();
-                    },
-                  ),
-                  Icon(Icons.access_time, color: Colors.grey.shade600, size: 20),
-                ],
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 4),
+            // Time filter checkbox on the right
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Checkbox(
+                  value: _useTimeFilter,
+                  onChanged: (bool? value) {
+                    setState(() {
+                      _useTimeFilter = value ?? false;
+                    });
+                    _loadReport();
+                  },
+                ),
+                Icon(Icons.access_time, color: Colors.grey.shade600, size: 20),
+              ],
+            ),
+          ],
+        ),
           // Time selection (shown when checkbox is enabled)
           if (_useTimeFilter) ...[
             const SizedBox(height: 12),
@@ -2041,11 +2466,51 @@ Widget _buildDateRangeSelector() {
           ],
         ],
       ),
-    ),
-  );
+    );
 }
-  Widget _buildReportContent() {
+
+  Future<void> _selectCustomDate(bool isStart) async {
+    final DateTime baseDate = isStart ? _startDate : _endDate;
+    DateTime initialDate = DateTime(baseDate.year, baseDate.month, baseDate.day);
+    
+    final DateTime now = DateTime.now();
+    final DateTime maxDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    if (initialDate.isAfter(maxDate)) {
+      initialDate = DateTime(now.year, now.month, now.day);
+    }
+    
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2020),
+      lastDate: maxDate,
+    );
+    
+    if (picked != null) {
+      setState(() {
+        if (isStart) {
+          _startDate = DateTime(picked.year, picked.month, picked.day);
+          if (_startDate.isAfter(_endDate)) {
+            _endDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
+          }
+        } else {
+          _endDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
+          if (_endDate.isBefore(_startDate)) {
+            _startDate = DateTime(picked.year, picked.month, picked.day);
+          }
+        }
+        _selectedReportType = 'custom';
+      });
+      _loadReport();
+    }
+  }
+
+Widget _buildReportContent() {
     if (_reportData == null) return const SizedBox();
+
+    if (_selectedReportType == 'profit') {
+      return _buildProfitReportContent();
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -2062,6 +2527,112 @@ Widget _buildDateRangeSelector() {
           const SizedBox(height: 24),
           if (_reportData!['topItems'] != null)
             _buildTopItemsSection(),
+        ],
+      ),
+    );
+  }
+
+  // NEW: Dedicated view for Profit Report
+  Widget _buildProfitReportContent() {
+    final orders = _reportData!['orders'] as List? ?? [];
+    final totalProfit = _reportData!['totalProfit'] as double? ?? 0.0;
+    final totalCost = _reportData!['totalCost'] as double? ?? 0.0;
+    final totalRevenue = (_reportData!['summary']?['totalRevenue']) as double? ?? 0.0;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Profit Summary
+          Row(
+            children: [
+              Expanded(
+                child: _buildSummaryCard(
+                  'Total Revenue'.tr(),
+                  totalRevenue.toStringAsFixed(3),
+                  Icons.attach_money,
+                  Colors.green,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildSummaryCard(
+                  'Total Cost'.tr(),
+                  totalCost.toStringAsFixed(3),
+                  Icons.shopping_cart,
+                  Colors.orange,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildSummaryCard(
+                  'Total Profit'.tr(),
+                  totalProfit.toStringAsFixed(3),
+                  Icons.insights,
+                  totalProfit >= 0 ? Colors.blue : Colors.red,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          
+          Text(
+            'Bill-wise Breakdown'.tr(),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          
+          // Profit List View
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: orders.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Center(child: Text('No orders found'.tr())),
+                  )
+                : ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: orders.length,
+                    separatorBuilder: (context, index) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final order = orders[index] as Map<String, dynamic>;
+                      final id = order['id'];
+                      final effectiveRev = order['effectiveRevenue'] as double? ?? 0.0;
+                      final cost = order['cost'] as double? ?? 0.0;
+                      final profit = order['profit'] as double? ?? 0.0;
+                      
+                      return ListTile(
+                        title: Text('Order #$id'.tr(), style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('${'Sale:'.tr()} ${effectiveRev.toStringAsFixed(3)}'),
+                            Text('${'Cost:'.tr()} ${cost.toStringAsFixed(3)}'),
+                          ],
+                        ),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              profit.toStringAsFixed(3),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: profit >= 0 ? Colors.green.shade700 : Colors.red.shade700,
+                              ),
+                            ),
+                            Text('Profit'.tr(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
         ],
       ),
     );

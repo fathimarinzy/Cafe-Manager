@@ -55,3 +55,6 @@ verify_paths.bat
 build_installer.bat
 installer_output/
 test_certificate.pfx
+
+lib/screens/privacy_policy_screen.dart
+PRIVACY_POLICY.md

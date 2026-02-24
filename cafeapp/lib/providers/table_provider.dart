@@ -7,7 +7,33 @@ class TableProvider with ChangeNotifier {
   List<TableModel> _tables = [];
   final String _storageKey = 'dining_tables';
 
+  /// Default table categories available for selection.
+  static const List<String> defaultCategories = [
+    'Main Area',
+    'Family Section',
+    'Common Section',
+    'Outside Area',
+    'Majlis',
+    '1st Floor',
+    '2nd Floor',
+  ];
+
   List<TableModel> get tables => [..._tables];
+
+  /// Returns the distinct, ordered set of categories that currently have tables,
+  /// preserving the default-categories order and appending any custom ones.
+  List<String> get activeCategories {
+    final used = _tables.map((t) => t.category).toSet();
+    final ordered = <String>[];
+    for (final cat in defaultCategories) {
+      if (used.contains(cat)) ordered.add(cat);
+    }
+    // Append any custom categories not in the default list
+    for (final cat in used) {
+      if (!defaultCategories.contains(cat)) ordered.add(cat);
+    }
+    return ordered;
+  }
 
   TableProvider() {
     _loadTables();
@@ -114,6 +140,24 @@ class TableProvider with ChangeNotifier {
     _tables.removeWhere((table) => table.id == id);
     await _saveTables();
     notifyListeners();
+  }
+
+  // Method to globally rename a category
+  Future<void> renameCategory(String oldName, String newName) async {
+    if (oldName == newName) return;
+    
+    bool madeChanges = false;
+    for (int i = 0; i < _tables.length; i++) {
+      if (_tables[i].category == oldName) {
+        _tables[i].category = newName;
+        madeChanges = true;
+      }
+    }
+    
+    if (madeChanges) {
+      await _saveTables();
+      notifyListeners();
+    }
   }
 
   Future<void> toggleTableStatus(String id) async {

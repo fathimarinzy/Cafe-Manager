@@ -25,6 +25,9 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
   int _columns = 4; // Default columns
   int _rows = 4;    // Default rows
   
+  // Category filter (null means "All")
+  String? _selectedCategory;
+  
   @override
   void initState() {
     super.initState();
@@ -160,7 +163,7 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Statistics / Summary Row (Optional - keep simple for now)
+              // Statistics / Summary Row
               Row(
                 children: [
                    _buildStatusChip('Total: ${tables.length}', Colors.blueGrey),
@@ -170,18 +173,90 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
                    _buildStatusChip('Available: ${tables.where((t) => !t.isOccupied).length}', Colors.green),
                 ],
               ),
-              const SizedBox(height: 16), 
+              const SizedBox(height: 12),
+
+              // Category Filter Tabs
+              if (tableProvider.activeCategories.length > 1)
+                SizedBox(
+                  height: 40,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      // "All" chip
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text('All'.tr()),
+                          selected: _selectedCategory == null,
+                          onSelected: (_) {
+                            setState(() => _selectedCategory = null);
+                          },
+                          selectedColor: Colors.blue[100],
+                          labelStyle: TextStyle(
+                            color: _selectedCategory == null ? Colors.blue[900] : Colors.black87,
+                            fontWeight: _selectedCategory == null ? FontWeight.bold : FontWeight.normal,
+                            fontSize: 13,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(
+                              color: _selectedCategory == null ? Colors.blue[300]! : Colors.grey[300]!,
+                            ),
+                          ),
+                          backgroundColor: Colors.white,
+                        ),
+                      ),
+                      // Category chips
+                      ...tableProvider.activeCategories.map((cat) {
+                        final isSelected = _selectedCategory == cat;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(cat.tr()),
+                            selected: isSelected,
+                            onSelected: (_) {
+                              setState(() => _selectedCategory = cat);
+                            },
+                            selectedColor: Colors.blue[100],
+                            labelStyle: TextStyle(
+                              color: isSelected ? Colors.blue[900] : Colors.black87,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              fontSize: 13,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              side: BorderSide(
+                                color: isSelected ? Colors.blue[300]! : Colors.grey[300]!,
+                              ),
+                            ),
+                            backgroundColor: Colors.white,
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              if (tableProvider.activeCategories.length > 1)
+                const SizedBox(height: 12),
 
               Expanded(
-                child: tables.isEmpty 
-                  ? Center(
+                child: () {
+                  // Apply category filter
+                  final filteredTables = _selectedCategory == null
+                      ? tables
+                      : tables.where((t) => t.category == _selectedCategory).toList();
+
+                  if (filteredTables.isEmpty) {
+                    return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(Icons.table_restaurant_outlined, size: 64, color: Colors.grey[300]),
                           const SizedBox(height: 16),
                           Text(
-                            'No tables available'.tr(),
+                            _selectedCategory != null
+                                ? 'No tables in this section'.tr()
+                                : 'No tables available'.tr(),
                             style: TextStyle(color: Colors.grey[600], fontSize: 16),
                           ),
                           const SizedBox(height: 8),
@@ -191,49 +266,48 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
                           ),
                         ],
                       ),
-                    )
-                  : LayoutBuilder(
-                      builder: (context, constraints) {
-                        // Calculate the size for each table card based on available space
-                        final double maxWidth = constraints.maxWidth;
-                        final double maxHeight = constraints.maxHeight;
-                        
-                        // Calculate card width and height with spacing considered
-                        final cardWidth = (maxWidth - ((_columns - 1) * 12)) / _columns;
-                        final cardHeight = (maxHeight - ((_rows - 1) * 12)) / _rows;
-                        
-                        // Use a fixed aspect ratio
-                        final aspectRatio = cardWidth / cardHeight;
-                                          
-                        return GridView.builder(
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: _columns,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                            childAspectRatio: aspectRatio > 0 ? aspectRatio : 1.0,
-                          ),
-                          itemCount: tables.length,
-                          itemBuilder: (context, index) {
-                            if (index >= tables.length) {
-                              return const SizedBox.shrink(); // Empty space for extra cells
-                            }
-                            
-                            final table = tables[index];
-                            
-                            // Get the OrderProvider
-                            final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-                            final String serviceType = 'Dining - Table ${table.number}';
+                    );
+                  }
 
-                            return _buildTableCard(
-                              table.number,
-                              table.isOccupied,
-                              orderProvider,
-                              serviceType,
-                            );
-                          },
-                        );
-                      }
-                    ),
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      // Calculate the size for each table card based on available space
+                      final double maxWidth = constraints.maxWidth;
+                      final double maxHeight = constraints.maxHeight;
+                      
+                      // Calculate card width and height with spacing considered
+                      final cardWidth = (maxWidth - ((_columns - 1) * 12)) / _columns;
+                      final cardHeight = (maxHeight - ((_rows - 1) * 12)) / _rows;
+                      
+                      // Use a fixed aspect ratio
+                      final aspectRatio = cardWidth / cardHeight;
+                                        
+                      return GridView.builder(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: _columns,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          childAspectRatio: aspectRatio > 0 ? aspectRatio : 1.0,
+                        ),
+                        itemCount: filteredTables.length,
+                        itemBuilder: (context, index) {
+                          final table = filteredTables[index];
+                          
+                          // Get the OrderProvider
+                          final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+                          final String serviceType = 'Dining - Table ${table.number}';
+
+                          return _buildTableCard(
+                            table.number,
+                            table.isOccupied,
+                            orderProvider,
+                            serviceType,
+                          );
+                        },
+                      );
+                    }
+                  );
+                }(),
               ),
             ],
           ),

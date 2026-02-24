@@ -143,6 +143,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
               quantity: item.quantity,
               kitchenNote: item.kitchenNote,
               taxExempt: item.taxExempt,
+              purchasePrice: item.purchasePrice,
             )
           ).toList();
           _isLoading = false;
@@ -339,6 +340,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
           quantity: item.quantity,
           kitchenNote: item.kitchenNote,
           taxExempt: item.taxExempt,
+          purchasePrice: item.purchasePrice,
         )
       ).toList();
 
@@ -630,6 +632,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                                 quantity: item.quantity - 1,
                                                 kitchenNote: item.kitchenNote,
                                                 taxExempt: item.taxExempt,
+                                                purchasePrice: item.purchasePrice,
                                               );
                                             });
                                           }
@@ -654,6 +657,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                               quantity: item.quantity + 1,
                                               kitchenNote: item.kitchenNote,
                                               taxExempt: item.taxExempt,
+                                              purchasePrice: item.purchasePrice,
                                             );
                                           });
                                         },
@@ -1063,6 +1067,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                       quantity: quantity,
                       kitchenNote: selectedItem!.kitchenNote,
                       taxExempt: selectedItem!.taxExempt, // NEW: Include tax-exempt status
+                      purchasePrice: selectedItem!.purchasePrice,
                     );
                     
                     setState(() {

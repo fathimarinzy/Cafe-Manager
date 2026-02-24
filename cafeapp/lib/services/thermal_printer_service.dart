@@ -2070,20 +2070,57 @@ static Future<Uint8List?> _generateKotImage({
 
         contentHeight += 2 + 15; // Line + generous space
 
-        // Revenue Breakdown Section  
-        final revenueHeaderPainter = _createTextPainter(
-          'Revenue Breakdown',
-          fontSize: _fontSize - 2,
-          fontWeight: FontWeight.bold,
-        );
-        contentHeight += revenueHeaderPainter.height + 10; // Increased
+        final isProfitReport = reportTitle.contains('Profit');
 
-        contentHeight += 2 + 8; // Line + space
+        if (isProfitReport) {
+           final orders = reportData['orders'] as List? ?? [];
+           
+           // Profit Report Header
+           final profitHeaderPainter = _createTextPainter(
+             'Profit Summary',
+             fontSize: _fontSize - 2,
+             fontWeight: FontWeight.bold,
+           );
+           contentHeight += profitHeaderPainter.height + 10;
+           contentHeight += 2 + 8; // Line + space
 
-        // Revenue rows (Subtotal, Tax, Discounts, Total) - generous spacing
-        contentHeight += ((_fontSize - 2) + 8) * 4; // 4 revenue rows with more space
+           // Summary Rows
+           contentHeight += ((_fontSize - 2) + 8) * 3; // Revenue, Cost, Profit
+           contentHeight += 2 + 10; // Line + space
 
-        contentHeight += 2 + 12; // Line + space
+           // Bill Breakdown Header
+           final breakdownHeaderPainter = _createTextPainter(
+             'Bill-wise Breakdown',
+             fontSize: _fontSize - 2,
+             fontWeight: FontWeight.bold,
+           );
+           contentHeight += breakdownHeaderPainter.height + 10;
+           contentHeight += 2 + 8;
+
+           // Bill Columns Header
+           contentHeight += (_fontSize - 2) + 8;
+           contentHeight += 2 + 6;
+
+           // Bill Rows
+           contentHeight += ((_fontSize - 2) + 12) * orders.length;
+           contentHeight += 2 + 15;
+
+        } else {
+            // Revenue Breakdown Section  
+            final revenueHeaderPainter = _createTextPainter(
+              'Revenue Breakdown',
+              fontSize: _fontSize - 2,
+              fontWeight: FontWeight.bold,
+            );
+            contentHeight += revenueHeaderPainter.height + 10; // Increased
+    
+            contentHeight += 2 + 8; // Line + space
+    
+            // Revenue rows (Subtotal, Tax, Discounts, Total) - generous spacing
+            contentHeight += ((_fontSize - 2) + 8) * 4; // 4 revenue rows with more space
+    
+            contentHeight += 2 + 12; // Line + space
+        }
 
         // Footer - generous spacing
         // contentHeight += (_fontSize - 2) + 8; // "End of Report"
@@ -2270,41 +2307,115 @@ static Future<Uint8List?> _generateKotImage({
       
       currentY += 8;
       
-      // Revenue Breakdown Section
-      currentY = _drawText(
-        canvas,
-        'Revenue Breakdown',
-        x: _padding,
-        y: currentY,
-        fontSize: _fontSize - 2,
-        fontWeight: FontWeight.bold,
-        textAlign: TextAlign.center,
-      );
-      
-      currentY = _drawLine(canvas, currentY);
-      
-      // Revenue rows
-      currentY = _drawReportRow(canvas, [
-        {'text': 'Subtotal:', 'width': 0.66, 'align': 'right'},
-        {'text': currencyFormat.format(revenue['subtotal'] as double? ?? 0.0), 'width': 0.34, 'align': 'right'},
-      ], currentY);
-      
-      currentY = _drawReportRow(canvas, [
-        {'text': 'Tax:', 'width': 0.66, 'align': 'right'},
-        {'text': currencyFormat.format(revenue['tax'] as double? ?? 0.0), 'width': 0.34, 'align': 'right'},
-      ], currentY);
-      
-      currentY = _drawReportRow(canvas, [
-        {'text': 'Discounts:', 'width': 0.66, 'align': 'right'},
-        {'text': currencyFormat.format(revenue['discounts'] as double? ?? 0.0), 'width': 0.34, 'align': 'right'},
-      ], currentY);
-      
-      currentY = _drawLine(canvas, currentY);
-      
-      currentY = _drawReportRow(canvas, [
-        {'text': 'Total Revenue:', 'width': 0.66, 'align': 'right', 'bold': true},
-        {'text': currencyFormat.format(revenue['total'] as double? ?? 0.0), 'width': 0.34, 'align': 'right', 'bold': true},
-      ], currentY);
+      if (isProfitReport) {
+          final totalProfit = reportData['totalProfit'] as double? ?? 0.0;
+          final totalCost = reportData['totalCost'] as double? ?? 0.0;
+          final orders = reportData['orders'] as List? ?? [];
+          final summaryTotalRev = (reportData['summary']?['totalRevenue']) as double? ?? 0.0;
+
+          // Profit Summary
+          currentY = _drawText(
+            canvas,
+            'Profit Summary',
+            x: _padding,
+            y: currentY,
+            fontSize: _fontSize - 2,
+            fontWeight: FontWeight.bold,
+            textAlign: TextAlign.center,
+          );
+          currentY = _drawLine(canvas, currentY);
+
+          currentY = _drawReportRow(canvas, [
+            {'text': 'Total Revenue:', 'width': 0.66, 'align': 'right'},
+            {'text': currencyFormat.format(summaryTotalRev), 'width': 0.34, 'align': 'right'},
+          ], currentY);
+
+          currentY = _drawReportRow(canvas, [
+            {'text': 'Total Cost:', 'width': 0.66, 'align': 'right'},
+            {'text': currencyFormat.format(totalCost), 'width': 0.34, 'align': 'right'},
+          ], currentY);
+
+          currentY = _drawLine(canvas, currentY);
+
+          currentY = _drawReportRow(canvas, [
+            {'text': 'Total Profit:', 'width': 0.66, 'align': 'right', 'bold': true},
+            {'text': currencyFormat.format(totalProfit), 'width': 0.34, 'align': 'right', 'bold': true},
+          ], currentY);
+
+          currentY += 8;
+          
+          // Bill-wise Breakdown
+          currentY = _drawText(
+            canvas,
+            'Bill-wise Breakdown',
+            x: _padding,
+            y: currentY,
+            fontSize: _fontSize - 2,
+            fontWeight: FontWeight.bold,
+            textAlign: TextAlign.center,
+          );
+          currentY = _drawLine(canvas, currentY);
+
+          currentY = _drawReportRow(canvas, [
+            {'text': 'Order #', 'width': 0.25, 'bold': true},
+            {'text': 'Sale', 'width': 0.25, 'bold': true, 'align': 'right'},
+            {'text': 'Cost', 'width': 0.25, 'bold': true, 'align': 'right'},
+            {'text': 'Profit', 'width': 0.25, 'bold': true, 'align': 'right'},
+          ], currentY);
+          currentY = _drawLine(canvas, currentY);
+
+          for (var order in orders) {
+             final orderMap = order as Map<String, dynamic>;
+             final id = orderMap['id'].toString();
+             final effectiveRev = orderMap['effectiveRevenue'] as double? ?? 0.0;
+             final cost = orderMap['cost'] as double? ?? 0.0;
+             final profit = orderMap['profit'] as double? ?? 0.0;
+
+             currentY = _drawReportRow(canvas, [
+               {'text': id, 'width': 0.25},
+               {'text': currencyFormat.format(effectiveRev), 'width': 0.25, 'align': 'right'},
+               {'text': currencyFormat.format(cost), 'width': 0.25, 'align': 'right'},
+               {'text': currencyFormat.format(profit), 'width': 0.25, 'align': 'right'},
+             ], currentY);
+          }
+
+      } else {
+        // Revenue Breakdown Section
+        currentY = _drawText(
+          canvas,
+          'Revenue Breakdown',
+          x: _padding,
+          y: currentY,
+          fontSize: _fontSize - 2,
+          fontWeight: FontWeight.bold,
+          textAlign: TextAlign.center,
+        );
+        
+        currentY = _drawLine(canvas, currentY);
+        
+        // Revenue rows
+        currentY = _drawReportRow(canvas, [
+          {'text': 'Subtotal:', 'width': 0.66, 'align': 'right'},
+          {'text': currencyFormat.format(revenue['subtotal'] as double? ?? 0.0), 'width': 0.34, 'align': 'right'},
+        ], currentY);
+        
+        currentY = _drawReportRow(canvas, [
+          {'text': 'Tax:', 'width': 0.66, 'align': 'right'},
+          {'text': currencyFormat.format(revenue['tax'] as double? ?? 0.0), 'width': 0.34, 'align': 'right'},
+        ], currentY);
+        
+        currentY = _drawReportRow(canvas, [
+          {'text': 'Discounts:', 'width': 0.66, 'align': 'right'},
+          {'text': currencyFormat.format(revenue['discounts'] as double? ?? 0.0), 'width': 0.34, 'align': 'right'},
+        ], currentY);
+        
+        currentY = _drawLine(canvas, currentY);
+        
+        currentY = _drawReportRow(canvas, [
+          {'text': 'Total Revenue:', 'width': 0.66, 'align': 'right', 'bold': true},
+          {'text': currencyFormat.format(revenue['total'] as double? ?? 0.0), 'width': 0.34, 'align': 'right', 'bold': true},
+        ], currentY);
+      }
       
       // Footer
       currentY += 8;

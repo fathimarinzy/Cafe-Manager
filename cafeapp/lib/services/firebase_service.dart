@@ -1,27 +1,72 @@
 import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' as native; // Alias native
 import 'package:flutter/foundation.dart';
 import '../firebase_options.dart';
 import 'dart:math';
 import 'dart:async';
 import '../screens/renewal_screen.dart';
 
+// NEW: Adapter imports
+import 'firestore_adapter.dart';
+import 'package:firedart/firedart.dart' as fd; // Pure Dart Firestore
+
+// NEW: Global flag to check if we are in Legacy Mode
+bool get isLegacyMode => _isLegacyMode;
+bool _isLegacyMode = false;
+
+/// In-memory token store for Firedart's FirebaseAuth
+/// Tokens are lost on app restart (re-authenticates on startup)
+class VolatileStore extends fd.TokenStore {
+  fd.Token? _token;
+  
+  @override
+  fd.Token? read() => _token;
+  
+  @override
+  void write(fd.Token? token) => _token = token;
+  
+  @override
+  void delete() => _token = null;
+}
+
 class FirebaseService {
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  // CHANGED: Use the adapter interface instead of direct Firestore instance
+  static FirestoreInterface get _firestore => FirestoreAdapter.instance;
+  
   static const String _companiesCollection = 'online_registrations';
   static const String _pendingRegistrationsCollection = 'pending_registrations';
   static const String _demoRegistrationsCollection = 'demo_registrations';
   static const String _offlineRegistrationsCollection = 'offline_registrations'; // NEW: Offline collection
+  // NEW: Helper for Server Timestamp (Firedart uses DateTime.now(), Native uses FieldValue)
+  static dynamic getServerTimestamp() {
+    if (_isLegacyMode) {
+      return DateTime.now().toUtc();
+    } else {
+      return native.FieldValue.serverTimestamp(); // Use native alias
+    }
+  }
+
+  // NEW: Helper to convert dynamic timestamp to DateTime
+  static DateTime? toDateTime(dynamic value) {
+    if (value == null) return null;
+    if (value is native.Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
+    return null;
+  }
+
   static bool _isInitialized = false;
+  static bool get isInitialized => _isInitialized;
   static bool _isOfflineMode = false;
   static Completer<void>? _initCompleter;
   static const String _pendingRenewalsCollection = 'pending_renewals';
   static const String _renewalHistoryCollection = 'renewal_history';
 
   // Quick initialization that doesn't block app startup
-  static void initializeQuickly() {
+  static void initializeQuickly({bool useLegacyMode = false}) {
     if (_isInitialized || _initCompleter != null) return;
     
+    _isLegacyMode = useLegacyMode; // Set the mode
     _initCompleter = Completer<void>();
     
     // Initialize in background without blocking
@@ -42,22 +87,53 @@ class FirebaseService {
   // Background initialization with shorter timeout
   static Future<void> _backgroundInitialization() async {
     try {
-      debugPrint('🔵 Background Firebase initialization...');
+      debugPrint('🔵 Background Firebase initialization... (Legacy Mode: $_isLegacyMode)');
       
-      await Future.any([
-        Firebase.initializeApp(
-          options: DefaultFirebaseOptions.currentPlatform,
-        ),
-        Future.delayed(const Duration(seconds: 30), () {
-          throw TimeoutException('Firebase initialization timed out', const Duration(seconds: 30));
-        }),
-      ]);
-      
-      _isInitialized = true;
-      _isOfflineMode = false;
-      debugPrint('✅ Background Firebase initialized successfully');
-      
-      _setupOfflinePersistence();
+      if (_isLegacyMode) {
+        // Initialize Pure Dart Firestore (Firedart)
+        debugPrint('🔥 Initializing Firedart...');
+        
+        const projectId = 'simscafe-c743e'; 
+        
+        // Firedart requires Firebase Auth for authenticated Firestore writes.
+        const apiKey = 'AIzaSyB1ggenNDwBP6NZ3_pYH3htNCHBTS395O0';
+        fd.FirebaseAuth.initialize(apiKey, VolatileStore());
+        try {
+          await fd.FirebaseAuth.instance.signInAnonymously();
+          debugPrint('✅ Firedart anonymous auth successful');
+        } catch (authError) {
+          debugPrint('⚠️ Firedart anonymous auth failed: $authError');
+        }
+        
+        fd.Firestore.initialize(projectId);
+        
+        // Initialize the adapter
+        FirestoreAdapter.initialize(usePureDart: true);
+        
+        _isInitialized = true;
+        _isOfflineMode = false;
+        debugPrint('✅ Firedart initialized successfully');
+
+      } else {
+        // Standard Native Initialization
+        await Future.any([
+          Firebase.initializeApp(
+            options: DefaultFirebaseOptions.currentPlatform,
+          ),
+          Future.delayed(const Duration(seconds: 30), () {
+            throw TimeoutException('Firebase initialization timed out', const Duration(seconds: 30));
+          }),
+        ]);
+        
+        // Initialize the adapter
+        FirestoreAdapter.initialize(usePureDart: false);
+        
+        _isInitialized = true;
+        _isOfflineMode = false;
+        debugPrint('✅ Background Native Firebase initialized successfully');
+        
+        _setupOfflinePersistence();
+      }
       
     } catch (e) {
       debugPrint('⚠️ Background Firebase initialization failed: $e');
@@ -66,12 +142,14 @@ class FirebaseService {
     }
   }
 
-  // Setup offline persistence without blocking
+  // Setup offline persistence without blocking (Native Only)
   static void _setupOfflinePersistence() {
+    if (_isLegacyMode) return; // Firedart doesn't support this settings API
+    
     try {
-      _firestore.settings = const Settings(
+      native.FirebaseFirestore.instance.settings = const native.Settings(
         persistenceEnabled: true,
-        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+        cacheSizeBytes: native.Settings.CACHE_SIZE_UNLIMITED,
       );
       debugPrint('✅ Firestore offline persistence enabled');
     } catch (e) {
@@ -97,6 +175,10 @@ class FirebaseService {
     }
     
     if (!_isInitialized) {
+      if (_isLegacyMode) {
+         // If firedart failed to init for some reason, try one last time synchronously?
+         // No, just mark offline.
+      }
       _isOfflineMode = true;
       _isInitialized = true;
     }
@@ -169,7 +251,7 @@ class FirebaseService {
       'registrationKeys': registrationKeys,
       'registrationType': 'offline',
       'isActive': true,
-      'syncedAt': FieldValue.serverTimestamp(),
+      'syncedAt': getServerTimestamp(),
     };
     
     debugPrint('📦 Data to be stored: $offlineData');
@@ -184,7 +266,7 @@ class FirebaseService {
           .doc(docId)
           .update({
         ...offlineData,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': getServerTimestamp(),
       }).timeout(
         const Duration(seconds: 10),
         onTimeout: () {
@@ -202,7 +284,7 @@ class FirebaseService {
     } else {
       // Create new offline registration
       debugPrint('➕ Creating new offline registration document');
-      offlineData['createdAt'] = FieldValue.serverTimestamp();
+      offlineData['createdAt'] = getServerTimestamp();
       
       final docRef = await _firestore
           .collection(_offlineRegistrationsCollection)
@@ -293,7 +375,7 @@ class FirebaseService {
           'businessAddress': businessAddress,
           'businessPhone': businessPhone,
           'businessEmail': businessEmail,
-          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedAt': getServerTimestamp(),
         });
 
         debugPrint('✅ Demo registration updated with ID: $docId');
@@ -313,10 +395,8 @@ class FirebaseService {
           'deviceId': deviceId,
           'registrationType': 'demo',
           'isActive': true,
-          'createdAt': FieldValue.serverTimestamp(),
-          'expiresAt': Timestamp.fromDate(
-            DateTime.now().add(const Duration(days: 30)),
-          ),
+          'createdAt': getServerTimestamp(),
+          'expiresAt': DateTime.now().add(const Duration(days: 30)),
         };
 
         final docRef = await _firestore
@@ -443,10 +523,8 @@ class FirebaseService {
         'businessName': businessName ?? '',
         'businessEmail': businessEmail ?? '',
         'status': 'pending',
-        'createdAt': FieldValue.serverTimestamp(),
-        'expiresAt': Timestamp.fromDate(
-          DateTime.now().add(const Duration(days: 7)),
-        ),
+        'createdAt': getServerTimestamp(),
+        'expiresAt': DateTime.now().add(const Duration(days: 7)),
       };
 
       final docRef = await _firestore
@@ -496,8 +574,8 @@ class FirebaseService {
         final doc = querySnapshot.docs.first;
         final data = doc.data();
         
-        final expiresAt = data['expiresAt'] as Timestamp?;
-        if (expiresAt != null && expiresAt.toDate().isBefore(DateTime.now())) {
+        final expiresAt = toDateTime(data['expiresAt']);
+        if (expiresAt != null && expiresAt.isBefore(DateTime.now())) {
           debugPrint('⚠️ Pending registration keys have expired');
           return {
             'success': false,
@@ -627,8 +705,8 @@ class FirebaseService {
       'deviceId': deviceId,
       'registrationType': 'online', // Distinguish from demo
       'isActive': true,
-      'registeredAt': FieldValue.serverTimestamp(),
-      'lastLoginAt': FieldValue.serverTimestamp(),
+      'registeredAt': getServerTimestamp(),
+      'lastLoginAt': getServerTimestamp(),
     };
 
     final docRef = await _firestore
@@ -640,7 +718,7 @@ class FirebaseService {
         .doc(pendingId)
         .update({
       'status': 'used',
-      'usedAt': FieldValue.serverTimestamp(),
+      'usedAt': getServerTimestamp(),
       'companyId': docRef.id,
     });
 
@@ -888,7 +966,7 @@ class FirebaseService {
             .collection(_companiesCollection)
             .doc(companyId)
             .update({
-          'lastLoginAt': FieldValue.serverTimestamp(),
+          'lastLoginAt': getServerTimestamp(),
         }),
         Future.delayed(const Duration(seconds: 5), () {
           throw TimeoutException('Update last login timed out');
@@ -977,10 +1055,8 @@ class FirebaseService {
         'businessEmail': businessEmail ?? '',
         'renewalType': renewalType.toString(),
         'status': 'pending',
-        'createdAt': FieldValue.serverTimestamp(),
-        'expiresAt': Timestamp.fromDate(
-          DateTime.now().add(const Duration(days: 7)),
-        ),
+        'createdAt': getServerTimestamp(),
+        'expiresAt': DateTime.now().add(const Duration(days: 7)),
       };
 
       final docRef = await _firestore
@@ -1030,8 +1106,8 @@ class FirebaseService {
         final doc = querySnapshot.docs.first;
         final data = doc.data();
         
-        final expiresAt = data['expiresAt'] as Timestamp?;
-        if (expiresAt != null && expiresAt.toDate().isBefore(DateTime.now())) {
+        final expiresAt = toDateTime(data['expiresAt']);
+        if (expiresAt != null && expiresAt.isBefore(DateTime.now())) {
           debugPrint('⚠️ Pending renewal keys have expired');
           return {
             'success': false,
@@ -1146,7 +1222,7 @@ class FirebaseService {
       'renewalKeys': renewalKeys,
       'deviceId': deviceId,
       'renewalType': renewalType.toString(),
-      'renewedAt': FieldValue.serverTimestamp(),
+      'renewedAt': getServerTimestamp(),
       'renewalPeriod': renewalPeriod,
       'status': 'completed',
       'upgradedFromDemo': renewalType == RenewalType.demo, // Flag to track demo upgrades
@@ -1163,7 +1239,7 @@ class FirebaseService {
         .doc(renewalId)
         .update({
       'status': 'used',
-      'usedAt': FieldValue.serverTimestamp(),
+      'usedAt': getServerTimestamp(),
       'renewalHistoryId': docRef.id,
     });
 
@@ -1182,7 +1258,7 @@ class FirebaseService {
               .doc(demoQuery.docs.first.id)
               .update({
             'upgradedToLicense': true,
-            'upgradeDate': FieldValue.serverTimestamp(),
+            'upgradeDate': getServerTimestamp(),
             'isActive': false, // Deactivate demo
           });
         }
@@ -1356,8 +1432,8 @@ static Future<Map<String, dynamic>> upgradeDemoToOnlineRegistration({
       'deviceId': deviceId,
       'registrationType': 'online',
       'isActive': true,
-      'registeredAt': FieldValue.serverTimestamp(),
-      'lastLoginAt': FieldValue.serverTimestamp(),
+      'registeredAt': getServerTimestamp(),
+      'lastLoginAt': getServerTimestamp(),
       'upgradedFromDemo': true, // Flag to indicate this was upgraded from demo
       'originalDemoId': actualDemoCompanyId, // Reference to original demo registration
     };
@@ -1378,7 +1454,7 @@ static Future<Map<String, dynamic>> upgradeDemoToOnlineRegistration({
             .doc(actualDemoCompanyId)
             .update({
           'upgradedToLicense': true,
-          'upgradeDate': FieldValue.serverTimestamp(),
+          'upgradeDate': getServerTimestamp(),
           'isActive': false,
           'upgradedToCompanyId': docRef.id, // Link to new online registration
         });
@@ -1437,7 +1513,7 @@ static Future<Map<String, dynamic>> upgradeDemoToOnlineRegistration({
         'businessAddress': businessAddress,
         'businessPhone': businessPhone,
         'businessEmail': businessEmail,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': getServerTimestamp(),
       });
 
       debugPrint('✅ Online registration business info updated successfully');
@@ -1485,7 +1561,7 @@ static Future<Map<String, dynamic>> upgradeDemoToOnlineRegistration({
         'businessAddress': businessAddress,
         'businessPhone': businessPhone,
         'businessEmail': businessEmail,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedAt': getServerTimestamp(),
       });
 
       debugPrint('✅ Demo registration business info updated successfully');

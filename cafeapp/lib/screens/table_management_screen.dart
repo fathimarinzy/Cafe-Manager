@@ -50,7 +50,7 @@ class _TableManagementScreenState extends State<TableManagementScreen> {
                       ),
                     ),
                     title: Text('${'Table'.tr()} ${table.number}'),
-                    subtitle: Text('${'Capacity'.tr()}: ${table.capacity} | ${table.isOccupied ? 'Occupied'.tr() : 'Available'.tr()}'),
+                    subtitle: Text('${table.category.tr()} • ${'Capacity'.tr()}: ${table.capacity} • ${table.isOccupied ? 'Occupied'.tr() : 'Available'.tr()}'),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -137,6 +137,7 @@ class _AddTableDialogState extends State<_AddTableDialog> {
   final _capacityFocus = FocusNode();
   final _noteFocus = FocusNode();
   bool _isOccupied = false;
+  String _selectedCategory = TableProvider.defaultCategories.first;
 
   @override
   void dispose() {
@@ -222,6 +223,45 @@ class _AddTableDialogState extends State<_AddTableDialog> {
                   ),
                 ),
                 const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedCategory,
+                        decoration: InputDecoration(
+                          labelText: 'Category'.tr(),
+                          border: const OutlineInputBorder(),
+                          helperText: 'Table area / section'.tr(),
+                        ),
+                        items: [
+                          ...Provider.of<TableProvider>(context, listen: false).activeCategories
+                              .followedBy(Provider.of<TableProvider>(context, listen: false).activeCategories.contains(_selectedCategory) ? [] : [_selectedCategory])
+                              .map((cat) {
+                            return DropdownMenuItem(value: cat, child: Text(cat.tr()));
+                          }),
+                          DropdownMenuItem(value: 'Add New...', child: Text('+ Add New Category'.tr(), style: const TextStyle(color: Colors.blue))),
+                        ],
+                        onChanged: (value) {
+                          if (value == 'Add New...') {
+                            _showAddCategoryDialog(context);
+                          } else if (value != null) {
+                            setState(() => _selectedCategory = value);
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Tooltip(
+                      message: 'Add New Category'.tr(),
+                      child: IconButton(
+                        icon: const Icon(Icons.add_circle_outline, color: Colors.blue),
+                        onPressed: () => _showAddCategoryDialog(context),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
                 SwitchListTile(
                   title: Text('Table Status'.tr()),
                   subtitle: Text(_isOccupied ? 'Occupied'.tr() : 'Available'.tr()),
@@ -271,6 +311,7 @@ class _AddTableDialogState extends State<_AddTableDialog> {
                           capacity: capacity,
                           isOccupied: _isOccupied,
                           note: _noteController.text,
+                          category: _selectedCategory,
                         );
                         
                         Provider.of<TableProvider>(context, listen: false)
@@ -285,6 +326,42 @@ class _AddTableDialogState extends State<_AddTableDialog> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _showAddCategoryDialog(BuildContext context) {
+    final TextEditingController newCatController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('New Category'.tr()),
+        content: TextField(
+          controller: newCatController,
+          decoration: InputDecoration(
+            labelText: 'Category Name'.tr(),
+            border: const OutlineInputBorder(),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            child: Text('Cancel'.tr()),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+          ElevatedButton(
+            child: Text('Add'.tr()),
+            onPressed: () {
+              final val = newCatController.text.trim();
+              if (val.isNotEmpty) {
+                setState(() {
+                  _selectedCategory = val;
+                });
+                Navigator.of(ctx).pop();
+              }
+            },
+          ),
+        ],
       ),
     );
   }
@@ -306,6 +383,7 @@ class _EditTableDialogState extends State<_EditTableDialog> {
   final _capacityFocus = FocusNode();
   final _noteFocus = FocusNode();
   late bool _isOccupied;
+  late String _selectedCategory;
 
   @override
   void initState() {
@@ -314,6 +392,7 @@ class _EditTableDialogState extends State<_EditTableDialog> {
     _capacityController = TextEditingController(text: widget.table.capacity.toString());
     _noteController = TextEditingController(text: widget.table.note);
     _isOccupied = widget.table.isOccupied;
+    _selectedCategory = widget.table.category;
   }
 
   @override
@@ -400,6 +479,57 @@ class _EditTableDialogState extends State<_EditTableDialog> {
                   ),
                 ),
                 const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedCategory,
+                        decoration: InputDecoration(
+                          labelText: 'Category'.tr(),
+                          border: const OutlineInputBorder(),
+                          helperText: 'Table area / section'.tr(),
+                        ),
+                        items: [
+                          ...Provider.of<TableProvider>(context, listen: false).activeCategories
+                              .followedBy(Provider.of<TableProvider>(context, listen: false).activeCategories.contains(_selectedCategory) ? [] : [_selectedCategory])
+                              .map((cat) {
+                            return DropdownMenuItem(value: cat, child: Text(cat.tr()));
+                          }),
+                          DropdownMenuItem(value: 'Add New...', child: Text('+ Add New Category'.tr(), style: const TextStyle(color: Colors.blue))),
+                        ],
+                        onChanged: (value) {
+                          if (value == 'Add New...') {
+                            _showAddCategoryDialog(context);
+                          } else if (value != null) {
+                            setState(() => _selectedCategory = value);
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Tooltip(
+                          message: 'Add New Category'.tr(),
+                          child: IconButton(
+                            icon: const Icon(Icons.add_circle_outline, color: Colors.blue),
+                            onPressed: () => _showAddCategoryDialog(context),
+                          ),
+                        ),
+                        Tooltip(
+                          message: 'Rename Category'.tr(),
+                          child: IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.blue),
+                            onPressed: () => _showEditCategoryDialog(context),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
                 SwitchListTile(
                   title: Text('Table Status'.tr()),
                   subtitle: Text(_isOccupied ? 'Occupied'.tr() : 'Available'.tr()),
@@ -449,6 +579,7 @@ class _EditTableDialogState extends State<_EditTableDialog> {
                           capacity: capacity,
                           isOccupied: _isOccupied,
                           note: _noteController.text,
+                          category: _selectedCategory,
                         );
                         
                         Provider.of<TableProvider>(context, listen: false)
@@ -463,6 +594,90 @@ class _EditTableDialogState extends State<_EditTableDialog> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _showAddCategoryDialog(BuildContext context) {
+    final TextEditingController newCatController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('New Category'.tr()),
+        content: TextField(
+          controller: newCatController,
+          decoration: InputDecoration(
+            labelText: 'Category Name'.tr(),
+            border: const OutlineInputBorder(),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            child: Text('Cancel'.tr()),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+          ElevatedButton(
+            child: Text('Add'.tr()),
+            onPressed: () {
+              final val = newCatController.text.trim();
+              if (val.isNotEmpty) {
+                setState(() {
+                  _selectedCategory = val;
+                });
+                Navigator.of(ctx).pop();
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditCategoryDialog(BuildContext context) {
+    if (_selectedCategory.isEmpty || _selectedCategory == 'Add New...') return;
+    final String oldCategory = _selectedCategory;
+    final TextEditingController editCatController = TextEditingController(text: oldCategory);
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Rename Category'.tr()),
+        content: TextField(
+          controller: editCatController,
+          decoration: InputDecoration(
+            labelText: 'New Name'.tr(),
+            border: const OutlineInputBorder(),
+            helperText: 'This will update all tables in this category'.tr(),
+            helperMaxLines: 2,
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            child: Text('Cancel'.tr()),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+          ElevatedButton(
+            child: Text('Save'.tr()),
+            onPressed: () async {
+              final newName = editCatController.text.trim();
+              if (newName.isNotEmpty && newName != oldCategory) {
+                // Update globally via provider
+                await Provider.of<TableProvider>(context, listen: false).renameCategory(oldCategory, newName);
+                if (!context.mounted) return;
+                if (mounted) {
+                  setState(() {
+                    _selectedCategory = newName;
+                  });
+                }
+                Navigator.of(ctx).pop();
+              } else {
+                Navigator.of(ctx).pop();
+              }
+            },
+          ),
+        ],
       ),
     );
   }

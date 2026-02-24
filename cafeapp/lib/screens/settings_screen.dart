@@ -35,6 +35,7 @@ import '../providers/person_provider.dart';
 import '../services/online_sync_service.dart';
 import '../services/logo_service.dart';
 import '../services/device_sync_service.dart'; // 🆕 Add this import
+import 'privacy_policy_screen.dart';
 
 
 
@@ -1703,8 +1704,33 @@ Future<void> _checkLicenseStatus() async {
                     ],
                   ),
                   subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text('Version 1.0.2'.tr()),
+                    padding: const EdgeInsets.only(top: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('Version 2.0.1'.tr(), style: const TextStyle(fontSize: 13)),
+                        const SizedBox(width: 8),
+                        const Text('•', style: TextStyle(color: Colors.grey)),
+                        const SizedBox(width: 8),
+                        InkWell(
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) => const PrivacyPolicyScreen(),
+                              ),
+                            );
+                          },
+                          child: Text(
+                            'Privacy Policy'.tr(),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.blue[700],
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   leading: const Icon(Icons.contact_support),
                 ),
