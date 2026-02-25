@@ -72,7 +72,8 @@ class OrderHistoryProvider with ChangeNotifier {
         return o.orderNumber.toString().contains(_billNumberQuery) ||
                (o.mainOrderNumber != null && o.mainOrderNumber.toString().contains(_billNumberQuery)) ||
                (o.tokenNumber != null && o.tokenNumber.toString().toLowerCase().contains(_billNumberQuery.toLowerCase())) ||
-               (o.customerName != null && o.customerName!.toLowerCase().contains(_billNumberQuery.toLowerCase()));
+               (o.customerName != null && o.customerName!.toLowerCase().contains(_billNumberQuery.toLowerCase())) ||
+               (o.serviceType.toLowerCase().contains(_billNumberQuery.toLowerCase()));
       }).toList();
 
     }

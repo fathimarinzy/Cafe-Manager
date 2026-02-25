@@ -3283,7 +3283,7 @@ class _SearchOrderDialogState extends State<_SearchOrderDialog> {
               focusNode: _searchFocus,
               autofocus: true,
               decoration: InputDecoration(
-                hintText: 'Enter Order #, Token #, or Customer Name'.tr(),
+                hintText: 'Enter Order #, Token #, Customer, or Table No.'.tr(),
                 prefixIcon: Icon(Icons.search, color:  Colors.blue.shade700),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),

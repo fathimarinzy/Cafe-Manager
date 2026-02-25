@@ -1502,7 +1502,7 @@ Future<void> _checkLicenseStatus() async {
                                   const SizedBox(width: 16),
                                   
                                   // Renew button (right side) - Show renewal option in last week
-                                  if (_remainingDemoDays <= 10)
+                                  // if (_remainingDemoDays <= 10)
                                     Container(
                                       alignment: Alignment.topCenter,
                                       child: ElevatedButton(
