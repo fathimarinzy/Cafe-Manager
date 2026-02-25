@@ -78,45 +78,112 @@ class DatabaseHelper {
   }
   
   /// Get the proper database path based on build mode and platform
+  /// Uses a STABLE user-profile path so data persists across app updates/relocations.
   static Future<String> getDatabasePath(String dbName) async {
-  // 🆕 PORTABLE MODE: Check if running from portable location
+  // DESKTOP: Use stable user-profile path (AppData/Roaming on Windows)
   if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
-    final executableDir = Directory(Platform.resolvedExecutable).parent;
-    final portableDataDir = Directory('${executableDir.path}/AppData/databases');
-    
-    // If AppData folder exists, we're in portable mode
-    if (await portableDataDir.parent.exists()) {
-      if (!await portableDataDir.exists()) {
-        await portableDataDir.create(recursive: true);
-      }
-      final dbPath = '${portableDataDir.path}/$dbName';
-      debugPrint('📁 PORTABLE Database path: $dbPath');
-      return dbPath;
-    }
-  }
-  
-  // 🆕 DESKTOP RELEASE MODE (existing but improved)
-  if (kReleaseMode && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
     try {
-      final appDocDir = await getApplicationDocumentsDirectory();
-      final dbDir = Directory('${appDocDir.path}/SimsCafe/databases');
-      if (!await dbDir.exists()) {
-        await dbDir.create(recursive: true);
+      // PRIMARY: Use getApplicationSupportDirectory() for a stable, 
+      // user-profile-based path that doesn't change when the EXE moves.
+      // Windows: C:\Users\<user>\AppData\Roaming\com.example.cafeapp\databases\
+      // macOS:   ~/Library/Application Support/com.example.cafeapp/databases/
+      // Linux:   ~/.local/share/com.example.cafeapp/databases/
+      final appSupportDir = await getApplicationSupportDirectory();
+      final stableDbDir = Directory('${appSupportDir.path}/databases');
+      
+      if (!await stableDbDir.exists()) {
+        await stableDbDir.create(recursive: true);
       }
-      final dbPath = '${dbDir.path}/$dbName';
-      debugPrint('📁 Release database path: $dbPath');
-      return dbPath;
+      
+      final stableDbPath = '${stableDbDir.path}/$dbName';
+      final stableFile = File(stableDbPath);
+      
+      // If the database already exists at the stable path, use it directly
+      if (await stableFile.exists()) {
+        debugPrint('📁 STABLE Database path: $stableDbPath');
+        return stableDbPath;
+      }
+      
+      // AUTO-MIGRATION: Check old locations and migrate if found
+      // This ensures existing users don't lose their data after updating
+      await _migrateFromOldPaths(dbName, stableDbDir.path);
+      
+      debugPrint('📁 STABLE Database path: $stableDbPath');
+      return stableDbPath;
     } catch (e) {
-      debugPrint('⚠️ Error creating release database path: $e');
+      debugPrint('⚠️ Error creating stable database path: $e');
     }
   }
   
-  // 🆕 FALLBACK: Default path (mobile/debug)
+  // MOBILE / FALLBACK: Default path
+  if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+    final dbPath = await getDatabasesPath();
+    final fullPath = join(dbPath, dbName);
+    debugPrint('📁 Mobile database path: $fullPath');
+    return fullPath;
+  }
+  
+  // ULTIMATE FALLBACK
   final dbPath = await getDatabasesPath();
   final fullPath = join(dbPath, dbName);
   debugPrint('📁 Default database path: $fullPath');
   return fullPath;
 }
+
+  /// Migrate databases from old locations to the new stable path.
+  /// Searches in order: portable mode path (next to EXE), Documents/SimsCafe path.
+  static Future<void> _migrateFromOldPaths(String dbName, String stableDir) async {
+    final List<String> oldPaths = [];
+    
+    // 1. Check old PORTABLE path (next to EXE)
+    try {
+      final executableDir = Directory(Platform.resolvedExecutable).parent;
+      final portablePath = '${executableDir.path}/AppData/databases/$dbName';
+      oldPaths.add(portablePath);
+    } catch (e) {
+      debugPrint('⚠️ Could not determine executable directory: $e');
+    }
+    
+    // 2. Check old DOCUMENTS path (SimsCafe/databases)
+    try {
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final docPath = '${appDocDir.path}/SimsCafe/databases/$dbName';
+      oldPaths.add(docPath);
+    } catch (e) {
+      debugPrint('⚠️ Could not determine documents directory: $e');
+    }
+    
+    // Try each old path and migrate the first one found
+    for (final oldPath in oldPaths) {
+      try {
+        final oldFile = File(oldPath);
+        if (await oldFile.exists()) {
+          final newPath = '$stableDir/$dbName';
+          debugPrint('🔄 MIGRATING database: $oldPath → $newPath');
+          
+          // Copy (not move) so the old location still works as backup
+          await oldFile.copy(newPath);
+          
+          // Also copy WAL and SHM files if they exist (SQLite journal files)
+          final walFile = File('$oldPath-wal');
+          if (await walFile.exists()) {
+            await walFile.copy('$newPath-wal');
+          }
+          final shmFile = File('$oldPath-shm');
+          if (await shmFile.exists()) {
+            await shmFile.copy('$newPath-shm');
+          }
+          
+          debugPrint('✅ Successfully migrated $dbName from old location');
+          return; // Stop after first successful migration
+        }
+      } catch (e) {
+        debugPrint('⚠️ Error checking/migrating from $oldPath: $e');
+      }
+    }
+    
+    debugPrint('ℹ️ No old database found for $dbName - will create fresh');
+  }
   
   // Database getters with proper checks and platform initialization
   Future<Database> get menuDb async {
@@ -281,9 +348,9 @@ class DatabaseHelper {
   
   // Get database directory for user reference
   static Future<String> getDatabaseDirectory() async {
-    if (kReleaseMode && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
-      final appDocDir = await getApplicationDocumentsDirectory();
-      return '${appDocDir.path}/SimsCafe/databases';
+    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      final appSupportDir = await getApplicationSupportDirectory();
+      return '${appSupportDir.path}/databases';
     }
     return await getDatabasesPath();
   }

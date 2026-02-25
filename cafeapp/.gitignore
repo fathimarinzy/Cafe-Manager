@@ -49,6 +49,9 @@ app.*.map.json
 .env.*
 android/gradle.properties  
 android/local.properties
+android/key.properties
+android/release-key.jks
+*.jks
 
 sims_cafe_installer.iss
 verify_paths.bat
