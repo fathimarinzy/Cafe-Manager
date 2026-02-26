@@ -2092,12 +2092,17 @@ void _showSplitPaymentDialog() {
       }
       
       if (widget.order.serviceType.contains('Dining - Table')) {
-        final tableNumberStr = widget.order.serviceType.split('Table ').last;
-        final tableNumber = int.tryParse(tableNumberStr);
+        final RegExp tableRegex = RegExp(r'Table\s+(\d+)');
+        final match = tableRegex.firstMatch(widget.order.serviceType);
+        int? tableNumber;
+        if (match != null) {
+          tableNumber = int.tryParse(match.group(1) ?? '');
+        }
         
         if (tableNumber != null && mounted) {
           final tableProvider = Provider.of<TableProvider>(context, listen: false);
           await tableProvider.setTableStatus(tableNumber, false);
+          await tableProvider.refreshTables();
         }
       }
       
@@ -4868,12 +4873,17 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
     debugPrint('Split payment processed without printing');
     
     if (widget.order.serviceType.contains('Dining - Table')) {
-      final tableNumberStr = widget.order.serviceType.split('Table ').last;
-      final tableNumber = int.tryParse(tableNumberStr);
+      final RegExp tableRegex = RegExp(r'Table\s+(\d+)');
+      final match = tableRegex.firstMatch(widget.order.serviceType);
+      int? tableNumber;
+      if (match != null) {
+        tableNumber = int.tryParse(match.group(1) ?? '');
+      }
       
       if (tableNumber != null && mounted) {
         final tableProvider = Provider.of<TableProvider>(context, listen: false);
         await tableProvider.setTableStatus(tableNumber, false);
+        await tableProvider.refreshTables();
       }
     }
     
@@ -5073,12 +5083,17 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
     
     // Update table status if needed
     if (widget.order.serviceType.contains('Dining - Table')) {
-      final tableNumberStr = widget.order.serviceType.split('Table ').last;
-      final tableNumber = int.tryParse(tableNumberStr);
+      final RegExp tableRegex = RegExp(r'Table\s+(\d+)');
+      final match = tableRegex.firstMatch(widget.order.serviceType);
+      int? tableNumber;
+      if (match != null) {
+        tableNumber = int.tryParse(match.group(1) ?? '');
+      }
       
       if (tableNumber != null && mounted) {
         final tableProvider = Provider.of<TableProvider>(context, listen: false);
         await tableProvider.setTableStatus(tableNumber, false);
+        await tableProvider.refreshTables();
         debugPrint('Table $tableNumber status set to available after payment');
       }
     }
@@ -5406,13 +5421,17 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
       }
       
       if (widget.order.serviceType.contains('Dining - Table')) {
-        final tableNumberStr = widget.order.serviceType.split('Table ').last;
-        final tableNumber = int.tryParse(tableNumberStr);
+        final RegExp tableRegex = RegExp(r'Table\s+(\d+)');
+        final match = tableRegex.firstMatch(widget.order.serviceType);
+        int? tableNumber;
+        if (match != null) {
+          tableNumber = int.tryParse(match.group(1) ?? '');
+        }
         
         if (tableNumber != null && mounted) {
           final tableProvider = Provider.of<TableProvider>(context, listen: false);
-          
           await tableProvider.setTableStatus(tableNumber, false);
+          await tableProvider.refreshTables();
           debugPrint('Table $tableNumber status set to available after cash payment');
         }
       }
@@ -5852,12 +5871,17 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
           
           // Update table status if needed
           if (widget.order.serviceType.contains('Dining - Table')) {
-            final tableNumberStr = widget.order.serviceType.split('Table ').last;
-            final tableNumber = int.tryParse(tableNumberStr);
+            final RegExp tableRegex = RegExp(r'Table\s+(\d+)');
+            final match = tableRegex.firstMatch(widget.order.serviceType);
+            int? tableNumber;
+            if (match != null) {
+              tableNumber = int.tryParse(match.group(1) ?? '');
+            }
             
             if (tableNumber != null && mounted) {
               final tableProvider = Provider.of<TableProvider>(context, listen: false);
               await tableProvider.setTableStatus(tableNumber, false);
+              await tableProvider.refreshTables();
             }
           }
           

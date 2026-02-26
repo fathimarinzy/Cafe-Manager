@@ -18,6 +18,7 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
   String name = '';
   String phoneNumber = '';
   String place = '';
+  bool _isSaving = false;
   final _nameFocus = FocusNode();
   final _phoneFocus = FocusNode();
   final _placeFocus = FocusNode();
@@ -42,7 +43,7 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final personProvider = Provider.of<PersonProvider>(context);
+    final personProvider = Provider.of<PersonProvider>(context, listen: false);
 
     return Scaffold(
       appBar: AppBar(
@@ -119,12 +120,13 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
               ),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: personProvider.isLoading
+                onPressed: _isSaving
                     ? null
                     : () async {
                         if (_formKey.currentState!.validate()) {
                           _formKey.currentState!.save();
                           
+                          setState(() => _isSaving = true);
                           
                           // Create person object
                           final person = Person(
@@ -144,7 +146,7 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
                             }
 
                             if (!context.mounted) return;
-                            final messenger = ScaffoldMessenger.of(context); // ✅ assign first
+                            final messenger = ScaffoldMessenger.of(context);
                             final navigator = Navigator.of(context);  
                             
                             if (personProvider.error.isEmpty) {
@@ -155,20 +157,22 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
                               );
                               navigator.pop();
                             } else {
+                              setState(() => _isSaving = false);
                               messenger.showSnackBar(
                                 SnackBar(content: Text(personProvider.error)),
                               );
                             }
                           } catch (e) {
                             if (!context.mounted) return;
+                            setState(() => _isSaving = false);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text(widget.person != null ? 'Failed to update Customer'.tr() : 'Failed to add Customer'.tr())),
                             );
                           }
                         }
                       },
-                child: personProvider.isLoading
-                    ? const CircularProgressIndicator(color: Colors.white)
+                child: _isSaving
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     :  Text('Save'.tr()),
               ),
             ],

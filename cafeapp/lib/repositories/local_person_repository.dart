@@ -123,8 +123,9 @@ class LocalPersonRepository {
       
       
       // SYNC: Sync person to Firestore (ONLY if not from sync)
+      // Fire-and-forget: don't await so save isn't blocked by network issues
       if (!fromSync) {
-        await DeviceSyncService.syncPersonToFirestore(newPerson);
+        DeviceSyncService.syncPersonToFirestore(newPerson);
       }
       
       return newPerson;

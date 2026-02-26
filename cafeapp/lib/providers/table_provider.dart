@@ -97,6 +97,7 @@ class TableProvider with ChangeNotifier {
         capacity: table.capacity,
         isOccupied: table.isOccupied,
         note: table.note,
+        category: table.category,
       );
     }
     
@@ -128,6 +129,7 @@ class TableProvider with ChangeNotifier {
           capacity: table.capacity,
           isOccupied: isOccupied,
           note: table.note,
+          category: table.category,
         );
         
         await _saveTables();

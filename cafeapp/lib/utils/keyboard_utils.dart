@@ -1,33 +1,71 @@
 import 'dart:io';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
 
 class KeyboardUtils {
-  /// Launches the Windows On-Screen Keyboard.
-  /// Tries to open TabTip.exe first (modern touch keyboard),
-  /// then falls back to osk.exe (legacy keyboard).
+  /// Opens the on-screen keyboard.
+  /// 1. Uses Flutter's SystemChannels to request the soft keyboard.
+  /// 2. On Windows, also tries to launch the touch keyboard (TabTip.exe)
+  ///    or the legacy on-screen keyboard (osk.exe) as fallback.
   static Future<void> openKeyboard() async {
-    if (!Platform.isWindows) return;
-
+    // Step 1: Always request the Flutter soft keyboard first
     try {
-      debugPrint('Attempting to open TabTip.exe...');
-      // TabTip is the modern touch keyboard
+      await SystemChannels.textInput.invokeMethod('TextInput.show');
+      debugPrint('Requested Flutter soft keyboard');
+    } catch (e) {
+      debugPrint('Flutter TextInput.show failed: $e');
+    }
+
+    // Step 2: On Windows, also try to open the system touch keyboard
+    if (Platform.isWindows) {
+      await _openWindowsKeyboard();
+    }
+  }
+
+  /// Tries multiple methods to open the Windows on-screen keyboard.
+  static Future<void> _openWindowsKeyboard() async {
+    // List of possible TabTip.exe paths
+    final tabTipPaths = [
+      'C:\\Program Files\\Common Files\\microsoft shared\\ink\\TabTip.exe',
+      'C:\\Program Files (x86)\\Common Files\\microsoft shared\\ink\\TabTip.exe',
+    ];
+
+    // Try each TabTip path
+    for (final path in tabTipPaths) {
+      try {
+        final file = File(path);
+        if (await file.exists()) {
+          debugPrint('Opening TabTip from: $path');
+          await Process.start(path, [], runInShell: true);
+          return; // Success, stop trying
+        }
+      } catch (e) {
+        debugPrint('Failed to open TabTip at $path: $e');
+      }
+    }
+
+    // Try launching tabtip via command (uses system PATH)
+    try {
+      debugPrint('Trying tabtip via explorer...');
       await Process.start(
-        'C:\\Program Files\\Common Files\\microsoft shared\\ink\\TabTip.exe',
-        [],
+        'explorer.exe',
+        ['shell:::{054AAE20-4BEA-4347-8A35-64A533254A9D}'],
         runInShell: true,
       );
+      return;
     } catch (e) {
-      debugPrint('Failed to open TabTip: $e');
-      try {
-        debugPrint('Attempting to open osk.exe...');
-        // Fallback to legacy OSK
-        await Process.start('osk.exe', [], runInShell: true);
-      } catch (e2) {
-        debugPrint('Failed to open osk.exe: $e2');
-      }
+      debugPrint('Failed to open via explorer shell: $e');
+    }
+
+    // Last resort: legacy osk.exe
+    try {
+      debugPrint('Attempting osk.exe...');
+      await Process.start('osk.exe', [], runInShell: true);
+    } catch (e) {
+      debugPrint('Failed to open osk.exe: $e');
     }
   }
 }
@@ -72,6 +110,8 @@ class _DoubleTapKeyboardListenerState extends State<DoubleTapKeyboardListener> {
     // Request focus if a FocusNode is provided
     if (widget.focusNode != null && !widget.focusNode!.hasFocus) {
        widget.focusNode!.requestFocus();
+       // Wait a frame for focus to be established before requesting keyboard
+       await Future.delayed(const Duration(milliseconds: 100));
     }
     
     await KeyboardUtils.openKeyboard();

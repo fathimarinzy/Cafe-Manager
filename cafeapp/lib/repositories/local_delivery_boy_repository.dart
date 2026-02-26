@@ -91,8 +91,9 @@ class LocalDeliveryBoyRepository {
         debugPrint('Inserted delivery boy: ${newBoy.name}');
       }
       // Sync to Firestore ONLY if not from sync
+      // Fire-and-forget: don't await so save isn't blocked by network issues
       if (!fromSync) {
-        await DeviceSyncService.syncDeliveryBoyToFirestore(newBoy);
+        DeviceSyncService.syncDeliveryBoyToFirestore(newBoy);
       }
       return newBoy;
     } catch (e) {

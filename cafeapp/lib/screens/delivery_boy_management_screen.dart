@@ -145,6 +145,7 @@ class _AddEditDeliveryBoyDialogState extends State<_AddEditDeliveryBoyDialog> {
   final _nameFocus = FocusNode();
   final _phoneFocus = FocusNode();
   final _formKey = GlobalKey<FormState>();
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -199,8 +200,11 @@ class _AddEditDeliveryBoyDialogState extends State<_AddEditDeliveryBoyDialog> {
           child: Text('Cancel'.tr()),
         ),
         ElevatedButton(
-          onPressed: () async {
+          onPressed: _isSaving ? null : () async {
             if (_formKey.currentState!.validate()) {
+              setState(() => _isSaving = true);
+              // Capture ScaffoldMessenger from parent screen before async operations
+              final messenger = ScaffoldMessenger.of(Navigator.of(context).context);
               try {
                 final newBoy = DeliveryBoy(
                   id: widget.boy?.id,
@@ -212,32 +216,31 @@ class _AddEditDeliveryBoyDialogState extends State<_AddEditDeliveryBoyDialog> {
                 
                 if (widget.boy == null) {
                   await provider.addDeliveryBoy(newBoy);
-                  if (context.mounted) {
-                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Delivery Boy added successfully'.tr()), backgroundColor: Colors.green),
-                    );
-                  }
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('Delivery Boy added successfully'.tr()), backgroundColor: Colors.green),
+                  );
                 } else {
                   await provider.updateDeliveryBoy(newBoy);
-                  if (context.mounted) {
-                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Delivery Boy updated successfully'.tr()), backgroundColor: Colors.green),
-                    );
-                  }
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('Delivery Boy updated successfully'.tr()), backgroundColor: Colors.green),
+                  );
                 }
                 
                 if (context.mounted) Navigator.of(context).pop();
               } catch (e) {
                 debugPrint('Error in Save Dialog: $e');
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  setState(() => _isSaving = false);
+                  messenger.showSnackBar(
                     SnackBar(content: Text('${'Failed to save: '.tr()}$e'), backgroundColor: Colors.red),
                   );
                 }
               }
             }
           },
-          child: Text('Save'.tr()),
+          child: _isSaving
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+              : Text('Save'.tr()),
         ),
       ],
     );
