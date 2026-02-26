@@ -475,6 +475,163 @@ Future<void> _reprintMainReceipt() async {
   }
 }
 
+Future<void> _printTemporaryReceipt() async {
+  setState(() {
+    _isProcessing = true;
+  });
+  
+  try {
+    Order? actualOrder;
+    if (widget.order.id != 0) {
+      actualOrder = await _localOrderRepo.getOrderById(widget.order.id);
+    }
+    
+    final orderToUse = actualOrder ?? Order(
+      id: widget.order.id,
+      staffDeviceId: actualOrder?.staffDeviceId ?? '',
+      serviceType: widget.order.serviceType,
+      items: widget.order.items,
+      subtotal: _calculateSubtotal(widget.order.items),
+      tax: _calculateSubtotal(widget.order.items) * (widget.taxRate / 100.0),
+      discount: _getCurrentDiscount(),
+      total: widget.order.total,
+      status: 'pending',
+      createdAt: DateTime.now().toIso8601String(),
+      customerId: widget.customer?.id,
+      depositAmount: actualOrder?.depositAmount ?? widget.order.depositAmount, 
+      deliveryCharge: widget.order.deliveryCharge,
+      deliveryAddress: widget.order.deliveryAddress,
+      deliveryBoy: widget.order.deliveryBoy,
+      eventDate: widget.order.eventDate,
+      eventTime: widget.order.eventTime,
+      eventGuestCount: widget.order.eventGuestCount,
+      eventType: widget.order.eventType,
+    );
+
+    final items = orderToUse.items.map((item) => 
+      MenuItem(
+        id: item.id.toString(),
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        imageUrl: '',
+        category: '',
+        kitchenNote: item.kitchenNote,
+      )
+    ).toList();
+    
+    final subtotal = orderToUse.subtotal;
+    final tax = orderToUse.tax;
+    final discountAmount = orderToUse.discount;
+    final total = orderToUse.total;
+    
+    String? tableInfo;
+    if (orderToUse.serviceType.startsWith('Dining - Table')) {
+      tableInfo = orderToUse.serviceType;
+    }
+    
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('temp_receipt_${widget.order.id}', true);
+
+    final pdf = await BillService.generateBill(
+      items: items,
+      serviceType: orderToUse.serviceType,
+      subtotal: subtotal,
+      tax: tax,
+      discount: discountAmount,
+      total: total,
+      personName: widget.customer?.name,
+      tableInfo: tableInfo,
+      isEdited: widget.isEdited,
+      orderNumber: widget.order.orderNumber, 
+      taxRate: widget.taxRate,
+      depositAmount: orderToUse.depositAmount,
+      deliveryCharge: orderToUse.deliveryCharge, 
+    );
+
+    bool printed = false;
+    try {
+      printed = await BillService.printBill(
+        items: items,
+        serviceType: orderToUse.serviceType,
+        subtotal: subtotal,
+        tax: tax,
+        discount: discountAmount,
+        total: total,
+        personName: widget.customer?.name,
+        tableInfo: tableInfo,
+        isEdited: widget.isEdited,
+        orderNumber: widget.order.orderNumber, 
+        taxRate: widget.taxRate,
+        depositAmount: orderToUse.depositAmount,
+        deliveryCharge: orderToUse.deliveryCharge, 
+      );
+    } catch (e) {
+      debugPrint('Direct printing failed: $e');
+    }
+
+    Map<String, dynamic> result;
+    if (printed) {
+      result = {
+        'success': true,
+        'message': 'Temporary receipt printed successfully',
+      };
+    } else {
+      if (!mounted) return;
+      bool? saveAsPdf = await CrossPlatformPdfService.showSavePdfDialog(context);
+      if (saveAsPdf == true) {
+        final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+        final fileName = 'SIMS_temp_receipt_${widget.order.orderNumber}_$timestamp.pdf';
+        final saved = await CrossPlatformPdfService.savePdf(pdf, suggestedFileName: fileName);
+        result = {
+          'success': saved,
+          'message': saved ? 'Temporary receipt saved as PDF' : 'Failed to save PDF',
+        };
+      } else {
+        result = {
+          'success': false,
+          'message': 'Printing failed and PDF save was cancelled',
+        };
+      }
+    }
+    
+    if (mounted) {
+      setState(() {
+        _isProcessing = false;
+      });
+      
+      if (result['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message']?.toString().tr() ?? 'Temporary receipt printed successfully'.tr()),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message']?.toString().tr() ?? 'Failed to print temporary receipt'.tr()),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  } catch (e) {
+    debugPrint('Error printing temporary receipt: $e');
+    if (mounted) {
+      setState(() {
+        _isProcessing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${'Error printing temporary receipt'.tr()}: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+}
+
 // Helper method to calculate subtotal (if not already present)
 double _calculateSubtotal(List<dynamic> items) {
   return items.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
@@ -3711,6 +3868,12 @@ Widget build(BuildContext context) {
       backgroundColor: Colors.blue.shade700,
       foregroundColor: Colors.white,
       actions: [
+        if (_orderStatus.toLowerCase() == 'pending')
+          TextButton.icon(
+            icon: const Icon(Icons.print, color: Colors.white, size: 18),
+            label: Text('Print'.tr(), style: const TextStyle(color: Colors.white)),
+            onPressed: _printTemporaryReceipt,
+          ),
         if (_orderStatus.toLowerCase() == 'pending')
           TextButton.icon(
             icon: const Icon(Icons.cancel, color: Colors.white, size: 18),
