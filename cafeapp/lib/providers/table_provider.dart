@@ -98,6 +98,7 @@ class TableProvider with ChangeNotifier {
         isOccupied: table.isOccupied,
         note: table.note,
         category: table.category,
+        name: table.name,
       );
     }
     
@@ -130,6 +131,7 @@ class TableProvider with ChangeNotifier {
           isOccupied: isOccupied,
           note: table.note,
           category: table.category,
+          name: table.name,
         );
         
         await _saveTables();

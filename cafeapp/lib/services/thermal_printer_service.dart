@@ -1425,7 +1425,7 @@ static Future<Uint8List?> _generateKotImage({
 }
 
   // Direct RAW Printing using Windows Spooler (Fix for truncation)
-  static Future<bool> _printToUsb(Uint8List imageBytes, {bool isKot = false, String? overridePrinterName}) async {
+  static Future<bool> _printToUsb(Uint8List imageBytes, {bool isKot = false, bool openDrawer = true, String? overridePrinterName}) async {
     // Only works on Windows for now (user's target OS)
     if (!Platform.isWindows) return false;
 
@@ -1460,7 +1460,7 @@ static Future<Uint8List?> _generateKotImage({
         
         bytes = await compute(
           convertImageOnIsolate, 
-          ImageConversionData(imageBytes, isKot, profile)
+          ImageConversionData(imageBytes, isKot, profile, openDrawer: openDrawer)
         );
       } catch (e) {
         debugPrint('USB Print: Isolate conversion failed: $e');
@@ -1538,7 +1538,7 @@ static Future<Uint8List?> _generateKotImage({
         
         // Try USB/RAW first if on Windows
         if (Platform.isWindows) {
-          final usbSuccess = await _printToUsb(imageBytes, isKot: true, overridePrinterName: config.systemPrinterName);
+          final usbSuccess = await _printToUsb(imageBytes, isKot: true, openDrawer: false, overridePrinterName: config.systemPrinterName);
           if (usbSuccess) return true;
         }
         return await _printToSystemPrinter(imageBytes, isKot: true, overridePrinterName: config.systemPrinterName);
@@ -1553,7 +1553,7 @@ static Future<Uint8List?> _generateKotImage({
   }
 
   // Refactored Network Print Logic
-  static Future<bool> _printToNetworkPrinter(String ip, int port, Uint8List imageBytes, {bool isKot = false}) async {
+  static Future<bool> _printToNetworkPrinter(String ip, int port, Uint8List imageBytes, {bool isKot = false, bool openDrawer = true}) async {
     return await Future<bool>(() async {
       // 1. Process image on background isolate to avoid UI freeze
       List<int> escPosCommands = [];
@@ -1562,7 +1562,7 @@ static Future<Uint8List?> _generateKotImage({
       try {
         escPosCommands = await compute(
           convertImageOnIsolate, 
-          ImageConversionData(imageBytes, isKot, profileForIsolate)
+          ImageConversionData(imageBytes, isKot, profileForIsolate, openDrawer: openDrawer)
         );
       } catch (e) {
         debugPrint('Network Print: Isolate conversion failed: $e');
@@ -1628,7 +1628,7 @@ static Future<Uint8List?> _generateKotImage({
   }
 
   // Legacy/Single Print (updated to use new helpers or direct logic)
-  static Future<bool> _printImage(Uint8List imageBytes, {bool isKot = false}) async {
+  static Future<bool> _printImage(Uint8List imageBytes, {bool isKot = false, bool openDrawer = true}) async {
     try {
       final printerType = isKot 
           ? await getKotPrinterType() 
@@ -1636,11 +1636,11 @@ static Future<Uint8List?> _generateKotImage({
 
       if (printerType == printerTypeSystem) {
          if (Platform.isWindows) {
-            final usbSuccess = await _printToUsb(imageBytes, isKot: isKot);
+            final usbSuccess = await _printToUsb(imageBytes, isKot: isKot, openDrawer: openDrawer);
             if (usbSuccess) return true;
             debugPrint('Direct RAW print failed, falling back to System Driver (PDF)');
          }
-        return await _printToSystemPrinter(imageBytes, isKot: isKot);
+        return await _printToSystemPrinter(imageBytes, isKot: isKot, openDrawer: openDrawer);
       }
 
       // Network
@@ -1655,7 +1655,7 @@ static Future<Uint8List?> _generateKotImage({
         port = await getPrinterPort();
       }
       
-      return await _printToNetworkPrinter(ip, port, imageBytes, isKot: isKot);
+      return await _printToNetworkPrinter(ip, port, imageBytes, isKot: isKot, openDrawer: openDrawer);
       
     } catch (e) {
       debugPrint('Error printing image: $e');
@@ -1678,6 +1678,7 @@ static Future<Uint8List?> _generateKotImage({
     double? taxRate,
     double? depositAmount,
     double? deliveryCharge,
+    bool openDrawer = true,
   }) async {
     debugPrint('Printing order receipt as image');
     
@@ -1703,7 +1704,7 @@ static Future<Uint8List?> _generateKotImage({
     }
     
     // Receipt usually just one printer
-    return await _printImage(imageBytes, isKot: false);
+    return await _printImage(imageBytes, isKot: false, openDrawer: openDrawer);
   }
 
   static Future<bool> printKotReceipt({
@@ -2037,7 +2038,7 @@ static Future<Uint8List?> _generateKotImage({
         // Payment table header and all rows - be more generous
         contentHeight += (_fontSize - 2) + 8; // Header row
         contentHeight += 2 + 6; // Line + space
-        contentHeight += ((_fontSize - 2) + 10) * 4; // 4 payment rows with more space
+        contentHeight += ((_fontSize - 2) + 10) * 5; // 5 payment rows (cash, bank, total, balance, profit) with more space
         contentHeight += 2 + 15; // Line + more space
 
         // Total Sales Section
@@ -2256,6 +2257,15 @@ static Future<Uint8List?> _generateKotImage({
       currentY = _drawReportRow(canvas, [
         {'text': 'Balance', 'width': 0.66, 'bold': true},
         {'text': currencyFormat.format(balance), 'width': 0.34, 'align': 'right', 'bold': true},
+      ], currentY);
+      
+      // Profit row: totalProfit - totalExpenses
+      final totalProfit = reportData['totalProfit'] as double? ?? 0.0;
+      final profit = totalProfit - totalExpenses;
+      
+      currentY = _drawReportRow(canvas, [
+        {'text': 'Profit', 'width': 0.66, 'bold': true},
+        {'text': currencyFormat.format(profit), 'width': 0.34, 'align': 'right', 'bold': true},
       ], currentY);
       
       currentY +=8;
@@ -2534,7 +2544,7 @@ static Future<Uint8List?> _generateKotImage({
         return false;
       }
       
-      return await _printImage(imageBytes, isKot: false);
+      return await _printImage(imageBytes, isKot: false, openDrawer: false);
       
     } catch (e) {
       debugPrint('Error printing thermal report: $e');
@@ -2562,7 +2572,7 @@ static Future<Uint8List?> _generateKotImage({
 
 
 
-  static Future<bool> _printToSystemPrinter(List<int> bytes, {String? overridePrinterName, bool isKot = false}) async {
+  static Future<bool> _printToSystemPrinter(List<int> bytes, {String? overridePrinterName, bool isKot = false, bool openDrawer = true}) async {
     if (!Platform.isWindows) return false;
     
     try {
@@ -2598,7 +2608,7 @@ static Future<Uint8List?> _generateKotImage({
         // Optimization: Try to convert on isolate to avoid blocking UI
         final converted = await compute(
           convertImageOnIsolate, 
-          ImageConversionData(Uint8List.fromList(bytes), isKot, profile)
+          ImageConversionData(Uint8List.fromList(bytes), isKot, profile, openDrawer: openDrawer)
         );
         
         if (converted.isNotEmpty) {
@@ -2642,8 +2652,9 @@ class ImageConversionData {
   final Uint8List bytes;
   final bool isKot;
   final CapabilityProfile profile;
+  final bool openDrawer;
   
-  ImageConversionData(this.bytes, this.isKot, this.profile);
+  ImageConversionData(this.bytes, this.isKot, this.profile, {this.openDrawer = true});
 }
 
 class PrintJobData {
@@ -2670,7 +2681,7 @@ Future<List<int>> convertImageOnIsolate(ImageConversionData data) async {
     escPosBytes += generator.image(bw);
     escPosBytes += generator.cut();
 
-    if (!data.isKot) {
+    if (data.openDrawer && !data.isKot) {
       escPosBytes += generator.drawer();
     }
     

@@ -49,7 +49,7 @@ class _TableManagementScreenState extends State<TableManagementScreen> {
                         style: const TextStyle(color: Colors.white),
                       ),
                     ),
-                    title: Text('${'Table'.tr()} ${table.number}'),
+                    title: Text(table.displayName),
                     subtitle: Text('${table.category.tr()} • ${'Capacity'.tr()}: ${table.capacity} • ${table.isOccupied ? 'Occupied'.tr() : 'Available'.tr()}'),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -131,9 +131,11 @@ class _AddTableDialog extends StatefulWidget {
 
 class _AddTableDialogState extends State<_AddTableDialog> {
   final _numberController = TextEditingController();
+  final _nameController = TextEditingController();
   final _capacityController = TextEditingController();
   final _noteController = TextEditingController();
   final _numberFocus = FocusNode();
+  final _nameFocus = FocusNode();
   final _capacityFocus = FocusNode();
   final _noteFocus = FocusNode();
   bool _isOccupied = false;
@@ -142,9 +144,11 @@ class _AddTableDialogState extends State<_AddTableDialog> {
   @override
   void dispose() {
     _numberController.dispose();
+    _nameController.dispose();
     _capacityController.dispose();
     _noteController.dispose();
     _numberFocus.dispose();
+    _nameFocus.dispose();
     _capacityFocus.dispose();
     _noteFocus.dispose();
     super.dispose();
@@ -192,6 +196,19 @@ class _AddTableDialogState extends State<_AddTableDialog> {
                       border: const OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.number,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                DoubleTapKeyboardListener(
+                  focusNode: _nameFocus,
+                  child: TextField(
+                    controller: _nameController,
+                    focusNode: _nameFocus,
+                    decoration: InputDecoration(
+                      labelText: 'Table Name'.tr(),
+                      border: const OutlineInputBorder(),
+                      helperText: 'Optional custom name (e.g. VIP Room, Window Seat)'.tr(),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -312,6 +329,7 @@ class _AddTableDialogState extends State<_AddTableDialog> {
                           isOccupied: _isOccupied,
                           note: _noteController.text,
                           category: _selectedCategory,
+                          name: _nameController.text.trim(),
                         );
                         
                         Provider.of<TableProvider>(context, listen: false)
@@ -377,9 +395,11 @@ class _EditTableDialog extends StatefulWidget {
 
 class _EditTableDialogState extends State<_EditTableDialog> {
   late TextEditingController _numberController;
+  late TextEditingController _nameController;
   late TextEditingController _capacityController;
   late TextEditingController _noteController;
   final _numberFocus = FocusNode();
+  final _nameFocus = FocusNode();
   final _capacityFocus = FocusNode();
   final _noteFocus = FocusNode();
   late bool _isOccupied;
@@ -389,6 +409,7 @@ class _EditTableDialogState extends State<_EditTableDialog> {
   void initState() {
     super.initState();
     _numberController = TextEditingController(text: widget.table.number.toString());
+    _nameController = TextEditingController(text: widget.table.name);
     _capacityController = TextEditingController(text: widget.table.capacity.toString());
     _noteController = TextEditingController(text: widget.table.note);
     _isOccupied = widget.table.isOccupied;
@@ -398,9 +419,11 @@ class _EditTableDialogState extends State<_EditTableDialog> {
   @override
   void dispose() {
     _numberController.dispose();
+    _nameController.dispose();
     _capacityController.dispose();
     _noteController.dispose();
     _numberFocus.dispose();
+    _nameFocus.dispose();
     _capacityFocus.dispose();
     _noteFocus.dispose();
     super.dispose();
@@ -448,6 +471,19 @@ class _EditTableDialogState extends State<_EditTableDialog> {
                       border: const OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.number,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                DoubleTapKeyboardListener(
+                  focusNode: _nameFocus,
+                  child: TextField(
+                    controller: _nameController,
+                    focusNode: _nameFocus,
+                    decoration: InputDecoration(
+                      labelText: 'Table Name'.tr(),
+                      border: const OutlineInputBorder(),
+                      helperText: 'Optional custom name (e.g. VIP Room, Window Seat)'.tr(),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -580,6 +616,7 @@ class _EditTableDialogState extends State<_EditTableDialog> {
                           isOccupied: _isOccupied,
                           note: _noteController.text,
                           category: _selectedCategory,
+                          name: _nameController.text.trim(),
                         );
                         
                         Provider.of<TableProvider>(context, listen: false)

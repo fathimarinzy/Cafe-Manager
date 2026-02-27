@@ -5,6 +5,10 @@ class TableModel {
   int capacity;
   String note;
   String category;
+  String name;
+
+  /// Returns the custom name if set, otherwise "Table {number}".
+  String get displayName => name.isNotEmpty ? name : 'Table $number';
 
   TableModel({
     required this.id,
@@ -13,6 +17,7 @@ class TableModel {
     this.capacity = 4,
     this.note = '',
     this.category = 'Main Area',
+    this.name = '',
   });
 
   factory TableModel.fromJson(Map<String, dynamic> json) {
@@ -23,6 +28,7 @@ class TableModel {
       capacity: json['capacity'] ?? 4,
       note: json['note'] ?? '',
       category: json['category'] ?? 'Main Area',
+      name: json['name'] ?? '',
     );
   }
 
@@ -34,6 +40,7 @@ class TableModel {
       'capacity': capacity,
       'note': note,
       'category': category,
+      'name': name,
     };
   }
 }

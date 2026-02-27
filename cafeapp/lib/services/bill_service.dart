@@ -1222,6 +1222,7 @@ class BillService {
 
     double? depositAmount,
     double? deliveryCharge, // New parameter
+    bool openDrawer = true,
   }) async {
     try {
       debugPrint('Printing bill using image-based approach');
@@ -1244,6 +1245,7 @@ class BillService {
 
         depositAmount: depositAmount,
         deliveryCharge: deliveryCharge,
+        openDrawer: openDrawer,
       );
       
       return printed;

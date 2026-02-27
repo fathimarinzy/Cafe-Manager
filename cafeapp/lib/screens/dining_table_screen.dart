@@ -302,6 +302,7 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
                             table.isOccupied,
                             orderProvider,
                             serviceType,
+                            displayName: table.displayName,
                           );
                         },
                       );
@@ -597,8 +598,9 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
     int tableNumber,
     bool isOccupied,
     OrderProvider orderProvider,
-    String serviceType,
-  ) {
+    String serviceType, {
+    String? displayName,
+  }) {
     // Determine card styling based on state
     final Color backgroundColor = isOccupied ? const Color(0xFFFFF0F0) : Colors.white;
     final Color borderColor = isOccupied ? const Color(0xFFFFCDD2) : const Color(0xFFE0E0E0);
@@ -654,7 +656,7 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
             
             // Table Number
             Text(
-              '${'Table'.tr()} $tableNumber',
+              displayName ?? '${'Table'.tr()} $tableNumber',
               style: TextStyle(
                 fontSize: titleSize,
                 fontWeight: FontWeight.bold,

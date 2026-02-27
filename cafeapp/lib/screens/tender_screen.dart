@@ -564,7 +564,8 @@ Future<void> _printTemporaryReceipt() async {
         orderNumber: widget.order.orderNumber, 
         taxRate: widget.taxRate,
         depositAmount: orderToUse.depositAmount,
-        deliveryCharge: orderToUse.deliveryCharge, 
+        deliveryCharge: orderToUse.deliveryCharge,
+        openDrawer: false, // Don't open cash drawer for temporary receipts
       );
     } catch (e) {
       debugPrint('Direct printing failed: $e');

@@ -606,6 +606,7 @@ class OrderProvider with ChangeNotifier {
             capacity: table.capacity,
             note: table.note,
             category: table.category,
+            name: table.name,
           );
           
           await tableProvider.updateTable(updatedTable);

@@ -670,7 +670,8 @@ Future<pw.Document> _generateReportPdf() async {
                     ),
                   ],
                 ),
-                _buildPdfBalanceRow(paymentTotals, currencyFormat, arabicFont, fallbackFont),   
+                _buildPdfBalanceRow(paymentTotals, currencyFormat, arabicFont, fallbackFont),
+                _buildPdfProfitRow(paymentTotals, currencyFormat, arabicFont, fallbackFont),   
               ],
             ),
           ),
@@ -811,6 +812,40 @@ pw.Widget _buildPdfBalanceRow(Map<String, dynamic> paymentTotals, NumberFormat f
           style: pw.TextStyle(
             fontWeight: pw.FontWeight.bold, 
             color: balance >= 0 ? PdfColors.green800 : PdfColors.red800
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+pw.Widget _buildPdfProfitRow(Map<String, dynamic> paymentTotals, NumberFormat formatter, pw.Font? arabicFont, pw.Font? fallbackFont) {
+  final totalProfit = _reportData?['totalProfit'] as double? ?? 0.0;
+  final totalExpenses = _getPaymentValue(paymentTotals, 'total', 'expenses');
+  final profit = totalProfit - totalExpenses;
+  
+  return pw.Container(
+    padding: const pw.EdgeInsets.all(5),
+    decoration: pw.BoxDecoration(
+      color: profit >= 0 ? PdfColors.green100 : PdfColors.red100,
+      border: pw.Border.all(color: PdfColors.grey300),
+    ),
+    child: pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+      children: [
+        _createText(
+          'Profit'.tr(),
+          arabicFont: arabicFont,
+          fallbackFont: fallbackFont,
+          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+        ),
+        _createText(
+          formatter.format(profit),
+          arabicFont: arabicFont,
+          fallbackFont: fallbackFont,
+          style: pw.TextStyle(
+            fontWeight: pw.FontWeight.bold, 
+            color: profit >= 0 ? PdfColors.green800 : PdfColors.red800
           ),
         ),
       ],
@@ -3087,6 +3122,19 @@ Widget _buildRevenueSection() {
                 currencyFormat,
                 balance >= 0 ? Colors.green.shade50 : Colors.red.shade50,
               ),
+            // Profit row: totalProfit - totalExpenses
+            Builder(
+              builder: (context) {
+                final totalProfit = _reportData?['totalProfit'] as double? ?? 0.0;
+                final profit = totalProfit - totalExpenses;
+                return _buildBalanceRow(
+                  'Profit'.tr(),
+                  profit,
+                  currencyFormat,
+                  profit >= 0 ? Colors.green.shade100 : Colors.red.shade100,
+                );
+              },
+            ),
             ],
           ),
         ),
