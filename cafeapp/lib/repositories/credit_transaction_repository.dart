@@ -69,9 +69,14 @@ class CreditTransactionRepository {
       );
       
       
-      // SYNC: Sync credit transaction (ONLY if not from sync)
+      // SYNC: Sync credit transaction in background (ONLY if not from sync)
+      // Fire-and-forget: don't await so save isn't blocked by network issues
       if (!fromSync) {
-        await DeviceSyncService.syncCreditTransactionToFirestore(transaction);
+        DeviceSyncService.syncCreditTransactionToFirestore(transaction).then((_) {
+          debugPrint('Background sync completed for credit transaction: ${transaction.id}');
+        }).catchError((e) {
+          debugPrint('Background sync error for credit transaction: $e');
+        });
       }
       
       return transaction;
@@ -110,15 +115,19 @@ class CreditTransactionRepository {
       );
       
       if (count > 0) {
-        // SYNC: Fetch and sync updated transaction
-        try {
-           final updatedTx = await getCreditTransactionById(transactionId);
-           if (updatedTx != null) {
-             await DeviceSyncService.syncCreditTransactionToFirestore(updatedTx);
-           }
-        } catch (e) {
-          debugPrint('Error syncing completed credit transaction: $e');
+        // SYNC: Fetch and sync updated transaction in background
+      // Fire-and-forget: don't await so completion isn't blocked by network issues
+      getCreditTransactionById(transactionId).then((updatedTx) {
+        if (updatedTx != null) {
+          DeviceSyncService.syncCreditTransactionToFirestore(updatedTx).then((_) {
+            debugPrint('Background sync completed for credit completion: $transactionId');
+          }).catchError((e) {
+            debugPrint('Background sync error for credit completion: $e');
+          });
         }
+      }).catchError((e) {
+        debugPrint('Error fetching credit transaction for sync: $e');
+      });
       }
       
       return count > 0;

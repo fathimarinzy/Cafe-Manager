@@ -183,15 +183,19 @@ Future<bool> addCreditToCustomer(String personId, double creditToAdd) async {
       );
       
       if (count > 0) {
-        // SYNC: Fetch updated person and sync
-        try {
-          final updatedPerson = await getPersonById(personId);
+        // SYNC: Fetch updated person and sync in background
+        // Fire-and-forget: don't await so credit update isn't blocked by network issues
+        getPersonById(personId).then((updatedPerson) {
           if (updatedPerson != null) {
-            await DeviceSyncService.syncPersonToFirestore(updatedPerson);
+            DeviceSyncService.syncPersonToFirestore(updatedPerson).then((_) {
+              debugPrint('Background sync completed for credit update: $personId');
+            }).catchError((e) {
+              debugPrint('Background sync error for credit update: $e');
+            });
           }
-        } catch (e) {
-          debugPrint('Error syncing credit update: $e');
-        }
+        }).catchError((e) {
+          debugPrint('Error fetching person for credit sync: $e');
+        });
       }
       
       return count > 0;
@@ -242,11 +246,12 @@ Future<bool> addCreditToCustomer(String personId, double creditToAdd) async {
       );
       
       if (count > 0) {
-         try {
-            await DeviceSyncService.syncPersonToFirestore(person);
-         } catch (e) {
-            debugPrint('Error syncing person update: $e');
-         }
+         // Fire-and-forget: don't await so update isn't blocked by network issues
+         DeviceSyncService.syncPersonToFirestore(person).then((_) {
+           debugPrint('Background sync completed for person update: ${person.id}');
+         }).catchError((e) {
+           debugPrint('Background sync error for person update: $e');
+         });
       }
       
       return count > 0;

@@ -1031,7 +1031,7 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
                                        ),
                                      ),
                                      Text(
-                                       "₹${order.total.toStringAsFixed(0)}",
+                                       order.total.toStringAsFixed(0),
                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                                      ),
                                    ],

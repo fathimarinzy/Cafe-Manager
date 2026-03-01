@@ -5864,8 +5864,12 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
           
           await creditRepo.saveCreditTransaction(transaction);
           
-          // Synced
-          await DeviceSyncService.syncCreditTransactionToFirestore(transaction);
+          // Sync to Firestore in background (don't await - prevents UI hanging when offline)
+          DeviceSyncService.syncCreditTransactionToFirestore(transaction).then((_) {
+            debugPrint('Background sync completed for credit transaction: ${transaction.id}');
+          }).catchError((e) {
+            debugPrint('Background sync error for credit transaction: $e');
+          });
           
           // Update order status to completed (without cash payment processing)
           await _updateOrderStatus('completed');
@@ -6277,8 +6281,13 @@ Future<void> _updateOriginalOrderPaymentMethod(String orderNumber, String paymen
       // Save the updated order
       await localOrderRepo.saveOrder(updatedOrder);
       
-      // ✅ SYNC: Sync the payment method update to Firestore
-      await DeviceSyncService.syncOrderToFirestore(updatedOrder);
+      // ✅ SYNC: Sync the payment method update to Firestore in background
+      // Fire-and-forget: don't await so UI isn't blocked when offline
+      DeviceSyncService.syncOrderToFirestore(updatedOrder).then((_) {
+        debugPrint('Background sync completed for payment method update');
+      }).catchError((e) {
+        debugPrint('Background sync error for payment method update: $e');
+      });
       
       debugPrint('Updated order #$orderNumber payment method to: $paymentMethod');
     } else {
@@ -6357,8 +6366,13 @@ Future<void> _updateOriginalOrderPaymentMethodWithSplit(
       // Save the updated order
       await localOrderRepo.saveOrder(updatedOrder);
       
-      // ✅ SYNC: Sync the split payment update to Firestore
-      await DeviceSyncService.syncOrderToFirestore(updatedOrder);
+      // ✅ SYNC: Sync the split payment update to Firestore in background
+      // Fire-and-forget: don't await so UI isn't blocked when offline
+      DeviceSyncService.syncOrderToFirestore(updatedOrder).then((_) {
+        debugPrint('Background sync completed for split payment update');
+      }).catchError((e) {
+        debugPrint('Background sync error for split payment update: $e');
+      });
       
       debugPrint('Updated order #$orderNumber with split payment: Cash=$cashAmount, Bank=$bankAmount');
     } else {
@@ -6399,8 +6413,13 @@ Future<void> _updateOrderWithCustomer(Person customer) async {
       // Save the updated order
       await localOrderRepo.saveOrder(updatedOrder);
       
-      // ✅ SYNC: Sync the customer update to Firestore
-      await DeviceSyncService.syncOrderToFirestore(updatedOrder);
+      // ✅ SYNC: Sync the customer update to Firestore in background
+      // Fire-and-forget: don't await so UI isn't blocked when offline
+      DeviceSyncService.syncOrderToFirestore(updatedOrder).then((_) {
+        debugPrint('Background sync completed for order customer update');
+      }).catchError((e) {
+        debugPrint('Background sync error for order customer update: $e');
+      });
       
       debugPrint('Updated order #${widget.order.id} with customer: ${customer.name}');
       
