@@ -638,17 +638,22 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Table Icon with Circle Background
+            // Table Number in Circle
             Container(
-              padding: EdgeInsets.all(_columns > 6 ? 8 : 12),
+              width: _columns > 6 ? 36 : 48,
+              height: _columns > 6 ? 36 : 48,
               decoration: BoxDecoration(
-                color: isOccupied ? Colors.red[50] : Colors.green[50], // Lighter background for circle
+                color: isOccupied ? Colors.red[50] : Colors.green[50],
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                Icons.table_restaurant_rounded,
-                size: _columns > 6 ? 20.0 : 28.0,
-                color: iconColor,
+              alignment: Alignment.center,
+              child: Text(
+                '$tableNumber',
+                style: TextStyle(
+                  fontSize: _columns > 6 ? 16.0 : 20.0,
+                  fontWeight: FontWeight.bold,
+                  color: iconColor,
+                ),
               ),
             ),
             
