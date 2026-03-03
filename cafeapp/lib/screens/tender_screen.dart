@@ -477,7 +477,7 @@ Future<void> _reprintMainReceipt() async {
 
 Future<void> _printTemporaryReceipt() async {
   setState(() {
-    _isProcessing = true;
+    // _isProcessing = true;
   });
   
   try {
@@ -546,7 +546,8 @@ Future<void> _printTemporaryReceipt() async {
       orderNumber: widget.order.orderNumber, 
       taxRate: widget.taxRate,
       depositAmount: orderToUse.depositAmount,
-      deliveryCharge: orderToUse.deliveryCharge, 
+      deliveryCharge: orderToUse.deliveryCharge,
+      title: 'Temporary Invoice',
     );
 
     bool printed = false;
@@ -565,7 +566,8 @@ Future<void> _printTemporaryReceipt() async {
         taxRate: widget.taxRate,
         depositAmount: orderToUse.depositAmount,
         deliveryCharge: orderToUse.deliveryCharge,
-        openDrawer: false, // Don't open cash drawer for temporary receipts
+        openDrawer: false,
+        title: 'Temporary Invoice',
       );
     } catch (e) {
       debugPrint('Direct printing failed: $e');
@@ -607,6 +609,11 @@ Future<void> _printTemporaryReceipt() async {
             content: Text(result['message']?.toString().tr() ?? 'Temporary receipt printed successfully'.tr()),
             backgroundColor: Colors.green,
           ),
+        );
+        // Navigate to Dashboard after successful print
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const DashboardScreen()),
+          (route) => false,
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(

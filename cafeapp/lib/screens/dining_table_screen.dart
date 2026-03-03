@@ -6,8 +6,8 @@ import 'menu_screen.dart';
 import 'table_orders_screen.dart'; 
 import '../providers/order_provider.dart';
 import '../providers/table_provider.dart';
-import '../providers/settings_provider.dart'; // Add SettingsProvider
-// import '../providers/order_history_provider.dart';   
+import '../providers/settings_provider.dart';
+import '../repositories/local_order_repository.dart';
 import '../utils/app_localization.dart';
 
 class DiningTableScreen extends StatefulWidget {
@@ -27,6 +27,9 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
   
   // Category filter (null means "All")
   String? _selectedCategory;
+
+  // Track which table numbers have a temp receipt printed
+  Set<int> _tablesWithTempReceipt = {};
   
   @override
   void initState() {
@@ -40,6 +43,9 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
     // Load saved layout configuration
     _loadSavedLayout();
     
+    // Load temp receipt data
+    _loadTempReceiptTables();
+    
     // Ensure table status is up to date on screen load
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -47,6 +53,56 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
         tableProvider.refreshTables();
       }
     });
+  }
+
+  /// Loads order IDs with temp receipts from SharedPreferences,
+  /// then matches them to table numbers via the order repository.
+  Future<void> _loadTempReceiptTables() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys().where((k) => k.startsWith('temp_receipt_')).toList();
+      
+      if (keys.isEmpty) {
+        if (mounted) setState(() => _tablesWithTempReceipt = {});
+        return;
+      }
+      
+      // Collect order IDs that have temp receipts
+      Set<int> receiptOrderIds = {};
+      for (var key in keys) {
+        if (prefs.getBool(key) == true) {
+          final id = int.tryParse(key.replaceFirst('temp_receipt_', ''));
+          if (id != null) receiptOrderIds.add(id);
+        }
+      }
+      
+      if (receiptOrderIds.isEmpty) {
+        if (mounted) setState(() => _tablesWithTempReceipt = {});
+        return;
+      }
+      
+      // Query orders to find which tables these belong to
+      final repo = LocalOrderRepository();
+      final allOrders = await repo.getAllOrders();
+      final tableRegex = RegExp(r'Table\s+(\d+)');
+      
+      Set<int> tables = {};
+      for (var order in allOrders) {
+        if (receiptOrderIds.contains(order.id) &&
+            order.status.toLowerCase() == 'pending' &&
+            order.serviceType.contains('Dining - Table')) {
+          final match = tableRegex.firstMatch(order.serviceType);
+          if (match != null) {
+            final tableNum = int.tryParse(match.group(1) ?? '');
+            if (tableNum != null) tables.add(tableNum);
+          }
+        }
+      }
+      
+      if (mounted) setState(() => _tablesWithTempReceipt = tables);
+    } catch (e) {
+      debugPrint('Error loading temp receipt tables: $e');
+    }
   }
   
   // Load layout configuration from SharedPreferences
@@ -303,6 +359,7 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
                             orderProvider,
                             serviceType,
                             displayName: table.displayName,
+                            hasTempReceipt: _tablesWithTempReceipt.contains(table.number),
                           );
                         },
                       );
@@ -463,6 +520,9 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
       final tableProvider = Provider.of<TableProvider>(context, listen: false);
       tableProvider.refreshTables();
       
+      // Refresh temp receipt indicators
+      _loadTempReceiptTables();
+      
       // Extract table number from service type
       final tableNumberStr = serviceType.split('Table ').last;
       final tableNumber = int.tryParse(tableNumberStr);
@@ -489,6 +549,7 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
     if (mounted) {
       final tableProvider = Provider.of<TableProvider>(context, listen: false);
       tableProvider.refreshTables();
+      _loadTempReceiptTables();
       setState(() {});
     }
   }
@@ -600,6 +661,7 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
     OrderProvider orderProvider,
     String serviceType, {
     String? displayName,
+    bool hasTempReceipt = false,
   }) {
     // Determine card styling based on state
     final Color backgroundColor = isOccupied ? const Color(0xFFFFF0F0) : Colors.white;
@@ -620,78 +682,102 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
         }
       },
       borderRadius: BorderRadius.circular(16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor, width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: isOccupied 
-                  ? Colors.red.withAlpha(13) 
-                  : Colors.grey.withAlpha(13),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: borderColor, width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: isOccupied 
+                      ? Colors.red.withAlpha(13) 
+                      : Colors.grey.withAlpha(13),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Table Number in Circle
-            Container(
-              width: _columns > 6 ? 36 : 48,
-              height: _columns > 6 ? 36 : 48,
-              decoration: BoxDecoration(
-                color: isOccupied ? Colors.red[50] : Colors.green[50],
-                shape: BoxShape.circle,
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                '$tableNumber',
-                style: TextStyle(
-                  fontSize: _columns > 6 ? 16.0 : 20.0,
-                  fontWeight: FontWeight.bold,
-                  color: iconColor,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Table Number in Circle
+                Container(
+                  width: _columns > 6 ? 36 : 48,
+                  height: _columns > 6 ? 36 : 48,
+                  decoration: BoxDecoration(
+                    color: isOccupied ? Colors.red[50] : Colors.green[50],
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '$tableNumber',
+                    style: TextStyle(
+                      fontSize: _columns > 6 ? 16.0 : 20.0,
+                      fontWeight: FontWeight.bold,
+                      color: iconColor,
+                    ),
+                  ),
+                ),
+                
+                SizedBox(height: _columns > 6 ? 6 : 10),
+                
+                // Display Name
+                Text(
+                  displayName ?? '${'Table'.tr()} $tableNumber',
+                  style: TextStyle(
+                    fontSize: titleSize,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                    letterSpacing: 0.3,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                
+                SizedBox(height: _columns > 6 ? 4 : 6),
+                
+                // Status Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isOccupied ? Colors.red[100] : Colors.green[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    statusText,
+                    style: TextStyle(
+                      fontSize: _columns > 6 ? 10.0 : 12.0,
+                      color: textColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            ),
+            ),
+          ),
+          // Bill icon overlay for temp receipt
+          if (hasTempReceipt)
+            Positioned(
+              top: 6,
+              right: 6,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.receipt_long,
+                  size: _columns > 6 ? 12 : 16,
+                  color: Colors.orange.shade800,
                 ),
               ),
             ),
-            
-            SizedBox(height: _columns > 6 ? 6 : 10),
-            
-            // Table Number
-            Text(
-              displayName ?? '${'Table'.tr()} $tableNumber',
-              style: TextStyle(
-                fontSize: titleSize,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-                letterSpacing: 0.3,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            
-            SizedBox(height: _columns > 6 ? 4 : 6),
-            
-            // Status Badge
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: isOccupied ? Colors.red[100] : Colors.green[100],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                statusText,
-                style: TextStyle(
-                  fontSize: _columns > 6 ? 10.0 : 12.0,
-                  color: textColor,
-                  fontWeight: FontWeight.w600,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }

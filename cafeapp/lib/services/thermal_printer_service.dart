@@ -563,6 +563,7 @@ static Future<Uint8List?> _generateReceiptImage({
   double? taxRate,
   double? depositAmount,
   double? deliveryCharge,
+  String? title,
 }) async {
   try {
     final businessInfo = await getBusinessInfo();
@@ -618,6 +619,16 @@ static Future<Uint8List?> _generateReceiptImage({
     }
     
     contentHeight += 1; // Space after business info
+    
+    // Title heading (e.g. 'Temporary Invoice')
+    if (title != null && title.isNotEmpty) {
+      final titlePainter = _createTextPainter(
+        title,
+        fontSize: _fontSize,
+        fontWeight: FontWeight.bold,
+      );
+      contentHeight += titlePainter.height + 8;
+    }
     
     // Order details
     final orderPainter = _createTextPainter(
@@ -797,6 +808,19 @@ static Future<Uint8List?> _generateReceiptImage({
     }
     
     currentY += 6;
+    
+    // Title heading (e.g. 'Temporary Invoice')
+    if (title != null && title.isNotEmpty) {
+      currentY = _drawText(
+        canvas,
+        title,
+        x: _padding,
+        y: currentY,
+        fontSize: _fontSize,
+        fontWeight: FontWeight.bold,
+        textAlign: TextAlign.center,
+      );
+    }
     
     // Order details
     currentY = _drawText(
@@ -1679,6 +1703,7 @@ static Future<Uint8List?> _generateKotImage({
     double? depositAmount,
     double? deliveryCharge,
     bool openDrawer = true,
+    String? title,
   }) async {
     debugPrint('Printing order receipt as image');
     
@@ -1696,6 +1721,7 @@ static Future<Uint8List?> _generateKotImage({
       taxRate: taxRate,
       depositAmount: depositAmount,
       deliveryCharge: deliveryCharge,
+      title: title,
     );
     
     if (imageBytes == null) {
