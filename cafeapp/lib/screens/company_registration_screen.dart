@@ -44,6 +44,7 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
   
   bool _isLoading = false;
   bool _showWarning = false;
+  String _selectedLicenseType = 'yearly'; // 'yearly' or 'lifetime'
 
   
 // SECURE: Get keys from environment variables with fallbacks
@@ -58,13 +59,34 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
       ];
     } catch (e) {
       debugPrint('Error loading registration keys from environment: $e');
-      // Fallback to build-time environment variables if .env fails
       return [
         const String.fromEnvironment('REGISTRATION_KEY_1', defaultValue: ''),
         const String.fromEnvironment('REGISTRATION_KEY_2', defaultValue: ''),
         const String.fromEnvironment('REGISTRATION_KEY_3', defaultValue: ''),
         const String.fromEnvironment('REGISTRATION_KEY_4', defaultValue: ''),
         const String.fromEnvironment('REGISTRATION_KEY_5', defaultValue: ''),
+      ].where((key) => key.isNotEmpty).toList();
+    }
+  }
+
+  // SECURE: Get lifetime keys from environment variables
+  List<String> get _lifetimeKeys {
+    try {
+      return [
+        dotenv.env['LIFETIME_KEY_1'] ?? _getFallbackKey(0),
+        dotenv.env['LIFETIME_KEY_2'] ?? _getFallbackKey(1),
+        dotenv.env['LIFETIME_KEY_3'] ?? _getFallbackKey(2),
+        dotenv.env['LIFETIME_KEY_4'] ?? _getFallbackKey(3),
+        dotenv.env['LIFETIME_KEY_5'] ?? _getFallbackKey(4),
+      ];
+    } catch (e) {
+      debugPrint('Error loading lifetime keys from environment: $e');
+      return [
+        const String.fromEnvironment('LIFETIME_KEY_1', defaultValue: ''),
+        const String.fromEnvironment('LIFETIME_KEY_2', defaultValue: ''),
+        const String.fromEnvironment('LIFETIME_KEY_3', defaultValue: ''),
+        const String.fromEnvironment('LIFETIME_KEY_4', defaultValue: ''),
+        const String.fromEnvironment('LIFETIME_KEY_5', defaultValue: ''),
       ].where((key) => key.isNotEmpty).toList();
     }
   }
@@ -137,8 +159,9 @@ class _CompanyRegistrationScreenState extends State<CompanyRegistrationScreen> {
   }
 
   bool _validateKeys() {
+    final keysToValidate = _selectedLicenseType == 'lifetime' ? _lifetimeKeys : _correctKeys;
     for (int i = 0; i < 5; i++) {
-      if (_keyControllers[i].text.trim().toUpperCase() != _correctKeys[i]) {
+      if (_keyControllers[i].text.trim().toUpperCase() != keysToValidate[i]) {
         return false;
       }
     }
@@ -216,6 +239,10 @@ Future<void> _registerCompany() async {
     // Set license start date
     await LicenseService.setLicenseStartDate();
     debugPrint('✅ License start date set');
+
+    // Set license type
+    await LicenseService.setLicenseType(_selectedLicenseType);
+    debugPrint('✅ License type set: $_selectedLicenseType');
 
     // Save business information to SharedPreferences
     await prefs.setString('business_name', _businessNameController.text.trim());
@@ -499,6 +526,94 @@ Future<void> _verifyFirestoreSync() async {
                     );
                   }),
                 ),
+              
+              const SizedBox(height: 24),
+
+              // License Type Selection
+              Text(
+                'License Type :'.tr(),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selectedLicenseType = 'yearly'),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: _selectedLicenseType == 'yearly' ? Colors.blue[50] : Colors.grey[100],
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: _selectedLicenseType == 'yearly' ? Colors.blue[700]! : Colors.grey[300]!,
+                            width: _selectedLicenseType == 'yearly' ? 2 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              _selectedLicenseType == 'yearly' ? Icons.radio_button_checked : Icons.radio_button_off,
+                              color: _selectedLicenseType == 'yearly' ? Colors.blue[700] : Colors.grey[500],
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Yearly'.tr(),
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: _selectedLicenseType == 'yearly' ? Colors.blue[700] : Colors.grey[700],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selectedLicenseType = 'lifetime'),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: _selectedLicenseType == 'lifetime' ? Colors.green[50] : Colors.grey[100],
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: _selectedLicenseType == 'lifetime' ? Colors.green[700]! : Colors.grey[300]!,
+                            width: _selectedLicenseType == 'lifetime' ? 2 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              _selectedLicenseType == 'lifetime' ? Icons.radio_button_checked : Icons.radio_button_off,
+                              color: _selectedLicenseType == 'lifetime' ? Colors.green[700] : Colors.grey[500],
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Lifetime'.tr(),
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: _selectedLicenseType == 'lifetime' ? Colors.green[700] : Colors.grey[700],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               
               const SizedBox(height: 40),
               

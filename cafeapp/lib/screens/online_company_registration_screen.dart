@@ -46,6 +46,7 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
   bool _showContactInfo = false;
   bool _isGeneratingKeys = false;
   bool _showDemoForm = false; // Add this
+  String _selectedLicenseType = 'yearly'; // 'yearly' or 'lifetime'
   DateTime? _keysGeneratedAt;
   DateTime? _keysExpireAt;
 
@@ -374,6 +375,8 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
         await prefs.setBool('device_registered', true);
         // Set license start date - ADD THIS LINE
         await LicenseService.setLicenseStartDate();
+        // Set license type
+        await LicenseService.setLicenseType(_selectedLicenseType);
     
         await prefs.setString('company_id', result['companyId']);
         await prefs.setString('registration_mode', 'online');
@@ -1103,6 +1106,94 @@ class _OnlineCompanyRegistrationScreenState extends State<OnlineCompanyRegistrat
                       ),
                     ],
                   ),
+                ),
+                
+                const SizedBox(height: 24),
+
+                // License Type Selection
+                Text(
+                  'License Type :'.tr(),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _selectedLicenseType = 'yearly'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: _selectedLicenseType == 'yearly' ? Colors.blue[50] : Colors.grey[100],
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: _selectedLicenseType == 'yearly' ? Colors.blue[700]! : Colors.grey[300]!,
+                              width: _selectedLicenseType == 'yearly' ? 2 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                _selectedLicenseType == 'yearly' ? Icons.radio_button_checked : Icons.radio_button_off,
+                                color: _selectedLicenseType == 'yearly' ? Colors.blue[700] : Colors.grey[500],
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Yearly'.tr(),
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: _selectedLicenseType == 'yearly' ? Colors.blue[700] : Colors.grey[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _selectedLicenseType = 'lifetime'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: _selectedLicenseType == 'lifetime' ? Colors.green[50] : Colors.grey[100],
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: _selectedLicenseType == 'lifetime' ? Colors.green[700]! : Colors.grey[300]!,
+                              width: _selectedLicenseType == 'lifetime' ? 2 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                _selectedLicenseType == 'lifetime' ? Icons.radio_button_checked : Icons.radio_button_off,
+                                color: _selectedLicenseType == 'lifetime' ? Colors.green[700] : Colors.grey[500],
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Lifetime'.tr(),
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: _selectedLicenseType == 'lifetime' ? Colors.green[700] : Colors.grey[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 
                 const SizedBox(height: 24),

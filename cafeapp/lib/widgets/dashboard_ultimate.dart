@@ -115,6 +115,7 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
 
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       // Mobile Bottom Bar (Replaces Sidebar)
       bottomNavigationBar: null,
       extendBody: true, // Allow body to extend behind bottom bar
@@ -808,85 +809,56 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
         // Tablet Landscape / Desktop: 3 cols.
         final crossAxisCount = (isPhone || (isMobile && isPortrait)) ? 2 : 3;
         final spacing = isPhone ? 8.0 : 20.0;
-        // Aspect Ratio: 
-        // Phone: 1.3 (Standard)
-        // Tablet Portrait: 1.8 (Shorter cards, per "Reduce widget size")
-        // Tablet Landscape / Desktop: 1.3
-        final baseAspectRatio = (isMobile && isPortrait && !isPhone) ? 1.8 : 1.3;
-        
-        // Dynamic Aspect Ratio Calculation
-        // Goal: Ensure all 6 items fit within the available height without scrolling
-        double finalAspectRatio = baseAspectRatio;
-        
+        final List<Widget> cards = [
+          _buildServiceCard("Dining".tr(), "Table Service".tr(), Icons.restaurant_rounded, const Color(0xFF3B82F6), widget.onDiningTap),
+          _buildServiceCard("Delivery".tr(), "Local Delivery".tr(), Icons.delivery_dining_rounded, const Color(0xFFFF7D29), widget.onDeliveryTap),
+          _buildServiceCard("Online".tr(), "Web Orders".tr(), Icons.devices_rounded, const Color(0xFF00E5FF), widget.onDelivery2Tap),
+          _buildServiceCard("Takeout".tr(), "Counter Pickup".tr(), Icons.local_mall_rounded, const Color(0xFF00E676), widget.onTakeoutTap),
+          _buildServiceCard("Drive Thru".tr(), "Quick Service".tr(), Icons.drive_eta_rounded, const Color(0xFFFF2E63), widget.onDriveThroughTap),
+          _buildServiceCard("Catering".tr(), "Large Events".tr(), Icons.room_service_rounded, const Color(0xFFFFD700), widget.onCateringTap),
+        ];
+
+        // If height is constrained (e.g., inside Expanded), use a pure Flex layout to guarantee 100% exact fit without overflow
         if (constraints.maxHeight.isFinite) {
-          try {
-            final int totalItems = 6;
-            final int rowCount = (totalItems / crossAxisCount).ceil();
-            
-            // Calculate available height for cards (subtracting vertical spacing)
-            // Vertical spacing: (rows - 1) * spacing
-            // Also consider some padding if needed, but GridView padding is separate
-            final double totalVerticalSpacing = (rowCount - 1) * spacing;
-            final double availableHeight = constraints.maxHeight - totalVerticalSpacing;
-            
-            if (availableHeight > 0) {
-              final double itemHeight = availableHeight / rowCount;
-              
-              // Calculate item width
-              final double totalHorizontalSpacing = (crossAxisCount - 1) * spacing;
-              final double availableWidth = constraints.maxWidth - totalHorizontalSpacing;
-              final double itemWidth = availableWidth / crossAxisCount;
-              
-              if (itemHeight > 50) { // Safety check: reasonable minimum height
-                finalAspectRatio = itemWidth / itemHeight;
-              }
-            }
-          } catch (e) {
-            debugPrint("Error calculating dynamic aspect ratio: $e");
-          }
+          final int totalItems = cards.length;
+          final int rowCount = (totalItems / crossAxisCount).ceil();
+          
+          return Column(
+            children: List.generate(rowCount, (rowIndex) {
+              final isLastRow = rowIndex == rowCount - 1;
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: isLastRow ? 0 : spacing),
+                  child: Row(
+                    children: List.generate(crossAxisCount, (colIndex) {
+                      final itemIndex = rowIndex * crossAxisCount + colIndex;
+                      final isLastColumn = colIndex == crossAxisCount - 1;
+                      
+                      return Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(right: isLastColumn ? 0 : spacing),
+                          child: itemIndex < totalItems ? cards[itemIndex] : const SizedBox(),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              );
+            }),
+          );
         }
 
+        // Fallback for unbounded height (e.g., inside SingleChildScrollView)
+        final baseAspectRatio = (isMobile && isPortrait && !isPhone) ? 1.8 : 1.3;
+        
         return GridView.count(
           crossAxisCount: crossAxisCount,
           crossAxisSpacing: spacing,
           mainAxisSpacing: spacing,
-          childAspectRatio: finalAspectRatio,
- 
-          // If in a ScrollView (Tablet), shrinkWrap=true. 
-          // If in Expanded (Phone/Desktop), shrinkWrap=false.
-          // Note: On Tablet, we are in SingleChildScrollView -> Column -> _buildServicesGrid.
-          // So we usually need shrinkWrap: true for Tablet.
-          // On Phone, we are in Column -> Expanded -> _buildServicesGrid. shrinkWrap: false.
-          // On Desktop, we are in Column -> Expanded -> _buildServicesGrid. shrinkWrap: false.
-           
-          // Simplified logic based on method signature usage:
-          // _buildPhoneLayout passes isPhone: true.
-          // _buildTabletLayout passes isPhone: false.
-          // _buildDesktopLayout passes isPhone: false.
-          // But Tablet needs shrinkWrap, Desktop does NOT.
-          // Let's rely on the context or a new param if needed. 
-          // For now, let's look at where it's used.
-          // Phone: Expanded -> shrinkWrap: false.
-          // Tablet: ScrollView -> shrinkWrap: true.
-          // Desktop: Expanded -> shrinkWrap: false.
-          
-          // We can use the 'constraints' to guess? Or just add a param 'enableScrolling'.
-          // Let's adhere to the existing `shrinkWrap: !isPhone` logic which worked for tablet revert,
-          // BUT Desktop also passes isPhone=false and needs shrinkWrap=false.
-          // So `!isPhone` forces shrinkWrap=true for Desktop, which breaks it (Expanded parent).
-          
-          // FIX:
-          shrinkWrap: !isPhone && constraints.maxWidth < 1100, // Only shrinkWrap on Tablet (<1100)
-          
+          childAspectRatio: baseAspectRatio,
+          shrinkWrap: true, // Must shrink-wrap since height is infinite
           physics: const NeverScrollableScrollPhysics(), // External scroll view handles it
-          children: [
-            _buildServiceCard("Dining".tr(), "Table Service".tr(), Icons.restaurant_rounded, const Color(0xFF3B82F6), widget.onDiningTap),
-            _buildServiceCard("Delivery".tr(), "Local Delivery".tr(), Icons.delivery_dining_rounded, const Color(0xFFFF7D29), widget.onDeliveryTap),
-            _buildServiceCard("Online".tr(), "Web Orders".tr(), Icons.devices_rounded, const Color(0xFF00E5FF), widget.onDelivery2Tap),
-            _buildServiceCard("Takeout".tr(), "Counter Pickup".tr(), Icons.local_mall_rounded, const Color(0xFF00E676), widget.onTakeoutTap),
-            _buildServiceCard("Drive Thru".tr(), "Quick Service".tr(), Icons.drive_eta_rounded, const Color(0xFFFF2E63), widget.onDriveThroughTap),
-            _buildServiceCard("Catering".tr(), "Large Events".tr(), Icons.room_service_rounded, const Color(0xFFFFD700), widget.onCateringTap),
-          ],
+          children: cards,
         );
       },
     );

@@ -5,6 +5,7 @@ import 'firebase_service.dart';
 class LicenseService {
   static const String _licenseStartDateKey = 'license_start_date';
   static const String _companyRegisteredKey = 'company_registered';
+  static const String _licenseTypeKey = 'license_type'; // 'yearly' or 'lifetime'
   static const int _licenseDurationDays = 365; // 1 year
 
   /// Check if user has a valid license (is registered and not expired)
@@ -24,6 +25,10 @@ class LicenseService {
     
     if (!isRegistered) return false;
     
+    // Lifetime licenses never expire
+    final licenseType = prefs.getString(_licenseTypeKey) ?? 'yearly';
+    if (licenseType == 'lifetime') return false;
+    
     final startDateString = prefs.getString(_licenseStartDateKey);
     if (startDateString == null) return false;
     
@@ -33,12 +38,16 @@ class LicenseService {
     return DateTime.now().isAfter(expiryDate);
   }
 
-  /// Get remaining days in license
+  /// Get remaining days in license (-1 means lifetime/unlimited)
   static Future<int> getRemainingLicenseDays() async {
     final prefs = await SharedPreferences.getInstance();
     final isRegistered = prefs.getBool(_companyRegisteredKey) ?? false;
     
     if (!isRegistered) return 0;
+    
+    // Lifetime licenses have unlimited days
+    final licenseType = prefs.getString(_licenseTypeKey) ?? 'yearly';
+    if (licenseType == 'lifetime') return -1;
     
     final startDateString = prefs.getString(_licenseStartDateKey);
     if (startDateString == null) return 0;
@@ -52,9 +61,14 @@ class LicenseService {
     return expiryDate.difference(now).inDays;
   }
 
-  /// Get license expiry date
+  /// Get license expiry date (null for lifetime licenses)
   static Future<DateTime?> getLicenseExpiryDate() async {
     final prefs = await SharedPreferences.getInstance();
+    
+    // Lifetime licenses have no expiry
+    final licenseType = prefs.getString(_licenseTypeKey) ?? 'yearly';
+    if (licenseType == 'lifetime') return null;
+    
     final startDateString = prefs.getString(_licenseStartDateKey);
     
     if (startDateString == null) return null;
@@ -80,10 +94,30 @@ class LicenseService {
   /// Get license duration in days
   static int getLicenseDurationDays() => _licenseDurationDays;
 
+  /// Set license type ('yearly' or 'lifetime')
+  static Future<void> setLicenseType(String type) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_licenseTypeKey, type);
+    debugPrint('License type set: $type');
+  }
+
+  /// Get license type ('yearly' or 'lifetime')
+  static Future<String> getLicenseType() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_licenseTypeKey) ?? 'yearly';
+  }
+
+  /// Check if license is lifetime
+  static Future<bool> isLifetimeLicense() async {
+    final type = await getLicenseType();
+    return type == 'lifetime';
+  }
+
   /// Reset license (for testing purposes)
   static Future<void> resetLicense() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_licenseStartDateKey);
+    await prefs.remove(_licenseTypeKey);
     debugPrint('License data reset');
   }
 
@@ -94,6 +128,7 @@ class LicenseService {
     final remainingDays = await getRemainingLicenseDays();
     final expiryDate = await getLicenseExpiryDate();
     final hasValid = await hasValidLicense();
+    final licenseType = await getLicenseType();
     
     return {
       'isRegistered': isRegistered,
@@ -102,6 +137,7 @@ class LicenseService {
       'expiryDate': expiryDate,
       'hasValidLicense': hasValid,
       'totalDays': _licenseDurationDays,
+      'licenseType': licenseType,
     };
   }
    /// Renew license for another year
