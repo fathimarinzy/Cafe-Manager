@@ -423,8 +423,16 @@ class LocalExpenseRepository {
       await db.transaction((txn) async {
         await txn.delete('expense_items');
         await txn.delete('expenses');
+        
+        // Reset auto-increment counters
+        try {
+          await txn.execute("DELETE FROM sqlite_sequence WHERE name='expenses'");
+          await txn.execute("DELETE FROM sqlite_sequence WHERE name='expense_items'");
+        } catch (e) {
+          debugPrint('Notice: sqlite_sequence missing or could not be reset: $e');
+        }
       });
-      debugPrint('Expense data cleared');
+      debugPrint('Expense data cleared and counters reset');
     } catch (e) {
       debugPrint('Error clearing expense data: $e');
     }

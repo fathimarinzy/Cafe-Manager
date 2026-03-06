@@ -727,8 +727,21 @@ class LocalOrderRepository {
       await db.transaction((txn) async {
         await txn.delete('order_items');
         await txn.delete('orders');
+        
+        // Reset auto-increment counters so order numbers start from 1 again
+        try {
+          await txn.execute("DELETE FROM sqlite_sequence WHERE name='orders'");
+          await txn.execute("DELETE FROM sqlite_sequence WHERE name='order_items'");
+        } catch (e) {
+          debugPrint('Notice: sqlite_sequence missing or could not be reset: $e');
+        }
       });
-      debugPrint('Order data cleared');
+      
+      // Also reset the staff order counter in SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('staff_order_counter');
+      
+      debugPrint('Order data cleared and counters reset');
     } catch (e) {
       debugPrint('Error clearing order data: $e');
     }
