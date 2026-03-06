@@ -23,6 +23,8 @@ class DashboardUltimate extends StatefulWidget {
   final VoidCallback onCateringTap;
   final VoidCallback onDelivery2Tap; // Online Order
   final VoidCallback onOrdersTap;
+  final bool shouldDisable;
+  final VoidCallback? onDisabledTap;
   final VoidCallback? onUISwitch;
   final VoidCallback? onReportsTap;
   final VoidCallback? onSettingsTap;
@@ -40,6 +42,8 @@ class DashboardUltimate extends StatefulWidget {
     required this.onCateringTap,
     required this.onDelivery2Tap,
     required this.onOrdersTap,
+    this.shouldDisable = false,
+    this.onDisabledTap,
     this.onUISwitch,
     this.onReportsTap,
     this.onSettingsTap,
@@ -319,7 +323,10 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-            child: _AnimatedOrderListButton(onTap: widget.onOrdersTap),
+            child: _AnimatedOrderListButton(
+              onTap: widget.shouldDisable ? (widget.onDisabledTap ?? () {}) : widget.onOrdersTap,
+              isDisabled: widget.shouldDisable,
+            ),
           ),
         ],
       ),
@@ -341,12 +348,14 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
             _buildStatsRow(context, isMobile: true), 
             const SizedBox(height: 16),
             // Tablet uses 3 columns (isPhone: false -> shrinks to fit)
-            // Use Expanded to fill remaining space
             Expanded(
               child: _buildServicesGrid(isMobile: true, isPhone: false),
             ),
             const SizedBox(height: 16),
-            _AnimatedOrderListButton(onTap: widget.onOrdersTap),
+            _AnimatedOrderListButton(
+              onTap: widget.shouldDisable ? (widget.onDisabledTap ?? () {}) : widget.onOrdersTap,
+              isDisabled: widget.shouldDisable,
+            ),
             const SizedBox(height: 16), // Bottom padding
           ],
         ),
@@ -429,7 +438,7 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
             children: [
               _buildNavIcon(Icons.dashboard_rounded, true, onTap: () {}), // Dashboard is current
               const SizedBox(height: 32),
-              _buildNavIcon(Icons.attach_money_rounded, false, onTap: widget.onExpensesTap), // Expenses
+              _buildNavIcon(Icons.attach_money_rounded, false, onTap: widget.onExpensesTap, isDisabled: widget.shouldDisable), // Expenses
               const SizedBox(height: 32),
               _buildNavIcon(Icons.bar_chart_rounded, false, onTap: widget.onReportsTap),
               const SizedBox(height: 32),
@@ -437,7 +446,7 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const QuotationsListScreen()),
                 );
-              }),
+              }, isDisabled: widget.shouldDisable),
               const SizedBox(height: 32),
               _buildNavIcon(Icons.settings_rounded, false, onTap: widget.onSettingsTap),
             ],
@@ -458,8 +467,14 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
     );
   }
 
-  Widget _buildNavIcon(IconData icon, bool isSelected, {Color? color, VoidCallback? onTap}) {
-    return _HoverNavIcon(icon, isSelected, color: color, onTap: onTap);
+  Widget _buildNavIcon(IconData icon, bool isSelected, {Color? color, VoidCallback? onTap, bool isDisabled = false}) {
+    return _HoverNavIcon(
+      icon, 
+      isSelected, 
+      color: isDisabled ? Colors.grey[600] : color, 
+      onTap: isDisabled ? (widget.onDisabledTap ?? () {}) : onTap,
+      isDisabled: isDisabled,
+    );
   }
 
 
@@ -882,8 +897,9 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
       title: title,
       subtitle: subtitle,
       icon: icon,
-      color: color,
-      onTap: onTap,
+      color: widget.shouldDisable ? Colors.grey : color,
+      onTap: widget.shouldDisable ? (widget.onDisabledTap ?? () {}) : onTap,
+      isDisabled: widget.shouldDisable,
     );
   }
 
@@ -1020,7 +1036,10 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
             ),
           ),
           const SizedBox(height: 20),
-          _AnimatedOrderListButton(onTap: widget.onOrdersTap),
+          _AnimatedOrderListButton(
+            onTap: widget.shouldDisable ? (widget.onDisabledTap ?? () {}) : widget.onOrdersTap,
+            isDisabled: widget.shouldDisable,
+          ),
         ],
       ),
     );
@@ -1154,6 +1173,7 @@ class _AnimatedServiceCard extends StatefulWidget {
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
+  final bool isDisabled;
 
   const _AnimatedServiceCard({
     required this.title,
@@ -1161,6 +1181,7 @@ class _AnimatedServiceCard extends StatefulWidget {
     required this.icon,
     required this.color,
     required this.onTap,
+    this.isDisabled = false,
   });
 
   @override
@@ -1195,13 +1216,13 @@ class _AnimatedServiceCardState extends State<_AnimatedServiceCard> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: widget.color.withAlpha(76),
+              color: widget.isDisabled ? Colors.grey.withAlpha(76) : widget.color.withAlpha(76),
               width: 1,
             ),
             // Semi-transparent dark background
-            color: Colors.black.withAlpha(51),
+            color: widget.isDisabled ? Colors.grey.withAlpha(26) : Colors.black.withAlpha(51),
             // 3D Effect (Static Shadows)
-            boxShadow: [
+            boxShadow: widget.isDisabled ? [] : [
               BoxShadow(
                 color: Colors.black.withAlpha(102),
                 offset: const Offset(4, 4),
@@ -1229,17 +1250,16 @@ class _AnimatedServiceCardState extends State<_AnimatedServiceCard> {
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [
-                        widget.color.withAlpha(76),
-                        widget.color.withAlpha(26),
-                      ],
+                      colors: widget.isDisabled 
+                          ? [Colors.grey.withAlpha(76), Colors.grey.withAlpha(26)]
+                          : [widget.color.withAlpha(76), widget.color.withAlpha(26)],
                     ),
                     border: Border.all(
-                      color: widget.color.withAlpha(128),
+                      color: widget.isDisabled ? Colors.grey.withAlpha(128) : widget.color.withAlpha(128),
                       width: 1.5,
                     ),
                   ),
-                  child: Icon(widget.icon, color: Colors.white, size: iconSize),
+                  child: Icon(widget.icon, color: widget.isDisabled ? Colors.grey[400] : Colors.white, size: iconSize),
                 ),
                 SizedBox(height: isPhone ? 8 : 16),
                 Column(
@@ -1277,9 +1297,11 @@ class _AnimatedServiceCardState extends State<_AnimatedServiceCard> {
 // Animated Order List Button with Hover Effects
 class _AnimatedOrderListButton extends StatefulWidget {
   final VoidCallback onTap;
+  final bool isDisabled;
 
   const _AnimatedOrderListButton({
     required this.onTap,
+    this.isDisabled = false,
   });
 
   @override
@@ -1302,11 +1324,11 @@ class _AnimatedOrderListButtonState extends State<_AnimatedOrderListButton> {
           // Tablet Portrait: Increase size (Padding 18). Phone/Desktop: 14.
           padding: EdgeInsets.symmetric(vertical: (MediaQuery.of(context).size.width >= 600 && MediaQuery.of(context).size.width < 900) ? 18 : 14),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFFF2E63), Color(0xFFC2185B)],
-            ),
+            gradient: widget.isDisabled 
+                ? LinearGradient(colors: [Colors.grey.shade700, Colors.grey.shade800])
+                : const LinearGradient(colors: [Color(0xFFFF2E63), Color(0xFFC2185B)]),
             borderRadius: BorderRadius.circular(12), // Slightly more rounded
-            border: Border.all(color: Colors.white.withAlpha(51), width: 1.5), // Subtle bevel
+            border: Border.all(color: Colors.white.withAlpha(widget.isDisabled ? 20 : 51), width: 1.5), // Subtle bevel
             // 3D Pop Effect (Static Shadow)
             boxShadow: [
               BoxShadow(
@@ -1358,8 +1380,9 @@ class _HoverNavIcon extends StatefulWidget {
   final bool isSelected;
   final Color? color;
   final VoidCallback? onTap;
+  final bool isDisabled;
 
-  const _HoverNavIcon(this.icon, this.isSelected, {this.color, this.onTap});
+  const _HoverNavIcon(this.icon, this.isSelected, {this.color, this.onTap, this.isDisabled = false});
 
   @override
   State<_HoverNavIcon> createState() => _HoverNavIconState();
@@ -1372,7 +1395,7 @@ class _HoverNavIconState extends State<_HoverNavIcon> {
   Widget build(BuildContext context) {
     // Electric Lime for active state
     const activeColor = Color(0xFF76FF03); 
-    final isSelected = widget.isSelected;
+    final isSelected = widget.isSelected && !widget.isDisabled;
     // Use passed color or default logic
     final iconColor = widget.color ?? (isSelected || _isHovering ? activeColor : Colors.white.withAlpha(102));
 
@@ -1385,15 +1408,15 @@ class _HoverNavIconState extends State<_HoverNavIcon> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOutCubic,
-          transform: Matrix4.identity()..scale(_isHovering ? 1.15 : 1.0), // Scale up on hover
+          transform: Matrix4.identity()..scale(_isHovering && !widget.isDisabled ? 1.15 : 1.0), // Scale up on hover
           transformAlignment: Alignment.center,
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: isSelected 
+            color: widget.isDisabled ? Colors.transparent : (isSelected 
                 ? activeColor.withAlpha(51) 
-                : (_isHovering ? activeColor.withAlpha(26) : Colors.transparent), // Subtle bg on hover
+                : (_isHovering ? activeColor.withAlpha(26) : Colors.transparent)), // Subtle bg on hover
             borderRadius: BorderRadius.circular(16),
-            boxShadow: (Platform.isAndroid) 
+            boxShadow: (Platform.isAndroid || widget.isDisabled) 
                 ? []
                 : ((isSelected || _isHovering) ? [
                     BoxShadow(
@@ -1407,7 +1430,7 @@ class _HoverNavIconState extends State<_HoverNavIcon> {
             widget.icon,
             color: iconColor,
             size: 28,
-            shadows: (isSelected || _isHovering) ? [
+            shadows: (isSelected || _isHovering) && !widget.isDisabled ? [
                Shadow(
                  color: activeColor.withAlpha(153), 
                  blurRadius: _isHovering ? 15 : 10

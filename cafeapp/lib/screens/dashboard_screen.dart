@@ -467,7 +467,11 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildPremiumDarkUI() {
     final settingsProvider = Provider.of<SettingsProvider>(context);
+    final bool shouldDisable = _isDemoExpired || (_isRegularUser && _isLicenseExpired);
+
     return DashboardUltimate(
+      shouldDisable: shouldDisable,
+      onDisabledTap: _showDisabledMessage,
       businessName: settingsProvider.businessName,
       onDiningTap: () => _navigateToServiceCardStyle('Dining'.tr(), const Color(0xFFd48c56), true),
       onDeliveryTap: () => _navigateToServiceCardStyle('Delivery'.tr(), const Color(0xFF6aaec6), false),
