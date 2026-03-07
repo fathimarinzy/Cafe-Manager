@@ -2470,64 +2470,73 @@ void _showPermissionDeniedDialog(BuildContext context) {
 
                 const SizedBox(height: 16),
 
-                // Availability switch
-                Row(
+                // Toggles Row (Available, Tax Exempt, Per Plate Pricing)
+                Wrap(
+                  spacing: 16.0,
+                  runSpacing: 8.0,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Text('Available'.tr()),
-                    Switch(
-                      value: _isAvailable,
-                      onChanged: (value) {
-                        setState(() {
-                          _isAvailable = value;
-                        });
-                      },
+                    // Availability switch
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Available'.tr()),
+                        Switch(
+                          value: _isAvailable,
+                          onChanged: (value) {
+                            setState(() {
+                              _isAvailable = value;
+                            });
+                          },
+                        ),
+                      ],
                     ),
+
+                    // Tax Exempt switch
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Tax Exempt'.tr()),
+                        const SizedBox(width: 4),
+                        Tooltip(
+                          message: 'Enable this to exclude tax for this item'.tr(),
+                          child: Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
+                        ),
+                        Switch(
+                          value: _isTaxExempt,
+                          onChanged: (value) {
+                            setState(() {
+                              _isTaxExempt = value;
+                              debugPrint('Tax Exempt checkbox changed to: $_isTaxExempt');
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+
+                    // Per Plate Pricing switch
+                    if (widget.allowPerPlatePricing)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('Per Plate Pricing'.tr()),
+                          const SizedBox(width: 4),
+                          Tooltip(
+                            message: 'Price is per person based on event guest count'.tr(),
+                            child: Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
+                          ),
+                          Switch(
+                            value: _isPerPlate,
+                            onChanged: (value) {
+                              setState(() {
+                                _isPerPlate = value;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
                   ],
                 ),
-                const SizedBox(height: 8), // NEW: Add spacing
-
-                // NEW: Tax Exempt switch
-                Row(
-                  children: [
-                    Text('Tax Exempt'.tr()),
-                    const SizedBox(width: 8),
-                    Tooltip(
-                      message: 'Enable this to exclude tax for this item'.tr(),
-                      child: Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
-                    ),
-                    Switch(
-                      value: _isTaxExempt,
-                      onChanged: (value) {
-                        setState(() {
-                          _isTaxExempt = value;
-                          debugPrint('Tax Exempt checkbox changed to: $_isTaxExempt'); // ADD THIS LINE
-                        });
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-
-                // NEW: Per Plate Pricing switch
-                if (widget.allowPerPlatePricing)
-                  Row(
-                    children: [
-                      Text('Per Plate Pricing'.tr()),
-                      const SizedBox(width: 8),
-                      Tooltip(
-                        message: 'Price is per person based on event guest count'.tr(),
-                        child: Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
-                      ),
-                      Switch(
-                        value: _isPerPlate,
-                        onChanged: (value) {
-                          setState(() {
-                            _isPerPlate = value;
-                          });
-                        },
-                      ),
-                    ],
-                  ),
                 const SizedBox(height: 32), // Add extra space at bottom
 
                 // Form buttons
