@@ -57,7 +57,7 @@ class _DeliveryBoyManagementScreenState extends State<DeliveryBoyManagementScree
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: Text('Delivery Boy Management'.tr()),
+        title: Text('Delivery Boys'.tr()),
         backgroundColor: Colors.blue[800],
         foregroundColor: Colors.white,
       ),

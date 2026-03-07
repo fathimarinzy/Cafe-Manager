@@ -155,7 +155,7 @@ class ExcelImportService {
       );
 
       // Add headers
-      final headers = ['Name', 'Price', 'Category', 'Available', 'Image File'];
+      final headers = ['Name', 'Price', 'Cost', 'Category', 'Available', 'Barcode', 'Image File'];
       for (int i = 0; i < headers.length; i++) {
         final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0));
         cell.value = TextCellValue(headers[i]);
@@ -192,18 +192,28 @@ class ExcelImportService {
           priceCell.value = DoubleCellValue(item.price);
           if (rowStyle != null) priceCell.cellStyle = rowStyle;
 
+          // Cost
+          var costCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex));
+          costCell.value = DoubleCellValue(item.purchasePrice);
+          if (rowStyle != null) costCell.cellStyle = rowStyle;
+
           // Category
-          var categoryCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex));
+          var categoryCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex));
           categoryCell.value = TextCellValue(item.category);
           if (rowStyle != null) categoryCell.cellStyle = rowStyle;
 
           // Available
-          var availableCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex));
+          var availableCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex));
           availableCell.value = TextCellValue(item.isAvailable ? 'Yes' : 'No');
           if (rowStyle != null) availableCell.cellStyle = rowStyle;
 
+          // Barcode
+          var barcodeCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: rowIndex));
+          barcodeCell.value = TextCellValue(item.barcode);
+          if (rowStyle != null) barcodeCell.cellStyle = rowStyle;
+
           // Image File Reference
-          var imageCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex));
+          var imageCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: rowIndex));
           if (imageExports.containsKey(item.id)) {
             imageCell.value = TextCellValue('images/${imageExports[item.id]}');
           } else {
@@ -615,6 +625,27 @@ class ExcelImportService {
     List<MenuItem> items = [];
     int imagesLoaded = 0;
     int imagesMissing = 0;
+
+    // Read headers to map columns dynamically
+    Map<String, int> columnMap = {};
+    if (sheet.rows.isNotEmpty) {
+      final headerRow = sheet.rows[0];
+      for (int i = 0; i < headerRow.length; i++) {
+        final cellValue = _getCellValue(headerRow, i)?.trim().toLowerCase();
+        if (cellValue != null) {
+          columnMap[cellValue] = i;
+        }
+      }
+    }
+
+    // Default indices if headers not found (for backwards compatibility)
+    int nameCol = columnMap['name'] ?? 0;
+    int priceCol = columnMap['price'] ?? 1;
+    int costCol = columnMap['cost'] ?? -1;
+    int categoryCol = columnMap['category'] ?? 2;
+    int availableCol = columnMap['available'] ?? 3;
+    int barcodeCol = columnMap['barcode'] ?? -1;
+    int imageCol = columnMap['image file'] ?? 4;
     
     // Skip header row (index 0)
     for (int i = 1; i < sheet.rows.length; i++) {
@@ -623,12 +654,14 @@ class ExcelImportService {
         
         if (row.isEmpty || _isRowEmpty(row)) continue;
 
-        // Columns: Name, Price, Category, Available, Image File
-        final name = _getCellValue(row, 0)?.trim();
-        final priceStr = _getCellValue(row, 1);
-        final categoryFromExcel = _getCellValue(row, 2)?.trim();
-        final availableStr = _getCellValue(row, 3);
-        final imageFileName = _getCellValue(row, 4)?.trim() ?? '';
+        // Extract values using dynamic columns
+        final name = _getCellValue(row, nameCol)?.trim();
+        final priceStr = _getCellValue(row, priceCol);
+        final costStr = costCol >= 0 ? _getCellValue(row, costCol) : null;
+        final categoryFromExcel = _getCellValue(row, categoryCol)?.trim();
+        final availableStr = _getCellValue(row, availableCol);
+        final barcodeFromExcel = barcodeCol >= 0 ? _getCellValue(row, barcodeCol)?.trim() ?? '' : '';
+        final imageFileName = _getCellValue(row, imageCol)?.trim() ?? '';
 
         // Validate required fields
         if (name == null || name.isEmpty || priceStr == null || priceStr.isEmpty) {
@@ -643,6 +676,16 @@ class ExcelImportService {
         } catch (e) {
           debugPrint('Row $i: Skipping - invalid price');
           continue;
+        }
+
+        // Parse cost
+        double purchasePrice = 0.0;
+        if (costStr != null && costStr.isNotEmpty) {
+          try {
+            purchasePrice = double.parse(costStr.replaceAll(RegExp(r'[^\d.]'), ''));
+          } catch (e) {
+            debugPrint('Row $i: Invalid cost');
+          }
         }
 
         // Determine category
@@ -701,6 +744,8 @@ class ExcelImportService {
           id: 'import_${DateTime.now().millisecondsSinceEpoch}_$i',
           name: name,
           price: price,
+          purchasePrice: purchasePrice,
+          barcode: barcodeFromExcel,
           category: itemCategory,
           imageUrl: imageUrl,
           isAvailable: isAvailable,
@@ -721,6 +766,26 @@ class ExcelImportService {
   /// Parse Excel sheet WITHOUT images (fallback when images not accessible)
   static List<MenuItem> _parseExcelSheetWithoutImages(Sheet sheet, String? defaultCategory) {
     List<MenuItem> items = [];
+
+    // Read headers to map columns dynamically
+    Map<String, int> columnMap = {};
+    if (sheet.rows.isNotEmpty) {
+      final headerRow = sheet.rows[0];
+      for (int i = 0; i < headerRow.length; i++) {
+        final cellValue = _getCellValue(headerRow, i)?.trim().toLowerCase();
+        if (cellValue != null) {
+          columnMap[cellValue] = i;
+        }
+      }
+    }
+
+    // Default indices if headers not found
+    int nameCol = columnMap['name'] ?? 0;
+    int priceCol = columnMap['price'] ?? 1;
+    int costCol = columnMap['cost'] ?? -1;
+    int categoryCol = columnMap['category'] ?? 2;
+    int availableCol = columnMap['available'] ?? 3;
+    int barcodeCol = columnMap['barcode'] ?? -1;
     
     for (int i = 1; i < sheet.rows.length; i++) {
       try {
@@ -728,10 +793,13 @@ class ExcelImportService {
         
         if (row.isEmpty || _isRowEmpty(row)) continue;
 
-        final name = _getCellValue(row, 0)?.trim();
-        final priceStr = _getCellValue(row, 1);
-        final categoryFromExcel = _getCellValue(row, 2)?.trim();
-        final availableStr = _getCellValue(row, 3);
+        // Extract values
+        final name = _getCellValue(row, nameCol)?.trim();
+        final priceStr = _getCellValue(row, priceCol);
+        final costStr = costCol >= 0 ? _getCellValue(row, costCol) : null;
+        final categoryFromExcel = _getCellValue(row, categoryCol)?.trim();
+        final availableStr = _getCellValue(row, availableCol);
+        final barcodeFromExcel = barcodeCol >= 0 ? _getCellValue(row, barcodeCol)?.trim() ?? '' : '';
 
         if (name == null || name.isEmpty || priceStr == null || priceStr.isEmpty) {
           continue;
@@ -742,6 +810,16 @@ class ExcelImportService {
           price = double.parse(priceStr.replaceAll(RegExp(r'[^\d.]'), ''));
         } catch (e) {
           continue;
+        }
+
+        // Parse cost
+        double purchasePrice = 0.0;
+        if (costStr != null && costStr.isNotEmpty) {
+          try {
+            purchasePrice = double.parse(costStr.replaceAll(RegExp(r'[^\d.]'), ''));
+          } catch (e) {
+            // keep default 0.0
+          }
         }
 
         String itemCategory = defaultCategory ?? '';
@@ -764,6 +842,8 @@ class ExcelImportService {
           id: 'import_${DateTime.now().millisecondsSinceEpoch}_$i',
           name: name,
           price: price,
+          purchasePrice: purchasePrice,
+          barcode: barcodeFromExcel,
           category: itemCategory,
           imageUrl: '', // No image
           isAvailable: isAvailable,
