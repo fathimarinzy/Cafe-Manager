@@ -34,6 +34,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
   final _nameController = TextEditingController();
   final _priceController = TextEditingController();
   final _purchasePriceController = TextEditingController(); // NEW
+  final _barcodeController = TextEditingController(); // NEW
   final _nameFocus = FocusNode();
   final _priceFocus = FocusNode();
   final _categoryFocus = FocusNode();
@@ -74,6 +75,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
     _nameController.dispose();
     _priceController.dispose();
     _purchasePriceController.dispose(); // NEW
+    _barcodeController.dispose(); // NEW
     _categoryController.dispose();
     _nameFocus.dispose();
     _priceFocus.dispose();
@@ -1319,10 +1321,62 @@ void _showPermissionDeniedDialog(BuildContext context) {
       await menuProvider.fetchMenu(forceRefresh: true);
     }
   }
+  void _generateEan13Barcode() {
+    final menuProvider = Provider.of<MenuProvider>(context, listen: false);
+    int itemId = 1;
+    
+    if (_editingItem != null) {
+      itemId = int.tryParse(_editingItem!.id) ?? 1;
+    } else {
+      // Predict the next ID for a new item
+      if (menuProvider.items.isNotEmpty) {
+        int maxId = 0;
+        for (var item in menuProvider.items) {
+          int currentId = int.tryParse(item.id) ?? 0;
+          if (currentId > maxId) {
+            maxId = currentId;
+          }
+        }
+        itemId = maxId + 1;
+      }
+    }
+
+    // Prefix is 29 (2 digits)
+    final String prefix = '29';
+    
+    // Payload is the item ID, strictly 10 digits
+    String idStr = itemId.toString();
+    String payload;
+    if (idStr.length > 10) {
+      // If ID is a large timestamp, take the last 10 digits to ensure it fits EAN-13
+      payload = idStr.substring(idStr.length - 10);
+    } else {
+      payload = idStr.padLeft(10, '0');
+    }
+    
+    // First 12 digits
+    String barcode12 = prefix + payload;
+    
+    // Calculate checksum
+    int sum = 0;
+    for (int i = 0; i < 12; i++) {
+      int digit = int.parse(barcode12[i]);
+      sum += (i % 2 == 0) ? digit * 1 : digit * 3;
+    }
+    int checksum = (10 - (sum % 10)) % 10;
+    
+    String fullBarcode = barcode12 + checksum.toString();
+    
+    setState(() {
+      _barcodeController.text = fullBarcode;
+    });
+  }
+
   void _resetForm() {
     _nameController.clear();
     _priceController.clear();
     _purchasePriceController.clear(); // NEW
+    _barcodeController.clear(); // NEW
     _categoryController.clear();
     setState(() {
       _isAvailable = true;
@@ -1348,6 +1402,7 @@ void _showPermissionDeniedDialog(BuildContext context) {
       _nameController.text = item.name;
       _priceController.text = item.price.toString();
       _purchasePriceController.text = item.purchasePrice > 0 ? item.purchasePrice.toStringAsFixed(2) : ''; // NEW
+      _barcodeController.text = item.barcode; // NEW
       _selectedCategory = item.category;
       _isAvailable = item.isAvailable;
       _isTaxExempt = item.taxExempt; 
@@ -1739,6 +1794,7 @@ void _showPermissionDeniedDialog(BuildContext context) {
     final String capturedName = _nameController.text.trim();
     final double capturedPrice = double.parse(_priceController.text);
     final double capturedPurchasePrice = double.tryParse(_purchasePriceController.text) ?? 0.0; // NEW
+    final String capturedBarcode = _barcodeController.text.trim(); // NEW
 
     // Add debug log to verify
     debugPrint('💾 Saving item - taxExempt: $capturedTaxExempt, isAvailable: $capturedIsAvailable');
@@ -1828,6 +1884,7 @@ void _showPermissionDeniedDialog(BuildContext context) {
       taxExempt: capturedTaxExempt,
       isPerPlate: capturedIsPerPlate, // NEW
       purchasePrice: capturedPurchasePrice, // NEW
+      barcode: capturedBarcode, // NEW
     );
      // Debug log to verify the item being saved
      debugPrint('💾 MenuItem created - taxExempt: ${item.taxExempt}');
@@ -2166,50 +2223,91 @@ void _showPermissionDeniedDialog(BuildContext context) {
                 ),
                 const SizedBox(height: 16),
 
-                // Price field
-                DoubleTapKeyboardListener(
-                  focusNode: _priceFocus,
-                  child: TextFormField(
-                    controller: _priceController,
-                    focusNode: _priceFocus,
-                    decoration:  InputDecoration(
-                      labelText: 'Price'.tr(),
-                      border: OutlineInputBorder(),
+                // Price and Cost fields
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: DoubleTapKeyboardListener(
+                        focusNode: _priceFocus,
+                        child: TextFormField(
+                          controller: _priceController,
+                          focusNode: _priceFocus,
+                          decoration:  InputDecoration(
+                            labelText: 'Price'.tr(),
+                            border: OutlineInputBorder(),
+                          ),
+                          keyboardType: TextInputType.number,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter a price'.tr();
+                            }
+                            try {
+                              double.parse(value);
+                            } catch (e) {
+                              return 'Please enter a valid number'.tr();
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
                     ),
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter a price'.tr();
-                      }
-                      try {
-                        double.parse(value);
-                      } catch (e) {
-                        return 'Please enter a valid number'.tr();
-                      }
-                      return null;
-                    },
-                  ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _purchasePriceController,
+                        decoration: InputDecoration(
+                    labelText: 'Cost (Purchase Price)'.tr(),
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value != null && value.isNotEmpty) {
+                            try {
+                              double.parse(value);
+                            } catch (e) {
+                              return 'Please enter a valid number'.tr();
+                            }
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
 
-                // Purchase Price field
-                TextFormField(
-                  controller: _purchasePriceController,
-                  decoration: InputDecoration(
-                    labelText: 'Cost (Purchase Price)'.tr(),
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value != null && value.isNotEmpty) {
-                      try {
-                        double.parse(value);
-                      } catch (e) {
-                        return 'Please enter a valid number'.tr();
-                      }
-                    }
-                    return null;
-                  },
+                // Barcode field
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _barcodeController,
+                        decoration: InputDecoration(
+                          labelText: 'International Barcode'.tr(),
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    SizedBox(
+                      height: 56, // Match the height of the TextFormField
+                      child: ElevatedButton(
+                        onPressed: _generateEan13Barcode,
+                        style: ElevatedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        child: const Text(
+                          'G',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
 

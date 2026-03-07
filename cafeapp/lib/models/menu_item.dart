@@ -11,6 +11,7 @@ class MenuItem {
   final bool taxExempt; // NEW: Add this field
   final bool isPerPlate; // NEW: Per-plate pricing flag
   final double purchasePrice;
+  final String barcode;
 
   MenuItem({
     required this.id,
@@ -24,6 +25,7 @@ class MenuItem {
     this.taxExempt = false, // NEW: Default to false (tax included)
     this.isPerPlate = false, // NEW: Default to false
     this.purchasePrice = 0.0,
+    this.barcode = '',
   }) : kitchenNote = kitchenNote ?? '';
 
   factory MenuItem.fromJson(Map<String, dynamic> json) {
@@ -39,6 +41,7 @@ class MenuItem {
       taxExempt: json['taxExempt'] ?? false, // NEW: Parse from JSON
       isPerPlate: json['isPerPlate'] ?? false, // NEW
       purchasePrice: json['purchasePrice'] != null ? (json['purchasePrice'] as num).toDouble() : 0.0,
+      barcode: json['barcode'] ?? '',
     );
   }
 
@@ -55,6 +58,7 @@ class MenuItem {
       'taxExempt': taxExempt, // NEW: Include in JSON
       'isPerPlate': isPerPlate, // NEW
       'purchasePrice': purchasePrice,
+      'barcode': barcode,
     };
   }
 
@@ -70,6 +74,7 @@ class MenuItem {
     bool? taxExempt, // NEW: Add to copyWith
     bool? isPerPlate, // NEW
     double? purchasePrice,
+    String? barcode,
   }) {
     return MenuItem(
       id: id ?? this.id,
@@ -83,6 +88,7 @@ class MenuItem {
       taxExempt: taxExempt ?? this.taxExempt, // NEW
       isPerPlate: isPerPlate ?? this.isPerPlate, // NEW
       purchasePrice: purchasePrice ?? this.purchasePrice,
+      barcode: barcode ?? this.barcode,
     );
   }
 }

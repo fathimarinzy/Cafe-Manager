@@ -63,6 +63,9 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
   final FocusNode _sidebarSearchFocusNode = FocusNode();
   final FocusNode _phoneMainSearchFocusNode = FocusNode();
   final FocusNode _phoneCategorySearchFocusNode = FocusNode();
+  final TextEditingController _sidebarSearchController = TextEditingController(); // NEW
+  final TextEditingController _phoneMainSearchController = TextEditingController(); // NEW
+  final TextEditingController _phoneCategorySearchController = TextEditingController(); // NEW
 
   // Helper method to check if there are any tax-exempt items in the cart
   bool _hasTaxExemptItems(OrderProvider orderProvider) {
@@ -331,7 +334,49 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
     _sidebarSearchFocusNode.dispose();
     _phoneMainSearchFocusNode.dispose();
     _phoneCategorySearchFocusNode.dispose();
+    _sidebarSearchController.dispose();
+    _phoneMainSearchController.dispose();
+    _phoneCategorySearchController.dispose();
     super.dispose();
+  }
+
+  void _handleBarcodeSubmit(String val, TextEditingController controller, FocusNode focusNode) {
+    if (val.isEmpty) return;
+    
+    final menuProvider = Provider.of<MenuProvider>(context, listen: false);
+    final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+    
+    try {
+      final item = menuProvider.items.firstWhere((i) => i.barcode.isNotEmpty && i.barcode == val);
+      
+      // Auto-add to cart
+      orderProvider.addToCart(item);
+      
+      // Clear fields
+      controller.clear();
+      setState(() {
+        _itemSearchQuery = '';
+        _cachedItems = null;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${item.name} added to order'.tr()),
+          duration: const Duration(seconds: 1),
+          backgroundColor: Colors.green,
+        ),
+      );
+      
+      // Re-focus for rapid scanning
+      Future.delayed(const Duration(milliseconds: 50), () {
+        if (mounted) {
+          focusNode.requestFocus();
+        }
+      });
+      
+    } catch (e) {
+      // Ignored: Not an exact barcode string, allow normal filtering to handle it.
+    }
   }
 
   // Function to update the current time every second
@@ -368,11 +413,14 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
         : menuProvider.items;
 
     // Then filter by search query
-    if (_itemSearchQuery.isNotEmpty) {
-      items = menuProvider.items.where((item) {
-        return item.name.toLowerCase().contains(_itemSearchQuery.toLowerCase());
-      }).toList();
-    }
+  if (_itemSearchQuery.isNotEmpty) {
+    items = menuProvider.items.where((item) {
+      final query = _itemSearchQuery.toLowerCase();
+      final nameMatches = item.name.toLowerCase().contains(query);
+      final barcodeMatches = item.barcode.isNotEmpty && item.barcode.toLowerCase().contains(query);
+      return nameMatches || barcodeMatches;
+    }).toList();
+  }
 
     // Update caching variables
     _lastCategory = _selectedCategory;
@@ -690,6 +738,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                focusNode: _phoneMainSearchFocusNode,
                child: TextField(
                focusNode: _phoneMainSearchFocusNode,
+               controller: _phoneMainSearchController,
                decoration: InputDecoration(
                  hintText: "Search menu...".tr(),
                  prefixIcon: const Icon(Icons.search),
@@ -704,6 +753,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                    _cachedItems = null;
                  });
                },
+               onSubmitted: (val) => _handleBarcodeSubmit(val, _phoneMainSearchController, _phoneMainSearchFocusNode),
              ),
            ),
            ),
@@ -757,6 +807,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                     focusNode: _phoneCategorySearchFocusNode,
                     child: TextField(
                     focusNode: _phoneCategorySearchFocusNode,
+                    controller: _phoneCategorySearchController,
                     decoration: InputDecoration(
                       hintText: "Search in $_selectedCategory...".tr(),
                       prefixIcon: const Icon(Icons.search, size: 20),
@@ -773,6 +824,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                          }
                        });
                     },
+                    onSubmitted: (val) => _handleBarcodeSubmit(val, _phoneCategorySearchController, _phoneCategorySearchFocusNode),
                    ),
                  ),
                  ),
@@ -1090,6 +1142,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
             focusNode: _sidebarSearchFocusNode,
             child: TextField(
             focusNode: _sidebarSearchFocusNode,
+            controller: _sidebarSearchController,
             decoration: InputDecoration(
               hintText: "Search Menu...".tr(),
               prefixIcon: const Icon(Icons.search, size: 20),
@@ -1111,6 +1164,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                 }
               });
             },
+            onSubmitted: (val) => _handleBarcodeSubmit(val, _sidebarSearchController, _sidebarSearchFocusNode),
           ),
         ),
         ),

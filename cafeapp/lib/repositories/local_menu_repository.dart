@@ -58,7 +58,7 @@ class LocalMenuRepository {
         // Open the database with explicit version and onCreate handler
         return await openDatabase(
           path,
-          version: 5,
+          version: 6,
       onConfigure: (db) async {
         await db.rawQuery('PRAGMA journal_mode=WAL;');
       },
@@ -76,7 +76,8 @@ class LocalMenuRepository {
                 lastUpdated TEXT NOT NULL,
                 taxExempt INTEGER NOT NULL DEFAULT 0,
                 isPerPlate INTEGER NOT NULL DEFAULT 0,
-                purchasePrice REAL NOT NULL DEFAULT 0.0
+                purchasePrice REAL NOT NULL DEFAULT 0.0,
+                barcode TEXT DEFAULT ''
               )
             ''');
             debugPrint('menu_items table created successfully');
@@ -117,6 +118,18 @@ class LocalMenuRepository {
                debugPrint('Added purchasePrice column to menu_items table');
              } catch (e) {
                debugPrint('Error adding purchasePrice column (may already exist): $e');
+             }
+          }
+
+          if (oldVersion < 6) {
+             // Add barcode column
+             try {
+               await db.execute('''
+                 ALTER TABLE menu_items ADD COLUMN barcode TEXT DEFAULT ''
+               ''');
+               debugPrint('Added barcode column to menu_items table');
+             } catch (e) {
+               debugPrint('Error adding barcode column (may already exist): $e');
              }
           }
         },
@@ -174,6 +187,7 @@ class LocalMenuRepository {
             'taxExempt': item.taxExempt ? 1 : 0,
             'isPerPlate': item.isPerPlate ? 1 : 0,
             'purchasePrice': item.purchasePrice,
+            'barcode': item.barcode,
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
@@ -230,6 +244,7 @@ Future<List<MenuItem>> getMenuItems() async {
           taxExempt: maps[i]['taxExempt'] == 1,
           isPerPlate: maps[i]['isPerPlate'] == 1,
           purchasePrice: maps[i]['purchasePrice'] != null ? (maps[i]['purchasePrice'] as num).toDouble() : 0.0,
+          barcode: (maps[i]['barcode'] as String?) ?? '',
         );
       });
       
@@ -285,6 +300,7 @@ Future<List<MenuItem>> getMenuItems() async {
           taxExempt: item.taxExempt,
           isPerPlate: item.isPerPlate,
           purchasePrice: item.purchasePrice,
+          barcode: item.barcode,
         );
          // ⭐ CRITICAL: Ensure the boolean is converted to int correctly
         final int taxExemptValue = newItem.taxExempt ? 1 : 0;
@@ -305,6 +321,7 @@ Future<List<MenuItem>> getMenuItems() async {
             'taxExempt': taxExemptValue,
             'isPerPlate': newItem.isPerPlate ? 1 : 0,
             'purchasePrice': newItem.purchasePrice,
+            'barcode': newItem.barcode,
           },
         );
         
@@ -361,6 +378,7 @@ Future<List<MenuItem>> getMenuItems() async {
             'taxExempt': item.taxExempt ? 1 : 0,
             'isPerPlate': item.isPerPlate ? 1 : 0,
             'purchasePrice': item.purchasePrice,
+            'barcode': item.barcode,
           },
           where: 'id = ?',
           whereArgs: [item.id],
