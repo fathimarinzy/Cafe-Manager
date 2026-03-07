@@ -2060,6 +2060,7 @@ void _showPermissionDeniedDialog(BuildContext context) {
     }
 
     return Card(
+      color: Colors.white,
       margin: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2183,6 +2184,7 @@ void _showPermissionDeniedDialog(BuildContext context) {
     final menuProvider = Provider.of<MenuProvider>(context);
     
     return Card(
+      color: Colors.white,
       margin: const EdgeInsets.all(16),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -2613,6 +2615,7 @@ void _showPermissionDeniedDialog(BuildContext context) {
     }
 
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title:  Text('Products'.tr()),
         backgroundColor: Colors.white,
