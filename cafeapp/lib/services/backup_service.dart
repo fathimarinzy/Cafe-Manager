@@ -1123,16 +1123,7 @@ class BackupService {
     }
   }
 
-  // Add a method to fetch the version from SharedPreferences
-  static Future<String> getVersion() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString('app_version') ?? '1.0.0'; // Default version
-    } catch (e) {
-      debugPrint('❌ Error fetching version: $e');
-      return '1.0.0';
-    }
-  }
+  
 }
     // Helper class for Google Drive authentication
   class GoogleAuthClient extends http.BaseClient {
