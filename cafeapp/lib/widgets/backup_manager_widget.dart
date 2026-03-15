@@ -932,7 +932,7 @@ Widget _buildPreviewRow(String label, String value) {
           // Import button - now properly connected!
           IconButton(
             icon: const Icon(Icons.file_upload),
-            tooltip: 'Import Backup'.tr(),
+            tooltip: 'Restore Backup'.tr(),
             onPressed: _importBackupFromFile,
           ),
 

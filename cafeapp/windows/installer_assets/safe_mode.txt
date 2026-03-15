@@ -1,0 +1,1 @@
+This file is installed by Inno Setup if the user checks the Legacy Hardware option. It forces the app to default to Firedart (Legacy SDK) to prevent AVX2-related crashes.
