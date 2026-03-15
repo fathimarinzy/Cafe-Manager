@@ -65,8 +65,8 @@ class BackupService {
       
       final backupData = {
         'timestamp': DateTime.now().toIso8601String(),
-        'version': '1.0.1',
-        'app_version': '1.0.1',
+        'version': '2.0.1',
+        'app_version': '2.0.1',
         'platform': Platform.operatingSystem,
         'preferences': prefsData,
         'databases': databasesData,
@@ -1120,6 +1120,17 @@ class BackupService {
     } catch (e) {
       debugPrint('❌ Error restoring from Google Drive: $e');
       return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  // Add a method to fetch the version from SharedPreferences
+  static Future<String> getVersion() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('app_version') ?? '1.0.0'; // Default version
+    } catch (e) {
+      debugPrint('❌ Error fetching version: $e');
+      return '1.0.0';
     }
   }
 }

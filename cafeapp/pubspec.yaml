@@ -2,7 +2,7 @@ name: cafeapp
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.1+2
+version: 2.0.1+2
 
 environment:
   sdk: ^3.7.2
@@ -117,7 +117,7 @@ msix_config:
   display_name: SIMS CAFE
   publisher_display_name: SIMS AI
   identity_name: com.sims.cafeapp
-  msix_version: 1.0.1.0
+  msix_version: 2.0.1.0
   logo_path: assets/icon/icon.png  # Your app icon
   capabilities: internetClient
   

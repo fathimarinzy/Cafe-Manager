@@ -91,7 +91,7 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
     final backupData = jsonDecode(jsonData) as Map<String, dynamic>;
 
     final timestamp = backupData['timestamp'] as String?;
-    final version = backupData['version'] as String?;
+    // final version = backupData['version'] as String?;
     final platform = backupData['platform'] as String?;
     final hasDatabases = backupData.containsKey('databases');
     final hasPreferences = backupData.containsKey('preferences');
@@ -111,8 +111,8 @@ class _BackupManagerWidgetState extends State<BackupManagerWidget> {
               _buildPreviewRow('Date:', timestamp != null 
                 ? _formatBackupDate(timestamp) 
                 : 'Unknown'.tr()),
-              const SizedBox(height: 8),
-              _buildPreviewRow('Version:', version ?? 'Unknown'.tr()),
+              // const SizedBox(height: 8),
+              // _buildPreviewRow('Version:', version ?? 'Unknown'.tr()),
               const SizedBox(height: 8),
               _buildPreviewRow('Platform:', platform ?? 'Unknown'.tr()),
               const SizedBox(height: 8),
@@ -1124,7 +1124,7 @@ Widget _buildPreviewRow(String label, String value) {
         final backup = _backups[index];
         final path = backup['path'] as String;
         final timestamp = backup['timestamp'] as String;
-        final version = backup['version'] as String? ?? 'Unknown';
+        // final version = backup['version'] as String? ?? 'Unknown';
         final platform = backup['platform'] as String? ?? 'Unknown';
         final hasDatabases = backup['has_databases'] as bool? ?? false;
         final size = backup['size'] as int? ?? 0;
@@ -1169,8 +1169,8 @@ Widget _buildPreviewRow(String label, String value) {
                       const SizedBox(width: 8),
                       Text(
                         hasDatabases
-                            ? '${'Full backup'.tr()} (v$version)'
-                            : '${'Settings only'.tr()} (v$version)',
+                            ? '${'Full backup'.tr()} '
+                            : '${'Settings only'.tr()} ',
                         style: TextStyle(
                           color: Colors.grey[600],
                           fontSize: 14,
