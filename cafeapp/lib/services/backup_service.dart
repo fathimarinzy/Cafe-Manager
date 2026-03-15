@@ -1122,8 +1122,6 @@ class BackupService {
       return {'success': false, 'error': e.toString()};
     }
   }
-
-  
 }
     // Helper class for Google Drive authentication
   class GoogleAuthClient extends http.BaseClient {
