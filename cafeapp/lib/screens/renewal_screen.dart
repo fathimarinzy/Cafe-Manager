@@ -159,17 +159,17 @@ class _RenewalScreenState extends State<RenewalScreen> {
           );
         }
       } else {
-        String errorMessage = result['message'] ?? 'Failed to generate renewal keys';
+        String errorMessage = result['message'] ?? 'Failed to generate renewal keys'.tr();
         
         if (result['hasPendingKeys'] == true) {
-          errorMessage = 'This device already has pending renewal keys. Please use those keys or contact support.';
+          errorMessage = 'This device already has pending renewal keys. Please use those keys or contact support.'.tr();
         }
         
         _showErrorMessage(errorMessage);
       }
     } catch (e) {
       debugPrint('Error generating renewal keys: $e');
-      _showErrorMessage('Failed to generate keys. Please check your internet connection and try again.');
+      _showErrorMessage('Failed to generate keys. Please check your internet connection and try again.'.tr());
     } finally {
       if (mounted) {
         setState(() {
@@ -183,7 +183,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
     // Validate that all key fields are filled
     for (int i = 0; i < 5; i++) {
       if (_keyControllers[i].text.trim().isEmpty) {
-        _showErrorMessage('Please fill all renewal key fields');
+        _showErrorMessage('Please fill all renewal key fields'.tr());
         return;
       }
     }
@@ -237,25 +237,25 @@ class _RenewalScreenState extends State<RenewalScreen> {
           }
         }
       } else {
-        String errorMessage = result['message'] ?? 'Renewal failed';
+        String errorMessage = result['message'] ?? 'Renewal failed'.tr();
         
         if (result['keysAlreadyUsed'] == true) {
-          errorMessage = 'These renewal keys have already been used. Please contact support for new keys.';
+          errorMessage = 'These renewal keys have already been used. Please contact support for new keys.'.tr();
         } else if (result['keysJustUsed'] == true) {
-          errorMessage = 'These renewal keys were just used. Please contact support for new keys.';
+          errorMessage = 'These renewal keys were just used. Please contact support for new keys.'.tr();
         } else if (result['isInvalidKeys'] == true) {
-          errorMessage = 'Invalid renewal keys. Please check and try again.';
+          errorMessage = 'Invalid renewal keys. Please check and try again.'.tr();
         } else if (result['notFound'] == true) {
-          errorMessage = 'No pending renewal found. Please generate keys first.';
+          errorMessage = 'No pending renewal found. Please generate keys first.'.tr();
         } else if (result['isExpired'] == true) {
-          errorMessage = 'Renewal keys have expired. Please generate new ones.';
+          errorMessage = 'Renewal keys have expired. Please generate new ones.'.tr();
         }
         
         _showErrorMessage(errorMessage);
       }
     } catch (e) {
       debugPrint('Error processing renewal: $e');
-      _showErrorMessage('Renewal failed. Please check your internet connection and try again.');
+      _showErrorMessage('Renewal failed. Please check your internet connection and try again.'.tr());
     } finally {
       if (mounted) {
         setState(() {
@@ -285,8 +285,8 @@ class _RenewalScreenState extends State<RenewalScreen> {
 
   String _getRenewalTypeDescription() {
     return widget.renewalType == RenewalType.demo 
-        ? 'Upgrade Plan'
-        : 'Renew your license for another year';
+        ? 'Upgrade Plan'.tr()
+        : 'Renew your license for another year'.tr();
   }
 
   MaterialColor _getRenewalTypeColor() {
@@ -334,11 +334,11 @@ class _RenewalScreenState extends State<RenewalScreen> {
                         ),
                         children: [
                           TextSpan(
-                            text: widget.renewalType == RenewalType.demo ? 'Demo ' : 'License ',
+                            text: widget.renewalType == RenewalType.demo ? 'Demo '.tr() : 'License '.tr(),
                             style: TextStyle(color: Colors.grey[800]),
                           ),
                           TextSpan(
-                            text: 'Renewal',
+                            text: 'Renewal'.tr(),
                             style: TextStyle(color: renewalColor.shade700),
                           ),
                         ],
@@ -374,7 +374,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Click the button below to generate your unique renewal keys',
+                        'Click the button below to generate your unique renewal keys'.tr(),
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey[600],
@@ -442,7 +442,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'Renewal keys have been generated for your device. Please contact support to get your keys:',
+                        'Renewal keys have been generated for your device. Please contact support to get your keys:'.tr(),
                         style: TextStyle(
                           fontSize: 14,
                           color: renewalColor.shade800,
@@ -518,7 +518,7 @@ class _RenewalScreenState extends State<RenewalScreen> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                'Keys are valid for 7 days. Please complete renewal within this time.',
+                                'Keys are valid for 7 days. Please complete renewal within this time.'.tr(),
                                 style: TextStyle(
                                   color: Colors.orange.shade700,
                                   fontSize: 12,

@@ -255,7 +255,7 @@ Future<void> _showLogoDialog() async {
                                 Navigator.of(context).pop();
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text('Error: $e'),
+                                    content: Text('${'Error:'.tr()} $e'),
                                     backgroundColor: Colors.red,
                                   ),
                                 );
@@ -341,7 +341,7 @@ Future<void> _showLogoDialog() async {
                                       Navigator.of(context).pop();
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         SnackBar(
-                                          content: Text('Error removing logo: $e'),
+                                          content: Text('${'Error removing logo: '.tr()}$e'),
                                           backgroundColor: Colors.red,
                                         ),
                                       );

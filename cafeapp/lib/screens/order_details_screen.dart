@@ -1180,7 +1180,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
             if (_order != null) ...[
               TextButton.icon(
                 icon: const Icon(Icons.print),
-                label: Text('Print'.tr()),
+                label: Text('Reprint'.tr()),
                 onPressed: _printBillReceipt,
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.blue[800],

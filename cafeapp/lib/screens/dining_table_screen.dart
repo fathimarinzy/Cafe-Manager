@@ -222,11 +222,11 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
               // Statistics / Summary Row
               Row(
                 children: [
-                   _buildStatusChip('Total: ${tables.length}', Colors.blueGrey),
+                   _buildStatusChip('${'Total:'.tr()} ${tables.length}', Colors.blueGrey),
                    const SizedBox(width: 8),
-                   _buildStatusChip('Occupied: ${tables.where((t) => t.isOccupied).length}', Colors.orange),
+                   _buildStatusChip('${'Occupied:'.tr()} ${tables.where((t) => t.isOccupied).length}', Colors.orange),
                    const SizedBox(width: 8),
-                   _buildStatusChip('Available: ${tables.where((t) => !t.isOccupied).length}', Colors.green),
+                   _buildStatusChip('${'Available:'.tr()} ${tables.where((t) => !t.isOccupied).length}', Colors.green),
                 ],
               ),
               const SizedBox(height: 12),
