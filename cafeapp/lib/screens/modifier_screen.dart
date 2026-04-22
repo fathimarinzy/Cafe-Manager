@@ -1801,6 +1801,20 @@ void _showPermissionDeniedDialog(BuildContext context) {
   
     final menuProvider = Provider.of<MenuProvider>(context, listen: false);
     
+    // Prevent duplicate barcode
+    if (capturedBarcode.isNotEmpty) {
+      final exists = menuProvider.items.any((i) => i.barcode == capturedBarcode && (_editingItem == null || i.id != _editingItem!.id));
+      if (exists) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Product with same barcode exists'.tr()),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+    }
+    
     // Show saving dialog
     showDialog(
       context: context,

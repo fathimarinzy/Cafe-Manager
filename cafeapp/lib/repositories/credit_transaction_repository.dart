@@ -1,7 +1,9 @@
 import 'package:sqflite/sqflite.dart';
 // import 'package:path/path.dart';
 import '../models/credit_transaction.dart';
-import '../services/device_sync_service.dart';
+// import '../services/device_sync_service.dart';
+import '../providers/lan_sync_provider.dart';
+import '../models/lan_sync_models.dart';
 import 'package:flutter/foundation.dart';
 import '../utils/database_helper.dart';
 
@@ -37,7 +39,7 @@ class CreditTransactionRepository {
     
     return await openDatabase(
       path,
-      version: 1,
+      version: 2, // Increment for LAN sync columns
       onConfigure: (db) async {
         await db.rawQuery('PRAGMA journal_mode=WAL;');
       },
@@ -51,12 +53,29 @@ class CreditTransactionRepository {
             amount REAL NOT NULL,
             createdAt TEXT NOT NULL,
             serviceType TEXT NOT NULL,
-            isCompleted INTEGER DEFAULT 0
+            isCompleted INTEGER DEFAULT 0,
+            updated_at TEXT,
+            is_deleted INTEGER NOT NULL DEFAULT 0
           )
         ''');
       },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          // LAN Sync: Add updated_at and is_deleted columns
+          try {
+            await db.execute('ALTER TABLE credit_transactions ADD COLUMN updated_at TEXT');
+            await db.execute('ALTER TABLE credit_transactions ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0');
+            // Backfill updated_at from createdAt for existing rows
+            await db.execute('UPDATE credit_transactions SET updated_at = createdAt WHERE updated_at IS NULL');
+            debugPrint('Added LAN sync columns (updated_at, is_deleted) to credit_transactions table');
+          } catch (e) {
+            debugPrint('Error adding LAN sync columns to credit_transactions: $e');
+          }
+        }
+      },
     );
   }
+
 
   Future<CreditTransaction> saveCreditTransaction(CreditTransaction transaction, {bool fromSync = false}) async {
     final db = await database;
@@ -72,11 +91,19 @@ class CreditTransactionRepository {
       // SYNC: Sync credit transaction in background (ONLY if not from sync)
       // Fire-and-forget: don't await so save isn't blocked by network issues
       if (!fromSync) {
-        DeviceSyncService.syncCreditTransactionToFirestore(transaction).then((_) {
-          debugPrint('Background sync completed for credit transaction: ${transaction.id}');
-        }).catchError((e) {
+        try {
+          if (LanSyncProvider.instance.isActive) {
+            LanSyncProvider.instance.broadcastEvent(
+              SyncEvent(
+                event: SyncEventType.creditTxUpdated,
+                data: transaction.toJson(),
+                deviceId: LanSyncProvider.instance.deviceId,
+              )
+            );
+          }
+        } catch (e) {
           debugPrint('Background sync error for credit transaction: $e');
-        });
+        }
       }
       
       return transaction;
@@ -109,7 +136,7 @@ class CreditTransactionRepository {
       
       final count = await db.update(
         'credit_transactions',
-        {'isCompleted': 1},
+        {'isCompleted': 1, 'updated_at': DateTime.now().toIso8601String()},
         where: 'id = ?',
         whereArgs: [transactionId],
       );
@@ -119,11 +146,19 @@ class CreditTransactionRepository {
       // Fire-and-forget: don't await so completion isn't blocked by network issues
       getCreditTransactionById(transactionId).then((updatedTx) {
         if (updatedTx != null) {
-          DeviceSyncService.syncCreditTransactionToFirestore(updatedTx).then((_) {
-            debugPrint('Background sync completed for credit completion: $transactionId');
-          }).catchError((e) {
+          try {
+            if (LanSyncProvider.instance.isActive) {
+              LanSyncProvider.instance.broadcastEvent(
+                SyncEvent(
+                  event: SyncEventType.creditTxUpdated,
+                  data: updatedTx.toJson(),
+                  deviceId: LanSyncProvider.instance.deviceId,
+                )
+              );
+            }
+          } catch (e) {
             debugPrint('Background sync error for credit completion: $e');
-          });
+          }
         }
       }).catchError((e) {
         debugPrint('Error fetching credit transaction for sync: $e');

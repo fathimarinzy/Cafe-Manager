@@ -1140,10 +1140,12 @@ pw.Widget _buildPdfProfitRow(Map<String, dynamic> paymentTotals, NumberFormat fo
             _selectedDate.day,
             _endTime.hour,
             _endTime.minute,
+            59,
+            999
           );      
         }else {
         startDate = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
-        endDate = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, 23, 59, 59);
+        endDate = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, 23, 59, 59, 999);
           }
         }  
         else if (_selectedReportType == 'monthly') {
@@ -1162,6 +1164,8 @@ pw.Widget _buildPdfProfitRow(Map<String, dynamic> paymentTotals, NumberFormat fo
             0,
             _endTime.hour,
             _endTime.minute,
+            59,
+            999
           );
         } else {
           endDate = DateTime(
@@ -1170,14 +1174,16 @@ pw.Widget _buildPdfProfitRow(Map<String, dynamic> paymentTotals, NumberFormat fo
             0,
             _endTime.hour,
             _endTime.minute,
+            59,
+            999
           );
         }
       } else {
         startDate = DateTime(_startDate.year, _startDate.month, 1);
         if (_startDate.month < 12) {
-          endDate = DateTime(_startDate.year, _startDate.month + 1, 0, 23, 59, 59);
+          endDate = DateTime(_startDate.year, _startDate.month + 1, 0, 23, 59, 59, 999);
         } else {
-          endDate = DateTime(_startDate.year + 1, 1, 0, 23, 59, 59);
+          endDate = DateTime(_startDate.year + 1, 1, 0, 23, 59, 59, 999);
         }
       }
     } else if (_selectedReportType == 'profit') {
@@ -1195,14 +1201,35 @@ pw.Widget _buildPdfProfitRow(Map<String, dynamic> paymentTotals, NumberFormat fo
           _profitEndDate.day,
           _endTime.hour,
           _endTime.minute,
+          59,
+          999
         );
       } else {
         startDate = _profitStartDate;
         endDate = _profitEndDate;
       }
     } else {
-      startDate = DateTime(_startDate.year, _startDate.month, _startDate.day);
-      endDate = DateTime(_endDate.year, _endDate.month, _endDate.day, 23, 59, 59);
+      if (_useTimeFilter) {
+        startDate = DateTime(
+          _startDate.year, 
+          _startDate.month, 
+          _startDate.day,
+          _startTime.hour,
+          _startTime.minute,
+        );
+        endDate = DateTime(
+          _endDate.year, 
+          _endDate.month, 
+          _endDate.day,
+          _endTime.hour,
+          _endTime.minute,
+          59,
+          999
+        );
+      } else {
+        startDate = DateTime(_startDate.year, _startDate.month, _startDate.day);
+        endDate = DateTime(_endDate.year, _endDate.month, _endDate.day, 23, 59, 59, 999);
+      }
     }
       final String cacheKey = _getCacheKey(
         _selectedReportType, 
@@ -1347,7 +1374,11 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
   }
   Map<String, dynamic> _createReportFromData(List<Order> orders, List<Map<String, dynamic>> expenses) {
     debugPrint('=== REPORT GENERATION DEBUG ===');
-    debugPrint('Creating report from ${orders.length} orders and ${expenses.length} expenses');
+    
+    // Filter out cancelled orders before processing anything
+    orders = orders.where((o) => o.status.toLowerCase() != 'cancelled').toList();
+    
+    debugPrint('Creating report from ${orders.length} active orders and ${expenses.length} expenses');
     
     final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
     
@@ -1356,10 +1387,13 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
     // For Catering: If not completed, only count the advance (deposit).
     // If completed, count the full total.
     double getOrderRevenue(Order order) {
-      // Exclude 'customer_credit' (unpaid/tab) orders from Revenue if user wants Cash Basis
-      // The user clearly doesn't want "Add Credit" to show in Total Revenue.
-      if ((order.paymentMethod ?? '').toLowerCase() == 'customer_credit') {
+      if (order.status.toLowerCase() == 'cancelled') {
         return 0.0;
+      }
+      
+      // If Customer Credit, return the cash+bank advance they paid (if any).
+      if ((order.paymentMethod ?? '').toLowerCase() == 'customer_credit') {
+        return (order.cashAmount ?? 0.0) + (order.bankAmount ?? 0.0);
       }
 
       if (order.serviceType.toLowerCase().contains('catering')) {
@@ -1449,7 +1483,18 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
     debugPrint('  Total: ${order.total}');
     debugPrint('  Effective Amount: $effectiveAmount');
     
+      if (order.status.toLowerCase() == 'cancelled') continue;
+      
       if (paymentMethod == 'customer_credit') {
+        // Even for credit completion, they might have paid an advance earlier
+        if (order.cashAmount != null && order.cashAmount! > 0) {
+          paymentTotals['cash']!['sales'] = (paymentTotals['cash']!['sales'] ?? 0.0) + order.cashAmount!;
+          paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + order.cashAmount!;
+        }
+        if (order.bankAmount != null && order.bankAmount! > 0) {
+          paymentTotals['bank']!['sales'] = (paymentTotals['bank']!['sales'] ?? 0.0) + order.bankAmount!;
+          paymentTotals['total']!['sales'] = (paymentTotals['total']!['sales'] ?? 0.0) + order.bankAmount!;
+        }
         continue;
       } 
       //Handle split payments properly

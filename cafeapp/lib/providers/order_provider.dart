@@ -11,7 +11,9 @@ import '../providers/table_provider.dart';
 import '../services/bill_service.dart';
 import '../providers/settings_provider.dart';
 import '../repositories/local_order_repository.dart';
-import '../services/device_sync_service.dart';
+// import '../services/device_sync_service.dart';
+import '../providers/lan_sync_provider.dart';
+import '../models/lan_sync_models.dart';
 
 class OrderProvider with ChangeNotifier {
   // Map to store cart items for each service type or table
@@ -621,6 +623,10 @@ class OrderProvider with ChangeNotifier {
       clearCart();
       // Reset the current order ID
       _currentOrderId = null;
+      // Clear delivery and catering details so they don't persist
+      clearDeliveryDetails();
+      clearCateringDetails();
+      clearSelectedPerson();
       
       return {
         'success': true,
@@ -642,13 +648,22 @@ class OrderProvider with ChangeNotifier {
 
   Future<void> _syncOrderIfEnabled(Order order) async {
   try {
-    final prefs = await SharedPreferences.getInstance();
-    final syncEnabled = prefs.getBool('device_sync_enabled') ?? false;
-    
-    if (syncEnabled) {
-      await DeviceSyncService.syncOrderToFirestore(order);
-      debugPrint('✅ Order synced automatically - Staff #${order.staffOrderNumber}');
+    // 1. LAN Sync Broadcast
+    try {
+      if (LanSyncProvider.instance.isActive) {
+        LanSyncProvider.instance.broadcastEvent(
+          SyncEvent(
+            event: SyncEventType.orderUpdated,
+            data: order.toJson(),
+            deviceId: LanSyncProvider.instance.deviceId,
+          )
+        );
+      }
+    } catch (e) {
+      debugPrint('⚠️ LAN Auto-sync failed: $e');
     }
+
+    // Firestore sync removed
   } catch (e) {
     debugPrint('⚠️ Auto-sync failed: $e');
     // Don't throw - sync failure shouldn't block order creation
@@ -857,7 +872,11 @@ class OrderProvider with ChangeNotifier {
         );
         
         // Save the updated order
-        await _localOrderRepo.saveOrder(updatedOrder);
+        final savedOrder = await _localOrderRepo.saveOrder(updatedOrder);
+        
+        // Sync the update
+        _syncOrderIfEnabled(savedOrder);
+        
         debugPrint('Updated payment method for order #$orderId to $paymentMethod');
         return true;
       } else {
@@ -868,6 +887,45 @@ class OrderProvider with ChangeNotifier {
       debugPrint('Error updating payment method: $e');
       return false;
     }
+  }
+
+  // Update order discount and sync
+  Future<bool> updateOrderDiscount(int orderId, double discount, double newTotal) async {
+    final success = await _localOrderRepo.updateOrderDiscount(orderId, discount, newTotal);
+    if (success) {
+      final order = await _localOrderRepo.getOrderById(orderId);
+      if (order != null) {
+        _syncOrderIfEnabled(order);
+      }
+      notifyListeners();
+    }
+    return success;
+  }
+
+  // Update order status and sync
+  Future<bool> updateOrderStatus(int orderId, String status) async {
+    final success = await _localOrderRepo.updateOrderStatus(orderId, status);
+    if (success) {
+      final order = await _localOrderRepo.getOrderById(orderId);
+      if (order != null) {
+        _syncOrderIfEnabled(order);
+      }
+      notifyListeners();
+    }
+    return success;
+  }
+
+  // Set temporary receipt printed status and sync
+  Future<bool> setTempReceiptPrinted(int orderId, bool printed) async {
+    final success = await _localOrderRepo.setTempReceiptPrinted(orderId, printed);
+    if (success) {
+      final order = await _localOrderRepo.getOrderById(orderId);
+      if (order != null) {
+        _syncOrderIfEnabled(order);
+      }
+      notifyListeners();
+    }
+    return success;
   }
 
   // Save current cart as a QUOTE

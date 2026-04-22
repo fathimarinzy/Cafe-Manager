@@ -40,7 +40,7 @@ class LocalPersonRepository {
     
     return await openDatabase(
       path,
-      version: 2,
+      version: 3, // Increment for LAN sync columns
       onConfigure: (db) async {
         await db.rawQuery('PRAGMA journal_mode=WAL;');
       },
@@ -53,7 +53,9 @@ class LocalPersonRepository {
             phoneNumber TEXT NOT NULL,
             place TEXT NOT NULL,
             dateVisited TEXT NOT NULL,
-            credit REAL DEFAULT 0.0
+            credit REAL DEFAULT 0.0,
+            updated_at TEXT,
+            is_deleted INTEGER NOT NULL DEFAULT 0
           )
         ''');
       },
@@ -62,9 +64,22 @@ class LocalPersonRepository {
           // Add credit column to existing table
           await db.execute('ALTER TABLE persons ADD COLUMN credit REAL DEFAULT 0.0');
         }
+        if (oldVersion < 3) {
+          // LAN Sync: Add updated_at and is_deleted columns
+          try {
+            await db.execute('ALTER TABLE persons ADD COLUMN updated_at TEXT');
+            await db.execute('ALTER TABLE persons ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0');
+            // Backfill updated_at from dateVisited for existing rows
+            await db.execute('UPDATE persons SET updated_at = dateVisited WHERE updated_at IS NULL');
+            debugPrint('Added LAN sync columns (updated_at, is_deleted) to persons table');
+          } catch (e) {
+            debugPrint('Error adding LAN sync columns to persons: $e');
+          }
+        }
       },
     );
   }
+
 
   // Save person to local database with improved error handling
   Future<Person> savePerson(Person person, {bool fromSync = false}) async {
@@ -101,6 +116,7 @@ class LocalPersonRepository {
             'place': newPerson.place,
             'dateVisited': newPerson.dateVisited,
             'credit': newPerson.credit,
+            'updated_at': DateTime.now().toIso8601String(),
           },
           where: 'id = ?',
           whereArgs: [personId],
@@ -116,6 +132,7 @@ class LocalPersonRepository {
             'place': newPerson.place,
             'dateVisited': newPerson.dateVisited,
             'credit': newPerson.credit,
+            'updated_at': DateTime.now().toIso8601String(),
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
@@ -143,7 +160,7 @@ class LocalPersonRepository {
   Future<List<Person>> getAllPersons() async {
     try {
       final db = await database;
-      final results = await db.query('persons');
+      final results = await db.query('persons', where: 'is_deleted = ?', whereArgs: [0]);
       
       return results.map((map) => Person(
         id: map['id'] as String,
@@ -213,8 +230,13 @@ Future<bool> addCreditToCustomer(String personId, double creditToAdd) async {
   Future<bool> deletePerson(String id) async {
     try {
       final db = await database;
-      final count = await db.delete(
+      // Soft delete to ensure sync picks it up
+      final count = await db.update(
         'persons',
+        {
+          'is_deleted': 1,
+          'updated_at': DateTime.now().toIso8601String(),
+        },
         where: 'id = ?',
         whereArgs: [id],
       );
@@ -240,6 +262,7 @@ Future<bool> addCreditToCustomer(String personId, double creditToAdd) async {
           'phoneNumber': person.phoneNumber,
           'place': person.place,
           'dateVisited': person.dateVisited,
+          'updated_at': DateTime.now().toIso8601String(), // Update timestamp
         },
         where: 'id = ?',
         whereArgs: [person.id],
@@ -269,8 +292,8 @@ Future<Person?> getPersonById(String id) async {
     
     final List<Map<String, dynamic>> maps = await db.query(
       'persons',
-      where: 'id = ?',
-      whereArgs: [id],
+      where: 'id = ? AND is_deleted = ?',
+      whereArgs: [id, 0],
       limit: 1,
     );
     

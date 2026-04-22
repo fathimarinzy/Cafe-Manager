@@ -59,6 +59,7 @@ class MenuItem {
       'isPerPlate': isPerPlate, // NEW
       'purchasePrice': purchasePrice,
       'barcode': barcode,
+      'lastUpdated': DateTime.now().toIso8601String(), // Ensure sync engine resolves conflicts correctly
     };
   }
 

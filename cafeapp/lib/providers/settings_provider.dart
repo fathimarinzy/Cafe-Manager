@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_localization.dart';
 import '../services/online_sync_service.dart';
+import '../providers/lan_sync_provider.dart';
+import '../models/lan_sync_models.dart';
 
 class SettingsProvider with ChangeNotifier {
   // Server settings
@@ -356,10 +358,28 @@ class SettingsProvider with ChangeNotifier {
           }
           break;
       }
-      
       // Trigger sync if needed
-      if (isBusinessInfoUpdated) {
+      if (isBusinessInfoUpdated || key == 'tax_rate' || key == 'is_vat_inclusive' || key == 'receipt_footer') {
         _triggerBusinessInfoSync();
+        
+        // LAN Sync
+        final settingsMap = {
+          'business_name': _businessName,
+          'second_business_name': _secondBusinessName,
+          'business_address': _businessAddress,
+          'business_phone': _businessPhone,
+          'business_email': _businessEmail,
+          'tax_rate': _taxRate,
+          'is_vat_inclusive': _isVatInclusive,
+          'receipt_footer': _receiptFooter,
+        };
+        LanSyncProvider.instance.broadcastEvent(
+          SyncEvent(
+            event: SyncEventType.settingsChanged,
+            data: settingsMap,
+            deviceId: LanSyncProvider.instance.deviceId,
+          )
+        );
       }
       
     } catch (e) {
@@ -515,10 +535,28 @@ class SettingsProvider with ChangeNotifier {
         await prefs.setBool('double_tap_keyboard', doubleTapToOpenKeyboard);
       }
 
-      
       // Trigger sync if needed
-      if (isBusinessInfoUpdated) {
+      if (isBusinessInfoUpdated || taxRate != null || isVatInclusive != null || receiptFooter != null) {
         _triggerBusinessInfoSync();
+        
+        // LAN Sync
+        final settingsMap = {
+          'business_name': _businessName,
+          'second_business_name': _secondBusinessName,
+          'business_address': _businessAddress,
+          'business_phone': _businessPhone,
+          'business_email': _businessEmail,
+          'tax_rate': _taxRate,
+          'is_vat_inclusive': _isVatInclusive,
+          'receipt_footer': _receiptFooter,
+        };
+        LanSyncProvider.instance.broadcastEvent(
+          SyncEvent(
+            event: SyncEventType.settingsChanged,
+            data: settingsMap,
+            deviceId: LanSyncProvider.instance.deviceId,
+          )
+        );
       }
       
     } catch (e) {

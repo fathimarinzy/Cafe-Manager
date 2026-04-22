@@ -13,7 +13,7 @@ import '../models/person.dart';
 import '../widgets/clock_widget.dart';
 import '../screens/quotations_list_screen.dart';
 import '../utils/keyboard_utils.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+// import 'package:shared_preferences/shared_preferences.dart';
 
 
 class OrderListScreen extends StatefulWidget {
@@ -46,38 +46,9 @@ class _OrderListScreenState extends State<OrderListScreen> {
   // Track if pending filter is active
   bool _isPendingFilterActive = false;
 
-  Set<int> _tempReceipts = {};
-
-  Future<void> _loadTempReceipts() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final keys = prefs.getKeys().where((k) => k.startsWith('temp_receipt_')).toList();
-      
-      Set<int> tempReceipts = {};
-      for (var key in keys) {
-        if (prefs.getBool(key) == true) {
-          final idStr = key.replaceFirst('temp_receipt_', '');
-          final id = int.tryParse(idStr);
-          if (id != null) {
-            tempReceipts.add(id);
-          }
-        }
-      }
-      
-      if (mounted) {
-        setState(() {
-          _tempReceipts = tempReceipts;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading temp receipts: $e');
-    }
-  }
-
   @override
   void initState() {
     super.initState();
-    _loadTempReceipts();
     
     // Handle initial search query if provided
     if (widget.searchQuery != null && widget.searchQuery!.isNotEmpty) {
@@ -99,7 +70,6 @@ class _OrderListScreenState extends State<OrderListScreen> {
         try {
           debugPrint('🔄 Auto-refreshing order history');
           Provider.of<OrderHistoryProvider>(context, listen: false).loadOrders();
-          _loadTempReceipts();
         } catch (e) {
           debugPrint('⚠️ Error refreshing orders from timer: $e');
         }
@@ -225,7 +195,6 @@ class _OrderListScreenState extends State<OrderListScreen> {
                 } else {
                   historyProvider.loadOrders();
                 }
-                _loadTempReceipts();
               },
             ),
             
@@ -525,7 +494,6 @@ class _OrderListScreenState extends State<OrderListScreen> {
         } else {
           historyProvider.loadOrders();
         }
-        _loadTempReceipts();
       },
       style: ElevatedButton.styleFrom(
         backgroundColor: _isPendingFilterActive ? Colors.orange : Colors.orange.withAlpha((0.1 * 255).round()),
@@ -715,12 +683,12 @@ Widget _buildOrderCard(OrderHistory order) {
                               color: textColor,
                             ),
                           ),
-                          if (_tempReceipts.contains(order.id))
+                          if (order.isTempReceiptPrinted)
                             Padding(
                               padding: const EdgeInsets.only(left: 4.0),
                               child: Tooltip(
                                 message: 'Temporary Receipt Printed'.tr(),
-                                child: const Icon(Icons.receipt, size: 14, color: Colors.white),
+                                child: const Icon(Icons.receipt_long, size: 14, color: Colors.white),
                               ),
                             ),
                         ],

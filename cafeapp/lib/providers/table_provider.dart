@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../models/table_model.dart';
+import '../providers/lan_sync_provider.dart';
+import '../models/lan_sync_models.dart';
 
 class TableProvider with ChangeNotifier {
   List<TableModel> _tables = [];
@@ -41,6 +43,7 @@ class TableProvider with ChangeNotifier {
 
   Future<void> _loadTables() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.reload(); // Force reload from disk in case LAN Sync updated it
     final String? tablesJson = prefs.getString(_storageKey);
     
     if (tablesJson != null) {
@@ -71,17 +74,26 @@ class TableProvider with ChangeNotifier {
   Future<void> addTable() async {
     final newTableNumber = _tables.isEmpty ? 1 : _tables.map((t) => t.number).reduce((a, b) => a > b ? a : b) + 1;
     
-    _tables.add(
-      TableModel(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        number: newTableNumber,
-        isOccupied: false,
-        capacity: 4,
-      )
+    final table = TableModel(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      number: newTableNumber,
+      isOccupied: false,
+      capacity: 4,
     );
+    _tables.add(table);
     
     await _saveTables();
     notifyListeners();
+
+    try {
+      if (LanSyncProvider.instance.isActive) {
+        LanSyncProvider.instance.broadcastEvent(SyncEvent(
+          event: SyncEventType.tableUpdated,
+          data: table.toJson(),
+          deviceId: LanSyncProvider.instance.deviceId,
+        ));
+      }
+    } catch (_) {}
   }
 
   Future<void> addSpecificTable(TableModel table) async {
@@ -105,6 +117,16 @@ class TableProvider with ChangeNotifier {
     _tables.add(table);
     await _saveTables();
     notifyListeners();
+
+    try {
+      if (LanSyncProvider.instance.isActive) {
+        LanSyncProvider.instance.broadcastEvent(SyncEvent(
+          event: SyncEventType.tableUpdated,
+          data: table.toJson(),
+          deviceId: LanSyncProvider.instance.deviceId,
+        ));
+      }
+    } catch (_) {}
   }
 
   Future<void> updateTable(TableModel table) async {
@@ -113,6 +135,16 @@ class TableProvider with ChangeNotifier {
       _tables[index] = table;
       await _saveTables();
       notifyListeners();
+
+      try {
+        if (LanSyncProvider.instance.isActive) {
+          LanSyncProvider.instance.broadcastEvent(SyncEvent(
+            event: SyncEventType.tableUpdated,
+            data: table.toJson(),
+            deviceId: LanSyncProvider.instance.deviceId,
+          ));
+        }
+      } catch (_) {}
     }
   }
 
@@ -124,7 +156,7 @@ class TableProvider with ChangeNotifier {
       
       // Only update the isOccupied status if provided
       if (isOccupied != null) {
-        _tables[index] = TableModel(
+        final updatedTable = TableModel(
           id: table.id,
           number: table.number,
           capacity: table.capacity,
@@ -133,9 +165,20 @@ class TableProvider with ChangeNotifier {
           category: table.category,
           name: table.name,
         );
+        _tables[index] = updatedTable;
         
         await _saveTables();
         notifyListeners();
+
+        try {
+          if (LanSyncProvider.instance.isActive) {
+            LanSyncProvider.instance.broadcastEvent(SyncEvent(
+              event: SyncEventType.tableUpdated,
+              data: updatedTable.toJson(),
+              deviceId: LanSyncProvider.instance.deviceId,
+            ));
+          }
+        } catch (_) {}
       }
     }
   }
@@ -161,6 +204,18 @@ class TableProvider with ChangeNotifier {
     if (madeChanges) {
       await _saveTables();
       notifyListeners();
+
+      try {
+        if (LanSyncProvider.instance.isActive) {
+          for (var t in _tables.where((t) => t.category == newName)) {
+            LanSyncProvider.instance.broadcastEvent(SyncEvent(
+              event: SyncEventType.tableUpdated,
+              data: t.toJson(),
+              deviceId: LanSyncProvider.instance.deviceId,
+            ));
+          }
+        }
+      } catch (_) {}
     }
   }
 
@@ -170,6 +225,16 @@ class TableProvider with ChangeNotifier {
       _tables[index].isOccupied = !_tables[index].isOccupied;
       await _saveTables();
       notifyListeners();
+
+      try {
+        if (LanSyncProvider.instance.isActive) {
+          LanSyncProvider.instance.broadcastEvent(SyncEvent(
+            event: SyncEventType.tableUpdated,
+            data: _tables[index].toJson(),
+            deviceId: LanSyncProvider.instance.deviceId,
+          ));
+        }
+      } catch (_) {}
     }
   }
 
@@ -181,7 +246,16 @@ class TableProvider with ChangeNotifier {
       await _saveTables();
       notifyListeners();
       debugPrint('Table $tableNumber status set to ${isOccupied ? 'occupied' : 'available'}');
-      // logErrorToFile('Table $tableNumber status -> ${isOccupied ? 'occupied' : 'available'}');
+
+      try {
+        if (LanSyncProvider.instance.isActive) {
+          LanSyncProvider.instance.broadcastEvent(SyncEvent(
+            event: SyncEventType.tableUpdated,
+            data: _tables[index].toJson(),
+            deviceId: LanSyncProvider.instance.deviceId,
+          ));
+        }
+      } catch (_) {}
     } else {
       debugPrint('Table $tableNumber not found');
     }

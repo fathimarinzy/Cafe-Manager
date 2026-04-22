@@ -2,7 +2,9 @@
 import 'package:flutter/foundation.dart';
 import '../models/person.dart';
 import '../repositories/local_person_repository.dart';
-import '../services/device_sync_service.dart';
+// import '../services/device_sync_service.dart';
+import '../providers/lan_sync_provider.dart';
+import '../models/lan_sync_models.dart';
 
 class PersonProvider with ChangeNotifier {
   final LocalPersonRepository _localPersonRepo = LocalPersonRepository();
@@ -54,8 +56,20 @@ class PersonProvider with ChangeNotifier {
       // Update local state
       _persons.add(newPerson);
 
-      // Sync to Firestore
-      DeviceSyncService.syncPersonToFirestore(newPerson);
+      // Sync to LAN
+      try {
+        if (LanSyncProvider.instance.isActive) {
+          LanSyncProvider.instance.broadcastEvent(
+            SyncEvent(
+              event: SyncEventType.personUpdated,
+              data: newPerson.toJson(),
+              deviceId: LanSyncProvider.instance.deviceId,
+            )
+          );
+        }
+      } catch (_) {}
+
+      // Firestore sync removed
     } catch (e) {
       _error = e.toString();
       debugPrint('Error adding person: $e');
@@ -105,6 +119,19 @@ class PersonProvider with ChangeNotifier {
         _persons.removeWhere((person) => person.id == id);
         _searchResults.removeWhere((person) => person.id == id);
         notifyListeners();
+        
+        // Sync to LAN
+        try {
+          if (LanSyncProvider.instance.isActive) {
+            LanSyncProvider.instance.broadcastEvent(
+              SyncEvent(
+                event: SyncEventType.personDeleted,
+                data: {'id': id},
+                deviceId: LanSyncProvider.instance.deviceId,
+              )
+            );
+          }
+        } catch (_) {}
       }
       return success;
     } catch (e) {
@@ -134,8 +161,20 @@ class PersonProvider with ChangeNotifier {
         
         notifyListeners();
         
-        // Sync to Firestore
-        DeviceSyncService.syncPersonToFirestore(person);
+        // Sync to LAN
+        try {
+          if (LanSyncProvider.instance.isActive) {
+            LanSyncProvider.instance.broadcastEvent(
+              SyncEvent(
+                event: SyncEventType.personUpdated,
+                data: person.toJson(),
+                deviceId: LanSyncProvider.instance.deviceId,
+              )
+            );
+          }
+        } catch (_) {}
+
+        // Firestore sync removed
       }
       return success;
     } catch (e) {
@@ -167,11 +206,26 @@ Future<bool> updateCustomerCredit(String personId, double creditAmount) async {
       
       notifyListeners();
 
-      // Sync updated person to Firestore
+      // Sync updated person to Firestore & LAN
       // We need the full updated person object. 
       // If found in _persons (which it should be if update succeeded), use that.
       if (personIndex >= 0) {
-         DeviceSyncService.syncPersonToFirestore(_persons[personIndex]);
+         final updatedPerson = _persons[personIndex];
+         
+         // Sync to LAN
+         try {
+           if (LanSyncProvider.instance.isActive) {
+             LanSyncProvider.instance.broadcastEvent(
+               SyncEvent(
+                 event: SyncEventType.personUpdated,
+                 data: updatedPerson.toJson(),
+                 deviceId: LanSyncProvider.instance.deviceId,
+               )
+             );
+           }
+         } catch (_) {}
+
+         // Firestore sync removed
       }
     }
     return success;

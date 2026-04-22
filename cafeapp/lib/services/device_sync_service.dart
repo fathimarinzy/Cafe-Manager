@@ -1,3 +1,4 @@
+// ignore_for_file: dead_code, unrelated_type_equality_checks
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -49,7 +50,7 @@ class DeviceSyncService {
   }
 
   /// Update table status locally in SharedPreferences
-  static Future<void> _updateTableStatusLocally(int tableNumber, bool isOccupied) async {
+  static Future<void> _updateTableStatusLocally(int tableNumber, bool isOccupied) async { return; 
     try {
       final prefs = await SharedPreferences.getInstance();
       final String? tablesJson = prefs.getString(_tableStorageKey);
@@ -85,7 +86,7 @@ class DeviceSyncService {
   }
 
   /// Helper to check if order is for a table and update status
-  static Future<void> _checkAndUpdateTableStatus(String serviceType, String status) async {
+  static Future<void> _checkAndUpdateTableStatus(String serviceType, String status) async { return; 
     if (serviceType.startsWith('Dining - Table')) {
       final match = RegExp(r'Table (\d+)').firstMatch(serviceType);
       if (match != null && match.groupCount >= 1) {
@@ -112,7 +113,7 @@ class DeviceSyncService {
     debugPrint('✅ Order change callback registered');
   }
 
-  static void _notifyOrdersChanged() {
+  static void _notifyOrdersChanged() { return; 
     if (_onOrdersChangedCallback != null) {
       debugPrint('📢 Notifying UI of order changes');
       _onOrdersChangedCallback!();
@@ -127,7 +128,7 @@ class DeviceSyncService {
     debugPrint('✅ Table change callback registered');
   }
 
-  static void _notifyTablesChanged() {
+  static void _notifyTablesChanged() { return; 
     if (_onTablesChangedCallback != null) {
       debugPrint('📢 Notifying UI of table changes');
       _onTablesChangedCallback!();
@@ -136,6 +137,7 @@ class DeviceSyncService {
 
   /// Sync a single order to Firestore (from staff device)
   static Future<Map<String, dynamic>> syncOrderToFirestore(local_models.Order order) async {
+    return {'success': true, 'message': 'Cloud sync disabled', 'orderId': order.id.toString()};
     try {
       await FirebaseService.ensureInitialized();
       
@@ -216,6 +218,7 @@ class DeviceSyncService {
 
   /// Fetch orders without main number and assign them (MAIN DEVICE ONLY)
   static Future<Map<String, dynamic>> processUnassignedOrders() async {
+    return {'success': true, 'message': 'Cloud sync disabled', 'processedCount': 0, 'failedCount': 0};
     try {
       await FirebaseService.ensureInitialized();
       
@@ -389,6 +392,7 @@ class DeviceSyncService {
   
   // Add this method to sync order updates
   static Future<Map<String, dynamic>> syncOrderUpdate(local_models.Order order) async {
+    return {'success': true, 'message': 'Cloud sync disabled', 'orderId': order.id.toString(), 'editedByMain': false};
     try {
       await FirebaseService.ensureInitialized();
       
@@ -537,6 +541,7 @@ class DeviceSyncService {
 
   /// Start automatic sync and order processing
   static void startAutoSync(String companyId) async {
+    return; // Firestore sync disabled
     debugPrint('🔄 Starting auto-sync for company: $companyId');
     
     // Stop any existing sync first
@@ -574,7 +579,7 @@ class DeviceSyncService {
   }
 
   /// Robust listener initialization
-  static Future<void> _initializeListeners(String companyId) async {
+  static Future<void> _initializeListeners(String companyId) async { return; 
     // Wait for Firebase to be ready
     int retryCount = 0;
     while (!FirebaseService.isFirebaseAvailable && retryCount < 10) {
@@ -613,7 +618,7 @@ class DeviceSyncService {
   }
 
   /// Stop automatic sync
-  static void stopAutoSync() {
+  static void stopAutoSync() { return; 
     debugPrint('🛑 Stopping auto-sync...');
     
     _syncTimer?.cancel();
@@ -693,7 +698,7 @@ class DeviceSyncService {
   }
 
   /// Save a synced order from another device to local database - FIXED VERSION
-  static Future<void> saveSyncedOrderLocally(sync_models.SyncOrderModel syncOrder) async {
+  static Future<void> saveSyncedOrderLocally(sync_models.SyncOrderModel syncOrder) async { return; 
     try {
       final localRepo = LocalOrderRepository();
       final prefs = await SharedPreferences.getInstance();
@@ -876,7 +881,7 @@ class DeviceSyncService {
   }
 
   /// Sync all pending orders that haven't been synced yet
-  static Future<void> syncPendingOrders() async {
+  static Future<void> syncPendingOrders() async { return; 
     try {
       await FirebaseService.ensureInitialized();
       final prefs = await SharedPreferences.getInstance();
@@ -1150,7 +1155,7 @@ class DeviceSyncService {
   }
 
   /// Copy business information from main device
-  static Future<void> _copyBusinessInfoFromMainDevice(String companyId) async {
+  static Future<void> _copyBusinessInfoFromMainDevice(String companyId) async { return; 
     try {
       // Get company details from Firebase
       final companyDetails = await FirebaseService.getCompanyDetails(companyId);
@@ -1180,7 +1185,7 @@ class DeviceSyncService {
   }
 
   /// Get all active link codes for main device
-  static Future<List<DeviceLinkCode>> getActiveLinkCodes() async {
+  static Future<List<DeviceLinkCode>> getActiveLinkCodes() async { return []; 
     try {
       await FirebaseService.ensureInitialized();
       
@@ -1310,7 +1315,7 @@ class DeviceSyncService {
   }
 
   /// Get all devices for a company
-  static Future<List<DeviceModel>> getCompanyDevices(String companyId) async {
+  static Future<List<DeviceModel>> getCompanyDevices(String companyId) async { return []; 
     try {
       await FirebaseService.ensureInitialized();
       
@@ -1438,13 +1443,13 @@ class DeviceSyncService {
   }
 
   /// Check if current device is set as main device
-  static Future<bool> isMainDevice() async {
+  static Future<bool> isMainDevice() async { return true; 
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool('is_main_device') ?? false;
   }
 
   /// Update the last sync timestamp for a device
-  static Future<void> updateLastSyncTime() async {
+  static Future<void> updateLastSyncTime() async { return; 
     try {
       await FirebaseService.ensureInitialized();
       
@@ -1538,7 +1543,7 @@ class DeviceSyncService {
     _onPersonsChangedCallback = callback;
   }
 
-  static void _notifyPersonsChanged() {
+  static void _notifyPersonsChanged() { return; 
     if (_onPersonsChangedCallback != null) {
       _onPersonsChangedCallback!();
     }
@@ -1576,13 +1581,13 @@ class DeviceSyncService {
     }
   }
 
-  static void stopListeningToPersons() {
+  static void stopListeningToPersons() { return; 
     _personsSubscription?.cancel();
     _personsSubscription = null;
   }
 
   /// Process incoming person data
-  static Future<void> _processincomingPerson(DocumentSnapshotInterface doc) async {
+  static Future<void> _processincomingPerson(DocumentSnapshotInterface doc) async { return; 
     try {
       final data = doc.data() as Map<String, dynamic>;
       final lastUpdatedBy = data['lastUpdatedBy'] as String?;
@@ -1614,7 +1619,7 @@ class DeviceSyncService {
   }
 
   /// Sync a local person update to Firestore
-  static Future<void> syncPersonToFirestore(Person person) async {
+  static Future<void> syncPersonToFirestore(Person person) async { return; 
     try {
       final prefs = await SharedPreferences.getInstance();
       final companyId = prefs.getString('company_id');
@@ -1655,7 +1660,7 @@ class DeviceSyncService {
     _onCreditChangedCallback = callback;
   }
 
-  static void _notifyCreditChanged() {
+  static void _notifyCreditChanged() { return; 
     if (_onCreditChangedCallback != null) {
       _onCreditChangedCallback!();
     }
@@ -1692,12 +1697,12 @@ class DeviceSyncService {
     }
   }
 
-  static void stopListeningToCreditTransactions() {
+  static void stopListeningToCreditTransactions() { return; 
     _creditSubscription?.cancel();
     _creditSubscription = null;
   }
 
-  static Future<void> _processIncomingCredit(DocumentSnapshotInterface doc) async {
+  static Future<void> _processIncomingCredit(DocumentSnapshotInterface doc) async { return; 
     try {
       final data = doc.data() as Map<String, dynamic>;
       final lastUpdatedBy = data['lastUpdatedBy'] as String?;
@@ -1726,7 +1731,7 @@ class DeviceSyncService {
     }
   }
 
-  static Future<void> syncCreditTransactionToFirestore(CreditTransaction transaction) async {
+  static Future<void> syncCreditTransactionToFirestore(CreditTransaction transaction) async { return; 
     try {
       final prefs = await SharedPreferences.getInstance();
       final companyId = prefs.getString('company_id');
@@ -1803,7 +1808,7 @@ class DeviceSyncService {
     }
   }
 
-  static void stopListeningToDeliveryBoys() {
+  static void stopListeningToDeliveryBoys() { return; 
     _deliveryBoysSubscription?.cancel();
     _deliveryBoysSubscription = null;
   }
@@ -1814,13 +1819,13 @@ class DeviceSyncService {
     _onDeliveryBoysChangedCallback = callback;
   }
 
-  static void _notifyDeliveryBoysChanged() {
+  static void _notifyDeliveryBoysChanged() { return; 
     if (_onDeliveryBoysChangedCallback != null) {
       _onDeliveryBoysChangedCallback!();
     }
   }
 
-  static Future<void> _processIncomingDeliveryBoy(DocumentSnapshotInterface doc) async {
+  static Future<void> _processIncomingDeliveryBoy(DocumentSnapshotInterface doc) async { return; 
     try {
       final data = doc.data() as Map<String, dynamic>;
       final lastUpdatedBy = data['lastUpdatedBy'] as String?;
@@ -1844,7 +1849,7 @@ class DeviceSyncService {
     }
   }
 
-  static Future<void> _processDeletedDeliveryBoy(DocumentSnapshotInterface doc) async {
+  static Future<void> _processDeletedDeliveryBoy(DocumentSnapshotInterface doc) async { return; 
     try {
       final data = doc.data() as Map<String, dynamic>;
       final boyData = data['deliveryBoy'] as Map<String, dynamic>;
@@ -1860,7 +1865,7 @@ class DeviceSyncService {
     }
   }
 
-  static Future<void> syncDeliveryBoyToFirestore(DeliveryBoy boy) async {
+  static Future<void> syncDeliveryBoyToFirestore(DeliveryBoy boy) async { return; 
     try {
       final prefs = await SharedPreferences.getInstance();
       final companyId = prefs.getString('company_id');
@@ -1885,7 +1890,7 @@ class DeviceSyncService {
     }
   }
 
-  static Future<void> deleteDeliveryBoyFromFirestore(String boyId) async {
+  static Future<void> deleteDeliveryBoyFromFirestore(String boyId) async { return; 
     try {
       final prefs = await SharedPreferences.getInstance();
       final companyId = prefs.getString('company_id');

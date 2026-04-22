@@ -19,6 +19,7 @@ dependencies:
   flutter_secure_storage: ^9.0.0
   provider: ^6.1.2
   shared_preferences: ^2.3.3
+  audioplayers: ^6.6.0
   fluttertoast: ^8.2.8
   image_picker: ^1.1.2
   cached_network_image: ^3.4.1
@@ -72,6 +73,11 @@ dependencies:
   crop_your_image: ^2.0.0
   firedart: ^0.9.8
 
+  # LAN Sync (Wi-Fi device sync)
+  shelf: ^1.4.1                # HTTP server (cross-platform)
+  shelf_router: ^1.1.4         # REST routing
+  shelf_web_socket: ^2.0.1     # WebSocket server support
+  web_socket_channel: ^3.0.1   # WebSocket client
 
 dev_dependencies:
   flutter_test:
@@ -84,6 +90,7 @@ flutter:
 
   assets:
     - assets/fonts/
+    - assets/sounds/
     - .env
 
   fonts:

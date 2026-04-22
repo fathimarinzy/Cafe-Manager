@@ -45,7 +45,7 @@ class LocalOrderRepository {
     
     return await openDatabase(
       path,
-      version: 14, // Increment version to trigger repair
+      version: 16, // Increment version for LAN sync and temp receipt columns
       onConfigure: (db) async {
         await db.rawQuery('PRAGMA journal_mode=WAL;');
       },
@@ -80,7 +80,10 @@ class LocalOrderRepository {
             event_type TEXT,
             deposit_amount REAL,
             token_number TEXT,
-            customer_name TEXT
+            customer_name TEXT,
+            updated_at TEXT,
+            is_deleted INTEGER NOT NULL DEFAULT 0,
+            is_temp_receipt_printed INTEGER NOT NULL DEFAULT 0
           )
         ''');
         
@@ -107,6 +110,7 @@ class LocalOrderRepository {
         await db.execute('CREATE INDEX idx_orders_deposit_amount ON orders (deposit_amount)');
         await db.execute('CREATE INDEX idx_orders_event_date ON orders (event_date)');
         await db.execute('CREATE INDEX idx_orders_created_at ON orders (created_at)');
+        await db.execute('CREATE INDEX idx_orders_updated_at ON orders (updated_at)');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         debugPrint('Upgrading orders database from version $oldVersion to $newVersion');
@@ -234,15 +238,48 @@ class LocalOrderRepository {
             // Ignore error if column exists
           }
         }
+
+        if (oldVersion < 15) {
+          // LAN Sync: Add updated_at and is_deleted columns
+          try {
+            await db.execute('ALTER TABLE orders ADD COLUMN updated_at TEXT');
+            await db.execute('ALTER TABLE orders ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0');
+            // Backfill updated_at from created_at for existing rows
+            await db.execute('UPDATE orders SET updated_at = created_at WHERE updated_at IS NULL');
+            await db.execute('CREATE INDEX IF NOT EXISTS idx_orders_updated_at ON orders (updated_at)');
+            debugPrint('Added LAN sync columns (updated_at, is_deleted) to orders table');
+          } catch (e) {
+            debugPrint('Error adding LAN sync columns to orders: $e');
+          }
+        }
+
+        if (oldVersion < 16) {
+          try {
+            await db.execute('ALTER TABLE orders ADD COLUMN is_temp_receipt_printed INTEGER NOT NULL DEFAULT 0');
+            debugPrint('Added is_temp_receipt_printed column to orders table');
+          } catch (e) {
+            debugPrint('Error adding is_temp_receipt_printed column to orders: $e');
+          }
+        }
       },
     );
   }
+
    // Get the next staff order number for this device
   Future<int> _getNextStaffOrderNumber() async {
     final prefs = await SharedPreferences.getInstance();
     final currentNumber = prefs.getInt('staff_order_counter') ?? 0;
     final nextNumber = currentNumber + 1;
     await prefs.setInt('staff_order_counter', nextNumber);
+    return nextNumber;
+  }
+
+  // Get the next main order number (only used by Server/Host device)
+  Future<int> getNextMainOrderNumber() async {
+    final prefs = await SharedPreferences.getInstance();
+    final currentNumber = prefs.getInt('main_order_counter') ?? 0;
+    final nextNumber = currentNumber + 1;
+    await prefs.setInt('main_order_counter', nextNumber);
     return nextNumber;
   }
   // Save order to local database
@@ -315,6 +352,8 @@ class LocalOrderRepository {
               'token_number': order.tokenNumber,
               'customer_name': order.customerName,
               'deposit_amount': order.depositAmount,
+              'updated_at': DateTime.now().toIso8601String(),
+              'is_temp_receipt_printed': order.isTempReceiptPrinted ? 1 : 0,
             };
             
             await txn.update(
@@ -367,6 +406,8 @@ class LocalOrderRepository {
               'token_number': order.tokenNumber,
               'customer_name': order.customerName,
               'deposit_amount': order.depositAmount,
+              'updated_at': timestampToUse,
+              'is_temp_receipt_printed': order.isTempReceiptPrinted ? 1 : 0,
             };
             
             orderId = await txn.insert('orders', orderMap);
@@ -402,6 +443,8 @@ class LocalOrderRepository {
             'token_number': order.tokenNumber,
             'customer_name': order.customerName,
             'deposit_amount': order.depositAmount,
+            'updated_at': timestampToUse,
+            'is_temp_receipt_printed': order.isTempReceiptPrinted ? 1 : 0,
           };
           
           orderId = await txn.insert('orders', orderMap);
@@ -454,6 +497,7 @@ class LocalOrderRepository {
           tokenNumber: order.tokenNumber,
           customerName: order.customerName,
           depositAmount: order.depositAmount,
+          isTempReceiptPrinted: order.isTempReceiptPrinted,
         );
       });
     } catch (e) {
@@ -587,6 +631,7 @@ class LocalOrderRepository {
         tokenNumber: orderMap['token_number'] as String?,
         customerName: orderMap['customer_name'] as String?,
         depositAmount: orderMap['deposit_amount'] != null ? (orderMap['deposit_amount'] as num).toDouble() : null,
+        isTempReceiptPrinted: (orderMap['is_temp_receipt_printed'] as int?) == 1,
       ));
     }
     return result;
@@ -680,26 +725,70 @@ class LocalOrderRepository {
         tokenNumber: orderMap['token_number'] as String?,
         customerName: orderMap['customer_name'] as String?,
         depositAmount: orderMap['deposit_amount'] != null ? (orderMap['deposit_amount'] as num).toDouble() : null,
+        isTempReceiptPrinted: (orderMap['is_temp_receipt_printed'] as int?) == 1,
       );
     } catch (e) {
       debugPrint('Error getting order by ID: $e');
       return null;
     }
   }
-  
   // Update an order's status
   Future<bool> updateOrderStatus(int orderId, String status) async {
     try {
       final db = await database;
       await db.update(
         'orders',
-        {'status': status},
+        {
+          'status': status,
+          'updated_at': DateTime.now().toIso8601String(), // Trigger LAN Sync Incremental sync
+        },
         where: 'id = ?',
         whereArgs: [orderId],
       );
       return true;
     } catch (e) {
       debugPrint('Error updating order status: $e');
+      return false;
+    }
+  }
+
+  // Update order discount
+  Future<bool> updateOrderDiscount(int orderId, double discount, double newTotal) async {
+    try {
+      final db = await database;
+      await db.update(
+        'orders',
+        {
+          'discount': discount,
+          'total': newTotal,
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+        where: 'id = ?',
+        whereArgs: [orderId],
+      );
+      return true;
+    } catch (e) {
+      debugPrint('Error updating order discount: $e');
+      return false;
+    }
+  }
+
+  // Set temporary receipt printed status
+  Future<bool> setTempReceiptPrinted(int orderId, bool printed) async {
+    try {
+      final db = await database;
+      await db.update(
+        'orders',
+        {
+          'is_temp_receipt_printed': printed ? 1 : 0,
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+        where: 'id = ?',
+        whereArgs: [orderId],
+      );
+      return true;
+    } catch (e) {
+      debugPrint('Error setting temp receipt printed status: $e');
       return false;
     }
   }

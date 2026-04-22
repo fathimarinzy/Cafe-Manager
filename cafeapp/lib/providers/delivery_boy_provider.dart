@@ -1,18 +1,14 @@
 import 'package:flutter/foundation.dart';
 import '../models/delivery_boy.dart';
 import '../repositories/local_delivery_boy_repository.dart';
-import '../services/device_sync_service.dart';
+import '../providers/lan_sync_provider.dart';
+import '../models/lan_sync_models.dart';
 
 class DeliveryBoyProvider with ChangeNotifier {
   final LocalDeliveryBoyRepository _repository = LocalDeliveryBoyRepository();
   List<DeliveryBoy> _deliveryBoys = [];
 
-  DeliveryBoyProvider() {
-    DeviceSyncService.setOnDeliveryBoysChangedCallback(() {
-      debugPrint("🔔 Delivery Boy sync update received - reloading list");
-      loadDeliveryBoys();
-    });
-  }
+  DeliveryBoyProvider();
   bool _isLoading = false;
 
   List<DeliveryBoy> get deliveryBoys => _deliveryBoys;
@@ -34,8 +30,18 @@ class DeliveryBoyProvider with ChangeNotifier {
 
   Future<void> addDeliveryBoy(DeliveryBoy boy) async {
     try {
-      await _repository.saveDeliveryBoy(boy);
+      final savedBoy = await _repository.saveDeliveryBoy(boy);
       await loadDeliveryBoys(); // Reload full list to ensure consistency
+
+      try {
+        if (LanSyncProvider.instance.isActive) {
+          LanSyncProvider.instance.broadcastEvent(SyncEvent(
+            event: SyncEventType.deliveryBoyUpdated,
+            data: savedBoy.toMap(),
+            deviceId: LanSyncProvider.instance.deviceId,
+          ));
+        }
+      } catch (_) {}
     } catch (e) {
       debugPrint('Error adding delivery boy: $e');
     }
@@ -50,6 +56,16 @@ class DeliveryBoyProvider with ChangeNotifier {
       final success = await _repository.deleteDeliveryBoy(id);
       if (success) {
         await loadDeliveryBoys();
+
+        try {
+          if (LanSyncProvider.instance.isActive) {
+            LanSyncProvider.instance.broadcastEvent(SyncEvent(
+              event: SyncEventType.deliveryBoyDeleted,
+              data: {'id': id},
+              deviceId: LanSyncProvider.instance.deviceId,
+            ));
+          }
+        } catch (_) {}
       }
     } catch (e) {
       debugPrint('Error deleting delivery boy: $e');

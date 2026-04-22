@@ -33,6 +33,8 @@ class Order {
   final String? eventType;
   final String? tokenNumber; // Catering token number
   final String? customerName; // Snapshot of customer name
+  final String? updatedAt; // Last updated timestamp
+  final bool isTempReceiptPrinted; // Track temporary receipt printed status
 
   Order({
     this.id,
@@ -64,6 +66,8 @@ class Order {
     this.eventType,
     this.tokenNumber,
     this.customerName,
+    this.updatedAt,
+    this.isTempReceiptPrinted = false,
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
@@ -99,11 +103,14 @@ class Order {
       eventType: json['eventType'] as String?,
       tokenNumber: json['tokenNumber'] as String?,
       customerName: json['customerName'] as String?,
+      updatedAt: json['updatedAt'] ?? json['updated_at'] as String?,
+      isTempReceiptPrinted: json['isTempReceiptPrinted'] ?? json['is_temp_receipt_printed'] == 1 ?? false,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'serviceType': serviceType,
       'items': items.map((item) => item.toJson()).toList(),
       'subtotal': subtotal,
@@ -112,6 +119,7 @@ class Order {
       'total': total,
       'status': status,
       'createdAt': createdAt,
+      'updatedAt': updatedAt ?? DateTime.now().toIso8601String(),
       'customerId': customerId,
       'paymentMethod': paymentMethod,
       'staffOrderNumber': staffOrderNumber,
@@ -132,6 +140,7 @@ class Order {
       if (eventType != null) 'eventType': eventType,
       if (tokenNumber != null) 'tokenNumber': tokenNumber,
       if (customerName != null) 'customerName': customerName,
+      'isTempReceiptPrinted': isTempReceiptPrinted,
     };
   }
 
@@ -188,6 +197,8 @@ class Order {
     String? eventType,
     String? tokenNumber,
     String? customerName,
+    String? updatedAt,
+    bool? isTempReceiptPrinted,
   }) {
     return Order(
       id: id ?? this.id,
@@ -219,6 +230,8 @@ class Order {
       eventType: eventType ?? this.eventType,
       tokenNumber: tokenNumber ?? this.tokenNumber,
       customerName: customerName ?? this.customerName,
+      updatedAt: updatedAt ?? this.updatedAt,
+      isTempReceiptPrinted: isTempReceiptPrinted ?? this.isTempReceiptPrinted,
     );
   }
 }

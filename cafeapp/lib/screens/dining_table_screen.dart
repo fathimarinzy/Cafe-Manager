@@ -22,7 +22,7 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
   late String _currentTime;
   
   // Table layout configuration
-  int _columns = 4; // Default columns
+  int _columns = 6; // Default columns
   int _rows = 4;    // Default rows
   
   // Category filter (null means "All")
@@ -335,15 +335,16 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
                       final cardWidth = (maxWidth - ((_columns - 1) * 12)) / _columns;
                       final cardHeight = (maxHeight - ((_rows - 1) * 12)) / _rows;
                       
-                      // Use a fixed aspect ratio
-                      final aspectRatio = cardWidth / cardHeight;
+                      // Use a constrained aspect ratio to prevent squished layouts on wide tablets
+                      final double rawAspectRatio = cardWidth / cardHeight;
+                      final double aspectRatio = (rawAspectRatio > 0 ? rawAspectRatio : 1.0).clamp(0.8, 1.4);
                                         
                       return GridView.builder(
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: _columns,
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 12,
-                          childAspectRatio: aspectRatio > 0 ? aspectRatio : 1.0,
+                          childAspectRatio: aspectRatio,
                         ),
                         itemCount: filteredTables.length,
                         itemBuilder: (context, index) {

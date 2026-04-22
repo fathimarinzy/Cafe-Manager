@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:cafeapp/main.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:cafeapp/providers/logo_provider.dart';
-import 'package:cafeapp/screens/device_management_screen.dart';
+// import 'package:cafeapp/screens/device_management_screen.dart';
 import 'package:cafeapp/screens/search_person_screen.dart';
 
 // import 'customer_management_screen.dart';
@@ -35,6 +35,7 @@ import '../providers/person_provider.dart';
 import '../services/online_sync_service.dart';
 import '../services/logo_service.dart';
 import '../services/device_sync_service.dart'; // 🆕 Add this import
+import '../providers/lan_sync_provider.dart';
 import 'privacy_policy_screen.dart';
 
 
@@ -1121,10 +1122,13 @@ Future<void> _checkLicenseStatus() async {
                   _buildProductSection(),
                   const Divider(),
                   
-                  
                   _buildSectionHeader('Device Management'.tr()),
-                  _buildDeviceManagementSection(),
+                  _buildLanSyncSection(),
                   const Divider(),
+                  
+                  // _buildSectionHeader('Device Management'.tr()),
+                  // _buildDeviceManagementSection(),
+                  // const Divider(),
 
                   _buildSectionHeader('Tables'.tr()),
                   _buildTablesSection(),
@@ -1712,7 +1716,7 @@ Future<void> _checkLicenseStatus() async {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('Version 5.4.3'.tr(), style: const TextStyle(fontSize: 13)),
+                        Text('Version 6.4.7'.tr(), style: const TextStyle(fontSize: 13)),
                         const SizedBox(width: 8),
                         const Text('•', style: TextStyle(color: Colors.grey)),
                         const SizedBox(width: 8),
@@ -1759,24 +1763,269 @@ Future<void> _checkLicenseStatus() async {
         return language;
     }
   }
- Widget _buildDeviceManagementSection() {
-  return Card(
-    child: ListTile(
-      leading: Icon(Icons.devices, color: _isDemoExpired ? Colors.grey : Colors.blue[700]),
-      title: Text('Device Sync'.tr()),
-      subtitle: Text('Manage devices and enable syncing'.tr()),
-      trailing: _isDemoExpired ? null : const Icon(Icons.arrow_forward_ios, size: 16),
-      onTap: _isDemoExpired ? null : () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => const DeviceManagementScreen(),
+//  Widget _buildDeviceManagementSection() {
+//   return Card(
+//     child: ListTile(
+//       leading: Icon(Icons.devices, color: _isDemoExpired ? Colors.grey : Colors.blue[700]),
+//       title: Text('Device Sync'.tr()),
+//       subtitle: Text('Manage devices and enable syncing'.tr()),
+//       trailing: _isDemoExpired ? null : const Icon(Icons.arrow_forward_ios, size: 16),
+//       onTap: _isDemoExpired ? null : () {
+//         Navigator.of(context).push(
+//           MaterialPageRoute(
+//             builder: (context) => const DeviceManagementScreen(),
+//           ),
+//         );
+//       },
+//       enabled: !_isDemoExpired,
+//     ),
+//   );
+// }
+
+  Widget _buildLanSyncSection() {
+    return Consumer<LanSyncProvider>(
+      builder: (context, syncProvider, child) {
+        return Card(
+          child: Column(
+            children: [
+              // Main Toggle
+              ListTile(
+                leading: Icon(
+                  Icons.wifi, 
+                  color: _isDemoExpired ? Colors.grey : (syncProvider.isActive ? Colors.green : Colors.blue[700])
+                ),
+                title: Text('Device Sync'.tr()),
+                subtitle: Text(
+                  syncProvider.isServer 
+                    ? 'Running as Host (${syncProvider.connectedClients} clients)'.tr()
+                    : syncProvider.isConnected 
+                      ? 'Connected to Host'.tr()
+                      : 'Offline - Tap to configure'.tr()
+                ),
+                trailing: Switch(
+                  value: syncProvider.isActive,
+                  onChanged: _isDemoExpired ? null : (bool value) {
+                    if (!value) {
+                      if (syncProvider.isServer) {
+                        syncProvider.stopServer();
+                      } else {
+                        syncProvider.disconnectFromServer();
+                      }
+                    } else {
+                      _showLanSyncConfigDialog(syncProvider);
+                    }
+                  },
+                ),
+              ),
+              
+              // If active, show details
+              if (syncProvider.isActive) ...[
+                const Divider(height: 1, indent: 70),
+                if (syncProvider.isServer)
+                  ListTile(
+                    leading: const SizedBox(width: 24), // indent alignment
+                    title: Text('Host Address'.tr()),
+                    subtitle: Text(syncProvider.serverAddress ?? 'Starting...'.tr()),
+                    trailing: const Icon(Icons.info_outline, size: 16, color: Colors.grey),
+                  )
+                else
+                  ListTile(
+                    leading: const SizedBox(width: 24),
+                    title: Text('Connected To'.tr()),
+                    subtitle: Text(syncProvider.serverAddress ?? 'Unknown'.tr()),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.sync),
+                      onPressed: () {
+                        syncProvider.syncNow();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Manual sync triggered'.tr())),
+                        );
+                      },
+                    ),
+                  ),
+                
+                // Show last synced time
+                if (syncProvider.lastSyncedAt != null)
+                  ListTile(
+                    leading: const SizedBox(width: 24),
+                    title: Text('Last Synced'.tr()),
+                    subtitle: Text(_formatDate(syncProvider.lastSyncedAt!)),
+                  ),
+              ],
+            ],
           ),
         );
       },
-      enabled: !_isDemoExpired,
-    ),
-  );
-}
+    );
+  }
+
+  void _showLanSyncConfigDialog(LanSyncProvider provider) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Configure Device Sync'.tr()),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Is this the Host device or a Client device?'.tr()),
+            const SizedBox(height: 16),
+            ListTile(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(color: Colors.blue.shade200),
+              ),
+              leading: const Icon(Icons.dns, color: Colors.blue),
+              title: Text('Host / Server'.tr()),
+              subtitle: Text('Main device that holds the database'.tr()),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final success = await provider.startServer();
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(success ? 'Server started successfully'.tr() : 'Failed to start server'.tr()),
+                    backgroundColor: success ? Colors.green : Colors.red,
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(color: Colors.green.shade200),
+              ),
+              leading: const Icon(Icons.devices, color: Colors.green),
+              title: Text('Client'.tr()),
+              subtitle: Text('Connects to the Host device'.tr()),
+              onTap: () async {
+                Navigator.pop(ctx);
+                
+                // Show discovering dialog
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (dCtx) => AlertDialog(
+                    content: Row(
+                      children: [
+                        const CircularProgressIndicator(),
+                        const SizedBox(width: 16),
+                        Text('Searching for Host ON Local Wi-Fi...'.tr()),
+                      ],
+                    ),
+                  )
+                );
+                
+                final success = await provider.discoverAndConnect();
+                
+                if (!mounted) return;
+                Navigator.pop(context); // close discovering dialog
+                
+                if (!success) {
+                   _showManualConnectDialog(provider);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Connected to Host!'.tr()),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel'.tr()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showManualConnectDialog(LanSyncProvider provider) {
+    final ipController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Manual Connection'.tr()),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Could not automatically find the Host. Please enter its IP address (e.g., 192.168.1.100).'.tr()),
+            const SizedBox(height: 16),
+            TextField(
+              controller: ipController,
+              decoration: InputDecoration(
+                labelText: 'Host IP Address'.tr(),
+                border: const OutlineInputBorder(),
+                prefixText: 'http://',
+                suffixText: ':8642',
+              ),
+              keyboardType: TextInputType.number,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel'.tr()),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final ip = ipController.text.trim();
+              if (ip.isEmpty) return;
+              
+              Navigator.pop(ctx);
+              
+              // Show connecting dialog
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (dCtx) => AlertDialog(
+                  content: Row(
+                    children: [
+                      const CircularProgressIndicator(),
+                      const SizedBox(width: 16),
+                      Text('Connecting...'.tr()),
+                    ],
+                  ),
+                )
+              );
+              
+              final url = 'http://$ip:8642';
+              final success = await provider.connectToServer(url);
+              
+              if (!mounted) return;
+              Navigator.pop(context); // close connecting dialog
+              
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(success ? 'Connected to Host!'.tr() : 'Connection failed. Check IP and ensure Host is running.'.tr()),
+                  backgroundColor: success ? Colors.green : Colors.red,
+                ),
+              );
+            },
+            child: Text('Connect'.tr()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(String isoString) {
+    try {
+      final date = DateTime.parse(isoString).toLocal();
+      return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} '
+             '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return isoString;
+    }
+  }
+
  Widget _buildLogoListTile() {
     return Consumer<LogoProvider>(
       builder: (context, logoProvider, child) {

@@ -1,3 +1,4 @@
+// ignore_for_file: dead_code, unrelated_type_equality_checks
 // lib/services/menu_sync_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
@@ -430,7 +431,7 @@ class MenuSyncService {
   }
 
   /// Save synced menu item to local database
-  static Future<void> saveSyncedMenuItemLocally(SyncMenuItemModel syncItem) async {
+  static Future<void> saveSyncedMenuItemLocally(SyncMenuItemModel syncItem) async { return; 
     try {
       final localRepo = LocalMenuRepository();
       final menuItem = syncItem.toMenuItem();
@@ -452,7 +453,7 @@ class MenuSyncService {
   }
 
   /// Delete synced menu item from local database
-  static Future<void> deleteSyncedMenuItemLocally(String itemId) async {
+  static Future<void> deleteSyncedMenuItemLocally(String itemId) async { return; 
     try {
       final localRepo = LocalMenuRepository();
       await localRepo.deleteMenuItem(itemId);
@@ -463,7 +464,7 @@ class MenuSyncService {
   }
 
   /// Save synced business info locally
-  static Future<void> saveSyncedBusinessInfoLocally(SyncBusinessInfoModel businessInfo) async {
+  static Future<void> saveSyncedBusinessInfoLocally(SyncBusinessInfoModel businessInfo) async { return; 
     try {
       final prefs = await SharedPreferences.getInstance();
       
@@ -480,7 +481,7 @@ class MenuSyncService {
   }
 
   /// Save synced categories locally
-  static Future<void> saveSyncedCategoriesLocally(List<String> categories) async {
+  static Future<void> saveSyncedCategoriesLocally(List<String> categories) async { return; 
     try {
       final localRepo = LocalMenuRepository();
       
@@ -501,7 +502,7 @@ class MenuSyncService {
   }
 
   /// Sync all menu items from local database to Firestore
-  static Future<void> syncAllMenuItemsToFirestore() async {
+  static Future<void> syncAllMenuItemsToFirestore() async { return; 
     try {
       final localRepo = LocalMenuRepository();
       final items = await localRepo.getMenuItems();
@@ -530,7 +531,7 @@ class MenuSyncService {
   }
 
   /// Initialize menu sync (call when main device is set up or staff device links)
-  static Future<void> initializeMenuSync(String companyId) async {
+  static Future<void> initializeMenuSync(String companyId) async { return; 
     debugPrint('🔄 Initializing menu sync for company: $companyId');
     
     final prefs = await SharedPreferences.getInstance();
@@ -565,7 +566,7 @@ class MenuSyncService {
   }
 
   /// Fetch all menu items from Firestore (for staff devices)
-  static Future<void> fetchAllMenuItemsFromFirestore(String companyId) async {
+  static Future<void> fetchAllMenuItemsFromFirestore(String companyId) async { return; 
     try {
       await FirebaseService.ensureInitialized();
       
@@ -615,7 +616,7 @@ class MenuSyncService {
   }
 
   /// Fetch business info from Firestore
-  static Future<void> fetchBusinessInfoFromFirestore(String companyId) async {
+  static Future<void> fetchBusinessInfoFromFirestore(String companyId) async { return; 
     try {
       await FirebaseService.ensureInitialized();
       
@@ -639,7 +640,7 @@ class MenuSyncService {
   }
 
   /// Fetch categories from Firestore
-  static Future<void> fetchCategoriesFromFirestore(String companyId) async {
+  static Future<void> fetchCategoriesFromFirestore(String companyId) async { return; 
     try {
       await FirebaseService.ensureInitialized();
       
@@ -663,7 +664,7 @@ class MenuSyncService {
   }
 
   /// Stop all listeners
-  static void stopAllListeners() {
+  static void stopAllListeners() { return; 
     _menuSubscription?.cancel();
     _menuSubscription = null;
     

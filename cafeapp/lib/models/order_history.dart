@@ -26,6 +26,7 @@ class OrderHistory {
   final String? eventType;
   final String? tokenNumber;
   final String? customerName;
+  final bool isTempReceiptPrinted;
 
   OrderHistory({
     required this.id,
@@ -49,6 +50,7 @@ class OrderHistory {
     this.eventType,
     this.tokenNumber,
     this.customerName,
+    this.isTempReceiptPrinted = false,
   });
 
   // FIXED: Simplified factory method without timezone adjustments
@@ -111,6 +113,7 @@ class OrderHistory {
       eventType: order.eventType,
       tokenNumber: order.tokenNumber,
       customerName: order.customerName,
+      isTempReceiptPrinted: order.isTempReceiptPrinted,
     );
   }
 

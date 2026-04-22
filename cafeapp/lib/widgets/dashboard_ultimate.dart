@@ -668,29 +668,36 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
 
              final occupiedTables = tableProvider.tables.where((t) => t.isOccupied).length;
              
-             // Helper to build card wrapper based on platform
-             Widget buildCardWrapper(Widget child) {
-               if (isMobile) {
-                   final isTabletPortrait = MediaQuery.of(context).size.width >= 600 && MediaQuery.of(context).size.width < 900;
-                   if (isTabletPortrait) {
-                     return Expanded(
-                       child: Padding(
-                         padding: const EdgeInsets.symmetric(horizontal: 4.0), // Smaller gap to overflow
-                         child: child,
-                       ),
-                     );
-                   }
-                   return Padding(
-                   padding: const EdgeInsets.only(right: 12),
-                   child: SizedBox(
-                     width: 160,
-                     child: child,
-                   ),
-                 );
-               } 
-               return Expanded(
-                 child: child,
-               );
+             Widget buildCardWrapper(Widget child, int index) {
+                Widget wrappedChild;
+                if (isMobile) {
+                  final isTablet = MediaQuery.of(context).size.width >= 600;
+                  if (isTablet) {
+                    wrappedChild = Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(right: index < 3 ? 12 : 0),
+                        child: child,
+                      ),
+                    );
+                  } else {
+                    wrappedChild = Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: SizedBox(
+                        width: 160,
+                        child: child,
+                      ),
+                    );
+                  }
+                } else {
+                  wrappedChild = Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(right: index < 3 ? 20 : 0),
+                      child: child,
+                    ),
+                  );
+                }
+                
+                return wrappedChild; 
              }
 
              final statsCards = [
@@ -706,8 +713,8 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
                         const [Color(0xFF00F260), Color(0xFF0575E6)], // Keep same gradient
                         isMobile: isMobile,
                       ),
+                      0,
                    ),
-                   if (!isMobile) const SizedBox(width: 20),
                    buildCardWrapper(
                       _buildStatCard(
                         "Pending Orders".tr(),
@@ -719,8 +726,8 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
                         const [Color(0xFFFF512F), Color(0xFFDD2476)], // Vibrant Orange -> Pink
                         isMobile: isMobile,
                       ),
+                      1,
                    ),
-                   if (!isMobile) const SizedBox(width: 20),
                    buildCardWrapper(
                       _buildStatCard(
                         "Active Tables".tr(),
@@ -743,18 +750,19 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
                         const [Color(0xFF8E2DE2), Color(0xFF4A00E0)], // Vibrant Purple -> Deep Blue
                         isMobile: isMobile,
                       ),
+                      2,
                    ),
              ];
 
              if (isMobile) {
-               final isTabletPortrait = MediaQuery.of(context).size.width >= 600 && MediaQuery.of(context).size.width < 900;
-               if (isTabletPortrait) {
-                  return Row(children: statsCards); // Return Static Row
-               }
-               return SingleChildScrollView(
-                 scrollDirection: Axis.horizontal,
-                 child: Row(children: statsCards),
-               );
+                final isTablet = MediaQuery.of(context).size.width >= 600;
+                if (isTablet) {
+                   return Row(children: statsCards); // Return Static Row
+                }
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(children: statsCards),
+                );
              }
 
              return Row(

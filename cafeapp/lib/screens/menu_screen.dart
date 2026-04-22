@@ -1,11 +1,15 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
+// import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../providers/menu_provider.dart';
 import '../providers/order_provider.dart';
 import '../models/menu_item.dart';
@@ -375,7 +379,45 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
       });
       
     } catch (e) {
-      // Ignored: Not an exact barcode string, allow normal filtering to handle it.
+      // Product not found
+      try {
+        SystemSound.play(SystemSoundType.alert);
+        HapticFeedback.vibrate();
+        
+        // Skip AudioPlayer on Windows since it throws MissingPluginException 
+        // if native DLLs aren't built or if it's hot-restarted.
+        if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+          final player = AudioPlayer();
+          player.play(AssetSource('sounds/beep.wav'));
+        }
+      } catch (e) {
+        debugPrint('Error playing error sound: $e');
+      }
+      
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4), // Square shape
+          ),
+          title: Text('Warning'.tr()),
+          content: _BlinkingWarningText(text: 'Product not found'.tr()),  
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                controller.clear();
+                setState(() {
+                  _itemSearchQuery = '';
+                  _cachedItems = null;
+                });
+                focusNode.requestFocus();
+              },
+              child: Text('OK'.tr()),
+            ),
+          ],
+        ),
+      );
     }
   }
 
@@ -602,6 +644,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
         }
       },
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         appBar: isMobile // Simplified AppBar for mobile
           ? AppBar(
               backgroundColor: Colors.white,
@@ -2849,4 +2892,60 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
   );
 }
 
+}
+class _BlinkingWarningText extends StatefulWidget {
+  final String text;
+  const _BlinkingWarningText({required this.text});
+
+  @override
+  State<_BlinkingWarningText> createState() => _BlinkingWarningTextState();
+}
+
+class _BlinkingWarningTextState extends State<_BlinkingWarningText>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..repeat(reverse: true); // Blink back and forth
+
+    _animation = Tween<double>(begin: 1.0, end: 0.0).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _animation,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.warning_amber_rounded, color: Colors.red, size: 20),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              widget.text,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

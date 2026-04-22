@@ -6,6 +6,7 @@ class Person {
   final String place;
   final String dateVisited;
   final double credit; // Add this field
+  final String? updatedAt; // Last updated timestamp
 
   Person({
     this.id,
@@ -14,6 +15,7 @@ class Person {
     required this.place,
     required this.dateVisited,
     this.credit = 0.0, // Default to 0
+    this.updatedAt,
   });
 
   // Add copyWith method for easy updates
@@ -24,6 +26,7 @@ class Person {
     String? place,
     String? dateVisited,
     double? credit,
+    String? updatedAt,
   }) {
     return Person(
       id: id ?? this.id,
@@ -32,6 +35,7 @@ class Person {
       place: place ?? this.place,
       dateVisited: dateVisited ?? this.dateVisited,
       credit: credit ?? this.credit,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
@@ -44,6 +48,7 @@ class Person {
       place: json['place'],
       dateVisited: json['dateVisited'],
       credit: (json['credit'] ?? 0.0).toDouble(), // Add credit with default value
+      updatedAt: json['updated_at'] ?? json['updatedAt'] as String?,
     );
   }
 
@@ -56,6 +61,7 @@ class Person {
       'place': place,
       'dateVisited': dateVisited,
       'credit': credit, // Include credit in JSON
+      'updated_at': updatedAt ?? DateTime.now().toIso8601String(), // Ensure sync engine resolves conflicts correctly
     };
   }
 }

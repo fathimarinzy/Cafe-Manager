@@ -1,7 +1,8 @@
+import 'package:cafeapp/providers/order_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+// import 'package:shared_preferences/shared_preferences.dart';
 import '../models/order_history.dart';
 import '../providers/order_history_provider.dart';
 import '../models/order_item.dart';
@@ -16,7 +17,9 @@ import '../utils/app_localization.dart';
 import '../utils/service_type_utils.dart';
 import '../repositories/local_person_repository.dart';
 import '../models/person.dart';
-import '../services/device_sync_service.dart';
+// import '../services/device_sync_service.dart';
+import '../providers/lan_sync_provider.dart';
+import '../models/lan_sync_models.dart';
 import '../services/thermal_printer_service.dart';
 import '../utils/keyboard_utils.dart';
 
@@ -259,6 +262,42 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         });
 
         if (success) {
+          // ✅ SYNC: Mark as temp receipt printed and broadcast over LAN
+          try {
+            final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+            await orderProvider.setTempReceiptPrinted(_order!.id, true);
+            
+            // Update local state to show icon immediately
+            setState(() {
+              _order = OrderHistory(
+                id: _order!.id,
+                serviceType: _order!.serviceType,
+                subtotal: _order!.subtotal,
+                tax: _order!.tax,
+                discount: _order!.discount,
+                total: _order!.total,
+                status: _order!.status,
+                createdAt: _order!.createdAt,
+                items: _order!.items,
+                customerId: _order!.customerId,
+                deliveryAddress: _order!.deliveryAddress,
+                deliveryBoy: _order!.deliveryBoy,
+                deliveryCharge: _order!.deliveryCharge,
+                mainOrderNumber: _order!.mainOrderNumber,
+                depositAmount: _order!.depositAmount,
+                eventDate: _order!.eventDate,
+                eventTime: _order!.eventTime,
+                eventGuestCount: _order!.eventGuestCount,
+                eventType: _order!.eventType,
+                tokenNumber: _order!.tokenNumber,
+                customerName: _order!.customerName,
+                isTempReceiptPrinted: true,
+              );
+            });
+          } catch (e) {
+            debugPrint('Error updating temp receipt status: $e');
+          }
+          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Receipt printed successfully'.tr()),
@@ -374,26 +413,22 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
       
     final updatedOrder = await localOrderRepo.saveOrder(localOrder);
 
-      // 🆕 SYNC THE EDITED ORDER TO FIRESTORE
-    final prefs = await SharedPreferences.getInstance();
-    final syncEnabled = prefs.getBool('device_sync_enabled') ?? false;
-    final isMainDevice = prefs.getBool('is_main_device') ?? false;
-
-    
-     if (syncEnabled) {
+      // 🌐 SYNC THE EDITED ORDER OVER LAN WEB SOCKETS
       try {
-        debugPrint('🔄 Syncing order edit from ${isMainDevice ? "MAIN" : "STAFF"} device...');
-        final syncResult = await DeviceSyncService.syncOrderUpdate(updatedOrder);
-        if (syncResult['success']) {
-          debugPrint('✅ Order edit synced to Firebase');
-        } else {
-          debugPrint('⚠️ Order edit sync failed: ${syncResult['message']}');
+        if (LanSyncProvider.instance.isActive) {
+          LanSyncProvider.instance.broadcastEvent(
+            SyncEvent(
+              event: SyncEventType.orderUpdated,
+              data: updatedOrder.toJson(),
+              deviceId: LanSyncProvider.instance.deviceId,
+            )
+          );
         }
       } catch (e) {
-        debugPrint('⚠️ Error syncing order edit: $e');
-        // Don't fail the save if sync fails
+        debugPrint('⚠️ Error broadcasting order update over LAN: $e');
       }
-    }
+
+      // Firestore sync removed
     debugPrint('Order updated locally: ${updatedOrder.id}');
     debugPrint('Staff Device ID: ${updatedOrder.staffDeviceId}');
     debugPrint('Staff Order #: ${updatedOrder.staffOrderNumber}');
@@ -1171,7 +1206,15 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
         appBar: AppBar(
           backgroundColor: Colors.white,
           foregroundColor: Colors.black,
-          title: Text('${'Order #'.tr()}${_order?.orderNumber ?? widget.orderId}'),
+          title: Row(
+            children: [
+              Text('${'Order #'.tr()}${_order?.orderNumber ?? widget.orderId}'),
+              if (_order?.isTempReceiptPrinted == true) ...[
+                const SizedBox(width: 8),
+                const Icon(Icons.receipt_long, size: 18, color: Colors.green), // Or Icons.print_rounded with a check
+              ],
+            ],
+          ),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.of(context).pop(),

@@ -35,6 +35,7 @@ import 'providers/person_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/order_history_provider.dart';
 import 'providers/delivery_boy_provider.dart';
+import 'providers/lan_sync_provider.dart';
 
 import 'repositories/local_menu_repository.dart';
 import 'repositories/local_expense_repository.dart';
@@ -42,7 +43,6 @@ import 'services/firebase_service.dart';
 import 'services/demo_service.dart';
 import 'services/offline_sync_service.dart';
 import 'services/connectivity_monitor.dart';
-import 'services/device_sync_service.dart';
 
 
 // const bool forceSafeMode = true; // 🛡️ REMOVED: Replaced by dynamic detection
@@ -345,6 +345,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (ctx) { logErrorToFile('• Provider: SettingsProvider'); return SettingsProvider(); }),
         ChangeNotifierProvider(create: (ctx) { logErrorToFile('• Provider: LogoProvider'); return LogoProvider(); }),
         ChangeNotifierProvider(create: (ctx) { logErrorToFile('• Provider: DeliveryBoyProvider'); return DeliveryBoyProvider(); }),
+        ChangeNotifierProvider(create: (ctx) { logErrorToFile('• Provider: LanSyncProvider'); return LanSyncProvider(); }),
       ],
       child: Consumer<SettingsProvider>(
         builder: (ctx, settingsProvider, _) {
@@ -465,42 +466,44 @@ class _AppInitializerState extends State<AppInitializer> {
       debugPrint('⚠️ Error during app initialization: $e');
     }
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final syncEnabled = prefs.getBool('device_sync_enabled') ?? false;
-      final companyId = prefs.getString('company_id') ?? '';
-      
-      if (syncEnabled && companyId.isNotEmpty) {
-        // 🆕 SET UP ORDER CHANGE CALLBACK
-        if (mounted) {
-          final orderHistoryProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
-          DeviceSyncService.setOnOrdersChangedCallback(() {
-            debugPrint('🔄 Refreshing order history due to sync update');
-            orderHistoryProvider.loadOrders();
-          });
-          
-          final tableProvider = Provider.of<TableProvider>(context, listen: false);
-          DeviceSyncService.setOnTablesChangedCallback(() {
-             debugPrint('🔄 Refreshing tables due to sync update');
-             tableProvider.refreshTables();
-          });
-          
-          final personProvider = Provider.of<PersonProvider>(context, listen: false);
-          DeviceSyncService.setOnPersonsChangedCallback(() {
-            debugPrint('🔄 Refreshing persons due to sync update');
-            personProvider.loadPersons();
-          });
-        }
-        DeviceSyncService.startAutoSync(companyId);
-        debugPrint('✅ Device sync initialized');
-        // 🆕 ALSO INITIALIZE MENU PROVIDER WITH SYNC
-        if (mounted) {
+      if (mounted) {
+        final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+        final orderHistoryProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
+        LanSyncProvider.instance.onOrdersChanged = () {
+          debugPrint('🔄 Refreshing orders due to LAN sync update');
+          orderHistoryProvider.loadOrders();
+          orderProvider.fetchOrders();
+        };
+        
+        final tableProvider = Provider.of<TableProvider>(context, listen: false);
+        LanSyncProvider.instance.onTablesChanged = () {
+           debugPrint('🔄 Refreshing tables due to LAN sync update');
+           tableProvider.refreshTables();
+        };
+        
+        final personProvider = Provider.of<PersonProvider>(context, listen: false);
+        LanSyncProvider.instance.onPersonsChanged = () {
+          debugPrint('🔄 Refreshing persons due to LAN sync update');
+          personProvider.loadPersons();
+        };
+
+        final deliveryBoyProvider = Provider.of<DeliveryBoyProvider>(context, listen: false);
+        LanSyncProvider.instance.onDeliveryBoysChanged = () {
+          debugPrint('🔄 Refreshing delivery boys due to LAN sync update');
+          deliveryBoyProvider.loadDeliveryBoys();
+        };
+
         final menuProvider = Provider.of<MenuProvider>(context, listen: false);
-        await menuProvider.setSyncEnabled(true);
-        debugPrint('✅ Menu provider sync enabled');
-        }
+        LanSyncProvider.instance.onMenuChanged = () async {
+          debugPrint('🔄 Refreshing menu due to LAN sync update');
+          await menuProvider.fetchMenu(forceRefresh: true);
+          await menuProvider.fetchCategories(forceRefresh: true);
+        };
+        
+        debugPrint('✅ LAN Sync UI listeners initialized');
       }
     } catch (e) {
-      debugPrint('⚠️ Error initializing device sync: $e');
+      debugPrint('⚠️ Error initializing LAN sync listeners: $e');
     }
   }
 

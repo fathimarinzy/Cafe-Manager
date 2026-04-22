@@ -40,7 +40,7 @@ class LocalDeliveryBoyRepository {
 
     return await openDatabase(
       path,
-      version: 1, // Reset version to 1 for new file
+      version: 2, // Increment for LAN sync columns
       onConfigure: (db) async {
         await db.rawQuery('PRAGMA journal_mode=WAL;');
       },
@@ -50,12 +50,29 @@ class LocalDeliveryBoyRepository {
           CREATE TABLE delivery_boys (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
-            phoneNumber TEXT NOT NULL
+            phoneNumber TEXT NOT NULL,
+            updated_at TEXT,
+            is_deleted INTEGER NOT NULL DEFAULT 0
           )
         ''');
       },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          // LAN Sync: Add updated_at and is_deleted columns
+          try {
+            await db.execute('ALTER TABLE delivery_boys ADD COLUMN updated_at TEXT');
+            await db.execute('ALTER TABLE delivery_boys ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0');
+            // Backfill updated_at for existing rows
+            await db.execute("UPDATE delivery_boys SET updated_at = '${DateTime.now().toIso8601String()}' WHERE updated_at IS NULL");
+            debugPrint('Added LAN sync columns (updated_at, is_deleted) to delivery_boys table');
+          } catch (e) {
+            debugPrint('Error adding LAN sync columns to delivery_boys: $e');
+          }
+        }
+      },
     );
   }
+
 
   Future<DeliveryBoy> saveDeliveryBoy(DeliveryBoy boy, {bool fromSync = false}) async {
     final db = await database;
@@ -75,17 +92,21 @@ class LocalDeliveryBoyRepository {
       );
 
       if (existing.isNotEmpty) {
+        final map = newBoy.toMap();
+        map['updated_at'] = DateTime.now().toIso8601String();
         await db.update(
           'delivery_boys',
-          newBoy.toMap(),
+          map,
           where: 'id = ?',
           whereArgs: [boyId],
         );
         debugPrint('Updated delivery boy: ${newBoy.name}');
       } else {
+        final map = newBoy.toMap();
+        map['updated_at'] = DateTime.now().toIso8601String();
         await db.insert(
           'delivery_boys',
-          newBoy.toMap(),
+          map,
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
         debugPrint('Inserted delivery boy: ${newBoy.name}');
@@ -107,7 +128,7 @@ class LocalDeliveryBoyRepository {
       final db = await database;
       // Ensure we catch issues if table doesn't exist
       try {
-        final results = await db.query('delivery_boys');
+        final results = await db.query('delivery_boys', where: 'is_deleted = ?', whereArgs: [0]);
         debugPrint('Retrieved ${results.length} delivery boys');
         return results.map((map) => DeliveryBoy.fromMap(map)).toList();
       } catch (e) {
@@ -131,8 +152,13 @@ class LocalDeliveryBoyRepository {
   Future<bool> deleteDeliveryBoy(String id, {bool fromSync = false}) async {
     try {
       final db = await database;
-      final count = await db.delete(
+      // Soft delete to ensure sync picks it up
+      final count = await db.update(
         'delivery_boys',
+        {
+          'is_deleted': 1,
+          'updated_at': DateTime.now().toIso8601String(),
+        },
         where: 'id = ?',
         whereArgs: [id],
       );

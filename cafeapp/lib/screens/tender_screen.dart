@@ -30,7 +30,9 @@ import '../screens/search_person_screen.dart';
 import '../repositories/credit_transaction_repository.dart';
 import '../models/credit_transaction.dart';
 import '../services/cross_platform_pdf_service.dart';
-import '../services/device_sync_service.dart';
+// import '../services/device_sync_service.dart';
+import '../providers/lan_sync_provider.dart';
+import '../models/lan_sync_models.dart';
 import '../utils/logger.dart';
 
 
@@ -99,9 +101,9 @@ class _TenderScreenState extends State<TenderScreen> {
     {'name': 'Master Card', 'color': Colors.grey.shade200},
     {'name': 'American Express', 'color': Colors.grey.shade200},
     {'name': 'Discover', 'color': Colors.grey.shade200},
-    {'name': 'Carte Blanche', 'color': Colors.grey.shade200},
-    {'name': 'Diners Club', 'color': Colors.grey.shade200},
-    {'name': 'JCB', 'color': Colors.grey.shade200},
+    // {'name': 'Carte Blanche', 'color': Colors.grey.shade200},
+    // {'name': 'Diners Club', 'color': Colors.grey.shade200},
+    // {'name': 'JCB', 'color': Colors.grey.shade200},
   ];
 
   @override
@@ -262,6 +264,12 @@ class _TenderScreenState extends State<TenderScreen> {
       });
     }
 
+    // NEW: Sync the discount immediately over LAN
+    // Do not overwrite the original order's totals prematurely if this is a credit completion
+    if (!widget.isCreditCompletion) {
+      final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+      orderProvider.updateOrderDiscount(widget.order.id, effectiveDiscount, discountedTotal);
+    }
   }
    // Add this method to calculate subtotal and tax based on VAT type
  Map<String, double> _calculateAmounts() {
@@ -532,6 +540,21 @@ Future<void> _printTemporaryReceipt() async {
     
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('temp_receipt_${widget.order.id}', true);
+    
+    // Update local DB and broadcast over LAN
+    if (widget.order.id != 0) {
+      await _localOrderRepo.setTempReceiptPrinted(widget.order.id, true);
+      final updatedOrder = await _localOrderRepo.getOrderById(widget.order.id);
+      if (updatedOrder != null && LanSyncProvider.instance.isActive) {
+        LanSyncProvider.instance.broadcastEvent(
+          SyncEvent(
+            event: SyncEventType.orderUpdated,
+            data: updatedOrder.toJson(),
+            deviceId: LanSyncProvider.instance.deviceId,
+          )
+        );
+      }
+    }
 
     final pdf = await BillService.generateBill(
       items: items,
@@ -890,29 +913,61 @@ void _handleAdvancePayment() {
     return;
   }
 
+  String selectedMethod = 'Cash'; // Default selection
+
   showDialog(
     context: context,
-    builder: (context) => AlertDialog(
-      title: Text('Confirm Advance'.tr()),
-      content: Text('${'Record Advance of'.tr()} ${amount.toStringAsFixed(3)}?'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text('Cancel'.tr()),
+    builder: (context) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: Text('Advance Payment Method'.tr()),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${'Record Advance of'.tr()} ${amount.toStringAsFixed(3)}?'),
+            const SizedBox(height: 16),
+            Text('Select Payment Method:'.tr(), style: const TextStyle(fontWeight: FontWeight.bold)),
+            RadioListTile<String>(
+              title: Text('Cash'.tr()),
+              value: 'Cash',
+              groupValue: selectedMethod,
+              onChanged: (val) {
+                setDialogState(() {
+                  selectedMethod = val!;
+                });
+              },
+            ),
+            RadioListTile<String>(
+              title: Text('Bank'.tr()),
+              value: 'Bank',
+              groupValue: selectedMethod,
+              onChanged: (val) {
+                setDialogState(() {
+                  selectedMethod = val!;
+                });
+              },
+            ),
+          ],
         ),
-        TextButton(
-          onPressed: () {
-            Navigator.pop(context);
-            _processAdvance(amount);
-          },
-          child: Text('Confirm'.tr()),
-        ),
-      ],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel'.tr()),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _processAdvance(amount, selectedMethod == 'Cash' ? 'cash' : 'bank');
+            },
+            child: Text('Confirm'.tr()),
+          ),
+        ],
+      ),
     ),
   );
 }
 
-Future<void> _processAdvance(double amount) async {
+Future<void> _processAdvance(double amount, String paymentMethod) async {
   setState(() {
     _isProcessing = true;
   });
@@ -930,29 +985,55 @@ Future<void> _processAdvance(double amount) async {
       throw Exception('Could not find order to update');
     }
     
+    double newCashAmt = orderToUpdate.cashAmount ?? 0.0;
+    double newBankAmt = orderToUpdate.bankAmount ?? 0.0;
+    
+    if (paymentMethod == 'cash') {
+       newCashAmt += amount;
+    } else if (paymentMethod == 'bank') {
+       newBankAmt += amount;
+    }
+
+    String finalPaymentMethod = paymentMethod;
+    if (newCashAmt > 0 && newBankAmt > 0) {
+       finalPaymentMethod = 'bank+cash';
+    }
+
+    double newDepositTotal = (orderToUpdate.depositAmount ?? 0.0) + amount;
+
     // Update the Order object in the database
     final updatedOrder = orderToUpdate.copyWith(
-      depositAmount: amount,
+      depositAmount: newDepositTotal,
       status: 'confirmed',
+      paymentMethod: finalPaymentMethod,
+      cashAmount: newCashAmt,
+      bankAmount: newBankAmt,
     );
 
     await _localOrderRepo.saveOrder(updatedOrder);
-    
-    // NEW: Force sync to ensure other devices see the advance payment
+
+    // 🌐 SYNC THE EDITED ORDER OVER LAN WEB SOCKETS
     try {
-      debugPrint('🔄 Force syncing advance payment update...');
-      await DeviceSyncService.syncOrderUpdate(updatedOrder);
+      if (LanSyncProvider.instance.isActive) {
+        LanSyncProvider.instance.broadcastEvent(
+          SyncEvent(
+            event: SyncEventType.orderUpdated,
+            data: updatedOrder.toJson(),
+            deviceId: LanSyncProvider.instance.deviceId,
+          )
+        );
+      }
     } catch (e) {
-      debugPrint('⚠️ Error syncing advance payment: $e');
-      // Non-blocking error, user still sees success locally
+      debugPrint('⚠️ Error broadcasting order update over LAN: $e');
     }
     
+    // Firestore sync removed
     if (mounted) {
       setState(() {
         _updatedOrder = updatedOrder;
         _orderStatus = 'confirmed';
-        _paidAmount = amount;
-        _balanceAmount = updatedOrder.total - amount;
+        _paidAmount = newDepositTotal;
+        _balanceAmount = updatedOrder.total - newDepositTotal;
         _isProcessing = false;
         _amountInput = '0.000';
       });
@@ -1899,22 +1980,23 @@ void _showSplitPaymentDialog() {
     },
   );
 }
-   Widget _buildNumButton(String text, VoidCallback onPressed, {bool isBackspace = false}) {
-    return Container(
-      margin: const EdgeInsets.all(2),
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isBackspace ? Colors.grey.shade200 : Colors.white,
-          foregroundColor: Colors.black87,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-        ),
-        child: isBackspace 
-          ? const Icon(Icons.backspace, size: 20)
-          : Text(text, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-      ),
-    );
-  }
+    Widget _buildNumButton(String text, VoidCallback onPressed, {bool isBackspace = false}) {
+     return Container(
+       margin: const EdgeInsets.all(2),
+       child: ElevatedButton(
+         onPressed: onPressed,
+         style: ElevatedButton.styleFrom(
+           backgroundColor: isBackspace ? Colors.grey.shade200 : Colors.white,
+           foregroundColor: Colors.black87,
+           padding: EdgeInsets.zero,
+           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+         ),
+         child: isBackspace 
+           ? const Icon(Icons.backspace, size: 20)
+           : Text(text, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+       ),
+     );
+   }
   
    // NEW: Process split payment
   Future<void> _processSplitPayment(double cashAmount, double bankAmount) async {
@@ -1954,6 +2036,9 @@ void _showSplitPaymentDialog() {
         if (orderIndex >= 0) {
           final existingOrder = orders[orderIndex];
           
+          double newCashAmt = (existingOrder.cashAmount ?? 0.0) + cashAmount;
+          double newBankAmt = (existingOrder.bankAmount ?? 0.0) + bankAmount;
+          
           savedOrder = Order(
             id: existingOrder.id,
             staffDeviceId: existingOrder.staffDeviceId,
@@ -1967,9 +2052,9 @@ void _showSplitPaymentDialog() {
             createdAt: existingOrder.createdAt,
             customerId: widget.customer?.id ?? existingOrder.customerId,
             paymentMethod: 'bank+cash',
-            cashAmount: cashAmount,  // ✅ Store cash portion
-            bankAmount: bankAmount,
-            depositAmount: _isDepositMode ? totalPaid : existingOrder.depositAmount, // ✅ Store deposit (or preserve existing)
+            cashAmount: newCashAmt,  // ✅ Store accumulated cash portion
+            bankAmount: newBankAmt,
+            depositAmount: _isDepositMode ? ((existingOrder.depositAmount ?? 0.0) + totalPaid) : existingOrder.depositAmount, // ✅ Store accumulated deposit (or preserve existing)
             // ✅ Preserve catering/delivery fields
             deliveryCharge: existingOrder.deliveryCharge,
             deliveryAddress: existingOrder.deliveryAddress,
@@ -2161,16 +2246,28 @@ void _showSplitPaymentDialog() {
       final success = await _localOrderRepo.updateOrderStatus(targetId, status);
       
       if (success) {
-        // ✅ SYNC: Sync the status update to Firestore in background
+        // ✅ SYNC: Sync the status update to Firestore AND LAN in background
         // Don't await this call - let it run in background to prevent UI hanging
         // Use getOrderById instead of getAllOrders for efficiency
         _localOrderRepo.getOrderById(targetId).then((updatedOrder) {
           if (updatedOrder != null) {
-            DeviceSyncService.syncOrderToFirestore(updatedOrder).then((_) {
-              debugPrint('Background sync completed for order #$targetId status update');
-            }).catchError((e) {
-              debugPrint('Background sync error for order #$targetId: $e');
-            });
+            // 🌐 Broadcast over LAN WebSockets
+            try {
+              if (LanSyncProvider.instance.isActive) {
+                LanSyncProvider.instance.broadcastEvent(
+                  SyncEvent(
+                    event: SyncEventType.orderUpdated,
+                    data: updatedOrder.toJson(),
+                    deviceId: LanSyncProvider.instance.deviceId,
+                  )
+                );
+                debugPrint('LAN broadcast completed for order #$targetId status update to $status');
+              }
+            } catch (e) {
+              debugPrint('⚠️ Error broadcasting order status over LAN: $e');
+            }
+
+            // Firestore sync removed
           }
         }).catchError((e) {
           debugPrint('Error fetching order for sync: $e');
@@ -2232,6 +2329,26 @@ void _showSplitPaymentDialog() {
         if (orderIndex >= 0) {
           final existingOrder = orders[orderIndex];
 
+          // Logic for catering partial payment
+          final isCatering = existingOrder.serviceType.toLowerCase().contains('catering');
+          final currentTotalPaid = (existingOrder.depositAmount ?? 0.0) + amount;
+          final isPartial = isCatering && (currentTotalPaid < amounts['total']! - 0.01);
+          final newStatus = isPartial ? 'pending' : 'completed';
+          final newDeposit = isPartial ? currentTotalPaid : existingOrder.depositAmount;
+
+          double newCashAmt = existingOrder.cashAmount ?? 0.0;
+          double newBankAmt = existingOrder.bankAmount ?? 0.0;
+          if (paymentMethod == 'cash') {
+              newCashAmt += amount;
+          } else if (paymentMethod == 'bank') {
+              newBankAmt += amount;
+          }
+
+          String finalPaymentMethod = paymentMethod;
+          if (newCashAmt > 0 && newBankAmt > 0) {
+              finalPaymentMethod = 'bank+cash';
+          }
+
           savedOrder = Order(
             id: existingOrder.id,
             staffDeviceId: existingOrder.staffDeviceId,
@@ -2241,10 +2358,12 @@ void _showSplitPaymentDialog() {
             tax: amounts['tax']!,
             discount: _getCurrentDiscount(),
             total: amounts['total']!,
-            status: 'completed',
+            status: newStatus,
             createdAt: existingOrder.createdAt,
             customerId: widget.customer?.id ?? existingOrder.customerId,
-            paymentMethod: paymentMethod,
+            paymentMethod: finalPaymentMethod,
+            cashAmount: newCashAmt,
+            bankAmount: newBankAmt,
             // ✅ Preserve catering/delivery fields
             deliveryCharge: existingOrder.deliveryCharge,
             deliveryAddress: existingOrder.deliveryAddress,
@@ -2255,7 +2374,7 @@ void _showSplitPaymentDialog() {
             eventType: existingOrder.eventType,
             tokenNumber: existingOrder.tokenNumber,
             customerName: existingOrder.customerName,
-            depositAmount: existingOrder.depositAmount,
+            depositAmount: newDeposit,
           );
           
           savedOrder = await _localOrderRepo.saveOrder(savedOrder);
@@ -4796,6 +4915,9 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
         final newStatus = isPartial ? 'pending' : 'completed';
         final newDeposit = isPartial ? currentTotalPaid : existingOrder.depositAmount;
 
+        double newCashAmt = (existingOrder.cashAmount ?? 0.0) + cashAmount;
+        double newBankAmt = (existingOrder.bankAmount ?? 0.0) + bankAmount;
+
         savedOrder = Order(
           id: existingOrder.id,
           staffDeviceId: existingOrder.staffDeviceId,
@@ -4809,8 +4931,8 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
           createdAt: existingOrder.createdAt,
           customerId: widget.customer?.id ?? existingOrder.customerId,
           paymentMethod: 'bank+cash',
-          cashAmount: cashAmount,
-          bankAmount: bankAmount,
+          cashAmount: newCashAmt,
+          bankAmount: newBankAmt,
           deliveryCharge: existingOrder.deliveryCharge,
           deliveryAddress: existingOrder.deliveryAddress,
           deliveryBoy: existingOrder.deliveryBoy,
@@ -4998,6 +5120,20 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
           final newStatus = isPartial ? 'pending' : 'completed';
           final newDeposit = isPartial ? currentTotalPaid : existingOrder.depositAmount;
 
+          double newCashAmt = existingOrder.cashAmount ?? 0.0;
+          double newBankAmt = existingOrder.bankAmount ?? 0.0;
+          
+          if (paymentMethod == 'cash') {
+             newCashAmt += amount;
+          } else if (paymentMethod == 'bank') {
+             newBankAmt += amount;
+          }
+          
+          String finalPaymentMethod = paymentMethod;
+          if (newCashAmt > 0 && newBankAmt > 0) {
+             finalPaymentMethod = 'bank+cash';
+          }
+
           savedOrder = Order(
             id: existingOrder.id,
             staffDeviceId: existingOrder.staffDeviceId,
@@ -5010,7 +5146,9 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
             status: newStatus,
             createdAt: existingOrder.createdAt,
             customerId: widget.customer?.id ?? existingOrder.customerId,
-            paymentMethod: paymentMethod,
+            paymentMethod: finalPaymentMethod,
+            cashAmount: newCashAmt,
+            bankAmount: newBankAmt,
             deliveryCharge: existingOrder.deliveryCharge,
             deliveryAddress: existingOrder.deliveryAddress,
           deliveryBoy: existingOrder.deliveryBoy,
@@ -5052,6 +5190,8 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
         createdAt: DateTime.now().toIso8601String(),
         customerId: widget.customer?.id,
         paymentMethod: paymentMethod,
+        cashAmount: paymentMethod == 'cash' ? discountedTotal : 0.0,
+        bankAmount: paymentMethod == 'bank' ? discountedTotal : 0.0,
         deliveryCharge: widget.order.deliveryCharge,
         deliveryAddress: widget.order.deliveryAddress,
         deliveryBoy: widget.order.deliveryBoy,
@@ -5315,6 +5455,15 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
           final newStatus = isPartial ? 'pending' : 'completed';
           final newDeposit = isPartial ? currentTotalPaid : existingOrder.depositAmount;
 
+          double newCashAmt = existingOrder.cashAmount ?? 0.0;
+          double newBankAmt = existingOrder.bankAmount ?? 0.0;
+          newCashAmt += amount;
+
+          String finalPaymentMethod = 'cash';
+          if (newCashAmt > 0 && newBankAmt > 0) {
+             finalPaymentMethod = 'bank+cash';
+          }
+
           savedOrder = Order(
             id: existingOrder.id,
             staffDeviceId: existingOrder.staffDeviceId,
@@ -5327,7 +5476,9 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
             status: newStatus,
             createdAt: existingOrder.createdAt,
             customerId: widget.customer?.id ?? existingOrder.customerId,
-            paymentMethod: 'cash',
+            paymentMethod: finalPaymentMethod,
+            cashAmount: newCashAmt,
+            bankAmount: newBankAmt,
             deliveryCharge: existingOrder.deliveryCharge,
             deliveryAddress: existingOrder.deliveryAddress,
             deliveryBoy: existingOrder.deliveryBoy,
@@ -5372,6 +5523,8 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
           createdAt: DateTime.now().toIso8601String(),
           customerId: widget.customer?.id,
           paymentMethod: 'cash',
+          cashAmount: widget.order.total - discountAmount,
+          bankAmount: 0.0,
           deliveryCharge: widget.order.deliveryCharge,
           deliveryAddress: widget.order.deliveryAddress,
           deliveryBoy: widget.order.deliveryBoy,
@@ -5845,6 +5998,8 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
                 tokenNumber: existingOrder.tokenNumber,
                 customerName: existingOrder.customerName,
                 depositAmount: existingOrder.depositAmount,
+                cashAmount: existingOrder.cashAmount,
+                bankAmount: existingOrder.bankAmount,
               );
               
               savedOrder = await _localOrderRepo.saveOrder(savedOrder);
@@ -5871,12 +6026,7 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
           
           await creditRepo.saveCreditTransaction(transaction);
           
-          // Sync to Firestore in background (don't await - prevents UI hanging when offline)
-          DeviceSyncService.syncCreditTransactionToFirestore(transaction).then((_) {
-            debugPrint('Background sync completed for credit transaction: ${transaction.id}');
-          }).catchError((e) {
-            debugPrint('Background sync error for credit transaction: $e');
-          });
+          // Firestore sync removed
           
           // Update order status to completed (without cash payment processing)
           await _updateOrderStatus('completed');
@@ -6051,13 +6201,14 @@ Future<void> _handleCustomerCreditPayment() async {
       final orderProvider = Provider.of<OrderProvider>(context, listen: false);
       orderProvider.setSelectedPerson(selectedPerson);
 
-      // IMPORTANT: Update the order in the database with customer info
-      await _updateOrderWithCustomer(selectedPerson);
-     // Update local state to reflect the customer selection
+      // Update local state to reflect the customer selection
       setState(() {
          _currentCustomer = selectedPerson;
-
       });
+      
+      // IMPORTANT: Update the order in the database with customer info
+      // but ensure we don't lose ANY data by using copyWith
+      await _updateOrderWithCustomer(selectedPerson);
       
       // Process the credit payment with the selected customer
       await _processCustomerCreditPayment(selectedPerson);
@@ -6253,12 +6404,33 @@ Future<void> _updateOriginalOrderPaymentMethod(String orderNumber, String paymen
       // final discountedTotal = _getDiscountedTotal();
       // ✅ Calculate new amounts with discount
       // final amounts = _calculateAmounts();
-      if (currentDiscount > 0 && currentDiscount != existingOrder.discount) {
-        // Recalculate only if discount changed
-        finalDiscount = currentDiscount;
-        finalTotal = existingOrder.subtotal + existingOrder.tax - finalDiscount;
+      if (currentDiscount > 0) {
+        // Add the extra discount applied during credit completion to the original discount
+        finalDiscount = existingOrder.discount + currentDiscount;
+        // Simply reduce the original total by the new extra discount amount
+        finalTotal = existingOrder.total - currentDiscount;
       }
       
+      // ✅ FIX: Preserve 'customer_credit' to keep advance payments in reports
+      double amountPaidNow = finalTotal - (existingOrder.cashAmount ?? 0.0) - (existingOrder.bankAmount ?? 0.0);
+      String updatedPaymentMethod = paymentMethod;
+      double? updatedCashAmount = existingOrder.cashAmount;
+      double? updatedBankAmount = existingOrder.bankAmount;
+      
+      if (existingOrder.paymentMethod == 'customer_credit') {
+        updatedPaymentMethod = 'customer_credit'; 
+        if (amountPaidNow > 0) {
+          if (paymentMethod == 'cash') {
+            updatedCashAmount = (updatedCashAmount ?? 0.0) + amountPaidNow;
+          } else if (paymentMethod == 'bank') {
+            updatedBankAmount = (updatedBankAmount ?? 0.0) + amountPaidNow;
+          }
+        }
+      } else {
+        if (paymentMethod == 'cash') updatedCashAmount = finalTotal;
+        if (paymentMethod == 'bank') updatedBankAmount = finalTotal;
+      }
+
       // Create updated order with new payment method
       final updatedOrder = Order(
         id: existingOrder.id,
@@ -6272,7 +6444,9 @@ Future<void> _updateOriginalOrderPaymentMethod(String orderNumber, String paymen
         status: existingOrder.status,
         createdAt: existingOrder.createdAt,
         customerId: existingOrder.customerId,
-        paymentMethod: paymentMethod, // Update the payment method
+        paymentMethod: updatedPaymentMethod, // Keep customer_credit if it was one
+        cashAmount: updatedCashAmount,
+        bankAmount: updatedBankAmount,
         deliveryCharge: existingOrder.deliveryCharge,
         deliveryAddress: existingOrder.deliveryAddress,
         deliveryBoy: existingOrder.deliveryBoy,
@@ -6288,13 +6462,16 @@ Future<void> _updateOriginalOrderPaymentMethod(String orderNumber, String paymen
       // Save the updated order
       await localOrderRepo.saveOrder(updatedOrder);
       
-      // ✅ SYNC: Sync the payment method update to Firestore in background
-      // Fire-and-forget: don't await so UI isn't blocked when offline
-      DeviceSyncService.syncOrderToFirestore(updatedOrder).then((_) {
-        debugPrint('Background sync completed for payment method update');
-      }).catchError((e) {
-        debugPrint('Background sync error for payment method update: $e');
-      });
+      // Sync to LAN
+      if (LanSyncProvider.instance.isActive) {
+        LanSyncProvider.instance.broadcastEvent(
+          SyncEvent(
+            event: SyncEventType.orderUpdated,
+            data: updatedOrder.toJson(),
+            deviceId: LanSyncProvider.instance.deviceId,
+          )
+        );
+      }
       
       debugPrint('Updated order #$orderNumber payment method to: $paymentMethod');
     } else {
@@ -6338,10 +6515,21 @@ Future<void> _updateOriginalOrderPaymentMethodWithSplit(
       // final amounts = _calculateAmounts();
       // Check if there's a new discount being applied
     
-      if (currentDiscount > 0 && currentDiscount != existingOrder.discount) {
-        finalDiscount = currentDiscount;
-        finalTotal = existingOrder.subtotal + existingOrder.tax - finalDiscount;
+      if (currentDiscount > 0) {
+        finalDiscount = existingOrder.discount + currentDiscount;
+        finalTotal = existingOrder.total - currentDiscount;
       }
+      // ✅ FIX: Preserve 'customer_credit' to keep advance payments in reports
+      String updatedPaymentMethod = paymentMethod;
+      double? updatedCashAmount = cashAmount;
+      double? updatedBankAmount = bankAmount;
+      
+      if (existingOrder.paymentMethod == 'customer_credit') {
+        updatedPaymentMethod = 'customer_credit';
+        updatedCashAmount = (existingOrder.cashAmount ?? 0.0) + cashAmount;
+        updatedBankAmount = (existingOrder.bankAmount ?? 0.0) + bankAmount;
+      }
+
       // Create updated order with split payment details
       final updatedOrder = Order(
         id: existingOrder.id,
@@ -6355,9 +6543,9 @@ Future<void> _updateOriginalOrderPaymentMethodWithSplit(
         status: existingOrder.status,
         createdAt: existingOrder.createdAt,
         customerId: existingOrder.customerId,
-        paymentMethod: paymentMethod,
-        cashAmount: cashAmount,  // ✅ Add cash amount
-        bankAmount: bankAmount,  // ✅ Add bank amount
+        paymentMethod: updatedPaymentMethod,
+        cashAmount: updatedCashAmount,  // ✅ Add cash amount safely
+        bankAmount: updatedBankAmount,  // ✅ Add bank amount safely
         deliveryCharge: existingOrder.deliveryCharge,
         deliveryAddress: existingOrder.deliveryAddress,
         deliveryBoy: existingOrder.deliveryBoy,
@@ -6372,14 +6560,23 @@ Future<void> _updateOriginalOrderPaymentMethodWithSplit(
       
       // Save the updated order
       await localOrderRepo.saveOrder(updatedOrder);
+
+      // 🌐 SYNC THE EDITED ORDER OVER LAN WEB SOCKETS
+      try {
+        if (LanSyncProvider.instance.isActive) {
+          LanSyncProvider.instance.broadcastEvent(
+            SyncEvent(
+              event: SyncEventType.orderUpdated,
+              data: updatedOrder.toJson(),
+              deviceId: LanSyncProvider.instance.deviceId,
+            )
+          );
+        }
+      } catch (e) {
+        debugPrint('⚠️ Error broadcasting order update over LAN: $e');
+      }
       
-      // ✅ SYNC: Sync the split payment update to Firestore in background
-      // Fire-and-forget: don't await so UI isn't blocked when offline
-      DeviceSyncService.syncOrderToFirestore(updatedOrder).then((_) {
-        debugPrint('Background sync completed for split payment update');
-      }).catchError((e) {
-        debugPrint('Background sync error for split payment update: $e');
-      });
+      // Firestore sync removed
       
       debugPrint('Updated order #$orderNumber with split payment: Cash=$cashAmount, Bank=$bankAmount');
     } else {
@@ -6389,7 +6586,6 @@ Future<void> _updateOriginalOrderPaymentMethodWithSplit(
     debugPrint('Error updating order with split payment: $e');
   }
 }
-// Add this new method to update order with customer information
 // Add this new method to update order with customer information
 Future<void> _updateOrderWithCustomer(Person customer) async {
   try {
@@ -6401,32 +6597,30 @@ Future<void> _updateOrderWithCustomer(Person customer) async {
     if (orderIndex >= 0) {
       final existingOrder = allOrders[orderIndex];
       
-      // Create updated order with customer ID
-      final updatedOrder = Order(
-        id: existingOrder.id,
-        staffDeviceId: existingOrder.staffDeviceId,
-        serviceType: existingOrder.serviceType,
-        items: existingOrder.items,
-        subtotal: existingOrder.subtotal,
-        tax: existingOrder.tax,
-        discount: existingOrder.discount,
-        total: existingOrder.total,
-        status: existingOrder.status,
-        createdAt: existingOrder.createdAt,
-        customerId: customer.id, // Update with customer ID
-        paymentMethod: existingOrder.paymentMethod,
+      // Use copyWith to ensure we don't lose any data (deposit, tokenNumber, deliveryCharge, etc.)
+      final updatedOrder = existingOrder.copyWith(
+        customerId: customer.id,
       );
       
       // Save the updated order
       await localOrderRepo.saveOrder(updatedOrder);
+
+      // 🌐 SYNC THE EDITED ORDER OVER LAN WEB SOCKETS
+      try {
+        if (LanSyncProvider.instance.isActive) {
+          LanSyncProvider.instance.broadcastEvent(
+            SyncEvent(
+              event: SyncEventType.orderUpdated,
+              data: updatedOrder.toJson(),
+              deviceId: LanSyncProvider.instance.deviceId,
+            )
+          );
+        }
+      } catch (e) {
+        debugPrint('⚠️ Error broadcasting order update over LAN: $e');
+      }
       
-      // ✅ SYNC: Sync the customer update to Firestore in background
-      // Fire-and-forget: don't await so UI isn't blocked when offline
-      DeviceSyncService.syncOrderToFirestore(updatedOrder).then((_) {
-        debugPrint('Background sync completed for order customer update');
-      }).catchError((e) {
-        debugPrint('Background sync error for order customer update: $e');
-      });
+      // Firestore sync removed
       
       debugPrint('Updated order #${widget.order.id} with customer: ${customer.name}');
       

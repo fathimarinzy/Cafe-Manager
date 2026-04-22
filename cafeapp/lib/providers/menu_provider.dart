@@ -4,6 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/menu_item.dart';
 import '../repositories/local_menu_repository.dart';
 import '../services/menu_sync_service.dart';
+import '../providers/lan_sync_provider.dart';
+import '../models/lan_sync_models.dart';
 
 class MenuProvider with ChangeNotifier {
   List<MenuItem> _items = [];
@@ -150,7 +152,20 @@ class MenuProvider with ChangeNotifier {
       
       notifyListeners();
       
-      // Sync to Firestore if enabled
+      // 1. LAN Sync Broadcast
+      try {
+        if (LanSyncProvider.instance.isActive) {
+          LanSyncProvider.instance.broadcastEvent(
+            SyncEvent(
+              event: SyncEventType.menuUpdated,
+              data: newItem.toJson(),
+              deviceId: LanSyncProvider.instance.deviceId,
+            )
+          );
+        }
+      } catch (_) {}
+
+      // 2. Sync to Firestore if enabled
       if (_syncEnabled) {
         MenuSyncService.syncMenuItemToFirestore(newItem);
         
@@ -185,7 +200,20 @@ class MenuProvider with ChangeNotifier {
         notifyListeners();
       }
       
-      // Sync to Firestore if enabled
+      // 1. LAN Sync Broadcast
+      try {
+        if (LanSyncProvider.instance.isActive) {
+          LanSyncProvider.instance.broadcastEvent(
+            SyncEvent(
+              event: SyncEventType.menuUpdated,
+              data: updatedItem.toJson(),
+              deviceId: LanSyncProvider.instance.deviceId,
+            )
+          );
+        }
+      } catch (_) {}
+
+      // 2. Sync to Firestore if enabled
       if (_syncEnabled) {
         MenuSyncService.syncMenuItemToFirestore(updatedItem);
       }
@@ -213,7 +241,20 @@ class MenuProvider with ChangeNotifier {
         await fetchMenu(forceRefresh: true);
       }
       
-      // Sync deletion to Firestore if enabled
+      // 1. LAN Sync Broadcast
+      try {
+        if (LanSyncProvider.instance.isActive) {
+          LanSyncProvider.instance.broadcastEvent(
+            SyncEvent(
+              event: SyncEventType.menuDeleted,
+              data: {'id': id},
+              deviceId: LanSyncProvider.instance.deviceId,
+            )
+          );
+        }
+      } catch (_) {}
+
+      // 2. Sync deletion to Firestore if enabled
       if (_syncEnabled) {
         MenuSyncService.syncMenuItemDeletionToFirestore(id);
       }
@@ -296,7 +337,24 @@ class MenuProvider with ChangeNotifier {
       
       notifyListeners();
       
-      // Sync categories to Firestore if enabled
+      // 1. LAN Sync Broadcast
+      try {
+        if (LanSyncProvider.instance.isActive) {
+          for (var item in _items) {
+            if (item.category == trimmedNewCategory) {
+              LanSyncProvider.instance.broadcastEvent(
+                SyncEvent(
+                  event: SyncEventType.menuUpdated,
+                  data: item.toJson(),
+                  deviceId: LanSyncProvider.instance.deviceId,
+                )
+              );
+            }
+          }
+        }
+      } catch (_) {}
+
+      // 2. Sync categories to Firestore if enabled
       if (_syncEnabled) {
         MenuSyncService.syncCategoriesToFirestore(_categories);
         
@@ -331,7 +389,22 @@ class MenuProvider with ChangeNotifier {
       
       notifyListeners();
       
-      // Sync deletion to Firestore if enabled
+      // 1. LAN Sync Broadcast
+      try {
+        if (LanSyncProvider.instance.isActive) {
+          for (var item in itemsToDelete) {
+            LanSyncProvider.instance.broadcastEvent(
+              SyncEvent(
+                event: SyncEventType.menuDeleted,
+                data: {'id': item.id},
+                deviceId: LanSyncProvider.instance.deviceId,
+              )
+            );
+          }
+        }
+      } catch (_) {}
+
+      // 2. Sync deletion to Firestore if enabled
       if (_syncEnabled) {
         MenuSyncService.syncCategoriesToFirestore(_categories);
         
@@ -393,7 +466,22 @@ class MenuProvider with ChangeNotifier {
       
       notifyListeners();
       
-      // Sync to Firestore if enabled
+      // 1. LAN Sync Broadcast
+      try {
+        if (LanSyncProvider.instance.isActive) {
+          for (var item in allItems) {
+            LanSyncProvider.instance.broadcastEvent(
+              SyncEvent(
+                event: SyncEventType.menuDeleted,
+                data: {'id': item.id},
+                deviceId: LanSyncProvider.instance.deviceId,
+              )
+            );
+          }
+        }
+      } catch (_) {}
+
+      // 2. Sync to Firestore if enabled
       if (_syncEnabled) {
         // We sync deletions for each item
         for (var item in allItems) {

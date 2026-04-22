@@ -236,15 +236,18 @@ class _DeliverySetupScreenState extends State<DeliverySetupScreen> {
                     separatorBuilder: (ctx, i) => const Divider(height: 1),
                     itemBuilder: (context, index) {
                       final person = displayList[index];
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: Colors.blue[100],
-                          foregroundColor: Colors.blue[800],
-                          child: Text(person.name.isNotEmpty ? person.name[0].toUpperCase() : '?'),
+                      return Listener(
+                        onPointerDown: (_) => _onCustomerSelected(person),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: Colors.blue[100],
+                            foregroundColor: Colors.blue[800],
+                            child: Text(person.name.isNotEmpty ? person.name[0].toUpperCase() : '?'),
+                          ),
+                          title: Text(person.name),
+                          subtitle: Text('${person.phoneNumber} • ${person.place}'),
+                          onTap: () => _onCustomerSelected(person),
                         ),
-                        title: Text(person.name),
-                        subtitle: Text('${person.phoneNumber} • ${person.place}'),
-                        onTap: () => _onCustomerSelected(person),
                       );
                     },
                   );
