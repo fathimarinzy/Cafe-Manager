@@ -168,7 +168,7 @@ class LocalPersonRepository {
         phoneNumber: map['phoneNumber'] as String,
         place: map['place'] as String,
         dateVisited: map['dateVisited'] as String,
-        credit: (map['credit'] ?? 0.0) as double,
+        credit: (map['credit'] as num?)?.toDouble() ?? 0.0,
       )).toList();
     } catch (e) {
       debugPrint('Error getting all persons: $e');
@@ -304,7 +304,7 @@ Future<Person?> getPersonById(String id) async {
         phoneNumber: maps.first['phoneNumber'] as String,
         place: maps.first['place'] as String,
         dateVisited: maps.first['dateVisited'] as String,
-        credit: (maps.first['credit'] ?? 0.0) as double,
+        credit: (maps.first['credit'] as num?)?.toDouble() ?? 0.0,
       );
     }
     

@@ -44,6 +44,11 @@ class _ReportScreenState extends State<ReportScreen> {
   late DateTime _profitStartDate;
   late DateTime _profitEndDate;
   
+  // Date range specifically for summary reports
+  String _summaryReportPeriod = 'daily'; // 'daily', 'weekly', 'monthly', 'yearly', 'custom'
+  late DateTime _summaryStartDate;
+  late DateTime _summaryEndDate;
+  
   bool _isPrinting = false;
   bool _isSavingPdf = false; // Add PDF saving state
 
@@ -60,6 +65,8 @@ class _ReportScreenState extends State<ReportScreen> {
     _endDate = DateTime.now();
     _profitStartDate = DateTime(now.year, now.month, now.day);
     _profitEndDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    _summaryStartDate = DateTime(now.year, now.month, now.day);
+    _summaryEndDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
     _loadReport();
   }
  // Helper method to format time range text for display
@@ -201,6 +208,8 @@ class _ReportScreenState extends State<ReportScreen> {
         filename = 'Report_${DateFormat('MMMM_yyyy').format(_startDate)}.pdf';
       } else if (_selectedReportType == 'profit') {
         filename = 'Profit_Report_${DateFormat('dd-MM-yyyy').format(_profitStartDate)}_to_${DateFormat('dd-MM-yyyy').format(_profitEndDate)}.pdf';
+      } else if (_selectedReportType == 'summary') {
+        filename = 'Summary_Report_${DateFormat('dd-MM-yyyy').format(_summaryStartDate)}_to_${DateFormat('dd-MM-yyyy').format(_summaryEndDate)}.pdf';
       } else {
         filename = 'Report_${DateFormat('dd-MM-yyyy').format(_startDate)}_to_${DateFormat('dd-MM-yyyy').format(_endDate)}.pdf';
       }
@@ -327,6 +336,13 @@ class _ReportScreenState extends State<ReportScreen> {
         } else {
           dateRangeText = '${DateFormat('dd MMM yyyy').format(_profitStartDate)} - ${DateFormat('dd MMM yyyy').format(_profitEndDate)}${_getTimeRangeText()}';
         }
+      } else if (_selectedReportType == 'summary') {
+        reportTitle = 'Summary Report';
+        if (_summaryReportPeriod == 'daily') {
+          dateRangeText = DateFormat('dd MMM yyyy').format(_summaryStartDate) + _getTimeRangeText();
+        } else {
+          dateRangeText = '${DateFormat('dd MMM yyyy').format(_summaryStartDate)} - ${DateFormat('dd MMM yyyy').format(_summaryEndDate)}${_getTimeRangeText()}';
+        }
       } else {
         reportTitle = 'Monthly Report';
         dateRangeText = '${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}${_getTimeRangeText()}';
@@ -394,6 +410,13 @@ Future<pw.Document> _generateReportPdf() async {
           dateRangeText = DateFormat('dd MMM yyyy').format(_profitStartDate) + _getTimeRangeText();
        } else {
           dateRangeText = '${DateFormat('dd MMM yyyy').format(_profitStartDate)} - ${DateFormat('dd MMM yyyy').format(_profitEndDate)}${_getTimeRangeText()}';
+       }
+  } else if (_selectedReportType == 'summary') {
+       reportTitle = 'Summary Report'.tr();
+       if (_summaryReportPeriod == 'daily') {
+          dateRangeText = DateFormat('dd MMM yyyy').format(_summaryStartDate) + _getTimeRangeText();
+       } else {
+          dateRangeText = '${DateFormat('dd MMM yyyy').format(_summaryStartDate)} - ${DateFormat('dd MMM yyyy').format(_summaryEndDate)}${_getTimeRangeText()}';
        }
   } else {
     reportTitle = 'Monthly Report'.tr();
@@ -572,7 +595,46 @@ Future<pw.Document> _generateReportPdf() async {
                   ]
                )
              ];
-        }
+         } else if (_selectedReportType == 'summary') {
+            final topItems = _reportData!['topItems'] as List? ?? [];
+            return [
+              pw.SizedBox(height: 15),
+              pw.Text('Top Selling Items'.tr(), style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 10),
+              pw.Table(
+                border: pw.TableBorder.all(color: PdfColors.grey300),
+                children: [
+                  pw.TableRow(
+                    decoration: const pw.BoxDecoration(color: PdfColors.blue100),
+                    children: [
+                      pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText('No.'.tr(), fallbackFont: fallbackFont, arabicFont: arabicFont, style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText('Item Name'.tr(), fallbackFont: fallbackFont, arabicFont: arabicFont, style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText('Price'.tr(), fallbackFont: fallbackFont, arabicFont: arabicFont, textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText('Sold'.tr(), fallbackFont: fallbackFont, arabicFont: arabicFont, textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText('Revenue'.tr(), fallbackFont: fallbackFont, arabicFont: arabicFont, textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                    ]
+                  ),
+                  ...topItems.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final item = entry.value as Map<String, dynamic>;
+                    final name = item['name']?.toString() ?? '';
+                    final quantity = item['quantity'] as int? ?? 0;
+                    final price = item['price'] as double? ?? 0.0;
+                    final totalRevenue = item['total_revenue'] as double? ?? 0.0;
+                    return pw.TableRow(
+                      children: [
+                        pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText('${index + 1}', fallbackFont: fallbackFont, arabicFont: arabicFont)),
+                        pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText(name, fallbackFont: fallbackFont, arabicFont: arabicFont)),
+                        pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText(currencyFormat.format(price), fallbackFont: fallbackFont, arabicFont: arabicFont, textAlign: pw.TextAlign.right)),
+                        pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText(getSoldCountText(quantity), fallbackFont: fallbackFont, arabicFont: arabicFont, textAlign: pw.TextAlign.right)),
+                        pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText(currencyFormat.format(totalRevenue), fallbackFont: fallbackFont, arabicFont: arabicFont, textAlign: pw.TextAlign.right)),
+                      ]
+                    );
+                  }),
+                ]
+              )
+            ];
+         }
         
         return [
           pw.SizedBox(height: 15),
@@ -965,6 +1027,8 @@ pw.Widget _buildPdfProfitRow(Map<String, dynamic> paymentTotals, NumberFormat fo
         filename = 'Report_${DateFormat('MMMM_yyyy').format(_startDate)}.pdf';
       } else if (_selectedReportType == 'profit') {
         filename = 'Profit_Report_${DateFormat('dd-MM-yyyy').format(_profitStartDate)}_to_${DateFormat('dd-MM-yyyy').format(_profitEndDate)}.pdf';
+      } else if (_selectedReportType == 'summary') {
+        filename = 'Summary_Report_${DateFormat('dd-MM-yyyy').format(_summaryStartDate)}_to_${DateFormat('dd-MM-yyyy').format(_summaryEndDate)}.pdf';
       } else {
         filename = 'Report_${DateFormat('dd-MM-yyyy').format(_startDate)}_to_${DateFormat('dd-MM-yyyy').format(_endDate)}.pdf';
       }
@@ -1208,6 +1272,28 @@ pw.Widget _buildPdfProfitRow(Map<String, dynamic> paymentTotals, NumberFormat fo
         startDate = _profitStartDate;
         endDate = _profitEndDate;
       }
+    } else if (_selectedReportType == 'summary') {
+      if (_useTimeFilter) {
+        startDate = DateTime(
+          _summaryStartDate.year, 
+          _summaryStartDate.month, 
+          _summaryStartDate.day,
+          _startTime.hour,
+          _startTime.minute,
+        );
+        endDate = DateTime(
+          _summaryEndDate.year, 
+          _summaryEndDate.month, 
+          _summaryEndDate.day,
+          _endTime.hour,
+          _endTime.minute,
+          59,
+          999
+        );
+      } else {
+        startDate = _summaryStartDate;
+        endDate = _summaryEndDate;
+      }
     } else {
       if (_useTimeFilter) {
         startDate = DateTime(
@@ -1406,7 +1492,7 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
     }
 
     final totalRevenue = orders.fold(0.0, (sum, order) => sum + getOrderRevenue(order));
-    final totalItemsSold = orders.fold(0, (sum, order) => sum + order.items.length);
+    final totalItemsSold = orders.fold(0, (sum, order) => sum + order.items.fold(0, (itemSum, item) => itemSum + item.quantity));
 
     final Map<String, List<Order>> ordersByServiceType = {};
     for (final order in orders) {
@@ -1575,21 +1661,20 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
       final ratio = isPartial ? (effectiveTotal / order.total) : 1.0;
 
       for (final item in order.items) {
-        final itemId = item.id.toString();
-        final itemName = item.name;
+        final itemName = item.name.trim(); // Use trimmed name to ensure consistent grouping
         
-        if (!itemSales.containsKey(itemId)) {
-          itemSales[itemId] = {
+        if (!itemSales.containsKey(itemName)) {
+          itemSales[itemName] = {
             'name': itemName,
             'quantity': 0,
-            'price': item.price,
+            'price': item.price, // Will use the price of the first encountered one, which is fine for display
             'total_revenue': 0.0,
           };
         }
         
-        itemSales[itemId]!['quantity'] = (itemSales[itemId]!['quantity'] as int) + item.quantity;
+        itemSales[itemName]!['quantity'] = (itemSales[itemName]!['quantity'] as int) + item.quantity;
         // Scale item revenue by the payment ratio
-        itemSales[itemId]!['total_revenue'] = (itemSales[itemId]!['total_revenue'] as double) + ((item.price * item.quantity) * ratio);
+        itemSales[itemName]!['total_revenue'] = (itemSales[itemName]!['total_revenue'] as double) + ((item.price * item.quantity) * ratio);
       }
     }
     
@@ -1735,9 +1820,12 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 12),
-                Row(
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
-                    Expanded(
+                    SizedBox(
+                      width: MediaQuery.of(context).size.width > 600 ? (MediaQuery.of(context).size.width - 64) / 4 : (MediaQuery.of(context).size.width - 48) / 2,
                       child: _buildReportTypeCard(
                         'daily',
                         'Daily Report'.tr(),
@@ -1745,8 +1833,8 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
                         _selectedReportType == 'daily',
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
+                    SizedBox(
+                      width: MediaQuery.of(context).size.width > 600 ? (MediaQuery.of(context).size.width - 64) / 4 : (MediaQuery.of(context).size.width - 48) / 2,
                       child: _buildReportTypeCard(
                         'custom', // This is actually Monthly based on your code
                         'Monthly Report'.tr(),
@@ -1754,13 +1842,22 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
                         _selectedReportType == 'custom',
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
+                    SizedBox(
+                      width: MediaQuery.of(context).size.width > 600 ? (MediaQuery.of(context).size.width - 64) / 4 : (MediaQuery.of(context).size.width - 48) / 2,
                       child: _buildReportTypeCard(
                         'profit', // NEW: Profit
                         'Profit Report'.tr(),
                         Icons.insights,
                         _selectedReportType == 'profit',
+                      ),
+                    ),
+                    SizedBox(
+                      width: MediaQuery.of(context).size.width > 600 ? (MediaQuery.of(context).size.width - 64) / 4 : (MediaQuery.of(context).size.width - 48) / 2,
+                      child: _buildReportTypeCard(
+                        'summary', // NEW: Summary
+                        'Summary Report'.tr(),
+                        Icons.assessment,
+                        _selectedReportType == 'summary',
                       ),
                     ),
                   ],
@@ -1773,6 +1870,8 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
                   _buildMonthSelector()
                 else if (_selectedReportType == 'profit')
                   _buildProfitDateSelector()
+                else if (_selectedReportType == 'summary')
+                  _buildSummaryDateSelector()
                 else
                   _buildDateRangeSelector(),
               ],
@@ -1797,6 +1896,11 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
         if (_selectedReportType != type) {
           setState(() {
             _selectedReportType = type;
+            // Reset time filter when switching report types
+            _useTimeFilter = false;
+            _startTime = const TimeOfDay(hour: 0, minute: 0);
+            _endTime = const TimeOfDay(hour: 23, minute: 59);
+            
             if (type == 'daily') {
             } else if (type == 'monthly') {
               final now = DateTime.now();
@@ -1806,6 +1910,8 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
               // Maintain the last selected sub-period when toggling to profit
               // but update the dates according to what it is.
               _updateProfitDates(_profitReportPeriod);
+            } else if (type == 'summary') {
+              _updateSummaryDates(_summaryReportPeriod);
             }
           });
           _loadReport();
@@ -2369,6 +2475,256 @@ Widget _buildMonthSelector() {
     }
   }
 
+  void _updateSummaryDates(String period) {
+    final now = DateTime.now();
+    setState(() {
+      _summaryReportPeriod = period;
+      
+      switch (period) {
+        case 'daily':
+          _summaryStartDate = DateTime(now.year, now.month, now.day);
+          _summaryEndDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+          break;
+        case 'weekly':
+          final int daysToSubtract = now.weekday - 1;
+          _summaryStartDate = DateTime(now.year, now.month, now.day - daysToSubtract);
+          _summaryEndDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+          break;
+        case 'monthly':
+          _summaryStartDate = DateTime(now.year, now.month, 1);
+          _summaryEndDate = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+          break;
+        case 'yearly':
+          _summaryStartDate = DateTime(now.year, 1, 1);
+          _summaryEndDate = DateTime(now.year, 12, 31, 23, 59, 59);
+          break;
+        case 'custom':
+          break;
+      }
+    });
+  }
+
+  Widget _buildSummaryDateSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8.0,
+          runSpacing: 8.0,
+          children: ['daily', 'weekly', 'monthly', 'yearly', 'custom'].map((String period) {
+            final isSelected = _summaryReportPeriod == period;
+            return ChoiceChip(
+              label: Text(period.tr().toUpperCase(), style: TextStyle(fontSize: 12)),
+              selected: isSelected,
+              onSelected: (bool selected) {
+                if (selected) {
+                  if (period == 'custom') {
+                    _updateSummaryDates(period);
+                  } else {
+                    _updateSummaryDates(period);
+                    _loadReport();
+                  }
+                }
+              },
+              selectedColor: Colors.blue.shade100,
+              labelStyle: TextStyle(
+                color: isSelected ? Colors.blue.shade800 : Colors.black87,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 12),
+        if (_summaryReportPeriod == 'custom')
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.blue.shade300, width: 1.5),
+              borderRadius: BorderRadius.circular(8),
+              color: Colors.blue.shade50,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => _selectSummaryCustomDate(true),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.blue.shade300, width: 1.5),
+                            borderRadius: BorderRadius.circular(8),
+                            color: Colors.white,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.calendar_today, color: Colors.blue.shade700, size: 16),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  DateFormat('dd MMM yy').format(_summaryStartDate),
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text('-', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => _selectSummaryCustomDate(false),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.blue.shade300, width: 1.5),
+                            borderRadius: BorderRadius.circular(8),
+                            color: Colors.white,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.calendar_today, color: Colors.blue.shade700, size: 16),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  DateFormat('dd MMM yy').format(_summaryEndDate),
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Checkbox(
+                          value: _useTimeFilter,
+                          onChanged: (bool? value) {
+                            setState(() {
+                              _useTimeFilter = value ?? false;
+                            });
+                            _loadReport();
+                          },
+                        ),
+                        Icon(Icons.access_time, color: Colors.grey.shade600, size: 20),
+                      ],
+                    ),
+                  ],
+                ),
+                if (_useTimeFilter) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () => _selectTime(true),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(4),
+                              color: Colors.white,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(Icons.access_time, color: Colors.grey.shade600, size: 16),
+                                    const SizedBox(width: 4),
+                                    Text('${'From:'.tr()} ${_startTime.format(context)}', style: const TextStyle(fontSize: 14)),
+                                  ],
+                                ),
+                                Icon(Icons.arrow_drop_down, color: Colors.grey.shade600, size: 16),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () => _selectTime(false),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(4),
+                              color: Colors.white,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(Icons.access_time, color: Colors.grey.shade600, size: 16),
+                                    const SizedBox(width: 4),
+                                    Text('${'To:'.tr()} ${_endTime.format(context)}', style: const TextStyle(fontSize: 14)),
+                                  ],
+                                ),
+                                Icon(Icons.arrow_drop_down, color: Colors.grey.shade600, size: 16),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _selectSummaryCustomDate(bool isStart) async {
+    final DateTime baseDate = isStart ? _summaryStartDate : _summaryEndDate;
+    DateTime initialDate = DateTime(baseDate.year, baseDate.month, baseDate.day);
+    
+    final DateTime now = DateTime.now();
+    final DateTime maxDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    if (initialDate.isAfter(maxDate)) {
+      initialDate = DateTime(now.year, now.month, now.day);
+    }
+    
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2020),
+      lastDate: maxDate,
+    );
+    
+    if (picked != null) {
+      setState(() {
+        if (isStart) {
+          _summaryStartDate = DateTime(picked.year, picked.month, picked.day);
+          if (_summaryStartDate.isAfter(_summaryEndDate)) {
+             _summaryEndDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
+          }
+        } else {
+          _summaryEndDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
+          if (_summaryEndDate.isBefore(_summaryStartDate)) {
+            _summaryStartDate = DateTime(picked.year, picked.month, picked.day);
+          }
+        }
+      });
+      _loadReport();
+    }
+  }
+
   Future<void> _selectMonth() async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -2591,6 +2947,10 @@ Widget _buildReportContent() {
     if (_selectedReportType == 'profit') {
       return _buildProfitReportContent();
     }
+    
+    if (_selectedReportType == 'summary') {
+      return _buildSummaryReportContent();
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -2607,6 +2967,81 @@ Widget _buildReportContent() {
           const SizedBox(height: 24),
           if (_reportData!['topItems'] != null)
             _buildTopItemsSection(),
+        ],
+      ),
+    );
+  }
+
+  // NEW: Dedicated view for Summary Report
+  Widget _buildSummaryReportContent() {
+    final topItems = _reportData!['topItems'] as List? ?? [];
+    
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Top Selling Items'.tr(),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: topItems.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Center(child: Text('No items data available'.tr())),
+                  )
+                : ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: topItems.length, // Show ALL top items in this dedicated view
+                    separatorBuilder: (context, index) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final item = topItems[index] as Map<String, dynamic>;
+                      final name = item['name']?.toString() ?? '';
+                      final quantity = item['quantity'] as int? ?? 0;
+                      final price = item['price'] as double? ?? 0.0;
+                      final totalRevenue = item['total_revenue'] as double? ?? 0.0;
+                      
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.blue.shade100,
+                          child: Text(
+                            '${index + 1}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue.shade700,
+                            ),
+                          ),
+                        ),
+                        title: Text(name),
+                        subtitle: Text('${'Price'.tr()}: ${price.toStringAsFixed(3)}'),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              getSoldCountText(quantity),
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            Text(
+                              totalRevenue.toStringAsFixed(3),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
         ],
       ),
     );

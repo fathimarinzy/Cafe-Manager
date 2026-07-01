@@ -37,6 +37,7 @@ import '../services/logo_service.dart';
 import '../services/device_sync_service.dart'; // 🆕 Add this import
 import '../providers/lan_sync_provider.dart';
 import 'privacy_policy_screen.dart';
+import '../services/update_service.dart';
 
 
 
@@ -1218,6 +1219,20 @@ Future<void> _checkLicenseStatus() async {
                   const Divider(),
                 ],
                 
+                _buildSectionHeader('App Updates'.tr()),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.system_update, color: Colors.blue),
+                    title: Text('Check for Updates'.tr()),
+                    subtitle: Text('Manually check for new versions'.tr()),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () async {
+                      await UpdateService.checkForUpdatesManually(context);
+                    },
+                  ),
+                ),
+                const Divider(),
+
                 _buildSectionHeader('Logout'.tr()),
                 _logoutsection(),
 
@@ -1716,7 +1731,7 @@ Future<void> _checkLicenseStatus() async {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('Version 6.4.7'.tr(), style: const TextStyle(fontSize: 13)),
+                        Text('Version 6.5.9'.tr(), style: const TextStyle(fontSize: 13)),
                         const SizedBox(width: 8),
                         const Text('•', style: TextStyle(color: Colors.grey)),
                         const SizedBox(width: 8),

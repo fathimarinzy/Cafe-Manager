@@ -30,6 +30,8 @@ import '../services/logo_service.dart';
 import '../widgets/dashboard_ultimate.dart';
 // import '../widgets/order_list_modern.dart';
 import '../widgets/dashboard_mobile.dart'; // Mobile Performance Mode
+// import 'package:upgrader/upgrader.dart';
+import '../services/update_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -90,6 +92,11 @@ class _DashboardScreenState extends State<DashboardScreen>
     _checkLicenseStatus();
     _animationController.forward();
     _fabAnimationController.forward();
+    
+    // Automatically check for updates on startup
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      UpdateService.checkForUpdatesAutomatically(context);
+    });
   }
 
   @override
@@ -449,20 +456,30 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   Widget build(BuildContext context) {
+    Widget childWidget;
     switch (_currentUIMode) {
       case 1:
-        return _buildClassicUI();
+        childWidget = _buildClassicUI();
+        break;
       case 2:
-        return _buildSidebarUI();
+        childWidget = _buildSidebarUI();
+        break;
       case 3:
-        return _buildCardStyleUI();
+        childWidget = _buildCardStyleUI();
+        break;
       case 4:
-        return _buildPremiumDarkUI(); // New Premium Dark Mode
+        childWidget = _buildPremiumDarkUI(); // New Premium Dark Mode
+        break;
       case 5:
-        return _buildMobilePerformanceUI();
+        childWidget = _buildMobilePerformanceUI();
+        break;
       default:
-        return _buildModernUI();
+        childWidget = _buildModernUI();
     }
+
+
+    
+    return childWidget;
   }
 
   Widget _buildPremiumDarkUI() {

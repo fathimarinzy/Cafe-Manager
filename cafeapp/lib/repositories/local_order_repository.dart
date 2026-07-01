@@ -621,7 +621,7 @@ class LocalOrderRepository {
         isSynced: (orderMap['is_synced'] as int?) == 1,
         syncedAt: orderMap['synced_at'] as String?,
         mainNumberAssigned: (orderMap['main_number_assigned'] as int?) == 1,
-        deliveryCharge: orderMap['delivery_charge'] as double?,
+        deliveryCharge: orderMap['delivery_charge'] != null ? (orderMap['delivery_charge'] as num).toDouble() : null,
         deliveryAddress: orderMap['delivery_address'] as String?,
         deliveryBoy: orderMap['delivery_boy'] as String?,
         eventDate: orderMap['event_date'] as String?,

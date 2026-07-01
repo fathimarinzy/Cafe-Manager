@@ -42,6 +42,7 @@ class _ModifierScreenState extends State<ModifierScreen> {
   bool _isAddingNewCategory = false;
   bool _isTaxExempt = false;
   bool _isPerPlate = false; // NEW
+  List<ItemSize> _itemSizes = [];
 
   
   MenuItem? _editingItem;
@@ -1379,6 +1380,7 @@ void _showPermissionDeniedDialog(BuildContext context) {
     _barcodeController.clear(); // NEW
     _categoryController.clear();
     setState(() {
+      _itemSizes.clear();
       _isAvailable = true;
       _isTaxExempt = false;
       _isPerPlate = false; // NEW
@@ -1403,6 +1405,7 @@ void _showPermissionDeniedDialog(BuildContext context) {
       _priceController.text = item.price.toString();
       _purchasePriceController.text = item.purchasePrice > 0 ? item.purchasePrice.toStringAsFixed(2) : ''; // NEW
       _barcodeController.text = item.barcode; // NEW
+      _itemSizes = List.from(item.sizes);
       _selectedCategory = item.category;
       _isAvailable = item.isAvailable;
       _isTaxExempt = item.taxExempt; 
@@ -1768,6 +1771,228 @@ void _showPermissionDeniedDialog(BuildContext context) {
     });
   }
 
+  void _showAddSizesDialog() {
+    final baseNameController = TextEditingController(text: _nameController.text);
+    List<Map<String, TextEditingController>> sizes = [
+      {'name': TextEditingController(text: 'Small'.tr()), 'price': TextEditingController(), 'purchasePrice': TextEditingController()},
+      {'name': TextEditingController(text: 'Medium'.tr()), 'price': TextEditingController(), 'purchasePrice': TextEditingController()},
+      {'name': TextEditingController(text: 'Large'.tr()), 'price': TextEditingController(), 'purchasePrice': TextEditingController()},
+    ];
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text('Add Item Sizes'.tr()),
+              content: SizedBox(
+                width: 500,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        controller: baseNameController,
+                        decoration: InputDecoration(
+                          labelText: 'Item Name'.tr(),
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text('Sizes & Prices:'.tr(), style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      ...sizes.asMap().entries.map((entry) {
+                        int idx = entry.key;
+                        var size = entry.value;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: size['name'],
+                                  decoration: InputDecoration(
+                                    labelText: 'Size Name'.tr(),
+                                    isDense: true,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextField(
+                                  controller: size['price'],
+                                  keyboardType: TextInputType.number,
+                                  decoration: InputDecoration(
+                                    labelText: 'Sale Price'.tr(),
+                                    isDense: true,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextField(
+                                  controller: size['purchasePrice'],
+                                  keyboardType: TextInputType.number,
+                                  decoration: InputDecoration(
+                                    labelText: 'Cost Price'.tr(),
+                                    isDense: true,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.remove_circle, color: Colors.red),
+                                onPressed: () {
+                                  setState(() {
+                                    sizes.removeAt(idx);
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                      TextButton.icon(
+                        icon: const Icon(Icons.add),
+                        label: Text('Add Size'.tr()),
+                        onPressed: () {
+                          setState(() {
+                            sizes.add({
+                              'name': TextEditingController(),
+                              'price': TextEditingController(),
+                              'purchasePrice': TextEditingController(),
+                            });
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text('Cancel'.tr()),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (baseNameController.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Please enter a Item name'.tr()), backgroundColor: Colors.red),
+                      );
+                      return;
+                    }
+                    if (sizes.isEmpty) return;
+
+                    List<ItemSize> newSizes = [];
+                    for (var size in sizes) {
+                      final name = size['name']!.text.trim();
+                      final priceText = size['price']!.text.trim();
+                      final purchasePriceText = size['purchasePrice']!.text.trim();
+                      if (name.isEmpty || priceText.isEmpty) continue;
+                      
+                      final price = double.tryParse(priceText);
+                      if (price == null) continue;
+
+                      final purchasePrice = double.tryParse(purchasePriceText) ?? 0.0;
+                      
+                      newSizes.add(ItemSize(name: name, price: price, purchasePrice: purchasePrice));
+                    }
+
+                    setState(() {
+                      _itemSizes.addAll(newSizes);
+                    });
+                    
+                    Navigator.of(ctx).pop();
+                    
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Added ${newSizes.length} sizes to item'.tr()),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  },
+                  child: Text('Create Sizes'.tr()),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _editSizeDialog(int index) {
+    final size = _itemSizes[index];
+    final nameController = TextEditingController(text: size.name);
+    final priceController = TextEditingController(text: size.price.toString());
+    final purchasePriceController = TextEditingController(text: size.purchasePrice.toString());
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text('Edit Size'.tr()),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(labelText: 'Size Name'.tr()),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: priceController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(labelText: 'Sale Price'.tr()),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: purchasePriceController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(labelText: 'Cost Price'.tr()),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text('Cancel'.tr()),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final name = nameController.text.trim();
+                final priceText = priceController.text.trim();
+                final purchasePriceText = purchasePriceController.text.trim();
+                
+                if (name.isEmpty || priceText.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Please enter valid size name and price'.tr()), backgroundColor: Colors.red),
+                  );
+                  return;
+                }
+                
+                final price = double.tryParse(priceText);
+                if (price == null) return;
+                
+                final purchasePrice = double.tryParse(purchasePriceText) ?? 0.0;
+                
+                setState(() {
+                  _itemSizes[index] = ItemSize(name: name, price: price, purchasePrice: purchasePrice);
+                });
+                
+                Navigator.of(ctx).pop();
+              },
+              child: Text('Save'.tr()),
+            ),
+          ],
+        );
+      },
+    );
+  }
   // Improved save function with more robust image handling
   void _saveItemToDatabase() async {
     if (!_formKey.currentState!.validate()) return;
@@ -1899,6 +2124,7 @@ void _showPermissionDeniedDialog(BuildContext context) {
       isPerPlate: capturedIsPerPlate, // NEW
       purchasePrice: capturedPurchasePrice, // NEW
       barcode: capturedBarcode, // NEW
+      sizes: List.from(_itemSizes), // NEW
     );
      // Debug log to verify the item being saved
      debugPrint('💾 MenuItem created - taxExempt: ${item.taxExempt}');
@@ -2354,6 +2580,12 @@ void _showPermissionDeniedDialog(BuildContext context) {
                           icon: const Icon(Icons.close),
                           onPressed: () => _toggleCategoryInput(false),
                         ),
+                        const SizedBox(width: 8),
+                        OutlinedButton.icon(
+                          onPressed: _showAddSizesDialog,
+                          icon: const Icon(Icons.layers),
+                          label: Text('Create Sizes'.tr()),
+                        ),
                       ],
                     )
                   : Row(
@@ -2392,10 +2624,59 @@ void _showPermissionDeniedDialog(BuildContext context) {
                           onPressed: () => _toggleCategoryInput(true),
                           tooltip: 'Add new category'.tr(),
                         ),
+                        const SizedBox(width: 8),
+                        OutlinedButton.icon(
+                          onPressed: _showAddSizesDialog,
+                          icon: const Icon(Icons.layers),
+                          label: Text('Create Sizes'.tr()),
+                        ),
                       ],
                     ),
 
                 const SizedBox(height: 16),
+                
+                if (_itemSizes.isNotEmpty) ...[
+                  Text('Item Sizes (${_itemSizes.length})'.tr(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _itemSizes.length,
+                      separatorBuilder: (ctx, idx) => const Divider(height: 1),
+                      itemBuilder: (ctx, idx) {
+                        final size = _itemSizes[idx];
+                        return ListTile(
+                          dense: true,
+                          title: Text(size.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text('Sale: ${size.price.toStringAsFixed(2)} | Cost: ${size.purchasePrice.toStringAsFixed(2)}'.tr()),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit, color: Colors.blue),
+                                onPressed: () => _editSizeDialog(idx),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () {
+                                  setState(() {
+                                    _itemSizes.removeAt(idx);
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
 
                 // Image section with upload buttons only
                 Column(

@@ -43,6 +43,7 @@ import 'services/firebase_service.dart';
 import 'services/demo_service.dart';
 import 'services/offline_sync_service.dart';
 import 'services/connectivity_monitor.dart';
+import 'services/update_service.dart';
 
 
 // const bool forceSafeMode = true; // 🛡️ REMOVED: Replaced by dynamic detection
@@ -104,6 +105,7 @@ void main() async {
            await logErrorToFile('🛡️ Safe Mode: Skipping WindowManager configuration');
         } else {
            await configureDesktopWindow();
+           await UpdateService.initializeWindowsUpdater();
         }
       } catch (e, stack) {
         await logErrorToFile('❌ Error configuring window: $e\n$stack');

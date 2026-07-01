@@ -2098,6 +2098,7 @@ static Future<Uint8List?> _generateKotImage({
         contentHeight += 2 + 15; // Line + generous space
 
         final isProfitReport = reportTitle.contains('Profit');
+        final isSummaryReport = reportTitle.contains('Summary');
 
         if (isProfitReport) {
            final orders = reportData['orders'] as List? ?? [];
@@ -2132,6 +2133,24 @@ static Future<Uint8List?> _generateKotImage({
            contentHeight += ((_fontSize - 2) + 12) * orders.length;
            contentHeight += 2 + 15;
 
+        } else if (isSummaryReport) {
+           final topItems = reportData['topItems'] as List? ?? [];
+           
+           final summaryHeaderPainter = _createTextPainter(
+             'Top Selling Items',
+             fontSize: _fontSize - 2,
+             fontWeight: FontWeight.bold,
+           );
+           contentHeight += summaryHeaderPainter.height + 10;
+           contentHeight += 2 + 8; // Line + space
+
+           // Columns Header
+           contentHeight += (_fontSize - 2) + 8;
+           contentHeight += 2 + 6;
+
+           // Rows
+           contentHeight += ((_fontSize - 2) + 12) * topItems.length;
+           contentHeight += 2 + 15;
         } else {
             // Revenue Breakdown Section  
             final revenueHeaderPainter = _createTextPainter(
@@ -2415,6 +2434,42 @@ static Future<Uint8List?> _generateKotImage({
              ], currentY);
           }
 
+      } else if (isSummaryReport) {
+          final topItems = reportData['topItems'] as List? ?? [];
+          
+          currentY = _drawText(
+            canvas,
+            'Top Selling Items',
+            x: _padding,
+            y: currentY,
+            fontSize: _fontSize - 2,
+            fontWeight: FontWeight.bold,
+            textAlign: TextAlign.center,
+          );
+          currentY = _drawLine(canvas, currentY);
+
+          currentY = _drawReportRow(canvas, [
+            {'text': 'Item', 'width': 0.40, 'bold': true},
+            {'text': 'Qty', 'width': 0.20, 'bold': true, 'align': 'center'},
+            {'text': 'Price', 'width': 0.20, 'bold': true, 'align': 'right'},
+            {'text': 'Rev', 'width': 0.20, 'bold': true, 'align': 'right'},
+          ], currentY);
+          currentY = _drawLine(canvas, currentY);
+
+          for (var item in topItems) {
+             final itemMap = item as Map<String, dynamic>;
+             final name = itemMap['name']?.toString() ?? '';
+             final quantity = itemMap['quantity'] as int? ?? 0;
+             final price = itemMap['price'] as double? ?? 0.0;
+             final totalRevenue = itemMap['total_revenue'] as double? ?? 0.0;
+
+             currentY = _drawReportRow(canvas, [
+               {'text': name, 'width': 0.40},
+               {'text': quantity.toString(), 'width': 0.20, 'align': 'center'},
+               {'text': currencyFormat.format(price), 'width': 0.20, 'align': 'right'},
+               {'text': currencyFormat.format(totalRevenue), 'width': 0.20, 'align': 'right'},
+             ], currentY);
+          }
       } else {
         // Revenue Breakdown Section
         currentY = _drawText(

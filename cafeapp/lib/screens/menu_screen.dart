@@ -344,6 +344,53 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
     super.dispose();
   }
 
+  void _handleItemSelection(MenuItem item, OrderProvider orderProvider, {VoidCallback? onSuccess}) {
+    if (item.sizes.isNotEmpty) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('${'Select Size'.tr()} - ${item.name}'),
+          content: SizedBox(
+            width: 300,
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: item.sizes.length,
+              separatorBuilder: (c, i) => const Divider(),
+              itemBuilder: (c, i) {
+                final size = item.sizes[i];
+                return ListTile(
+                  title: Text(size.name),
+                  subtitle: Text('Price: ${size.price.toStringAsFixed(2)}'),
+                  onTap: () {
+                    final variantItem = item.copyWith(
+                      id: '${item.id}_${size.name}',
+                      name: '${item.name} - ${size.name}',
+                      price: size.price,
+                      purchasePrice: size.purchasePrice,
+                      sizes: [], // prevent infinite sizes loop
+                    );
+                    orderProvider.addToCart(variantItem);
+                    Navigator.of(ctx).pop();
+                    if (onSuccess != null) onSuccess();
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text('Cancel'.tr()),
+            )
+          ],
+        ),
+      );
+    } else {
+      orderProvider.addToCart(item);
+      if (onSuccess != null) onSuccess();
+    }
+  }
+
   void _handleBarcodeSubmit(String val, TextEditingController controller, FocusNode focusNode) {
     if (val.isEmpty) return;
     
@@ -353,31 +400,24 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
     try {
       final item = menuProvider.items.firstWhere((i) => i.barcode.isNotEmpty && i.barcode == val);
       
-      // Auto-add to cart
-      orderProvider.addToCart(item);
-      
-      // Clear fields
-      controller.clear();
-      setState(() {
-        _itemSearchQuery = '';
-        _cachedItems = null;
+      // Auto-add to cart with size check
+      _handleItemSelection(item, orderProvider, onSuccess: () {
+        // Clear fields
+        controller.clear();
+        setState(() {
+          _itemSearchQuery = '';
+          _cachedItems = null;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${item.name} added to order'.tr()),
+            duration: const Duration(seconds: 1),
+            backgroundColor: Colors.green,
+          ),
+        );
+        focusNode.requestFocus();
       });
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${item.name} added to order'.tr()),
-          duration: const Duration(seconds: 1),
-          backgroundColor: Colors.green,
-        ),
-      );
-      
-      // Re-focus for rapid scanning
-      Future.delayed(const Duration(milliseconds: 50), () {
-        if (mounted) {
-          focusNode.requestFocus();
-        }
-      });
-      
     } catch (e) {
       // Product not found
       try {
@@ -1370,16 +1410,16 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                             }
                           });
                           
-                          orderProvider.addToCart(item);
-                          
-                          if (!item.isAvailable) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('"${item.name}" is out of stock but has been added to your order'.tr()),
-                                duration: const Duration(seconds: 2),
-                              ),
-                            );
-                          }
+                          _handleItemSelection(item, orderProvider, onSuccess: () {
+                            if (!item.isAvailable) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('"${item.name}" is out of stock but has been added to your order'.tr()),
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          });
                         },
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,

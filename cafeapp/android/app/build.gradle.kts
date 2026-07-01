@@ -20,7 +20,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "com.example.cafeapp"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

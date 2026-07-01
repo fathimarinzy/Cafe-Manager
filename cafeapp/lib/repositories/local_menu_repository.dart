@@ -2,6 +2,7 @@
 import 'package:sqflite/sqflite.dart';
 // import 'package:path/path.dart';
 import '../models/menu_item.dart';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../utils/database_helper.dart';
 
@@ -58,7 +59,7 @@ class LocalMenuRepository {
         // Open the database with explicit version and onCreate handler
         return await openDatabase(
           path,
-          version: 6,
+          version: 7,
       onConfigure: (db) async {
         await db.rawQuery('PRAGMA journal_mode=WAL;');
       },
@@ -77,7 +78,8 @@ class LocalMenuRepository {
                 taxExempt INTEGER NOT NULL DEFAULT 0,
                 isPerPlate INTEGER NOT NULL DEFAULT 0,
                 purchasePrice REAL NOT NULL DEFAULT 0.0,
-                barcode TEXT DEFAULT ''
+                barcode TEXT DEFAULT '',
+                sizes TEXT DEFAULT '[]'
               )
             ''');
             debugPrint('menu_items table created successfully');
@@ -130,6 +132,18 @@ class LocalMenuRepository {
                debugPrint('Added barcode column to menu_items table');
              } catch (e) {
                debugPrint('Error adding barcode column (may already exist): $e');
+             }
+          }
+
+          if (oldVersion < 7) {
+             // Add sizes column
+             try {
+               await db.execute('''
+                 ALTER TABLE menu_items ADD COLUMN sizes TEXT DEFAULT '[]'
+               ''');
+               debugPrint('Added sizes column to menu_items table');
+             } catch (e) {
+               debugPrint('Error adding sizes column (may already exist): $e');
              }
           }
         },
@@ -188,6 +202,7 @@ class LocalMenuRepository {
             'isPerPlate': item.isPerPlate ? 1 : 0,
             'purchasePrice': item.purchasePrice,
             'barcode': item.barcode,
+            'sizes': jsonEncode(item.sizes.map((s) => s.toJson()).toList()),
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
@@ -231,13 +246,20 @@ Future<List<MenuItem>> getMenuItems() async {
       final items = List.generate(maps.length, (i) {
         final imageUrl = maps[i]['imageUrl'] as String;
         
-
-
+        List<ItemSize> parsedSizes = [];
+        if (maps[i]['sizes'] != null) {
+          try {
+            var decoded = jsonDecode(maps[i]['sizes'] as String) as List;
+            parsedSizes = decoded.map((s) => ItemSize.fromJson(s as Map<String, dynamic>)).toList();
+          } catch(e) {
+            // ignore
+          }
+        }
         
         return MenuItem(
           id: maps[i]['id'] as String,
           name: maps[i]['name'] as String,
-          price: maps[i]['price'] as double,
+          price: (maps[i]['price'] as num).toDouble(),
           imageUrl: imageUrl,
           category: maps[i]['category'] as String,
           isAvailable: maps[i]['isAvailable'] == 1,
@@ -245,6 +267,7 @@ Future<List<MenuItem>> getMenuItems() async {
           isPerPlate: maps[i]['isPerPlate'] == 1,
           purchasePrice: maps[i]['purchasePrice'] != null ? (maps[i]['purchasePrice'] as num).toDouble() : 0.0,
           barcode: (maps[i]['barcode'] as String?) ?? '',
+          sizes: parsedSizes,
         );
       });
       
@@ -301,6 +324,7 @@ Future<List<MenuItem>> getMenuItems() async {
           isPerPlate: item.isPerPlate,
           purchasePrice: item.purchasePrice,
           barcode: item.barcode,
+          sizes: item.sizes,
         );
          // ⭐ CRITICAL: Ensure the boolean is converted to int correctly
         final int taxExemptValue = newItem.taxExempt ? 1 : 0;
@@ -322,6 +346,7 @@ Future<List<MenuItem>> getMenuItems() async {
             'isPerPlate': newItem.isPerPlate ? 1 : 0,
             'purchasePrice': newItem.purchasePrice,
             'barcode': newItem.barcode,
+            'sizes': jsonEncode(newItem.sizes.map((s) => s.toJson()).toList()),
           },
         );
         
@@ -379,6 +404,7 @@ Future<List<MenuItem>> getMenuItems() async {
             'isPerPlate': item.isPerPlate ? 1 : 0,
             'purchasePrice': item.purchasePrice,
             'barcode': item.barcode,
+            'sizes': jsonEncode(item.sizes.map((s) => s.toJson()).toList()),
           },
           where: 'id = ?',
           whereArgs: [item.id],

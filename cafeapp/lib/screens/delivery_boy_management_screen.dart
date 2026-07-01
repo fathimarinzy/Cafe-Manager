@@ -214,23 +214,23 @@ class _AddEditDeliveryBoyDialogState extends State<_AddEditDeliveryBoyDialog> {
                 
                 final provider = Provider.of<DeliveryBoyProvider>(context, listen: false);
                 
+                // Check for duplicate phone number
+                final isDuplicate = provider.deliveryBoys.any((existing) =>
+                  existing.id != widget.boy?.id &&
+                  existing.phoneNumber.trim() == newBoy.phoneNumber.trim());
+                
+                if (isDuplicate) {
+                  setState(() => _isSaving = false);
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text('A delivery boy with the same phone number already exists'.tr()),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
                 if (widget.boy == null) {
-                  // Check for duplicate (same name AND phone number)
-                  final isDuplicate = provider.deliveryBoys.any((existing) =>
-                    existing.name.trim().toLowerCase() == newBoy.name.trim().toLowerCase() &&
-                    existing.phoneNumber.trim() == newBoy.phoneNumber.trim());
-                  
-                  if (isDuplicate) {
-                    setState(() => _isSaving = false);
-                    messenger.showSnackBar(
-                      SnackBar(
-                        content: Text('A delivery boy with the same name and phone number already exists'.tr()),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    return;
-                  }
-                  
                   await provider.addDeliveryBoy(newBoy);
                   messenger.showSnackBar(
                     SnackBar(content: Text('Delivery Boy added successfully'.tr()), backgroundColor: Colors.green),
