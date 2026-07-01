@@ -61,3 +61,5 @@ test_certificate.pfx
 
 lib/screens/privacy_policy_screen.dart
 PRIVACY_POLICY.md
+
+appcast.xml
