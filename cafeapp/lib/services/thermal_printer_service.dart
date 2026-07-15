@@ -8,6 +8,7 @@ import 'package:image/image.dart' as img;
 import 'package:intl/intl.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:esc_pos_printer_plus/esc_pos_printer_plus.dart';
+import 'package:flutter_usb_printer/flutter_usb_printer.dart';
 import 'windows_raw_printer.dart';
 import '../models/menu_item.dart';
 import '../models/order_item.dart';
@@ -17,9 +18,12 @@ class KotPrinterConfig {
   String ip;
   int port;
   bool enabled;
-  String type; // 'network' or 'system'
+  String type; // 'network', 'system', or 'usb'
   String? systemPrinterName;
   String? name; // User defined label
+  String? usbDeviceName;
+  int? usbVendorId;
+  int? usbProductId;
 
   KotPrinterConfig({
     required this.ip,
@@ -28,6 +32,9 @@ class KotPrinterConfig {
     this.type = 'network',
     this.systemPrinterName,
     this.name,
+    this.usbDeviceName,
+    this.usbVendorId,
+    this.usbProductId,
   });
 
   Map<String, dynamic> toJson() => {
@@ -37,6 +44,9 @@ class KotPrinterConfig {
     'type': type,
     'systemPrinterName': systemPrinterName,
     'name': name,
+    'usbDeviceName': usbDeviceName,
+    'usbVendorId': usbVendorId,
+    'usbProductId': usbProductId,
   };
 
   factory KotPrinterConfig.fromJson(Map<String, dynamic> json) {
@@ -47,6 +57,9 @@ class KotPrinterConfig {
       type: json['type'] ?? 'network',
       systemPrinterName: json['systemPrinterName'],
       name: json['name'],
+      usbDeviceName: json['usbDeviceName'],
+      usbVendorId: json['usbVendorId'],
+      usbProductId: json['usbProductId'],
     );
   }
 }
@@ -71,11 +84,15 @@ class ThermalPrinterService {
   static const String _kotPrinterListKey = 'kot_printer_list_v2';
 
   // NEW: Printer Type Settings
-  static const String _receiptPrinterTypeKey = 'receipt_printer_type'; // 'network' or 'system'
+  static const String _receiptPrinterTypeKey = 'receipt_printer_type'; // 'network', 'system', 'usb'
   static const String _receiptSystemPrinterNameKey = 'receipt_system_printer_name';
+  static const String _receiptUsbDeviceNameKey = 'receipt_usb_device_name';
+  static const String _receiptUsbVendorIdKey = 'receipt_usb_vendor_id';
+  static const String _receiptUsbProductIdKey = 'receipt_usb_product_id';
 
   static const String printerTypeNetwork = 'network';
   static const String printerTypeSystem = 'system';
+  static const String printerTypeUsb = 'usb';
 
   // Image generation constants - Fixed for proper 80mm thermal paper width
   static const double _thermalPrinterWidth = 512.0; // Changed from 576.0
@@ -266,6 +283,28 @@ class ThermalPrinterService {
       await prefs.remove(_receiptSystemPrinterNameKey);
     } else {
       await prefs.setString(_receiptSystemPrinterNameKey, name);
+    }
+  }
+
+  static Future<Map<String, dynamic>?> getReceiptUsbPrinter() async {
+    final prefs = await SharedPreferences.getInstance();
+    final name = prefs.getString(_receiptUsbDeviceNameKey);
+    final vendorId = prefs.getInt(_receiptUsbVendorIdKey);
+    final productId = prefs.getInt(_receiptUsbProductIdKey);
+    if (name == null || vendorId == null || productId == null) return null;
+    return {'deviceName': name, 'vendorId': vendorId, 'productId': productId};
+  }
+
+  static Future<void> setReceiptUsbPrinter(String? name, int? vendorId, int? productId) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (name == null || vendorId == null || productId == null) {
+      await prefs.remove(_receiptUsbDeviceNameKey);
+      await prefs.remove(_receiptUsbVendorIdKey);
+      await prefs.remove(_receiptUsbProductIdKey);
+    } else {
+      await prefs.setString(_receiptUsbDeviceNameKey, name);
+      await prefs.setInt(_receiptUsbVendorIdKey, vendorId);
+      await prefs.setInt(_receiptUsbProductIdKey, productId);
     }
   }
 
@@ -1448,8 +1487,49 @@ static Future<Uint8List?> _generateKotImage({
   }
 }
 
-  // Direct RAW Printing using Windows Spooler (Fix for truncation)
-  static Future<bool> _printToUsb(Uint8List imageBytes, {bool isKot = false, bool openDrawer = true, String? overridePrinterName}) async {
+  static Future<bool> _printToAndroidUsb(Uint8List imageBytes, int? vendorId, int? productId, {bool isKot = false, bool openDrawer = true}) async {
+    try {
+      if (vendorId == null || productId == null) {
+        debugPrint('Android USB Print: vendorId or productId is null');
+        return false;
+      }
+      
+      final flutterUsbPrinter = FlutterUsbPrinter();
+      
+      // Load profile and convert image to ESC/POS commands
+      final profile = await CapabilityProfile.load();
+      final escPosCommands = await compute(
+        convertImageOnIsolate, 
+        ImageConversionData(imageBytes, isKot, profile, openDrawer: openDrawer)
+      );
+
+      if (escPosCommands.isEmpty) {
+        debugPrint('Android USB Print: Image conversion returned empty');
+        return false;
+      }
+
+      bool? connected = await flutterUsbPrinter.connect(vendorId, productId);
+      if (!connected!) {
+        debugPrint('Android USB Print: Failed to connect to USB printer');
+        return false;
+      }
+
+      await flutterUsbPrinter.write(Uint8List.fromList(escPosCommands));
+      await flutterUsbPrinter.close();
+      
+      debugPrint('Android USB Print: Successfully sent commands to USB printer');
+      return true;
+    } catch (e) {
+      debugPrint('Error in _printToAndroidUsb: $e');
+      return false;
+    }
+  }
+
+  // Direct RAW Printing using Windows Spooler (Fix for truncation) or Android USB
+  static Future<bool> _printToUsb(Uint8List imageBytes, {bool isKot = false, bool openDrawer = true, String? overridePrinterName, int? vendorId, int? productId}) async {
+    if (Platform.isAndroid) {
+      return await _printToAndroidUsb(imageBytes, vendorId, productId, isKot: isKot, openDrawer: openDrawer);
+    }
     // Only works on Windows for now (user's target OS)
     if (!Platform.isWindows) return false;
 
@@ -1557,7 +1637,12 @@ static Future<Uint8List?> _generateKotImage({
   // Print directly to a specific KOT config
   static Future<bool> _printToKotConfig(KotPrinterConfig config, Uint8List imageBytes) async {
     try {
-      if (config.type == printerTypeSystem) {
+      if (config.type == printerTypeUsb) {
+        if (Platform.isAndroid) {
+          return await _printToUsb(imageBytes, isKot: true, openDrawer: false, vendorId: config.usbVendorId, productId: config.usbProductId);
+        }
+        return false;
+      } else if (config.type == printerTypeSystem) {
         if (config.systemPrinterName == null) return false;
         
         // Try USB/RAW first if on Windows
@@ -1657,6 +1742,22 @@ static Future<Uint8List?> _generateKotImage({
       final printerType = isKot 
           ? await getKotPrinterType() 
           : await getReceiptPrinterType();
+
+      if (printerType == printerTypeUsb) {
+        if (Platform.isAndroid) {
+          if (isKot) {
+            final printers = await getKotPrinters();
+            final printer = printers.firstWhere((p) => p.type == printerTypeUsb, orElse: () => KotPrinterConfig(ip: '', port: 0));
+            return await _printToUsb(imageBytes, isKot: true, openDrawer: openDrawer, vendorId: printer.usbVendorId, productId: printer.usbProductId);
+          } else {
+            final receiptUsb = await getReceiptUsbPrinter();
+            if (receiptUsb != null) {
+              return await _printToUsb(imageBytes, isKot: false, openDrawer: openDrawer, vendorId: receiptUsb['vendorId'], productId: receiptUsb['productId']);
+            }
+          }
+        }
+        return false;
+      }
 
       if (printerType == printerTypeSystem) {
          if (Platform.isWindows) {
@@ -1804,9 +1905,19 @@ static Future<Uint8List?> _generateKotImage({
     String? ip,
     int? port,
     String? systemPrinterName,
+    int? usbVendorId,
+    int? usbProductId,
   }) async {
     try {
       final effectiveType = type ?? await getReceiptPrinterType();
+
+      if (effectiveType == printerTypeUsb) {
+        final testImage = await _generateTestImage();
+        if (testImage == null) return false;
+        final vId = usbVendorId ?? (await getReceiptUsbPrinter())?['vendorId'];
+        final pId = usbProductId ?? (await getReceiptUsbPrinter())?['productId'];
+        return await _printToUsb(testImage, isKot: false, vendorId: vId, productId: pId);
+      }
 
       if (effectiveType == printerTypeSystem) {
         final name = systemPrinterName ?? await getReceiptSystemPrinterName();
@@ -1855,9 +1966,17 @@ static Future<Uint8List?> _generateKotImage({
     String? ip,
     int? port,
     String? systemPrinterName,
+    int? usbVendorId,
+    int? usbProductId,
   }) async {
     try {
       final effectiveType = type ?? await getKotPrinterType();
+
+      if (effectiveType == printerTypeUsb) {
+        final testImage = await _generateTestImage(isKot: true);
+        if (testImage == null) return false;
+        return await _printToUsb(testImage, isKot: true, vendorId: usbVendorId, productId: usbProductId);
+      }
 
       if (effectiveType == printerTypeSystem) {
         final name = systemPrinterName ?? await getKotSystemPrinterName();

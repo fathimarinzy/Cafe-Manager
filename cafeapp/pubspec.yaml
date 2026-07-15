@@ -2,7 +2,7 @@ name: cafeapp
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 6.5.9+3
+version: 6.6.0+5
 
 environment:
   sdk: ^3.7.2
@@ -83,6 +83,7 @@ dependencies:
   shelf_web_socket: ^2.0.1     # WebSocket server support
   web_socket_channel: ^3.0.1   # WebSocket client
   package_info_plus: ^8.3.1
+  flutter_usb_printer: ^0.1.0+1
 
 dev_dependencies:
   flutter_test:

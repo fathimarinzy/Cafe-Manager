@@ -3,6 +3,7 @@ import 'package:network_info_plus/network_info_plus.dart';
 import 'package:printing/printing.dart';
 import 'dart:io';
 import 'dart:async';
+import 'package:flutter_usb_printer/flutter_usb_printer.dart';
 import '../services/thermal_printer_service.dart';
 import '../utils/app_localization.dart';
 import '../utils/keyboard_utils.dart';
@@ -35,6 +36,12 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
   List<Printer> _systemPrinters = [];
   bool _isLoadingSystemPrinters = false;
   
+  // NEW: USB Printer State
+  List<Map<String, dynamic>> _usbPrinters = [];
+  bool _isLoadingUsbPrinters = false;
+  String? _selectedReceiptUsbId;
+  String? _selectedReceiptUsbName;
+
   late TabController _tabController;
   final List<Map<String, String>> _discoveredPrinters = [];
 
@@ -44,6 +51,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
     _tabController = TabController(length: 2, vsync: this);
     _loadSettings();
     _loadSystemPrinters();
+    _loadUsbPrinters();
   }
 
   @override
@@ -55,7 +63,30 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
     _tabController.dispose();
     super.dispose();
   }
-  
+  Future<void> _loadUsbPrinters() async {
+    setState(() {
+      _isLoadingUsbPrinters = true;
+    });
+    try {
+      if (Platform.isAndroid) {
+        final printers = await FlutterUsbPrinter.getUSBDeviceList();
+        setState(() {
+          _usbPrinters = List<Map<String, dynamic>>.from(printers);
+          _isLoadingUsbPrinters = false;
+        });
+      } else {
+        setState(() {
+          _isLoadingUsbPrinters = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading USB printers: $e');
+      setState(() {
+        _isLoadingUsbPrinters = false;
+      });
+    }
+  }
+
   Future<void> _loadSystemPrinters() async {
     setState(() {
       _isLoadingSystemPrinters = true;
@@ -86,6 +117,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
       final receiptPort = await ThermalPrinterService.getPrinterPort();
       final receiptType = await ThermalPrinterService.getReceiptPrinterType();
       final receiptSystemName = await ThermalPrinterService.getReceiptSystemPrinterName();
+      final receiptUsb = await ThermalPrinterService.getReceiptUsbPrinter();
       
       // Load KOT Printer List
       final kotPrinters = await ThermalPrinterService.getKotPrinters();
@@ -95,6 +127,10 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
         _receiptPortController.text = receiptPort.toString();
         _receiptPrinterType = receiptType;
         _selectedReceiptSystemPrinter = receiptSystemName;
+        if (receiptUsb != null) {
+          _selectedReceiptUsbId = "${receiptUsb['vendorId']}_${receiptUsb['productId']}";
+          _selectedReceiptUsbName = receiptUsb['deviceName'];
+        }
         
         _kotPrinters = kotPrinters;
         
@@ -493,10 +529,16 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
         _showErrorMessage("Please enter a valid port number (1-65535) for Receipt Printer".tr());
         return;
       }
-    } else {
+    } else if (_receiptPrinterType == ThermalPrinterService.printerTypeSystem) {
       // System printer 
       if (_selectedReceiptSystemPrinter == null) {
         _showErrorMessage("Please select a printer".tr());
+        return;
+      }
+    } else if (_receiptPrinterType == ThermalPrinterService.printerTypeUsb) {
+      // USB printer
+      if (_selectedReceiptUsbId == null) {
+        _showErrorMessage("Please select a USB printer".tr());
         return;
       }
     }
@@ -514,8 +556,13 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
         await ThermalPrinterService.savePrinterIp(_receiptIpController.text.trim());
         final port = int.parse(_receiptPortController.text.trim());
         await ThermalPrinterService.savePrinterPort(port);
-      } else {
+      } else if (_receiptPrinterType == ThermalPrinterService.printerTypeSystem) {
         await ThermalPrinterService.setReceiptSystemPrinterName(_selectedReceiptSystemPrinter);
+      } else if (_receiptPrinterType == ThermalPrinterService.printerTypeUsb) {
+        final parts = _selectedReceiptUsbId!.split('_');
+        final vId = int.tryParse(parts[0]);
+        final pId = int.tryParse(parts[1]);
+        await ThermalPrinterService.setReceiptUsbPrinter(_selectedReceiptUsbName, vId, pId);
       }
       
       if (!mounted) return;
@@ -539,11 +586,19 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
     });
 
     try {
+      int? vId, pId;
+      if (_selectedReceiptUsbId != null) {
+        final parts = _selectedReceiptUsbId!.split('_');
+        vId = int.tryParse(parts[0]);
+        pId = int.tryParse(parts[1]);
+      }
       final connected = await ThermalPrinterService.testConnection(
         type: _receiptPrinterType,
         ip: _receiptIpController.text.trim(),
         port: int.tryParse(_receiptPortController.text.trim()),
         systemPrinterName: _selectedReceiptSystemPrinter,
+        usbVendorId: vId,
+        usbProductId: pId,
       );
       
       if (!mounted) return;
@@ -557,6 +612,8 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
       } else {
         if (_receiptPrinterType == ThermalPrinterService.printerTypeNetwork) {
           _showErrorMessage("Failed to connect to receipt printer. Please check IP address and port.".tr());
+        } else if (_receiptPrinterType == ThermalPrinterService.printerTypeUsb) {
+          _showErrorMessage("Failed to connect to USB printer. Please check if the printer is connected and turned on.".tr());
         } else {
           _showErrorMessage("Failed to test system printer. Please check if the printer is on and drivers are installed.".tr());
         }
@@ -892,6 +949,17 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
                             ],
                           ),
                         ),
+                        if (Platform.isAndroid)
+                          DropdownMenuItem(
+                            value: ThermalPrinterService.printerTypeUsb,
+                            child: Row(
+                              children: [
+                                const Icon(Icons.usb, size: 20, color: Colors.grey),
+                                const SizedBox(width: 12),
+                                Text('USB Printer (Android)'.tr()),
+                              ],
+                            ),
+                          ),
                       ],
                       onChanged: (value) {
                         if (value != null) {
@@ -924,6 +992,102 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
                   icon: Icons.numbers,
                   keyboardType: TextInputType.number,
                 ),
+              ] else if (_receiptPrinterType == ThermalPrinterService.printerTypeUsb) ...[
+                 Text(
+                  'Select USB Printer'.tr(),
+                  style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.black87),
+                ),
+                const SizedBox(height: 8),
+                if (_isLoadingUsbPrinters)
+                  const Center(child: Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: CircularProgressIndicator(),
+                  ))
+                else if (_usbPrinters.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700, size: 20),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'No USB printers found. Connect a printer via OTG and refresh.'.tr(),
+                            style: TextStyle(color: Colors.orange.shade900, fontSize: 13),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _loadUsbPrinters,
+                          child: Text('Refresh'.tr()),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: ButtonTheme(
+                              alignedDropdown: true,
+                              child: DropdownButton<String>(
+                                isExpanded: true,
+                                value: _usbPrinters.any((p) => "${p['vendorId']}_${p['productId']}" == _selectedReceiptUsbId)
+                                    ? _selectedReceiptUsbId
+                                    : null,
+                                hint: Text('Choose a printer'.tr()),
+                                borderRadius: BorderRadius.circular(12),
+                                items: _usbPrinters.map((printer) {
+                                  final pId = "${printer['vendorId']}_${printer['productId']}";
+                                  return DropdownMenuItem<String>(
+                                    value: pId,
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.print, size: 18, color: Colors.grey),
+                                        const SizedBox(width: 8),
+                                        Flexible(child: Text(printer['deviceName'] ?? 'Unknown USB Device', overflow: TextOverflow.ellipsis)),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  if (value != null) {
+                                    final printer = _usbPrinters.firstWhere((p) => "${p['vendorId']}_${p['productId']}" == value);
+                                    setState(() {
+                                      _selectedReceiptUsbId = value;
+                                      _selectedReceiptUsbName = printer['deviceName'];
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.refresh, color: Colors.blue),
+                          onPressed: _loadUsbPrinters,
+                          tooltip: 'Refresh Printers'.tr(),
+                        ),
+                      ),
+                    ],
+                  ),
               ] else ...[
                  Text(
                   'Select Printer'.tr(),
@@ -1177,9 +1341,11 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Type: ${printer.type == ThermalPrinterService.printerTypeNetwork ? "Network" : "System"}'),
+                                  Text('Type: ${printer.type == ThermalPrinterService.printerTypeNetwork ? "Network" : printer.type == ThermalPrinterService.printerTypeUsb ? "USB" : "System"}'),
                                   if (printer.type == ThermalPrinterService.printerTypeNetwork)
                                     Text('IP: ${printer.ip}:${printer.port}')
+                                  else if (printer.type == ThermalPrinterService.printerTypeUsb)
+                                    Text('Name: ${printer.usbDeviceName ?? "Unknown USB Device"}')
                                   else
                                     Text('Name: ${printer.systemPrinterName ?? "Unknown"}'),
                                 ],
@@ -1226,6 +1392,10 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
     
     String type = printer?.type ?? ThermalPrinterService.printerTypeNetwork;
     String? systemPrinter = printer?.systemPrinterName;
+    String? usbId = printer != null && printer.usbVendorId != null && printer.usbProductId != null 
+        ? "${printer.usbVendorId}_${printer.usbProductId}" 
+        : null;
+    String? usbDeviceName = printer?.usbDeviceName;
 
     await showDialog(
       context: context,
@@ -1266,6 +1436,11 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
                           value: ThermalPrinterService.printerTypeSystem,
                           child: Text('System (USB/Driver)'.tr()),
                         ),
+                        if (Platform.isAndroid)
+                          DropdownMenuItem(
+                            value: ThermalPrinterService.printerTypeUsb,
+                            child: Text('USB Printer (Android)'.tr()),
+                          ),
                       ],
                       onChanged: (val) {
                         setState(() {
@@ -1302,7 +1477,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
                           keyboardType: TextInputType.number,
                         ),
                       ),
-                    ] else ...[
+                    ] else if (type == ThermalPrinterService.printerTypeSystem) ...[
                       DropdownButtonFormField<String>(
                         value: systemPrinter,
                         decoration: InputDecoration(
@@ -1324,6 +1499,56 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
                           padding: const EdgeInsets.only(top: 8.0),
                           child: Text('No printers found. Check connection.', style: TextStyle(color: Colors.orange)),
                         ),
+                    ] else if (type == ThermalPrinterService.printerTypeUsb) ...[
+                      if (_isLoadingUsbPrinters)
+                        const Padding(padding: EdgeInsets.all(8.0), child: CircularProgressIndicator())
+                      else if (_usbPrinters.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('No USB printers found. Connect a printer via OTG.', style: TextStyle(color: Colors.orange)),
+                              TextButton(onPressed: _loadUsbPrinters, child: Text('Refresh'))
+                            ],
+                          ),
+                        )
+                      else ...[
+                        DropdownButtonFormField<String>(
+                          value: _usbPrinters.any((p) => "${p['vendorId']}_${p['productId']}" == usbId) ? usbId : null,
+                          decoration: InputDecoration(
+                            labelText: 'USB Printer'.tr(),
+                            border: const OutlineInputBorder(),
+                          ),
+                          items: _usbPrinters.map((printer) {
+                            final pId = "${printer['vendorId']}_${printer['productId']}";
+                            return DropdownMenuItem<String>(
+                              value: pId,
+                              child: Text(printer['deviceName'] ?? 'Unknown USB Device', overflow: TextOverflow.ellipsis),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              final printer = _usbPrinters.firstWhere((p) => "${p['vendorId']}_${p['productId']}" == val);
+                              setState(() {
+                                usbId = val;
+                                usbDeviceName = printer['deviceName'];
+                              });
+                            }
+                          },
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () {
+                              _loadUsbPrinters().then((_) {
+                                setState(() {});
+                              });
+                            }, 
+                            child: Text('Refresh Printers')
+                          )
+                        )
+                      ]
                     ],
                   ],
                 ),
@@ -1342,8 +1567,17 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
                       // We'll rely on global snackbar or just return
                       return; 
                     }
-                  } else {
+                  } else if (type == ThermalPrinterService.printerTypeSystem) {
                     if (systemPrinter == null) return;
+                  } else if (type == ThermalPrinterService.printerTypeUsb) {
+                    if (usbId == null) return;
+                  }
+
+                  int? vId, pId;
+                  if (usbId != null && type == ThermalPrinterService.printerTypeUsb) {
+                    final parts = usbId!.split('_');
+                    vId = int.tryParse(parts[0]);
+                    pId = int.tryParse(parts[1]);
                   }
 
                   final newPrinter = KotPrinterConfig(
@@ -1353,6 +1587,9 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
                     systemPrinterName: systemPrinter,
                     enabled: true,
                     name: nameController.text.isEmpty ? 'Printer' : nameController.text,
+                    usbDeviceName: usbDeviceName,
+                    usbVendorId: vId,
+                    usbProductId: pId,
                   );
 
                   if (isEditing) {

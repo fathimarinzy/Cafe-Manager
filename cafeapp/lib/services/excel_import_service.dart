@@ -154,8 +154,21 @@ class ExcelImportService {
         backgroundColorHex: ExcelColor.fromHexString('#F2F2F2'),
       );
 
+      // Find max sizes
+      int maxSizes = 0;
+      for (var item in items) {
+        if (item.sizes.length > maxSizes) {
+          maxSizes = item.sizes.length;
+        }
+      }
+
       // Add headers
-      final headers = ['Name', 'Price', 'Cost', 'Category', 'Available', 'Barcode', 'Image File'];
+      final headers = ['Name', 'Price', 'Cost', 'Category', 'Available', 'Barcode'];
+      for (int i = 1; i <= maxSizes; i++) {
+        headers.addAll(['Size $i', 'Price $i', 'Cost $i']);
+      }
+      headers.add('Image File');
+
       for (int i = 0; i < headers.length; i++) {
         final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0));
         cell.value = TextCellValue(headers[i]);
@@ -212,8 +225,38 @@ class ExcelImportService {
           barcodeCell.value = TextCellValue(item.barcode);
           if (rowStyle != null) barcodeCell.cellStyle = rowStyle;
 
+          int colIndex = 6;
+          for (int i = 0; i < maxSizes; i++) {
+            if (i < item.sizes.length) {
+              final size = item.sizes[i];
+              var sizeCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colIndex++, rowIndex: rowIndex));
+              sizeCell.value = TextCellValue(size.name);
+              if (rowStyle != null) sizeCell.cellStyle = rowStyle;
+
+              var sPriceCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colIndex++, rowIndex: rowIndex));
+              sPriceCell.value = DoubleCellValue(size.price);
+              if (rowStyle != null) sPriceCell.cellStyle = rowStyle;
+
+              var sCostCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colIndex++, rowIndex: rowIndex));
+              sCostCell.value = DoubleCellValue(size.purchasePrice);
+              if (rowStyle != null) sCostCell.cellStyle = rowStyle;
+            } else {
+              var sizeCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colIndex++, rowIndex: rowIndex));
+              sizeCell.value = TextCellValue('');
+              if (rowStyle != null) sizeCell.cellStyle = rowStyle;
+
+              var sPriceCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colIndex++, rowIndex: rowIndex));
+              sPriceCell.value = TextCellValue('');
+              if (rowStyle != null) sPriceCell.cellStyle = rowStyle;
+
+              var sCostCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colIndex++, rowIndex: rowIndex));
+              sCostCell.value = TextCellValue('');
+              if (rowStyle != null) sCostCell.cellStyle = rowStyle;
+            }
+          }
+
           // Image File Reference
-          var imageCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: rowIndex));
+          var imageCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colIndex++, rowIndex: rowIndex));
           if (imageExports.containsKey(item.id)) {
             imageCell.value = TextCellValue('images/${imageExports[item.id]}');
           } else {
@@ -647,6 +690,33 @@ class ExcelImportService {
     int barcodeCol = columnMap['barcode'] ?? -1;
     int imageCol = columnMap['image file'] ?? 4;
     
+    // Find size columns dynamically
+    List<Map<String, int>> sizeColumns = [];
+    if (sheet.rows.isNotEmpty) {
+      final headerRow = sheet.rows[0];
+      int maxGroup = 0;
+      for (int i = 0; i < headerRow.length; i++) {
+        final cellValue = _getCellValue(headerRow, i)?.trim().toLowerCase();
+        if (cellValue != null && cellValue.startsWith('size ')) {
+          final parts = cellValue.split(' ');
+          if (parts.length == 2) {
+            final num = int.tryParse(parts[1]);
+            if (num != null && num > maxGroup) {
+              maxGroup = num;
+            }
+          }
+        }
+      }
+      for (int i = 1; i <= maxGroup; i++) {
+        int sCol = columnMap['size $i'] ?? -1;
+        int pCol = columnMap['price $i'] ?? -1;
+        int cCol = columnMap['cost $i'] ?? -1;
+        if (sCol != -1) {
+          sizeColumns.add({'size': sCol, 'price': pCol, 'cost': cCol});
+        }
+      }
+    }
+    
     // Skip header row (index 0)
     for (int i = 1; i < sheet.rows.length; i++) {
       try {
@@ -739,6 +809,28 @@ class ExcelImportService {
           }
         }
 
+        // Parse sizes dynamically
+        List<ItemSize> parsedSizes = [];
+        for (var cols in sizeColumns) {
+          final sName = cols['size']! >= 0 ? _getCellValue(row, cols['size']!)?.trim() : null;
+          final sPriceStr = cols['price']! >= 0 ? _getCellValue(row, cols['price']!)?.trim() : null;
+          final sCostStr = cols['cost']! >= 0 ? _getCellValue(row, cols['cost']!)?.trim() : null;
+          
+          if (sName != null && sName.isNotEmpty) {
+            double sPrice = 0.0;
+            if (sPriceStr != null && sPriceStr.isNotEmpty) {
+               final parsed = double.tryParse(sPriceStr.replaceAll(RegExp(r'[^\d.]'), ''));
+               if (parsed != null) sPrice = parsed;
+            }
+            double sCost = 0.0;
+            if (sCostStr != null && sCostStr.isNotEmpty) {
+               final parsed = double.tryParse(sCostStr.replaceAll(RegExp(r'[^\d.]'), ''));
+               if (parsed != null) sCost = parsed;
+            }
+            parsedSizes.add(ItemSize(name: sName, price: sPrice, purchasePrice: sCost));
+          }
+        }
+
         // Create MenuItem
         final item = MenuItem(
           id: 'import_${DateTime.now().millisecondsSinceEpoch}_$i',
@@ -749,6 +841,7 @@ class ExcelImportService {
           category: itemCategory,
           imageUrl: imageUrl,
           isAvailable: isAvailable,
+          sizes: parsedSizes,
         );
 
         items.add(item);
@@ -786,6 +879,33 @@ class ExcelImportService {
     int categoryCol = columnMap['category'] ?? 2;
     int availableCol = columnMap['available'] ?? 3;
     int barcodeCol = columnMap['barcode'] ?? -1;
+    
+    // Find size columns dynamically
+    List<Map<String, int>> sizeColumns = [];
+    if (sheet.rows.isNotEmpty) {
+      final headerRow = sheet.rows[0];
+      int maxGroup = 0;
+      for (int i = 0; i < headerRow.length; i++) {
+        final cellValue = _getCellValue(headerRow, i)?.trim().toLowerCase();
+        if (cellValue != null && cellValue.startsWith('size ')) {
+          final parts = cellValue.split(' ');
+          if (parts.length == 2) {
+            final num = int.tryParse(parts[1]);
+            if (num != null && num > maxGroup) {
+              maxGroup = num;
+            }
+          }
+        }
+      }
+      for (int i = 1; i <= maxGroup; i++) {
+        int sCol = columnMap['size $i'] ?? -1;
+        int pCol = columnMap['price $i'] ?? -1;
+        int cCol = columnMap['cost $i'] ?? -1;
+        if (sCol != -1) {
+          sizeColumns.add({'size': sCol, 'price': pCol, 'cost': cCol});
+        }
+      }
+    }
     
     for (int i = 1; i < sheet.rows.length; i++) {
       try {
@@ -831,11 +951,33 @@ class ExcelImportService {
 
         bool isAvailable = true;
         if (availableStr != null && availableStr.isNotEmpty) {
-          final availableLower = availableStr.toLowerCase();
+        final availableLower = availableStr.toLowerCase();
           isAvailable = availableLower == 'yes' || 
                        availableLower == 'true' || 
                        availableLower == '1' ||
                        availableLower == 'available';
+        }
+
+        // Parse sizes dynamically
+        List<ItemSize> parsedSizes = [];
+        for (var cols in sizeColumns) {
+          final sName = cols['size']! >= 0 ? _getCellValue(row, cols['size']!)?.trim() : null;
+          final sPriceStr = cols['price']! >= 0 ? _getCellValue(row, cols['price']!)?.trim() : null;
+          final sCostStr = cols['cost']! >= 0 ? _getCellValue(row, cols['cost']!)?.trim() : null;
+          
+          if (sName != null && sName.isNotEmpty) {
+            double sPrice = 0.0;
+            if (sPriceStr != null && sPriceStr.isNotEmpty) {
+               final parsed = double.tryParse(sPriceStr.replaceAll(RegExp(r'[^\d.]'), ''));
+               if (parsed != null) sPrice = parsed;
+            }
+            double sCost = 0.0;
+            if (sCostStr != null && sCostStr.isNotEmpty) {
+               final parsed = double.tryParse(sCostStr.replaceAll(RegExp(r'[^\d.]'), ''));
+               if (parsed != null) sCost = parsed;
+            }
+            parsedSizes.add(ItemSize(name: sName, price: sPrice, purchasePrice: sCost));
+          }
         }
 
         final item = MenuItem(
@@ -847,6 +989,7 @@ class ExcelImportService {
           category: itemCategory,
           imageUrl: '', // No image
           isAvailable: isAvailable,
+          sizes: parsedSizes,
         );
 
         items.add(item);
@@ -898,9 +1041,13 @@ class ExcelImportService {
       sheet.cell(CellIndex.indexByString('B1')).value = TextCellValue('Price');
       sheet.cell(CellIndex.indexByString('C1')).value = TextCellValue('Category');
       sheet.cell(CellIndex.indexByString('D1')).value = TextCellValue('Available');
-      sheet.cell(CellIndex.indexByString('E1')).value = TextCellValue('Image File');
+      sheet.cell(CellIndex.indexByString('E1')).value = TextCellValue('Size 1');
+      sheet.cell(CellIndex.indexByString('F1')).value = TextCellValue('Price 1');
+      sheet.cell(CellIndex.indexByString('G1')).value = TextCellValue('Size 2');
+      sheet.cell(CellIndex.indexByString('H1')).value = TextCellValue('Price 2');
+      sheet.cell(CellIndex.indexByString('I1')).value = TextCellValue('Image File');
 
-      for (var col in ['A', 'B', 'C', 'D', 'E']) {
+      for (var col in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']) {
         sheet.cell(CellIndex.indexByString('${col}1')).cellStyle = headerStyle;
       }
 
@@ -909,13 +1056,21 @@ class ExcelImportService {
       sheet.cell(CellIndex.indexByString('B2')).value = const DoubleCellValue(3.50);
       sheet.cell(CellIndex.indexByString('C2')).value = TextCellValue('Coffee');
       sheet.cell(CellIndex.indexByString('D2')).value = TextCellValue('Yes');
-      sheet.cell(CellIndex.indexByString('E2')).value = TextCellValue('');
+      sheet.cell(CellIndex.indexByString('E2')).value = TextCellValue('Small');
+      sheet.cell(CellIndex.indexByString('F2')).value = const DoubleCellValue(3.50);
+      sheet.cell(CellIndex.indexByString('G2')).value = TextCellValue('Large');
+      sheet.cell(CellIndex.indexByString('H2')).value = const DoubleCellValue(4.50);
+      sheet.cell(CellIndex.indexByString('I2')).value = TextCellValue('');
 
       sheet.cell(CellIndex.indexByString('A3')).value = TextCellValue('Espresso');
       sheet.cell(CellIndex.indexByString('B3')).value = const DoubleCellValue(2.50);
       sheet.cell(CellIndex.indexByString('C3')).value = TextCellValue('Coffee');
       sheet.cell(CellIndex.indexByString('D3')).value = TextCellValue('Yes');
       sheet.cell(CellIndex.indexByString('E3')).value = TextCellValue('');
+      sheet.cell(CellIndex.indexByString('F3')).value = TextCellValue('');
+      sheet.cell(CellIndex.indexByString('G3')).value = TextCellValue('');
+      sheet.cell(CellIndex.indexByString('H3')).value = TextCellValue('');
+      sheet.cell(CellIndex.indexByString('I3')).value = TextCellValue('');
 
       var fileBytes = excel.save();
       if (fileBytes == null) {
