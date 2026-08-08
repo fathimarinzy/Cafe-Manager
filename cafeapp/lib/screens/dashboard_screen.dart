@@ -30,6 +30,7 @@ import '../services/logo_service.dart';
 import '../widgets/dashboard_ultimate.dart';
 // import '../widgets/order_list_modern.dart';
 import '../widgets/dashboard_mobile.dart'; // Mobile Performance Mode
+import '../widgets/clock_widget.dart';
 // import 'package:upgrader/upgrader.dart';
 import '../services/update_service.dart';
 
@@ -52,8 +53,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   late Animation<Offset> _slideAnimation;
   
   // Live clock for sidebar (replaces system uptime)
-  DateTime _currentTime = DateTime.now();
-  Timer? _clockTimer;
 
  // Dark mode for Card Style UI
   bool _isCardStyleDarkMode = false;
@@ -87,7 +86,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     ));
     
     _loadUIPreference();
-    _startClock();
     _checkDemoStatus();
     _checkLicenseStatus();
     _animationController.forward();
@@ -103,38 +101,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   void dispose() {
     _animationController.dispose();
     _fabAnimationController.dispose();
-    _clockTimer?.cancel();
     super.dispose();
   }
-
-  void _startClock() {
-    // initialize current time and update every second
-    setState(() {
-      _currentTime = DateTime.now();
-    });
-    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) {
-        setState(() {
-          _currentTime = DateTime.now();
-        });
-      }
-    });
-  }
-
-  String _formatTime() {
-    // Format as hh:mm:ss AM/PM (12-hour)
-    final hour24 = _currentTime.hour;
-    final isPm = hour24 >= 12;
-    final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
-    final h = _twoDigits(hour12);
-    final m = _twoDigits(_currentTime.minute);
-    final s = _twoDigits(_currentTime.second);
-    final ampm = isPm ? 'PM' : 'AM';
-    return '$h:$m:$s $ampm';
-  }
-
-  // Prefer a function declaration over assigning a closure to a variable
-  String _twoDigits(int n) => n.toString().padLeft(2, '0');
 
   Future<void> _loadUIPreference() async {
     try {
@@ -604,8 +572,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                   size: isTablet ? 24 : 20,
                 ),
                 SizedBox(width: isTablet ? 12 : 8),
-                Text(
-                  _formatTime(),
+                ClockWidget(
+                  pattern: 'hh:mm:ss a',
                   style: TextStyle(
                     fontSize: isTablet ? 18 : 14,
                     fontWeight: FontWeight.w600,
@@ -1739,8 +1707,8 @@ Widget _buildCardStyleUI() {
             size: isTablet ? 24 : 20,
           ),
          SizedBox(width: isTablet ? 8 : 12),
-          Text(
-            _formatTime(),
+          ClockWidget(
+            pattern: 'hh:mm:ss a',
             style: TextStyle(
               fontSize: isTablet ? 20 : 16,
               fontWeight: FontWeight.bold,

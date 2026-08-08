@@ -29,6 +29,17 @@ set(CMAKE_SHARED_LINKER_FLAGS_PROFILE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE}")
 set(CMAKE_C_FLAGS_PROFILE "${CMAKE_C_FLAGS_RELEASE}")
 set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 
+# Imported third-party targets generally only define IMPORTED_LOCATION for the
+# Debug and Release configurations - the Firebase C++ SDK does exactly this.
+# Flutter adds a third configuration, Profile, which CMake then cannot resolve,
+# so it silently falls back to the Debug import. That links the debug CRT into
+# an otherwise release-flagged binary and fails at link time with unresolved
+# __imp__calloc_dbg / _Crt_new_delete / _CrtSetReportFile.
+#
+# Map Profile onto Release for imported targets so `flutter build windows
+# --profile` works. Must be set before the plugins are added below.
+set(CMAKE_MAP_IMPORTED_CONFIG_PROFILE Release "")
+
 # Use Unicode for all projects.
 add_definitions(-DUNICODE -D_UNICODE)
 
@@ -106,3 +117,12 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
+
+# Bundle CafePrinter.exe alongside cafeapp.exe for Windows system printer support.
+# Run "dotnet publish" inside CafePrinter\ before building Flutter to produce this file.
+set(CAFE_PRINTER_EXE "${CMAKE_CURRENT_SOURCE_DIR}/../../CafePrinter/publish/CafePrinter.exe")
+if(EXISTS "${CAFE_PRINTER_EXE}")
+  install(FILES "${CAFE_PRINTER_EXE}" DESTINATION "${CMAKE_INSTALL_PREFIX}" COMPONENT Runtime)
+else()
+  message(WARNING "CafePrinter.exe not found at ${CAFE_PRINTER_EXE}. Run 'dotnet publish' in CafePrinter\\ first.")
+endif()

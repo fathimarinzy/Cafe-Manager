@@ -6,7 +6,7 @@ import 'dart:async';
 
 import '../providers/order_provider.dart';
 // import '../providers/table_provider.dart';
-import '../models/order.dart';
+import '../repositories/local_order_repository.dart';
 
 class DashboardMobile extends StatefulWidget {
   final VoidCallback onDiningTap;
@@ -52,16 +52,36 @@ class _DashboardMobileState extends State<DashboardMobile> {
   String _timeString = "";
   late Timer _timer;
 
+  // Held in state rather than created inside build() - passing
+  // `future: orderProvider.fetchOrders()` to a FutureBuilder re-ran a full
+  // unbounded scan of the orders table on every rebuild.
+  Future<Map<String, int>>? _statsFuture;
+  final LocalOrderRepository _orderRepo = LocalOrderRepository();
+  OrderProvider? _orderProvider;
+
   @override
   void initState() {
     super.initState();
     _timeString = _formatTime();
-    _timer = Timer.periodic(const Duration(seconds: 1), (Timer t) => _updateTime());
+    // Display is minute-precision, so a per-second tick redraws the same text.
+    _timer = Timer.periodic(const Duration(seconds: 20), (Timer t) => _updateTime());
+
+    _refreshData();
+    // Refresh when orders actually change, not on every rebuild.
+    _orderProvider = Provider.of<OrderProvider>(context, listen: false);
+    _orderProvider!.addListener(_refreshData);
+  }
+
+  void _refreshData() {
+    if (!mounted) return;
+    setState(() {
+      _statsFuture = _orderRepo.getDashboardCounts();
+    });
   }
 
   void _updateTime() {
     final String formattedDateTime = _formatTime();
-    if (mounted) {
+    if (mounted && formattedDateTime != _timeString) {
       setState(() {
         _timeString = formattedDateTime;
       });
@@ -74,6 +94,7 @@ class _DashboardMobileState extends State<DashboardMobile> {
 
   @override
   void dispose() {
+    _orderProvider?.removeListener(_refreshData);
     _timer.cancel();
     super.dispose();
   }
@@ -154,25 +175,17 @@ class _DashboardMobileState extends State<DashboardMobile> {
           Container(
             padding: const EdgeInsets.all(16),
             color: const Color(0xFF232529),
-            child: Consumer<OrderProvider>(
-              builder: (context, orderProvider, child) {
-                  return FutureBuilder<List<Order>>(
-                    future: orderProvider.fetchOrders(),
+            child: Builder(
+              builder: (context) {
+                  // Counts come from SQL aggregates (getDashboardCounts) instead
+                  // of loading every order and its items to total two numbers.
+                  return FutureBuilder<Map<String, int>>(
+                    future: _statsFuture,
                     builder: (context, snapshot) {
-                       int todayOrders = 0;
-                       int pendingOrders = 0;
-                       
-                       if (snapshot.hasData) {
-                         final now = DateTime.now();
-                         final todayStr = DateFormat('yyyy-MM-dd').format(now);
-                         for (var order in snapshot.data!) {
-                           if (order.createdAt != null && order.createdAt!.startsWith(todayStr)) {
-                             todayOrders++;
-                             if (order.status == 'pending') pendingOrders++;
-                           }
-                         }
-                       }
-                       
+                       final counts = snapshot.data;
+                       final int todayOrders = counts?['today'] ?? 0;
+                       final int pendingOrders = counts?['pendingToday'] ?? 0;
+
                        return Row(
                          children: [
                            Expanded(

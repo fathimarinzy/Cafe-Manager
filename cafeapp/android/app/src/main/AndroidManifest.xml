@@ -16,8 +16,9 @@
     <!-- Camera permissions -->
     <uses-permission android:name="android.permission.CAMERA" />
      
-    <uses-permission android:name="android.permission.USB_PERMISSION" />
-    <uses-feature android:name="android.hardware.usb.host" />
+    <!-- USB thermal printer support. There is no USB runtime permission: access is
+         granted per-device by the system dialog, or persistently via device_filter.xml. -->
+    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 
     <application
         android:label="SIMS CAFE"
@@ -46,6 +47,16 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <!-- Lets the system offer "Always open SIMS CAFE for this device", which
+                 grants persistent USB permission so no dialog appears after a reboot
+                 or replug of the thermal printer. -->
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+                android:resource="@xml/device_filter" />
              <!-- Add intent filter for viewing PDF files -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

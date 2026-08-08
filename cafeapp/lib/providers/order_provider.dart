@@ -182,15 +182,11 @@ class OrderProvider with ChangeNotifier {
     return baseTotal + (_deliveryCharge ?? 0.0);
   }
 
-  // Add this getter after the existing getters (around line 70-100)
-  Future<List<Order>> get orders async {
-    try {
-      return await _localOrderRepo.getAllOrders();
-    } catch (error) {
-      debugPrint('Error fetching orders: $error');
-      return [];
-    }
-  }
+  // NOTE: an async `get orders` used to live here, wrapping the unbounded
+  // getAllOrders(). It had no callers and was an easy trap to wire into a
+  // FutureBuilder, which is exactly what made the dashboard re-scan the whole
+  // orders table on every rebuild. Use fetchOrders() explicitly, or better,
+  // a bounded query such as getOrdersPage()/getDashboardCounts().
 
   // Add item to cart for current service type
   void addToCart(MenuItem item) {
@@ -670,7 +666,12 @@ class OrderProvider with ChangeNotifier {
   }
 }
   
-  // Get all orders from local repository
+  // Get all orders from local repository.
+  //
+  // This is deliberately unbounded - the only caller (quotations_list_screen)
+  // needs the full set. Cost grows linearly with order history, so do not wire
+  // this into a screen that only needs recent orders: use the repository's
+  // getOrdersPage() or getDashboardCounts() instead.
   Future<List<Order>> fetchOrders() async {
     try {
       return await _localOrderRepo.getAllOrders();
@@ -740,32 +741,13 @@ class OrderProvider with ChangeNotifier {
         _serviceTypeCarts[_currentServiceType]!.clear();
       }
       
-      // Get the order from local storage
-      final localOrders = await _localOrderRepo.getAllOrders();
-      debugPrint('Checking ${localOrders.length} local orders for ID: $orderId');
-      
-      // Debug log all local orders to help with troubleshooting
-      for (var localOrder in localOrders) {
-        debugPrint('Local order: ID=${localOrder.id}, Type=${localOrder.serviceType}');
-      }
-      
-      // Find the order with matching ID
-      final order = localOrders.firstWhere(
-        (o) => o.id == orderId,
-        orElse: () => Order(
-          staffDeviceId: '',
-          serviceType: '',
-          items: [],
-          subtotal: 0,
-          tax: 0,
-          discount: 0,
-          total: 0
-        )
-      );
-      
-      debugPrint('Local order lookup result: ${order.serviceType.isNotEmpty ? "Found" : "Not found"}');
-      
-      if (order.serviceType.isNotEmpty) {
+      // Indexed single-row lookup. This previously loaded every order in the
+      // database (plus every order item) and scanned for a match in Dart.
+      final order = await _localOrderRepo.getOrderById(orderId);
+
+      debugPrint('Local order lookup result: ${order != null ? "Found" : "Not found"}');
+
+      if (order != null && order.serviceType.isNotEmpty) {
         // Track the current order ID
         _currentOrderId = orderId;
         
@@ -847,15 +829,12 @@ class OrderProvider with ChangeNotifier {
   // Update payment method for an order
   Future<bool> updateOrderPaymentMethod(int orderId, String paymentMethod) async {
     try {
-      // Get the order from local storage
-      final localOrders = await _localOrderRepo.getAllOrders();
-      
-      // Find the order with matching ID
-      final orderIndex = localOrders.indexWhere((o) => o.id == orderId);
-      
-      if (orderIndex >= 0) {
-        final order = localOrders[orderIndex];
-        
+      // Indexed single-row lookup. This previously loaded every order in the
+      // database and scanned for a match in Dart.
+      final order = await _localOrderRepo.getOrderById(orderId);
+
+      if (order != null) {
+
         // Create a new order with updated payment method
         final updatedOrder = Order(
           staffDeviceId: order.staffDeviceId,

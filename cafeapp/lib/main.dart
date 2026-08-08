@@ -12,6 +12,7 @@ import 'package:window_manager/window_manager.dart';
 // Database helper
 import 'utils/database_helper.dart';
 import 'utils/logger.dart';
+import 'utils/app_messenger.dart';
 
 import 'screens/login_screen.dart';
 import 'screens/person_form_screen.dart';
@@ -39,11 +40,15 @@ import 'providers/lan_sync_provider.dart';
 
 import 'repositories/local_menu_repository.dart';
 import 'repositories/local_expense_repository.dart';
+import 'repositories/local_order_repository.dart';
 import 'services/firebase_service.dart';
 import 'services/demo_service.dart';
 import 'services/offline_sync_service.dart';
 import 'services/connectivity_monitor.dart';
 import 'services/update_service.dart';
+import 'services/receipt_print_queue.dart';
+import 'services/thermal_printer_service.dart';
+import 'services/windows_raw_printer.dart';
 
 
 // const bool forceSafeMode = true; // 🛡️ REMOVED: Replaced by dynamic detection
@@ -79,6 +84,11 @@ void main() async {
 
     // Log app start with mode
     await logErrorToFile('App starting... (Safe Mode: $isSafeMode)');
+
+    // Records where this log actually landed. Documents can be redirected by
+    // OneDrive, so the path is not guessable from the outside - and a support
+    // engineer who has found the file still needs to know it is the live one.
+    await logErrorToFile('📝 Log file: ${await logFilePath()}');
     
     await _setupPortableDataPaths();
     
@@ -212,12 +222,17 @@ Future<void> configureDesktopWindow() async {
 Future<void> quickInitialization(bool isDatabaseInitialized, bool isSafeMode) async {
   try {
     await logErrorToFile('🚀 Starting quick initialization...');
-    await Future.any([
-      _performQuickInitialization(isDatabaseInitialized, isSafeMode),
-      Future.delayed(const Duration(seconds: 3), () {
-        logErrorToFile('⚠️ Quick initialization timed out - continuing anyway');
-      }),
-    ]);
+
+    // Still bounded at 3s so a hung init can't block boot, but via timeout()
+    // rather than Future.any + Future.delayed. Future.any resolves on the first
+    // completer and leaves the loser running, so the old delay fired its log on
+    // every single boot even when init had finished in ~150ms - a false alarm
+    // that masked genuine init failures. timeout() cancels its timer when the
+    // work wins, so this line now only appears on a real timeout.
+    await _performQuickInitialization(isDatabaseInitialized, isSafeMode)
+        .timeout(const Duration(seconds: 3), onTimeout: () async {
+      await logErrorToFile('⚠️ Quick initialization timed out - continuing anyway');
+    });
   } catch (e) {
     await logErrorToFile('⚠️ Quick initialization error: $e');
   }
@@ -250,8 +265,15 @@ Future<void> _performQuickInitialization(bool isDatabaseInitialized, bool isSafe
     await logErrorToFile('⚠️ Firebase initialization error: $e');
   }
 
+  // Read the receipt_print_async kill switch before the first payment can
+  // happen. Cheap (one prefs read) and it defaults to async on any failure.
+  await ReceiptPrintQueue.loadSettings();
+
   // Start connectivity monitoring with delay
   _startConnectivityMonitoring();
+
+  // Warm CafePrinter.exe so the shift's first receipt isn't a cold .NET start.
+  _startPrinterWarmUp();
 
   await logErrorToFile('✅ Quick initialization completed');
 }
@@ -315,6 +337,43 @@ void _startConnectivityMonitoring() {
   });
 }
 
+/// Pays CafePrinter.exe's launch cost before the first receipt needs it.
+///
+/// A cold launch — single-file extraction, ReadyToRun page-in, loading native
+/// Skia, decoding four embedded fonts — is ~1.2s; warm it is ~200ms. Doing that
+/// once at startup means the first payment of a shift prints on the warm path.
+///
+/// Runs 8s after launch so it never competes with the DB and Firebase work
+/// above, is never awaited, and swallows everything: a failed warm-up is a
+/// missed optimisation, not an error. The `warmup` verb touches no spooler, so
+/// this cannot print anything or mark a printer unavailable.
+void _startPrinterWarmUp() {
+  Timer(const Duration(seconds: 8), () async {
+    try {
+      if (!Platform.isWindows) return;
+
+      final type = await ThermalPrinterService.getReceiptPrinterType();
+      if (type != ThermalPrinterService.printerTypeSystem &&
+          type != ThermalPrinterService.printerTypeUsb) {
+        return;
+      }
+
+      final name = await ThermalPrinterService.getReceiptSystemPrinterName();
+      if (name == null || name.isEmpty) return;
+
+      final exe = File(WindowsRawPrinter.exePath());
+      if (!await exe.exists()) return;
+
+      final sw = Stopwatch()..start();
+      await Process.run(exe.path, ['warmup', name], runInShell: false)
+          .timeout(const Duration(seconds: 30));
+      await logErrorToFile('🔥 CafePrinter warm-up ${sw.elapsedMilliseconds}ms');
+    } catch (e) {
+      debugPrint('⚠️ CafePrinter warm-up skipped: $e');
+    }
+  });
+}
+
 Future<void> initializeLocalDatabase() async {
   try {
     final localRepo = LocalMenuRepository();
@@ -322,6 +381,12 @@ Future<void> initializeLocalDatabase() async {
 
     final localExpenseRepo = LocalExpenseRepository();
     await localExpenseRepo.database;
+
+    // Pre-warm the orders DB too, so DB-open + WAL setup + any pending
+    // schema migration happen once here instead of on the first visit to
+    // the Order List screen.
+    final localOrderRepo = LocalOrderRepository();
+    await localOrderRepo.database;
 
     // debugPrint('✅ Local databases initialized');
   } catch (e) {
@@ -352,6 +417,9 @@ class MyApp extends StatelessWidget {
       child: Consumer<SettingsProvider>(
         builder: (ctx, settingsProvider, _) {
           return MaterialApp(
+            // Lets background receipt printing report failures after the tender
+            // screen has been disposed by pushAndRemoveUntil.
+            scaffoldMessengerKey: rootScaffoldMessengerKey,
             title: 'SIMS Cafe',
             theme: ThemeData(
               primarySwatch: Colors.blue,
@@ -423,17 +491,16 @@ class _AppInitializerState extends State<AppInitializer> {
   Future<void> _initializeApp() async {
     try {
       await logErrorToFile('🚀 _initializeApp started');
-      final List<Future> futures = [
-        Future.delayed(const Duration(milliseconds: 500)),
-        _performAppInitialization(),
-      ];
 
-      await Future.any([
-        Future.wait(futures),
-        Future.delayed(const Duration(seconds: 4), () {
-          logErrorToFile('⚠️ App initialization timed out - proceeding anyway');
-        }),
-      ]);
+      // The 4s cap is a real backstop - _performAppInitialization awaits
+      // tryAutoLogin() over the network and genuinely can exceed it, in which
+      // case we proceed to the next screen rather than hold the user. The
+      // previous version also raced a bare Future.delayed(500ms), which only
+      // served to put a floor under startup; it has been removed.
+      await _performAppInitialization()
+          .timeout(const Duration(seconds: 4), onTimeout: () async {
+        await logErrorToFile('⚠️ App initialization timed out - proceeding anyway');
+      });
     } catch (e) {
       await logErrorToFile('⚠️ App initialization error: $e');
     }

@@ -1731,7 +1731,7 @@ Future<void> _checkLicenseStatus() async {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('Version 6.6.0'.tr(), style: const TextStyle(fontSize: 13)),
+                        Text('Version 1.6.5'.tr(), style: const TextStyle(fontSize: 13)),
                         const SizedBox(width: 8),
                         const Text('•', style: TextStyle(color: Colors.grey)),
                         const SizedBox(width: 8),

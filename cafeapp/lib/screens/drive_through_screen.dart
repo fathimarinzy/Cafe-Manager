@@ -83,7 +83,7 @@ class _DriveThroughScreenState extends State<DriveThroughScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         title:  Text(
-          'Drive Through Management'.tr(),
+          'Drive Through'.tr(),
           style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         leading: IconButton(

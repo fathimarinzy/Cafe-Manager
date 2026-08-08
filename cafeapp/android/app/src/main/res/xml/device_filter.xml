@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- USB class 7 = printer. Class 7 / subclass 1 / protocol 2 is the bulk-only
+         interface used by virtually every ESC/POS thermal receipt printer. -->
+    <usb-device class="7" />
+    <usb-device class="7" subclass="1" protocol="2" />
+</resources>

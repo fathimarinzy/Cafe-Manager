@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <!-- SkiaSharp ships native libSkiaSharp.dll / libHarfBuzzSharp.dll. Without this
+         they are left loose beside the exe and only CafePrinter.exe gets deployed,
+         causing "Dll was not found" at the first SKPaint. -->
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <PublishTrimmed>false</PublishTrimmed>
+    <!-- Startup cost, not size, is what matters here: this exe is launched once
+         per receipt while a cashier waits. Compression made every cold launch
+         decompress ~40 MB before running a line of code. The exe grows to
+         ~70 MB but Inno recompresses it, so the installer barely moves. -->
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+    <!-- Precompiled native code, so most of the JIT is skipped on every launch,
+         warm as well as cold. Purely a build-time change - the IL is identical,
+         so rendered output cannot differ. -->
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <AssemblyName>CafePrinter</AssemblyName>
+    <RootNamespace>CafePrinter</RootNamespace>
+    <Version>2.0.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" Version="2.88.8" />
+    <PackageReference Include="SkiaSharp.HarfBuzz" Version="2.88.8" />
+  </ItemGroup>
+
+  <!-- Embed fonts as resources so the exe is fully self-contained -->
+  <ItemGroup>
+    <EmbeddedResource Include="fonts\cairo-regular.ttf" />
+    <EmbeddedResource Include="fonts\cairo-bold.ttf" />
+    <EmbeddedResource Include="fonts\open-sans.regular.ttf" />
+    <EmbeddedResource Include="fonts\open-sans.bold.ttf" />
+  </ItemGroup>
+</Project>

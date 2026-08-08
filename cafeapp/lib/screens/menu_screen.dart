@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import 'dart:async';
 import 'dart:convert';
 // import 'dart:typed_data';
@@ -30,6 +29,7 @@ import '../models/person.dart';
 import '../screens/printer_settings_screen.dart';
 import '../services/thermal_printer_service.dart';
 import '../utils/keyboard_utils.dart';
+import '../widgets/clock_widget.dart';
 
 
 class MenuScreen extends StatefulWidget {
@@ -50,8 +50,6 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
   bool _isLoading = false;
   String _selectedCategory = '';
   String _itemSearchQuery = '';
-  String _currentTime = '';
-  Timer? _timer;
   MenuItem? _selectedItem; // Track the currently selected item
   // Caching variables to reduce rebuilds
   List<MenuItem>? _cachedItems;
@@ -91,7 +89,6 @@ class MenuScreenState extends State<MenuScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadMenu();
-    _updateTime();
     _loadKotPrinterSettings(); // Add this line
     _loadMenuLayoutSettings(); // Load saved menu layout settings
 
@@ -334,7 +331,6 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _timer?.cancel();
     _sidebarSearchFocusNode.dispose();
     _phoneMainSearchFocusNode.dispose();
     _phoneCategorySearchFocusNode.dispose();
@@ -461,20 +457,6 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
     }
   }
 
-  // Function to update the current time every second
-  void _updateTime() {
-    _timer = Timer.periodic(const Duration(seconds: 1), (Timer timer) {
-      if (mounted) {
-        setState(() {
-          _currentTime = DateFormat('hh:mm a').format(DateTime.now());
-        });
-      } else {
-        // Cancel timer if widget is no longer mounted
-        timer.cancel();
-      }
-    });
-  }
-  
   // Get displayed items with caching for performance
   List<MenuItem> _getDisplayedItems(MenuProvider menuProvider) {
     // Invalidate cache if menu items have changed (length check is a simple way to detect changes)
@@ -707,7 +689,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(widget.serviceType, style: const TextStyle(color: Colors.black, fontSize: 16)),
-                  Text(_currentTime, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                  ClockWidget(style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
                 ],
               ),
               actions: [
@@ -779,9 +761,8 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                 children: [
                   const Icon(Icons.access_time, color: Colors.black, size: 20),
                   const SizedBox(width: 4),
-                  Text(
-                    _currentTime,
-                    style: const TextStyle(color: Colors.black),
+                  const ClockWidget(
+                    style: TextStyle(color: Colors.black),
                   ),
                 ],
               ),

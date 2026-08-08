@@ -2,12 +2,23 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+/// A self-contained clock.
+///
+/// Prefer this over giving a screen its own `Timer.periodic` + `setState`: this
+/// widget is a leaf, so a tick only rebuilds the `Text` rather than the whole
+/// screen, and it only calls `setState` when the rendered string actually
+/// changes (an `hh:mm a` clock therefore rebuilds once a minute, not 60 times).
 class ClockWidget extends StatefulWidget {
   final TextStyle? style;
-  
+
+  /// `DateFormat` pattern for the displayed time, e.g. `'hh:mm a'`,
+  /// `'h:mm a'`, `'hh:mm:ss a'`.
+  final String pattern;
+
   const ClockWidget({
     super.key,
     this.style,
+    this.pattern = 'hh:mm a',
   });
 
   @override
@@ -15,18 +26,25 @@ class ClockWidget extends StatefulWidget {
 }
 
 class _ClockWidgetState extends State<ClockWidget> {
-  String _currentTime = '';
+  late DateFormat _formatter;
+  late String _currentTime;
   Timer? _timer;
 
   @override
   void initState() {
     super.initState();
-    _currentTime = DateFormat('hh:mm a').format(DateTime.now());
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (mounted) {
-        _updateTime();
-      }
-    });
+    _formatter = DateFormat(widget.pattern);
+    _currentTime = _formatter.format(DateTime.now());
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _updateTime());
+  }
+
+  @override
+  void didUpdateWidget(ClockWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.pattern != widget.pattern) {
+      _formatter = DateFormat(widget.pattern);
+      _updateTime();
+    }
   }
 
   @override
@@ -36,23 +54,18 @@ class _ClockWidgetState extends State<ClockWidget> {
   }
 
   void _updateTime() {
-    final now = DateTime.now();
-    final formatter = DateFormat('hh:mm a');
-    final formatted = formatter.format(now);
-    
+    if (!mounted) return;
+
+    final formatted = _formatter.format(DateTime.now());
+
+    // Only rebuild when the displayed text differs - a minute-granularity
+    // clock would otherwise rebuild 59 times for no visible change.
     if (_currentTime != formatted) {
       setState(() {
         _currentTime = formatted;
       });
     }
   }
-
-  // Initialize with current time to avoid late initialization error
-  // Although initState calls _updateTime, it's safer to have a default or call it synchronously
-  // Changed logic to initialize in variable declaration or constructor would be cleaner but 
-  // initState serves fine here if we ensure _currentTime is assigned.
-  // Actually, _currentTime must be initialized. 
-  // Let's initialize it in initState before the timer.
 
   @override
   Widget build(BuildContext context) {

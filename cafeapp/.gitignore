@@ -53,6 +53,11 @@ android/key.properties
 android/release-key.jks
 *.jks
 
+# JVM crash dumps from the Gradle/Kotlin daemons
+hs_err_pid*.log
+replay_pid*.log
+android/hs_err_pid*.log
+
 sims_cafe_installer.iss
 verify_paths.bat
 build_installer.bat

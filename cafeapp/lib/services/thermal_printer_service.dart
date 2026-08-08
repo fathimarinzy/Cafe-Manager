@@ -8,7 +8,7 @@ import 'package:image/image.dart' as img;
 import 'package:intl/intl.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:esc_pos_printer_plus/esc_pos_printer_plus.dart';
-import 'package:flutter_usb_printer/flutter_usb_printer.dart';
+import 'android_usb_printer.dart';
 import 'windows_raw_printer.dart';
 import '../models/menu_item.dart';
 import '../models/order_item.dart';
@@ -94,6 +94,21 @@ class ThermalPrinterService {
   static const String printerTypeSystem = 'system';
   static const String printerTypeUsb = 'usb';
 
+  /// Why the last receipt print failed, for the trace line.
+  ///
+  /// A field rather than a return value on purpose: printThermalBill's
+  /// `Future<bool>` signature has ~10 callers and none of them should have to
+  /// change so the log can say *why*. Set on every attempt, null on success.
+  static String? lastPrintError;
+
+  /// CafePrinter's own stage breakdown for the last receipt, e.g.
+  /// `boot=310 json=4 gate=3 render=205 submit=28 verify=705 exe=945`.
+  ///
+  /// Process.run is one opaque await from here, so without the exe reporting
+  /// this the app can see that a print took 1330ms but not whether that was
+  /// launching the exe or printing. Those have different fixes.
+  static String? lastPrintTiming;
+
   // Image generation constants - Fixed for proper 80mm thermal paper width
   static const double _thermalPrinterWidth = 512.0; // Changed from 576.0
   static const double _pixelRatio = 1.0; // Changed from 1.5 for cleaner printing
@@ -154,6 +169,23 @@ class ThermalPrinterService {
     final printers = await getKotPrinters();
     if (printers.isNotEmpty) return printers.first.type;
     return printerTypeNetwork;
+  }
+
+  /// The first USB KOT printer that has a usable vendor/product id, or null.
+  ///
+  /// KOT printers live in a list (multi-printer support) rather than in flat prefs
+  /// like the receipt printer, so callers that only know "the KOT printer is USB"
+  /// need this to resolve the actual device.
+  static Future<KotPrinterConfig?> getKotUsbPrinter() async {
+    final printers = await getKotPrinters();
+    for (final p in printers) {
+      if (p.type == printerTypeUsb &&
+          p.usbVendorId != null &&
+          p.usbProductId != null) {
+        return p;
+      }
+    }
+    return null;
   }
 
   static Future<String?> getKotSystemPrinterName() async {
@@ -365,8 +397,13 @@ class ThermalPrinterService {
   }
 
   // Drawing Helper Methods
+  //
+  // These take a NULLABLE canvas. Passing null measures without painting, so the
+  // same layout code can be run once to compute the exact image height and again
+  // to draw it. That removes any chance of a separate height estimate drifting
+  // out of step with what is actually drawn.
   static double _drawText(
-    ui.Canvas canvas,
+    ui.Canvas? canvas,
     String text, {
     required double x,
     required double y,
@@ -376,7 +413,7 @@ class ThermalPrinterService {
     double maxWidth = _thermalPrinterWidth,
   }) {
     if (text.isEmpty) return y + fontSize;
-    
+
     final textPainter = _createTextPainter(
       text,
       fontSize: fontSize,
@@ -384,29 +421,31 @@ class ThermalPrinterService {
       textAlign: textAlign,
       maxWidth: maxWidth,
     );
-    
+
     double drawX = x;
     if (textAlign == TextAlign.center) {
       drawX = (maxWidth - textPainter.width) / 2;
     } else if (textAlign == TextAlign.right) {
       drawX = maxWidth - textPainter.width - _padding;
     }
-    
-    textPainter.paint(canvas, Offset(drawX, y));
+
+    if (canvas != null) textPainter.paint(canvas, Offset(drawX, y));
     return y + textPainter.height + 8;
   }
 
-  static double _drawLine(ui.Canvas canvas, double y, {double thickness = 4.0}) {
-    final paint = ui.Paint()
-      ..color = Colors.black
-      ..strokeWidth = thickness;
-    
-    canvas.drawLine(
-      Offset(_padding, y),
-      Offset(_thermalPrinterWidth - _padding, y),
-      paint,
-    );
-    
+  static double _drawLine(ui.Canvas? canvas, double y, {double thickness = 4.0}) {
+    if (canvas != null) {
+      final paint = ui.Paint()
+        ..color = Colors.black
+        ..strokeWidth = thickness;
+
+      canvas.drawLine(
+        Offset(_padding, y),
+        Offset(_thermalPrinterWidth - _padding, y),
+        paint,
+      );
+    }
+
     return y + thickness + 8;
   }
 
@@ -526,7 +565,7 @@ static double _drawTotalRow(ui.Canvas canvas, String label, String value, double
   
   return y + actualFontSize + 10;
 }
-static Future<double> _drawLogo(ui.Canvas canvas, double y) async {
+static Future<double> _drawLogo(ui.Canvas? canvas, double y) async {
   try {
     final logoEnabled = await LogoService.isLogoEnabled();
     if (!logoEnabled) return y;
@@ -550,9 +589,9 @@ static Future<double> _drawLogo(ui.Canvas canvas, double y) async {
 
     // Center the logo
     final logoX = (_thermalPrinterWidth - resized.width) / 2;
-    
-    // Draw the logo
-    canvas.drawImage(
+
+    // Draw the logo (skipped when measuring)
+    canvas?.drawImage(
       logoImage,
       Offset(logoX, y),
       ui.Paint(),
@@ -1488,40 +1527,74 @@ static Future<Uint8List?> _generateKotImage({
 }
 
   static Future<bool> _printToAndroidUsb(Uint8List imageBytes, int? vendorId, int? productId, {bool isKot = false, bool openDrawer = true}) async {
+    if (!isKot) {
+      lastPrintError = null;
+      lastPrintTiming = null;
+    }
+
+    if (vendorId == null || productId == null) {
+      debugPrint('Android USB Print: vendorId or productId is null');
+      if (!isKot) lastPrintError = 'no USB printer configured';
+      return false;
+    }
+
+    final printer = const AndroidUsbPrinter();
+    final started = DateTime.now();
+    var connected = false;
+
     try {
-      if (vendorId == null || productId == null) {
-        debugPrint('Android USB Print: vendorId or productId is null');
-        return false;
-      }
-      
-      final flutterUsbPrinter = FlutterUsbPrinter();
-      
       // Load profile and convert image to ESC/POS commands
       final profile = await CapabilityProfile.load();
       final escPosCommands = await compute(
-        convertImageOnIsolate, 
+        convertImageOnIsolate,
         ImageConversionData(imageBytes, isKot, profile, openDrawer: openDrawer)
       );
+      final rendered = DateTime.now();
 
       if (escPosCommands.isEmpty) {
         debugPrint('Android USB Print: Image conversion returned empty');
+        if (!isKot) lastPrintError = 'image conversion produced no ESC/POS data';
         return false;
       }
 
-      bool? connected = await flutterUsbPrinter.connect(vendorId, productId);
-      if (!connected!) {
+      // Completes only after the user answers the system USB permission dialog.
+      connected = await printer.connect(vendorId, productId);
+      if (!connected) {
         debugPrint('Android USB Print: Failed to connect to USB printer');
+        if (!isKot) lastPrintError = 'USB connect failed for $vendorId:$productId';
+        return false;
+      }
+      final opened = DateTime.now();
+
+      // Returns only once every byte has been accepted by the bulk endpoint.
+      final written = await printer.write(Uint8List.fromList(escPosCommands));
+      if (!written) {
+        debugPrint('Android USB Print: Printer rejected the data');
+        if (!isKot) lastPrintError = 'USB write rejected by printer';
         return false;
       }
 
-      await flutterUsbPrinter.write(Uint8List.fromList(escPosCommands));
-      await flutterUsbPrinter.close();
-      
+      if (!isKot) {
+        final done = DateTime.now();
+        lastPrintTiming =
+            'render=${rendered.difference(started).inMilliseconds} '
+            'open=${opened.difference(rendered).inMilliseconds} '
+            'write=${done.difference(opened).inMilliseconds} '
+            'bytes=${escPosCommands.length}';
+      }
       debugPrint('Android USB Print: Successfully sent commands to USB printer');
       return true;
+    } on UsbPrinterException catch (e) {
+      debugPrint('Error in _printToAndroidUsb: $e');
+      if (!isKot) lastPrintError = e.friendlyMessage;
+      return false;
     } catch (e) {
       debugPrint('Error in _printToAndroidUsb: $e');
+      if (!isKot) lastPrintError = '$e';
       return false;
+    } finally {
+      // Only meaningful once connect() succeeded, and safe either way.
+      if (connected) await printer.close();
     }
   }
 
@@ -1746,8 +1819,13 @@ static Future<Uint8List?> _generateKotImage({
       if (printerType == printerTypeUsb) {
         if (Platform.isAndroid) {
           if (isKot) {
-            final printers = await getKotPrinters();
-            final printer = printers.firstWhere((p) => p.type == printerTypeUsb, orElse: () => KotPrinterConfig(ip: '', port: 0));
+            // Was firstWhere(orElse: KotPrinterConfig(ip:'', port:0)), which silently
+            // produced a config with null ids and failed deep inside the USB layer.
+            final printer = await getKotUsbPrinter();
+            if (printer == null) {
+              debugPrint('KOT USB print: no USB KOT printer is configured');
+              return false;
+            }
             return await _printToUsb(imageBytes, isKot: true, openDrawer: openDrawer, vendorId: printer.usbVendorId, productId: printer.usbProductId);
           } else {
             final receiptUsb = await getReceiptUsbPrinter();
@@ -1788,6 +1866,171 @@ static Future<Uint8List?> _generateKotImage({
     }
   }
 
+  // ── .NET fast-path helpers (Windows system/usb printers only) ──────────────
+
+  static Future<bool> _printReceiptViaDotNet({
+    required SharedPreferences prefs,
+    required List<MenuItem> items,
+    required String serviceType,
+    required double subtotal,
+    required double tax,
+    required double discount,
+    required double total,
+    String? personName,
+    String? orderNumber,
+    double? taxRate,
+    double? depositAmount,
+    double? deliveryCharge,
+    bool openDrawer = true,
+    String? title,
+  }) async {
+    lastPrintError = null;
+    lastPrintTiming = null;
+    final printerName = prefs.getString(_receiptSystemPrinterNameKey) ?? '';
+    if (printerName.isEmpty) {
+      debugPrint('[WRP] No system printer name configured');
+      lastPrintError = 'no system printer name configured';
+      return false;
+    }
+
+    final logoPath    = prefs.getString('business_logo_path') ?? '';
+    final logoEnabled = prefs.getBool('logo_enabled_in_receipts') ?? true;
+
+    final data = {
+      'printerName':        printerName,
+      'openDrawer':         openDrawer,
+      'businessName':       prefs.getString('business_name') ?? 'SIMS CAFE',
+      'secondBusinessName': prefs.getString('second_business_name') ?? '',
+      'businessAddress':    prefs.getString('business_address') ?? '',
+      'businessPhone':      prefs.getString('business_phone') ?? '',
+      'logoPath':           (logoEnabled && logoPath.isNotEmpty) ? logoPath : '',
+      'serviceType':        serviceType,
+      'orderNumber':        orderNumber ?? '',
+      'personName':         personName ?? '',
+      'subtotal':           subtotal,
+      'tax':                tax,
+      'taxRate':            taxRate ?? 0.0,
+      'discount':           discount,
+      'total':              total,
+      'depositAmount':      depositAmount ?? 0.0,
+      'deliveryCharge':     deliveryCharge ?? 0.0,
+      'title':              title ?? '',
+      'items': items.map((item) => {
+        'id':          item.id,
+        'name':        item.name,
+        'price':       item.price,
+        'quantity':    item.quantity,
+        'kitchenNote': item.kitchenNote,
+      }).toList(),
+    };
+
+    final tempFile = File('${Directory.systemTemp.path}/cafe_receipt_${DateTime.now().millisecondsSinceEpoch}.json');
+    try {
+      await tempFile.writeAsString(jsonEncode(data));
+      // Timeout added because printing is now queued: without it, one hung
+      // CafePrinter.exe would wedge the queue chain and silently stop every
+      // later receipt. This does not kill the child - it only stops us waiting,
+      // so a slow-but-live print still reaches the paper.
+      final result = await Process.run(
+        WindowsRawPrinter.exePath(),
+        ['print-receipt', tempFile.path],
+        runInShell: false,
+      ).timeout(
+        const Duration(seconds: 20),
+        onTimeout: () => ProcessResult(0, -1, '', 'timed out after 20s'),
+      );
+      debugPrint('[WRP] print-receipt → exit ${result.exitCode}  ${result.stderr}');
+      lastPrintTiming = _timingLine(result.stdout);
+      if (result.exitCode != 0) {
+        lastPrintError = 'exit=${result.exitCode} ${_lastLine(result.stderr)}';
+      }
+      return result.exitCode == 0;
+    } catch (e) {
+      debugPrint('[WRP] _printReceiptViaDotNet exception: $e');
+      lastPrintError = '$e';
+      return false;
+    } finally {
+      try { await tempFile.delete(); } catch (_) {}
+    }
+  }
+
+  /// Extracts CafePrinter's `[timing] ...` stdout line, without the tag.
+  /// Returns null on an older exe that does not emit one.
+  static String? _timingLine(Object? stdout) {
+    const tag = '[timing] ';
+    for (final line in (stdout ?? '').toString().split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed.startsWith(tag)) return trimmed.substring(tag.length);
+    }
+    return null;
+  }
+
+  /// Last non-blank line of process output. CafePrinter puts the actual reason
+  /// last; the lines above it are progress noise that would bloat the log.
+  static String _lastLine(Object? output) {
+    final text = (output ?? '').toString().trim();
+    if (text.isEmpty) return '';
+    final lines = text.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty);
+    if (lines.isEmpty) return '';
+    final last = lines.last;
+    return last.length > 200 ? last.substring(0, 200) : last;
+  }
+
+  static Future<bool> _printKotViaDotNet({
+    required KotPrinterConfig printer,
+    required List<MenuItem> items,
+    required String serviceType,
+    String? orderNumber,
+    bool isEdited = false,
+    List<OrderItem>? originalItems,
+  }) async {
+    final printerName = printer.systemPrinterName ?? '';
+    if (printerName.isEmpty) {
+      debugPrint('[WRP] KOT printer has no system printer name');
+      return false;
+    }
+
+    final data = {
+      'printerName': printerName,
+      'serviceType': serviceType,
+      'orderNumber': orderNumber ?? '',
+      'isEdited':    isEdited,
+      'items': items.map((item) => {
+        'id':          item.id,
+        'name':        item.name,
+        'price':       item.price,
+        'quantity':    item.quantity,
+        'kitchenNote': item.kitchenNote,
+      }).toList(),
+      'originalItems': originalItems?.map((o) => {
+        'id':       o.id,
+        'quantity': o.quantity,
+        // Carried so a fully-cancelled item can still be named on the ticket -
+        // it is gone from `items` by then, leaving the renderer nothing to show.
+        'name':     o.name,
+      }).toList(),
+    };
+
+    final tempFile = File('${Directory.systemTemp.path}/cafe_kot_${DateTime.now().millisecondsSinceEpoch}.json');
+    try {
+      await tempFile.writeAsString(jsonEncode(data));
+      final result = await Process.run(
+        WindowsRawPrinter.exePath(),
+        ['print-kot', tempFile.path],
+        runInShell: false,
+      );
+      debugPrint('[WRP] print-kot → exit ${result.exitCode}  ${result.stderr}');
+      return result.exitCode == 0;
+    } catch (e) {
+      debugPrint('[WRP] _printKotViaDotNet exception: $e');
+      return false;
+    } finally {
+      try { await tempFile.delete(); } catch (_) {}
+    }
+  }
+
+  // ── Main Public Methods ────────────────────────────────────────────────────
+
   // Main Public Methods
   static Future<bool> printOrderReceipt({
     required String serviceType,
@@ -1807,7 +2050,32 @@ static Future<Uint8List?> _generateKotImage({
     String? title,
   }) async {
     debugPrint('Printing order receipt as image');
-    
+
+    // Windows system/usb printer: delegate full rendering to CafePrinter.exe (.NET)
+    // This skips the slow Flutter canvas render + ESC/POS conversion steps.
+    if (Platform.isWindows) {
+      final prefs = await SharedPreferences.getInstance();
+      final type = prefs.getString(_receiptPrinterTypeKey) ?? printerTypeNetwork;
+      if (type == printerTypeSystem || type == printerTypeUsb) {
+        return _printReceiptViaDotNet(
+          prefs: prefs,
+          items: items,
+          serviceType: serviceType,
+          subtotal: subtotal,
+          tax: tax,
+          discount: discount,
+          total: total,
+          personName: personName,
+          orderNumber: orderNumber,
+          taxRate: taxRate,
+          depositAmount: depositAmount,
+          deliveryCharge: deliveryCharge,
+          openDrawer: openDrawer,
+          title: title,
+        );
+      }
+    }
+
     final imageBytes = await _generateReceiptImage(
       items: items,
       serviceType: serviceType,
@@ -1852,30 +2120,67 @@ static Future<Uint8List?> _generateKotImage({
     }
     
     debugPrint('Printing KOT to ${enabledPrinters.length} printers');
-    
-    final imageBytes = await _generateKotImage(
-      items: items,
-      serviceType: serviceType,
-      tableInfo: tableInfo,
-      orderNumber: orderNumber,
-      isEdited: isEdited,
-      originalItems: originalItems,
-    );
-    
-    if (imageBytes == null) {
-      debugPrint('Failed to generate KOT image');
-      return false;
-    }
-    
-    // Print to all enabled printers concurrently (or sequentially if preferred)
-    // Using simple loop to avoid one failure crashing others
+
+    // On Windows: split printers into .NET-handled (system/usb) and image-based (network)
     List<Future<bool>> printFutures = [];
-    for (var printer in enabledPrinters) {
-      printFutures.add(_printToKotConfig(printer, imageBytes));
+
+    if (Platform.isWindows) {
+      final dotNetPrinters = enabledPrinters
+          .where((p) => p.type == printerTypeSystem || p.type == printerTypeUsb)
+          .toList();
+      final imagePrinters = enabledPrinters
+          .where((p) => p.type != printerTypeSystem && p.type != printerTypeUsb)
+          .toList();
+
+      for (var printer in dotNetPrinters) {
+        printFutures.add(_printKotViaDotNet(
+          printer: printer,
+          items: items,
+          serviceType: serviceType,
+          orderNumber: orderNumber,
+          isEdited: isEdited,
+          originalItems: originalItems,
+        ));
+      }
+
+      if (imagePrinters.isNotEmpty) {
+        final imageBytes = await _generateKotImage(
+          items: items,
+          serviceType: serviceType,
+          tableInfo: tableInfo,
+          orderNumber: orderNumber,
+          isEdited: isEdited,
+          originalItems: originalItems,
+        );
+        if (imageBytes != null) {
+          for (var printer in imagePrinters) {
+            printFutures.add(_printToKotConfig(printer, imageBytes));
+          }
+        }
+      }
+    } else {
+      // Android / other platforms: use image-based path for all printers
+      final imageBytes = await _generateKotImage(
+        items: items,
+        serviceType: serviceType,
+        tableInfo: tableInfo,
+        orderNumber: orderNumber,
+        isEdited: isEdited,
+        originalItems: originalItems,
+      );
+
+      if (imageBytes == null) {
+        debugPrint('Failed to generate KOT image');
+        return false;
+      }
+
+      for (var printer in enabledPrinters) {
+        printFutures.add(_printToKotConfig(printer, imageBytes));
+      }
     }
-    
+
     final results = await Future.wait(printFutures);
-    
+
     // Return true if at least one printed successfully
     return results.contains(true);
   }
@@ -1921,12 +2226,18 @@ static Future<Uint8List?> _generateKotImage({
 
       if (effectiveType == printerTypeSystem) {
         final name = systemPrinterName ?? await getReceiptSystemPrinterName();
-        if (name == null) return false;
-        
+        if (name == null || name.isEmpty) return false;
+
+        // A test print is the user saying "I've fixed it, check again" — so drop
+        // any cooldown marker first, or the gate refuses without looking.
+        if (Platform.isWindows) {
+          await WindowsRawPrinter.clearCooldown(name);
+        }
+
         // For system printers, we test by printing a small image
         final testImage = await _generateTestImage();
         if (testImage == null) return false;
-        
+
         return await _printToSystemPrinter(testImage, isKot: false, overridePrinterName: name);
       }
 
@@ -1973,18 +2284,31 @@ static Future<Uint8List?> _generateKotImage({
       final effectiveType = type ?? await getKotPrinterType();
 
       if (effectiveType == printerTypeUsb) {
+        // Callers such as the menu-screen toggle invoke this with no arguments,
+        // so fall back to the stored config the same way the receipt path does.
+        var vId = usbVendorId;
+        var pId = usbProductId;
+        if (vId == null || pId == null) {
+          final stored = await getKotUsbPrinter();
+          vId ??= stored?.usbVendorId;
+          pId ??= stored?.usbProductId;
+        }
+        if (vId == null || pId == null) {
+          debugPrint('KOT test: no USB KOT printer is configured');
+          return false;
+        }
         final testImage = await _generateTestImage(isKot: true);
         if (testImage == null) return false;
-        return await _printToUsb(testImage, isKot: true, vendorId: usbVendorId, productId: usbProductId);
+        return await _printToUsb(testImage, isKot: true, vendorId: vId, productId: pId);
       }
 
       if (effectiveType == printerTypeSystem) {
         final name = systemPrinterName ?? await getKotSystemPrinterName();
-        if (name == null) return false;
-        
+        if (name == null || name.isEmpty) return false;
+
         final testImage = await _generateTestImage(isKot: true);
         if (testImage == null) return false;
-        
+
         return await _printToSystemPrinter(testImage, isKot: true, overridePrinterName: name);
       }
 
@@ -2124,200 +2448,25 @@ static Future<Uint8List?> _generateKotImage({
       final paymentTotals = reportData['paymentTotals'] as Map<String, dynamic>? ?? {};
       final serviceTypeSales = reportData['serviceTypeSales'] as List? ?? [];
       
-      // Check for Arabic content
-      bool hasArabicContent = _containsArabic(businessInfo['name']!) || 
-                            _containsArabic(businessInfo['second_name']!) ||
-                            _containsArabic(reportTitle) ||
-                            serviceTypeSales.any((service) => _containsArabic(service['serviceType']?.toString() ?? ''));
+      // NOTE: the old height estimate reserved space for an Arabic "نهاية التقرير"
+      // footer that the drawing code never actually draws (it is commented out
+      // below), so that reservation is gone along with the estimate block.
 
-        // Calculate exact content height with more padding
-        double contentHeight = _padding ; // Start with more top padding
-           // ADD THIS LINE - Calculate logo height if enabled:
-          contentHeight += await _calculateLogoHeight();
-        // Business header
-        final businessNamePainter = _createTextPainter(
-          businessInfo['name']!,
-          fontSize: _largeFontSize - 4,
-          fontWeight: FontWeight.bold,
-        );
-        contentHeight += businessNamePainter.height + 8; // Increased spacing
+      // Declared up front because the height-measuring pass below needs them too.
+      // The Cash/Bank and Total Sales sections belong only to the daily/monthly
+      // reports - the PDF omits them for Profit and Summary, so the printout must
+      // omit them as well.
+      final isProfitReport = reportTitle.contains('Profit');
+      final isSummaryReport = reportTitle.contains('Summary');
+      final showSalesSections = !isProfitReport && !isSummaryReport;
 
-        if (businessInfo['second_name']!.isNotEmpty) {
-          final secondNamePainter = _createTextPainter(
-            businessInfo['second_name']!,
-            fontSize: _fontSize + 2,
-            fontWeight: FontWeight.bold,
-          );
-          contentHeight += secondNamePainter.height + 8; // Increased
-        }
-
-        contentHeight += 12; // More space after business info
-
-        // Report title
-        final titlePainter = _createTextPainter(
-          reportTitle,
-          fontSize: _fontSize ,
-          fontWeight: FontWeight.bold,
-        );
-        contentHeight += titlePainter.height + 8; // Increased
-
-        // Date range
-        final datePainter = _createTextPainter(
-          dateRange,
-          fontSize: _fontSize - 2,
-        );
-        contentHeight += datePainter.height + 12; // Increased
-
-        contentHeight += 2 + 12; // Line + more space
-
-        // Cash and Bank Sales Section
-        final cashBankHeaderPainter = _createTextPainter(
-          'Cash and Bank Sales',
-          fontSize: _fontSize - 2,
-          fontWeight: FontWeight.bold,
-        );
-        contentHeight += cashBankHeaderPainter.height + 10; // Increased
-
-        contentHeight += 2 + 8; // Line + space
-
-        // Payment table header and all rows - be more generous
-        contentHeight += (_fontSize - 2) + 8; // Header row
-        contentHeight += 2 + 6; // Line + space
-        contentHeight += ((_fontSize - 2) + 10) * 5; // 5 payment rows (cash, bank, total, balance, profit) with more space
-        contentHeight += 2 + 15; // Line + more space
-
-        // Total Sales Section
-        final totalSalesHeaderPainter = _createTextPainter(
-          'Total Sales',
-          fontSize: _fontSize - 2,
-          fontWeight: FontWeight.bold,
-        );
-        contentHeight += totalSalesHeaderPainter.height + 10; // Increased
-
-        contentHeight += 2 + 8; // Line + space
-
-        // Service type header
-        contentHeight += (_fontSize - 2) + 8; // Header with more space
-        contentHeight += 2 + 6; // Line + space
-
-        // Service type rows - calculate with more generous spacing
-        if (serviceTypeSales.isNotEmpty) {
-          for (var service in serviceTypeSales) {
-            final serviceTypePainter = _createTextPainter(
-              service['serviceType']?.toString() ?? '',
-              fontSize: _fontSize - 4,
-              maxWidth: _thermalPrinterWidth * 0.5,
-            );
-            contentHeight += serviceTypePainter.height + 8; // More space per row
-          }
-        } else {
-          contentHeight += (_fontSize - 2) + 10; // "No sales data" message
-        }
-
-        contentHeight += 2 + 15; // Line + generous space
-
-        final isProfitReport = reportTitle.contains('Profit');
-        final isSummaryReport = reportTitle.contains('Summary');
-
-        if (isProfitReport) {
-           final orders = reportData['orders'] as List? ?? [];
-           
-           // Profit Report Header
-           final profitHeaderPainter = _createTextPainter(
-             'Profit Summary',
-             fontSize: _fontSize - 2,
-             fontWeight: FontWeight.bold,
-           );
-           contentHeight += profitHeaderPainter.height + 10;
-           contentHeight += 2 + 8; // Line + space
-
-           // Summary Rows
-           contentHeight += ((_fontSize - 2) + 8) * 3; // Revenue, Cost, Profit
-           contentHeight += 2 + 10; // Line + space
-
-           // Bill Breakdown Header
-           final breakdownHeaderPainter = _createTextPainter(
-             'Bill-wise Breakdown',
-             fontSize: _fontSize - 2,
-             fontWeight: FontWeight.bold,
-           );
-           contentHeight += breakdownHeaderPainter.height + 10;
-           contentHeight += 2 + 8;
-
-           // Bill Columns Header
-           contentHeight += (_fontSize - 2) + 8;
-           contentHeight += 2 + 6;
-
-           // Bill Rows
-           contentHeight += ((_fontSize - 2) + 12) * orders.length;
-           contentHeight += 2 + 15;
-
-        } else if (isSummaryReport) {
-           final topItems = reportData['topItems'] as List? ?? [];
-           
-           final summaryHeaderPainter = _createTextPainter(
-             'Top Selling Items',
-             fontSize: _fontSize - 2,
-             fontWeight: FontWeight.bold,
-           );
-           contentHeight += summaryHeaderPainter.height + 10;
-           contentHeight += 2 + 8; // Line + space
-
-           // Columns Header
-           contentHeight += (_fontSize - 2) + 8;
-           contentHeight += 2 + 6;
-
-           // Rows
-           contentHeight += ((_fontSize - 2) + 12) * topItems.length;
-           contentHeight += 2 + 15;
-        } else {
-            // Revenue Breakdown Section  
-            final revenueHeaderPainter = _createTextPainter(
-              'Revenue Breakdown',
-              fontSize: _fontSize - 2,
-              fontWeight: FontWeight.bold,
-            );
-            contentHeight += revenueHeaderPainter.height + 10; // Increased
-    
-            contentHeight += 2 + 8; // Line + space
-    
-            // Revenue rows (Subtotal, Tax, Discounts, Total) - generous spacing
-            contentHeight += ((_fontSize - 2) + 8) * 4; // 4 revenue rows with more space
-    
-            contentHeight += 2 + 12; // Line + space
-        }
-
-        // Footer - generous spacing
-        // contentHeight += (_fontSize - 2) + 8; // "End of Report"
-        // final generateTimePainter = _createTextPainter(
-        //   'Generated: ${DateFormat('dd MMM yyyy HH:mm').format(DateTime.now())}',
-        //   fontSize: _fontSize - 4,
-        // );
-        // contentHeight += generateTimePainter.height + 10;
-
-        // Arabic footer if needed
-        if (hasArabicContent) {
-          contentHeight += 12;
-          final arabicEndPainter = _createTextPainter(
-            'نهاية التقرير',
-            fontSize: _fontSize - 2,
-          );
-          contentHeight += arabicEndPainter.height + 10;
-        }
-
-        contentHeight += _padding * 26; // Much more bottom padding to ensure everything fits
-      // Create canvas
-      final recorder = ui.PictureRecorder();
-      final canvas = ui.Canvas(recorder, ui.Rect.fromLTWH(0, 0, _thermalPrinterWidth, contentHeight));
-
-      // White background
-      final backgroundPaint = ui.Paint()..color = Colors.white;
-      canvas.drawRect(
-        Rect.fromLTWH(0, 0, _thermalPrinterWidth, contentHeight),
-        backgroundPaint,
-      );
-      
-      double currentY = _padding;
+      // Single layout routine. Runs twice: once with a null canvas to measure,
+      // once with the real canvas to draw. The drawing helpers skip painting when
+      // the canvas is null, so the measured height is exactly what gets drawn.
+      // This replaces a block of hand-written height estimates that under-counted
+      // wrapped rows and relied on a large fudge factor to avoid truncation.
+      Future<double> layoutReport(ui.Canvas? canvas) async {
+        double currentY = _padding;
       
       // Draw logo if available
       currentY = await _drawLogo(canvas, currentY);
@@ -2369,118 +2518,121 @@ static Future<Uint8List?> _generateKotImage({
       
       currentY += 6;
       currentY = _drawLine(canvas, currentY);
-      
-      // Cash and Bank Sales Section
-      currentY = _drawText(
-        canvas,
-        'Cash and Bank Sales',
-        x: _padding,
-        y: currentY,
-        fontSize: _fontSize - 2,
-        fontWeight: FontWeight.bold,
-        textAlign: TextAlign.center,
-      );
-      
-      currentY = _drawLine(canvas, currentY);
-      
-      // Payment table header
-      currentY = _drawReportRow(canvas, [
-        {'text': 'Method', 'width': 0.33, 'bold': true},
-        {'text': 'Revenue', 'width': 0.33, 'bold': true, 'align': 'right'},
-        {'text': 'Expenses', 'width': 0.35, 'bold': true, 'align': 'right'},
-      ], currentY);
-      
-      currentY = _drawLine(canvas, currentY);
-      
-      // Payment rows
-      currentY = _drawReportRow(canvas, [
-        {'text': 'Cash Sales', 'width': 0.33},
-        {'text': currencyFormat.format(_getPaymentValue(paymentTotals, 'cash', 'sales')), 'width': 0.33, 'align': 'right'},
-        {'text': currencyFormat.format(_getPaymentValue(paymentTotals, 'cash', 'expenses')), 'width': 0.35, 'align': 'right'},
-      ], currentY);
-      
-      currentY = _drawReportRow(canvas, [
-        {'text': 'Bank Sales', 'width': 0.33},
-        {'text': currencyFormat.format(_getPaymentValue(paymentTotals, 'bank', 'sales')), 'width': 0.33, 'align': 'right'},
-        {'text': currencyFormat.format(_getPaymentValue(paymentTotals, 'bank', 'expenses')), 'width': 0.35, 'align': 'right'},
-      ], currentY);
-      
-      currentY = _drawLine(canvas, currentY);
-      
-      currentY = _drawReportRow(canvas, [
-        {'text': 'Total', 'width': 0.33, 'bold': true},
-        {'text': currencyFormat.format(_getPaymentValue(paymentTotals, 'total', 'sales')), 'width': 0.33, 'align': 'right', 'bold': true},
-        {'text': currencyFormat.format(_getPaymentValue(paymentTotals, 'total', 'expenses')), 'width': 0.35, 'align': 'right', 'bold': true},
-      ], currentY);
-      
-      // Balance
-      final totalRevenue = _getPaymentValue(paymentTotals, 'total', 'sales');
-      final totalExpenses = _getPaymentValue(paymentTotals, 'total', 'expenses');
-      final balance = totalRevenue - totalExpenses;
-      
-      currentY = _drawReportRow(canvas, [
-        {'text': 'Balance', 'width': 0.66, 'bold': true},
-        {'text': currencyFormat.format(balance), 'width': 0.34, 'align': 'right', 'bold': true},
-      ], currentY);
-      
-      // Profit row: totalProfit - totalExpenses
-      final totalProfit = reportData['totalProfit'] as double? ?? 0.0;
-      final profit = totalProfit - totalExpenses;
-      
-      currentY = _drawReportRow(canvas, [
-        {'text': 'Profit', 'width': 0.66, 'bold': true},
-        {'text': currencyFormat.format(profit), 'width': 0.34, 'align': 'right', 'bold': true},
-      ], currentY);
-      
-      currentY +=8;
-      
-      // Total Sales Section
-      currentY = _drawText(
-        canvas,
-        'Total Sales',
-        x: _padding,
-        y: currentY,
-        fontSize: _fontSize - 2,
-        fontWeight: FontWeight.bold,
-        textAlign: TextAlign.center,
-      );
-      
-      currentY = _drawLine(canvas, currentY);
-      
-      if (serviceTypeSales.isNotEmpty) {
-        // Service type header
-        currentY = _drawReportRow(canvas, [
-          {'text': 'Service Type', 'width': 0.33, 'bold': true},
-          {'text': 'Orders', 'width': 0.33, 'bold': true, 'align': 'center'},
-          {'text': 'Revenue', 'width': 0.34, 'bold': true, 'align': 'right'},
-        ], currentY);
-        
-        currentY = _drawLine(canvas, currentY);
-        
-        for (var service in serviceTypeSales) {
-          final serviceType = service['serviceType']?.toString() ?? '';
-          final totalOrders = service['totalOrders'] as int? ?? 0;
-          final totalRevenue = service['totalRevenue'] as double? ?? 0.0;
-          
-          currentY = _drawReportRow(canvas, [
-            {'text': serviceType, 'width': 0.33},
-            {'text': '$totalOrders', 'width': 0.33, 'align': 'center'},
-            {'text': currencyFormat.format(totalRevenue), 'width': 0.34, 'align': 'right'},
-          ], currentY);
-        }
-      } else {
+
+      // Daily/monthly reports only - guard must mirror the height pass above.
+      if (showSalesSections) {
+        // Cash and Bank Sales Section
         currentY = _drawText(
           canvas,
-          'No sales data available',
+          'Cash and Bank Sales',
           x: _padding,
           y: currentY,
           fontSize: _fontSize - 2,
+          fontWeight: FontWeight.bold,
           textAlign: TextAlign.center,
         );
+      
+        currentY = _drawLine(canvas, currentY);
+      
+        // Payment table header
+        currentY = _drawReportRow(canvas, [
+          {'text': 'Method', 'width': 0.33, 'bold': true},
+          {'text': 'Revenue', 'width': 0.33, 'bold': true, 'align': 'right'},
+          {'text': 'Expenses', 'width': 0.35, 'bold': true, 'align': 'right'},
+        ], currentY);
+      
+        currentY = _drawLine(canvas, currentY);
+      
+        // Payment rows
+        currentY = _drawReportRow(canvas, [
+          {'text': 'Cash Sales', 'width': 0.33},
+          {'text': currencyFormat.format(_getPaymentValue(paymentTotals, 'cash', 'sales')), 'width': 0.33, 'align': 'right'},
+          {'text': currencyFormat.format(_getPaymentValue(paymentTotals, 'cash', 'expenses')), 'width': 0.35, 'align': 'right'},
+        ], currentY);
+      
+        currentY = _drawReportRow(canvas, [
+          {'text': 'Bank Sales', 'width': 0.33},
+          {'text': currencyFormat.format(_getPaymentValue(paymentTotals, 'bank', 'sales')), 'width': 0.33, 'align': 'right'},
+          {'text': currencyFormat.format(_getPaymentValue(paymentTotals, 'bank', 'expenses')), 'width': 0.35, 'align': 'right'},
+        ], currentY);
+      
+        currentY = _drawLine(canvas, currentY);
+      
+        currentY = _drawReportRow(canvas, [
+          {'text': 'Total', 'width': 0.33, 'bold': true},
+          {'text': currencyFormat.format(_getPaymentValue(paymentTotals, 'total', 'sales')), 'width': 0.33, 'align': 'right', 'bold': true},
+          {'text': currencyFormat.format(_getPaymentValue(paymentTotals, 'total', 'expenses')), 'width': 0.35, 'align': 'right', 'bold': true},
+        ], currentY);
+      
+        // Balance
+        final totalRevenue = _getPaymentValue(paymentTotals, 'total', 'sales');
+        final totalExpenses = _getPaymentValue(paymentTotals, 'total', 'expenses');
+        final balance = totalRevenue - totalExpenses;
+      
+        currentY = _drawReportRow(canvas, [
+          {'text': 'Balance', 'width': 0.66, 'bold': true},
+          {'text': currencyFormat.format(balance), 'width': 0.34, 'align': 'right', 'bold': true},
+        ], currentY);
+      
+        // Profit row: totalProfit - totalExpenses
+        final totalProfit = reportData['totalProfit'] as double? ?? 0.0;
+        final profit = totalProfit - totalExpenses;
+      
+        currentY = _drawReportRow(canvas, [
+          {'text': 'Profit', 'width': 0.66, 'bold': true},
+          {'text': currencyFormat.format(profit), 'width': 0.34, 'align': 'right', 'bold': true},
+        ], currentY);
+      
+        currentY +=8;
+      
+        // Total Sales Section
+        currentY = _drawText(
+          canvas,
+          'Total Sales',
+          x: _padding,
+          y: currentY,
+          fontSize: _fontSize - 2,
+          fontWeight: FontWeight.bold,
+          textAlign: TextAlign.center,
+        );
+      
+        currentY = _drawLine(canvas, currentY);
+      
+        if (serviceTypeSales.isNotEmpty) {
+          // Service type header
+          currentY = _drawReportRow(canvas, [
+            {'text': 'Service Type', 'width': 0.33, 'bold': true},
+            {'text': 'Orders', 'width': 0.33, 'bold': true, 'align': 'center'},
+            {'text': 'Revenue', 'width': 0.34, 'bold': true, 'align': 'right'},
+          ], currentY);
+        
+          currentY = _drawLine(canvas, currentY);
+        
+          for (var service in serviceTypeSales) {
+            final serviceType = service['serviceType']?.toString() ?? '';
+            final totalOrders = service['totalOrders'] as int? ?? 0;
+            final totalRevenue = service['totalRevenue'] as double? ?? 0.0;
+          
+            currentY = _drawReportRow(canvas, [
+              {'text': serviceType, 'width': 0.33},
+              {'text': '$totalOrders', 'width': 0.33, 'align': 'center'},
+              {'text': currencyFormat.format(totalRevenue), 'width': 0.34, 'align': 'right'},
+            ], currentY);
+          }
+        } else {
+          currentY = _drawText(
+            canvas,
+            'No sales data available',
+            x: _padding,
+            y: currentY,
+            fontSize: _fontSize - 2,
+            textAlign: TextAlign.center,
+          );
+        }
+      
+        currentY += 8;
       }
-      
-      currentY += 8;
-      
+
       if (isProfitReport) {
           final totalProfit = reportData['totalProfit'] as double? ?? 0.0;
           final totalCost = reportData['totalCost'] as double? ?? 0.0;
@@ -2662,6 +2814,24 @@ static Future<Uint8List?> _generateKotImage({
       //   );
       // }
       
+        return currentY;
+      }
+
+      // Pass 1 - measure.
+      final contentHeight = await layoutReport(null) + _padding;
+
+      // Pass 2 - draw.
+      final recorder = ui.PictureRecorder();
+      final canvas = ui.Canvas(recorder, ui.Rect.fromLTWH(0, 0, _thermalPrinterWidth, contentHeight));
+
+      final backgroundPaint = ui.Paint()..color = Colors.white;
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, _thermalPrinterWidth, contentHeight),
+        backgroundPaint,
+      );
+
+      await layoutReport(canvas);
+
       // Create final image
       final picture = recorder.endRecording();
       final img = await picture.toImage(
@@ -2679,7 +2849,7 @@ static Future<Uint8List?> _generateKotImage({
   }
 
   // Helper method to draw report rows
-  static double _drawReportRow(ui.Canvas canvas, List<Map<String, dynamic>> columns, double y) {
+  static double _drawReportRow(ui.Canvas? canvas, List<Map<String, dynamic>> columns, double y) {
     double currentX = _padding;
     double maxHeight = 0;
     
@@ -2705,8 +2875,8 @@ static Future<Uint8List?> _generateKotImage({
         drawX = currentX + columnWidth - textPainter.width;
       }
       
-      textPainter.paint(canvas, Offset(drawX, y));
-      
+      if (canvas != null) textPainter.paint(canvas, Offset(drawX, y));
+
       maxHeight = maxHeight > textPainter.height ? maxHeight : textPainter.height;
       currentX += columnWidth;
     }
@@ -2878,7 +3048,7 @@ Future<List<int>> convertImageOnIsolate(ImageConversionData data) async {
     final resized = img.copyResize(image, width: 512); 
     final bw = img.grayscale(resized);
 
-    escPosBytes += generator.image(bw);
+    escPosBytes += generator.imageRaster(bw);
     escPosBytes += generator.cut();
 
     if (data.openDrawer && !data.isKot) {
@@ -2892,7 +3062,7 @@ Future<List<int>> convertImageOnIsolate(ImageConversionData data) async {
   }
 }
 
-bool printRawOnIsolate(PrintJobData data) {
+Future<bool> printRawOnIsolate(PrintJobData data) async {
   return WindowsRawPrinter.printBytes(
     printerName: data.printerName,
     bytes: data.bytes,

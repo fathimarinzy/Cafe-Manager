@@ -39,12 +39,47 @@ class OrderListScreen extends StatefulWidget {
 class _OrderListScreenState extends State<OrderListScreen> {
   final _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
+  final ScrollController _gridScrollController = ScrollController();
   bool _isSearching = false;
   OrderTimeFilter _selectedFilter = OrderTimeFilter.today;
   Timer? _refreshTimer;
   
   // Track if pending filter is active
   bool _isPendingFilterActive = false;
+
+  // Consecutive pages fetched to fill an unscrollable viewport. Reset whenever
+  // the user actually scrolls or a fresh listing is loaded.
+  int _autoFillCount = 0;
+
+  /// Pages the list will auto-fetch before giving up on filling the viewport.
+  ///
+  /// A filter matching very few rows in a long history would otherwise walk the
+  /// whole table one page at a time. Ten pages is far more than any screen can
+  /// show and still bounded.
+  static const int _maxAutoFillPages = 10;
+
+  /// Fetches another page when the list is too short to scroll.
+  ///
+  /// The scroll listener only fires on scroll events, so a page whose rows are
+  /// mostly filtered out - or a genuinely short page - can leave the grid
+  /// unscrollable with more data behind it, and nothing would ever ask for it.
+  /// Runs after layout, when maxScrollExtent is finally meaningful.
+  void _fillViewportIfNeeded() {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_gridScrollController.hasClients) return;
+
+      final provider = Provider.of<OrderHistoryProvider>(context, listen: false);
+      if (!provider.hasMore || provider.isLoading || provider.isLoadingMore) {
+        return;
+      }
+      if (_autoFillCount >= _maxAutoFillPages) return;
+      if (_gridScrollController.position.maxScrollExtent > 0) return;
+
+      _autoFillCount++;
+      provider.loadMoreOrders().then((_) => _fillViewportIfNeeded());
+    });
+  }
 
   @override
   void initState() {
@@ -68,11 +103,26 @@ class _OrderListScreenState extends State<OrderListScreen> {
     _refreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       if (mounted) {
         try {
+          final historyProvider = Provider.of<OrderHistoryProvider>(context, listen: false);
+          // Skip auto-refresh once the user has scrolled past page one of an
+          // unbounded "All Orders" listing - reloading would reset pagination
+          // and snap the list back to the top every 30s.
+          if (historyProvider.hasLoadedMultiplePages) return;
           debugPrint('🔄 Auto-refreshing order history');
-          Provider.of<OrderHistoryProvider>(context, listen: false).loadOrders();
+          historyProvider.loadOrders();
         } catch (e) {
           debugPrint('⚠️ Error refreshing orders from timer: $e');
         }
+      }
+    });
+
+    // Infinite-scroll: fetch the next page when nearing the bottom of the grid
+    _gridScrollController.addListener(() {
+      if (!_gridScrollController.hasClients) return;
+      final position = _gridScrollController.position;
+      if (position.pixels >= position.maxScrollExtent - 400) {
+        _autoFillCount = 0; // a real scroll means the user is driving again
+        Provider.of<OrderHistoryProvider>(context, listen: false).loadMoreOrders();
       }
     });
     // _updateTime();
@@ -105,17 +155,37 @@ class _OrderListScreenState extends State<OrderListScreen> {
       
       if (widget.serviceType != null) {
         historyProvider.loadOrdersByServiceType(widget.serviceType!);
-      } else {
-        historyProvider.loadOrders();
       }
+      // setTimeFilter() above already triggers loadOrders()
+
+      // Watch for loads finishing so a listing too short to scroll can still
+      // pull its next page.
+      _historyProvider = historyProvider;
+      historyProvider.addListener(_onOrdersChanged);
     });
   }
-  
+
+  OrderHistoryProvider? _historyProvider;
+
+  void _onOrdersChanged() {
+    if (!mounted) return;
+    final provider = _historyProvider;
+    if (provider == null) return;
+    if (provider.isLoading) {
+      // A fresh listing replaced the old one; start the fill budget over.
+      _autoFillCount = 0;
+      return;
+    }
+    _fillViewportIfNeeded();
+  }
+
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _historyProvider?.removeListener(_onOrdersChanged);
     _searchController.dispose();
     _searchFocus.dispose();
+    _gridScrollController.dispose();
     // _timer?.cancel();
     super.dispose();
   }
@@ -597,17 +667,41 @@ Widget _buildOrderList() {
 
         return Padding(
           padding: const EdgeInsets.all(8.0),
-          child: GridView.builder(
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: crossAxisCount, 
-              childAspectRatio: childAspectRatio,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-            ),
-            itemCount: orders.length,
-            itemBuilder: (context, index) {
-              return _buildOrderCard(orders[index]);
-            },
+          child: Column(
+            children: [
+              Expanded(
+                child: GridView.builder(
+                  controller: _gridScrollController,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    childAspectRatio: childAspectRatio,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                  ),
+                  itemCount: orders.length,
+                  itemBuilder: (context, index) {
+                    return _buildOrderCard(orders[index]);
+                  },
+                ),
+              ),
+              if (historyProvider.isLoadingMore)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: SizedBox(
+                    height: 24,
+                    width: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              else if (historyProvider.hasMore)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: TextButton(
+                    onPressed: historyProvider.loadMoreOrders,
+                    child: Text('Load more'.tr()),
+                  ),
+                ),
+            ],
           ),
         );
       },

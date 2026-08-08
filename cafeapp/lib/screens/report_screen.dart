@@ -1383,10 +1383,19 @@ Future<void> _selectTime(bool isStartTime) async {
 }
 
   Future<Map<String, dynamic>> _generateLocalReport(DateTime startDate, DateTime endDate) async {
-    final List<Order> allOrders = await _orderRepo.getAllOrders();
+    // Let SQL do the bulk cut using idx_orders_created_at instead of loading
+    // every order ever recorded. The bounds are deliberately widened by a day
+    // on each side: getOrdersByDateRange compares created_at as a string, while
+    // _filterOrdersByDateRange below applies the exact semantics (time-of-day
+    // handling, legacy 'local_' timestamps). The Dart filter still decides what
+    // lands in the report, so the output is unchanged.
+    final List<Order> candidateOrders = await _orderRepo.getOrdersByDateRange(
+      startDate.subtract(const Duration(days: 1)),
+      endDate.add(const Duration(days: 1)),
+    );
     final List<Map<String, dynamic>> allExpenses = await _expenseRepo.getAllExpenses();
-    
-    List<Order> filteredOrders = _filterOrdersByDateRange(allOrders, startDate, endDate);
+
+    List<Order> filteredOrders = _filterOrdersByDateRange(candidateOrders, startDate, endDate);
     List<Map<String, dynamic>> filteredExpenses = _filterExpensesByDateRange(allExpenses, startDate, endDate);
     
     final reportData = _createReportFromData(filteredOrders, filteredExpenses);

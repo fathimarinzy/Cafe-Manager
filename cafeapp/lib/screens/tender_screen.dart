@@ -30,10 +30,13 @@ import '../screens/search_person_screen.dart';
 import '../repositories/credit_transaction_repository.dart';
 import '../models/credit_transaction.dart';
 import '../services/cross_platform_pdf_service.dart';
+import '../services/receipt_job.dart';
+import '../services/receipt_print_queue.dart';
 // import '../services/device_sync_service.dart';
 import '../providers/lan_sync_provider.dart';
 import '../models/lan_sync_models.dart';
 import '../utils/logger.dart';
+import '../utils/payment_trace.dart';
 
 
 class TenderScreen extends StatefulWidget {
@@ -271,6 +274,31 @@ class _TenderScreenState extends State<TenderScreen> {
       orderProvider.updateOrderDiscount(widget.order.id, effectiveDiscount, discountedTotal);
     }
   }
+  // Canonical, language-independent payment method code for persistence.
+  //
+  // _selectedPaymentMethod holds a *translated* UI label ('Bank'.tr() is 'بنك'
+  // in Arabic), so it must never be written to the database or compared against
+  // literals directly. Doing so silently broke Arabic tills: 'بنك'.toLowerCase()
+  // matches neither 'cash' nor 'bank', so the paid amount was never added to
+  // cashAmount/bankAmount and the Arabic word was stored as the payment method.
+  //
+  // [override] lets callers that already know the code (credit completion,
+  // split payments) bypass the lookup.
+  String _canonicalPaymentMethod([String? override]) {
+    if (override != null && override.isNotEmpty) return override.toLowerCase();
+
+    final selected = _selectedPaymentMethod;
+    if (selected == null) return '';
+
+    if (selected == 'Cash'.tr()) return 'cash';
+    if (selected == 'Bank'.tr()) return 'bank';
+    if (selected == 'Bank + Cash'.tr()) return 'bank+cash';
+    if (selected == 'Customer Credit'.tr()) return 'customer_credit';
+
+    // Already-canonical values (and English labels) fall through correctly.
+    return selected.toLowerCase();
+  }
+
    // Add this method to calculate subtotal and tax based on VAT type
  Map<String, double> _calculateAmounts() {
   final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
@@ -668,11 +696,12 @@ double _calculateSubtotal(List<dynamic> items) {
   return items.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
 }
 
-// Update the _showSavePdfDialog method
-Future<bool?> _showSavePdfDialog() {
-  return CrossPlatformPdfService.showSavePdfDialog(context);
-}
-  
+// _showSavePdfDialog was removed with the credit-completion conversion: it was
+// the last blocking "save as PDF?" modal on a payment path, and every path now
+// reports a failed print through the non-blocking banner instead.
+// CrossPlatformPdfService.showSavePdfDialog is still used directly by the manual
+// reprint and the temporary invoice, where the user is deliberately waiting.
+
   Future<void> _showBillPreviewDialog() async {
   setState(() {
     _isProcessing = true;
@@ -2000,6 +2029,15 @@ void _showSplitPaymentDialog() {
   
    // NEW: Process split payment
   Future<void> _processSplitPayment(double cashAmount, double bankAmount) async {
+    // Re-entrancy guard - see the note in _processPayment.
+    if (_isProcessing) return;
+    setState(() {
+      _isProcessing = true;
+    });
+
+    final trace = PaymentTrace('split');
+    String outcome = '';
+
     try {
       final discountedTotal = _getDiscountedTotal();
       final totalPaid = cashAmount + bankAmount;
@@ -2030,12 +2068,9 @@ void _showSplitPaymentDialog() {
       final amounts = _calculateAmounts();
       
       if (widget.order.id != 0) {
-        final orders = await _localOrderRepo.getAllOrders();
-        final orderIndex = orders.indexWhere((o) => o.id == widget.order.id);
-        
-        if (orderIndex >= 0) {
-          final existingOrder = orders[orderIndex];
-          
+        final existingOrder = await _localOrderRepo.getOrderById(widget.order.id);
+
+        if (existingOrder != null) {
           double newCashAmt = (existingOrder.cashAmount ?? 0.0) + cashAmount;
           double newBankAmt = (existingOrder.bankAmount ?? 0.0) + bankAmount;
           
@@ -2074,17 +2109,6 @@ void _showSplitPaymentDialog() {
         
           
           savedOrder = await _localOrderRepo.saveOrder(savedOrder);
-           // ✅ VERIFY IT WAS SAVED CORRECTLY
-          if (savedOrder.id != null) {
-            final verifyOrders = await _localOrderRepo.getAllOrders();
-            final verifyOrder = verifyOrders.firstWhere((o) => o.id == savedOrder!.id);
-            debugPrint('VERIFICATION - Order saved:');
-            debugPrint('  ID: ${verifyOrder.id}');
-            debugPrint('  Payment Method: ${verifyOrder.paymentMethod}');
-            debugPrint('  Cash Amount: ${verifyOrder.cashAmount}');
-            debugPrint('  Bank Amount: ${verifyOrder.bankAmount}');
-            debugPrint('  Total: ${verifyOrder.total}');
-          }
         }
       } else {
         final orderItems = widget.order.items.map((item) => 
@@ -2132,58 +2156,28 @@ void _showSplitPaymentDialog() {
           debugPrint('  Total: ${savedOrder.total}');
         
         savedOrder = await _localOrderRepo.saveOrder(savedOrder);
-        // ✅ VERIFY IT WAS SAVED CORRECTLY
-        if (savedOrder.id != null) {
-          final verifyOrders = await _localOrderRepo.getAllOrders();
-          final verifyOrder = verifyOrders.firstWhere((o) => o.id == savedOrder!.id);
-          debugPrint('VERIFICATION - Order saved:');
-          debugPrint('  ID: ${verifyOrder.id}');
-          debugPrint('  Payment Method: ${verifyOrder.paymentMethod}');
-          debugPrint('  Cash Amount: ${verifyOrder.cashAmount}');
-          debugPrint('  Bank Amount: ${verifyOrder.bankAmount}');
-          debugPrint('  Total: ${verifyOrder.total}');
-        }
       }
-      
+
       if (savedOrder == null) {
         throw Exception('Failed to process order in the system');
       }
       
       _updatedOrder = savedOrder; // Update local tracking since widget.order is immutable/final
-      
-      await _updateOrderStatus(_isDepositMode ? 'confirmed' : 'completed');
+      trace.mark('save');
 
-      final prefs = await SharedPreferences.getInstance();
-      final savedPrinterName = prefs.getString('selected_printer');
-      debugPrint('Selected printer: $savedPrinterName');
-      
-      final pdf = await _generateReceipt();
-      bool printed = false;
-      
-      try {
-        printed = await BillService.printThermalBill(
-          widget.order, 
-          isEdited: widget.isEdited, 
-          taxRate: widget.taxRate, 
-          discount: discountAmount
-        );
-      } catch (e) {
-        debugPrint('Printing error: $e');
-      }
-      if (!mounted) return;
-      if (!printed) {
-        bool? saveAsPdf = await CrossPlatformPdfService.showSavePdfDialog(context);
-        if (saveAsPdf == true) {
-          try {
-            final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-            final fileName = 'SIMS_receipt_${widget.order.orderNumber}_$timestamp.pdf';
-            await CrossPlatformPdfService.savePdf(pdf, suggestedFileName: fileName);
-          } catch (e) {
-            debugPrint('Error saving PDF: $e');
-          }
-        }
-      }
-      
+      // Same value the order was just saved with; kept in sync via savedOrder.
+      await _updateOrderStatus(savedOrder.status);
+      trace.mark('status');
+
+      // Fire-and-forget - see the note in _processPayment.
+      await _dispatchReceipt('split', discountAmount);
+      trace.mark('enqueue');
+      outcome = 'queued=true';
+
+      // The blanket `if (!mounted) return;` that used to sit here skipped
+      // freeing the table. The table code below has its own mounted check, so
+      // the early return was both unnecessary and harmful.
+
       if (widget.order.serviceType.contains('Dining - Table')) {
         final RegExp tableRegex = RegExp(r'Table\s+(\d+)');
         final match = tableRegex.firstMatch(widget.order.serviceType);
@@ -2191,24 +2185,29 @@ void _showSplitPaymentDialog() {
         if (match != null) {
           tableNumber = int.tryParse(match.group(1) ?? '');
         }
-        
+
         if (tableNumber != null && mounted) {
           final tableProvider = Provider.of<TableProvider>(context, listen: false);
           await tableProvider.setTableStatus(tableNumber, false);
           await tableProvider.refreshTables();
         }
       }
-      
+      trace.mark('table');
+
       if (mounted) {
         final orderProvider = Provider.of<OrderProvider>(context, listen: false);
         orderProvider.clearSelectedPerson();
         orderProvider.clearCart();
       }
-      
+
       if (mounted) {
         Provider.of<OrderHistoryProvider>(context, listen: false).refreshOrdersAndConnectivity();
       }
-      
+      trace.mark('cleanup');
+
+      // Flushed before the dialog so cashier think-time is excluded.
+      await trace.flush(outcome: outcome);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2216,7 +2215,7 @@ void _showSplitPaymentDialog() {
             backgroundColor: Colors.green,
           ),
         );
-        
+
         if (change > 0) {
           await _showBalanceMessageDialog(change);
         } else {
@@ -2224,10 +2223,20 @@ void _showSplitPaymentDialog() {
         }
       }
     } catch (e) {
+      outcome = 'error=$e';
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${'Error processing split payment'.tr()}: $e')),
         );
+      }
+    } finally {
+      await trace.flush(outcome: outcome);
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      } else {
+        _isProcessing = false;
       }
     }
   }
@@ -2299,17 +2308,30 @@ void _showSplitPaymentDialog() {
       );
       return;
     }
-    
+
     if (amount <= 0) return;
+
+    // Re-entrancy guard: the confirm dialog is modal, but once it closes the
+    // save + print below runs unguarded, so a second tap could take a second
+    // payment. Reset in the finally so a throw cannot wedge the screen.
+    if (_isProcessing) return;
+    setState(() {
+      _isProcessing = true;
+    });
+
+    final trace = PaymentTrace('bank');
+    String outcome = '';
 
     try {
       if (widget.isCreditCompletion) {
-        await _processCreditCompletionPayment(amount, _selectedPaymentMethod!.toLowerCase());
+        await _processCreditCompletionPayment(amount, _canonicalPaymentMethod(),
+            trace: trace);
+        outcome = 'creditCompletion=true';
         return;
       }
 
       final discountedTotal = _getDiscountedTotal();
-      
+
       // Change is now passed as an argument or uses the provided amount logic
       final deposit = widget.order.depositAmount ?? 0.0;
       final currentBalance = discountedTotal - deposit;
@@ -2317,18 +2339,16 @@ void _showSplitPaymentDialog() {
         change = amount - currentBalance;
       }
 
-      final paymentMethod = _selectedPaymentMethod!.toLowerCase();
+      final paymentMethod = _canonicalPaymentMethod();
       Order? savedOrder;
-      
-      final amounts = _calculateAmounts();
-      
-      if (widget.order.id != 0) {
-        final orders = await _localOrderRepo.getAllOrders();
-        final orderIndex = orders.indexWhere((o) => o.id == widget.order.id);
-        
-        if (orderIndex >= 0) {
-          final existingOrder = orders[orderIndex];
 
+      final amounts = _calculateAmounts();
+      trace.mark('calc');
+
+      if (widget.order.id != 0) {
+        final existingOrder = await _localOrderRepo.getOrderById(widget.order.id);
+
+        if (existingOrder != null) {
           // Logic for catering partial payment
           final isCatering = existingOrder.serviceType.toLowerCase().contains('catering');
           final currentTotalPaid = (existingOrder.depositAmount ?? 0.0) + amount;
@@ -2406,6 +2426,11 @@ void _showSplitPaymentDialog() {
           createdAt: DateTime.now().toIso8601String(),
           customerId: widget.customer?.id,
           paymentMethod: paymentMethod,
+          // Record the split here too - the existing-order branch above sets
+          // these, and leaving them null on new orders made the takings
+          // breakdown disagree with the order total.
+          cashAmount: paymentMethod == 'cash' ? amount : 0.0,
+          bankAmount: paymentMethod == 'bank' ? amount : 0.0,
           // ✅ Preserve catering/delivery fields
           deliveryCharge: widget.order.deliveryCharge,
           deliveryAddress: widget.order.deliveryAddress,
@@ -2425,13 +2450,18 @@ void _showSplitPaymentDialog() {
       if (savedOrder == null) {
         throw Exception('Failed to process order in the system');
       }
-      
+      trace.mark('save');
+
       if (widget.order.id == 0) {
         widget.order.id = savedOrder.id ?? 0;
       }
-      
-      final statusUpdated = await _updateOrderStatus('completed');
-      
+
+      // Use the status we just persisted rather than forcing 'completed'.
+      // A partially-paid catering order is saved as 'pending', and hardcoding
+      // 'completed' here overwrote that and made the isPartial logic above dead.
+      final statusUpdated = await _updateOrderStatus(savedOrder.status);
+      trace.mark('status');
+
       if (!statusUpdated) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -2439,43 +2469,15 @@ void _showSplitPaymentDialog() {
           );
         }
       }
-      
-      final prefs = await SharedPreferences.getInstance();
-      final savedPrinterName = prefs.getString('selected_printer');
-      debugPrint('Selected printer: $savedPrinterName');
-      
-      final pdf = await _generateReceipt();
 
-      bool printed = false;
-      try {
-        printed = await BillService.printThermalBill(
-          widget.order, 
-          isEdited: widget.isEdited, 
-          taxRate: widget.taxRate, 
-          discount: _getCurrentDiscount()
-        );
-      } catch (e) {
-        debugPrint('Printing error: $e');
-        debugPrint('Attempted to print using: $savedPrinterName');
-      }
-      
-      bool? saveAsPdf = false;
-      if (!printed) {
-        if (mounted) {
-          saveAsPdf = await CrossPlatformPdfService.showSavePdfDialog(context);
-        }
-        
-        if (saveAsPdf == true) {
-          try {
-            final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-            final fileName = 'SIMS_receipt_${widget.order.orderNumber}_$timestamp.pdf';
-            await CrossPlatformPdfService.savePdf(pdf, suggestedFileName: fileName);
-          } catch (e) {
-            debugPrint('Error saving PDF: $e');
-          }
-        }
-      }
-      
+      // Printing is fire-and-forget: measured at ~1340ms with a working printer
+      // and up to ~1580ms with a dead one, it was 99% of payment latency. A
+      // receipt is not part of the transaction, so the cashier no longer waits
+      // on it. Failures surface as a persistent banner with a Save PDF action.
+      await _dispatchReceipt('bank', _getCurrentDiscount());
+      trace.mark('enqueue');
+      outcome = 'queued=true';
+
       if (widget.order.serviceType.contains('Dining - Table')) {
         // 🔍 ROBUST PARSING: Use Regex to find the table number
         // Matches "Table " followed by digits, even if there's extra text like "(4 guests)"
@@ -2507,13 +2509,21 @@ void _showSplitPaymentDialog() {
            logErrorToFile('⚠️ Could not parse table number from: ${widget.order.serviceType}');
         }
       }
-      
+      trace.mark('table');
+
       if (mounted) {
         final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-        orderProvider.clearSelectedPerson(); 
+        orderProvider.clearSelectedPerson();
         orderProvider.clearCart();
       }
-      
+      trace.mark('cleanup');
+
+      // Flush here rather than in the finally: everything below waits on the
+      // cashier to dismiss a dialog, and that human time would swamp the
+      // machine time we are trying to measure. The finally still calls flush
+      // for the error paths - it is idempotent.
+      await trace.flush(outcome: outcome);
+
       if (mounted) {
         if (change > 0) {
           await _showBalanceMessageDialog(change);
@@ -2522,10 +2532,20 @@ void _showSplitPaymentDialog() {
         }
       }
     } catch (e) {
+      outcome = 'error=$e';
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${'Error processing payment'.tr()}: $e')),
         );
+      }
+    } finally {
+      await trace.flush(outcome: outcome);
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      } else {
+        _isProcessing = false;
       }
     }
   }
@@ -4775,12 +4795,19 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
      if (widget.isCreditCompletion) {
     // Check for auto-split in credit completion too
     final bool isCreditAutoSplit = _cashAmount > 0 && _bankAmount > 0;
-    
+
+    // This route previously emitted no payment line at all, so credit
+    // completions taken through the confirmation dialog were invisible in the
+    // log. Only the printing variants get one - the WithoutPrinting twins do no
+    // work worth timing.
+    final creditTrace = PaymentTrace('credit');
+
     // Determine which payment processing method to call
     if (isCreditAutoSplit) {
       // Auto-split payment for credit completion
       if (result == 'yes') {
-        await _processCreditCompletionPayment(amount, 'bank+cash');
+        await _processCreditCompletionPayment(amount, 'bank+cash',
+            trace: creditTrace);
       } else {
         await _processCreditCompletionPaymentWithoutPrinting(amount, 'bank+cash');
       }
@@ -4788,13 +4815,15 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       _bankAmount = 0;
     } else if (_selectedPaymentMethod == 'Cash'.tr()) {
       if (result == 'yes') {
-        await _processCreditCompletionPayment(amount, 'cash');
+        await _processCreditCompletionPayment(amount, 'cash',
+            trace: creditTrace);
       } else {
         await _processCreditCompletionPaymentWithoutPrinting(amount, 'cash');
       }
     } else if (_selectedPaymentMethod == 'Bank'.tr()) {
       if (result == 'yes') {
-        await _processCreditCompletionPayment(amount, 'bank');
+        await _processCreditCompletionPayment(amount, 'bank',
+            trace: creditTrace);
       } else {
         await _processCreditCompletionPaymentWithoutPrinting(amount, 'bank');
       }
@@ -4855,6 +4884,12 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
           await _processCashPayment(amount, change);
         } else if (_selectedPaymentMethod == 'Bank'.tr()) {
           await _processPayment(amount, change);
+        } else {
+          // Catch-all, mirroring the 'no' branch below. Without it a method
+          // that is neither Cash nor Bank fell through silently after the UI
+          // had already updated the balance and said "payment accepted" -
+          // reporting success while persisting nothing.
+          await _processPayment(amount, change);
         }
       } else if (result == 'no') {
         if (isAutoSplit) {
@@ -4901,12 +4936,9 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
     final amounts = _calculateAmounts();
     
     if (widget.order.id != 0) {
-      final orders = await _localOrderRepo.getAllOrders();
-      final orderIndex = orders.indexWhere((o) => o.id == widget.order.id);
-      
-      if (orderIndex >= 0) {
-        final existingOrder = orders[orderIndex];
-        
+      final existingOrder = await _localOrderRepo.getOrderById(widget.order.id);
+
+      if (existingOrder != null) {
         // Logic for catering partial payment
         final isCatering = existingOrder.serviceType.toLowerCase().contains('catering');
         // Calculate total paid so far including this payment
@@ -5063,19 +5095,8 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
   try {
     // Handle credit completion case
     if (widget.isCreditCompletion) {
-      // Sanitize payment method
-      String methodCode = _selectedPaymentMethod!.toLowerCase();
-      if (_selectedPaymentMethod == 'Cash'.tr()) {
-        methodCode = 'cash';
-      } else if (_selectedPaymentMethod == 'Bank'.tr()) {
-        methodCode = 'bank';
-      } else if (_selectedPaymentMethod == 'Bank + Cash'.tr()) {
-        methodCode = 'bank+cash';
-      } else if (_selectedPaymentMethod == 'Customer Credit'.tr()) {
-        methodCode = 'customer_credit';
-      }
-      
-      await _processCreditCompletionPaymentWithoutPrinting(amount, methodCode);
+      await _processCreditCompletionPaymentWithoutPrinting(
+          amount, _canonicalPaymentMethod());
       return;
     }
 
@@ -5087,17 +5108,8 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
       change = amount - currentBalance;
     }
     
-    // Sanitize payment method for DB
-    String paymentMethod = _selectedPaymentMethod!.toLowerCase();
-    if (_selectedPaymentMethod == 'Cash'.tr()) {
-      paymentMethod = 'cash';
-    } else if (_selectedPaymentMethod == 'Bank'.tr()) {
-      paymentMethod = 'bank';
-    } else if (_selectedPaymentMethod == 'Bank + Cash'.tr()) {
-      paymentMethod = 'bank+cash';
-    } else if (_selectedPaymentMethod == 'Customer Credit'.tr()) {
-      paymentMethod = 'customer_credit';
-    }
+    // Canonical code for the DB - never the translated UI label.
+    final String paymentMethod = _canonicalPaymentMethod();
     Order? savedOrder;
     
     double discountAmount = 0.0;
@@ -5106,11 +5118,9 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
     }
     
     if (widget.order.id != 0) {
-      final orders = await _localOrderRepo.getAllOrders();
-      final orderIndex = orders.indexWhere((o) => o.id == widget.order.id);
-      
-      if (orderIndex >= 0) {
-        final existingOrder = orders[orderIndex];
+      final existingOrder = await _localOrderRepo.getOrderById(widget.order.id);
+
+      if (existingOrder != null) {
         final finalTotal = widget.order.total - discountAmount;
 
           // Logic for catering partial payment
@@ -5426,30 +5436,42 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
 }
 
   Future<void> _processCashPayment(double amount, double change) async {
+    // Re-entrancy guard - see the note in _processPayment.
+    if (_isProcessing) return;
+    setState(() {
+      _isProcessing = true;
+    });
+
+    final trace = PaymentTrace('cash');
+    String outcome = '';
+
     try {
        // Handle credit completion case
     if (widget.isCreditCompletion) {
-      await _processCreditCompletionPayment(amount, 'Cash');
+      await _processCreditCompletionPayment(amount, 'cash', trace: trace);
+      outcome = 'creditCompletion=true';
       return;
     }
 
       Order? savedOrder;
-        
-      double discountAmount = 0.0;
-      if (_serviceTotals.containsKey(_currentServiceType)) {
-        discountAmount = _serviceTotals[_currentServiceType]!['discount'] ?? 0.0;
-      }
-   
+
+      // Same figures every other payment path persists: honours VAT-inclusive
+      // pricing and per-item tax exemption. This method used to compute
+      // subtotal/tax itself as total - total*rate, so a basket paid in cash
+      // recorded different VAT than the same basket paid by bank.
+      final amounts = _calculateAmounts();
+      final discountAmount = _getCurrentDiscount();
+      trace.mark('calc');
+
       if (widget.order.id != 0) {
-        final orders = await _localOrderRepo.getAllOrders();
-        final orderIndex = orders.indexWhere((o) => o.id == widget.order.id);
-        
-        if (orderIndex >= 0) {
-          final existingOrder = orders[orderIndex];
-          
+        final existingOrder = await _localOrderRepo.getOrderById(widget.order.id);
+
+        if (existingOrder != null) {
           // Logic for catering partial payment
           final isCatering = existingOrder.serviceType.toLowerCase().contains('catering');
-          final finalTotal = widget.order.total - discountAmount;
+          // Compare against the same total we are about to persist, so the
+          // partial-payment test agrees with the stored figures.
+          final finalTotal = amounts['total']!;
           final currentTotalPaid = (existingOrder.depositAmount ?? 0.0) + amount;
           final isPartial = isCatering && (currentTotalPaid < finalTotal - 0.01);
           final newStatus = isPartial ? 'pending' : 'completed';
@@ -5469,10 +5491,10 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
             staffDeviceId: existingOrder.staffDeviceId,
             serviceType: existingOrder.serviceType,
             items: existingOrder.items,
-            subtotal: widget.order.total - (widget.order.total * (widget.taxRate / 100)),
-            tax: widget.order.total * (widget.taxRate / 100),
+            subtotal: amounts['subtotal']!,
+            tax: amounts['tax']!,
             discount: discountAmount,
-            total: widget.order.total - discountAmount,
+            total: amounts['total']!,
             status: newStatus,
             createdAt: existingOrder.createdAt,
             customerId: widget.customer?.id ?? existingOrder.customerId,
@@ -5515,15 +5537,15 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
           staffDeviceId: '',
           serviceType: widget.order.serviceType,
           items: orderItems,
-          subtotal: widget.order.total - (widget.order.total * (widget.taxRate / 100)),
-          tax: widget.order.total * (widget.taxRate / 100),
+          subtotal: amounts['subtotal']!,
+          tax: amounts['tax']!,
           discount: discountAmount,
-          total: widget.order.total - discountAmount,
+          total: amounts['total']!,
           status: 'completed',
           createdAt: DateTime.now().toIso8601String(),
           customerId: widget.customer?.id,
           paymentMethod: 'cash',
-          cashAmount: widget.order.total - discountAmount,
+          cashAmount: amounts['total']!,
           bankAmount: 0.0,
           deliveryCharge: widget.order.deliveryCharge,
           deliveryAddress: widget.order.deliveryAddress,
@@ -5540,13 +5562,17 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
         savedOrder = await _localOrderRepo.saveOrder(savedOrder);
         debugPrint('Created new order with cash payment: ${savedOrder.id}');
       }
-      
+      trace.mark('save');
+
       if (widget.order.id == 0) {
         widget.order.id = savedOrder.id ?? 0;
       }
       
-      final statusUpdated = await _updateOrderStatus('completed');
-       
+      // Persist the status we actually saved - hardcoding 'completed' here
+      // overwrote 'pending' on partially-paid catering orders.
+      final statusUpdated = await _updateOrderStatus(savedOrder.status);
+      trace.mark('status');
+
       if (!statusUpdated) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -5554,33 +5580,12 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
           );
         }
       }
-      
-      final pdf = await _generateReceipt();
-      
-      bool printed = false;
-      try {
-        printed = await BillService.printThermalBill(widget.order, isEdited: widget.isEdited, taxRate: widget.taxRate, discount: discountAmount);
-      } catch (e) {
-        debugPrint('Printing error: $e');
-      }
 
-      bool? saveAsPdf = false;
-      if (!printed) {
-        if (mounted) {
-      saveAsPdf = await CrossPlatformPdfService.showSavePdfDialog(context);
-        }
-        
-        if (saveAsPdf == true) {
-          try {
-            final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-            final fileName = 'SIMS_receipt_${widget.order.orderNumber}_$timestamp.pdf';
-            await CrossPlatformPdfService.savePdf(pdf, suggestedFileName: fileName);
-          } catch (e) {
-            debugPrint('Error saving PDF: $e');
-          }
-        }
-      }
-      
+      // Fire-and-forget - see the note in _processPayment.
+      await _dispatchReceipt('cash', discountAmount);
+      trace.mark('enqueue');
+      outcome = 'queued=true';
+
       if (widget.order.serviceType.contains('Dining - Table')) {
         final RegExp tableRegex = RegExp(r'Table\s+(\d+)');
         final match = tableRegex.firstMatch(widget.order.serviceType);
@@ -5588,7 +5593,7 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
         if (match != null) {
           tableNumber = int.tryParse(match.group(1) ?? '');
         }
-        
+
         if (tableNumber != null && mounted) {
           final tableProvider = Provider.of<TableProvider>(context, listen: false);
           await tableProvider.setTableStatus(tableNumber, false);
@@ -5596,25 +5601,40 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
           debugPrint('Table $tableNumber status set to available after cash payment');
         }
       }
-      
+      trace.mark('table');
+
       if (mounted) {
         final orderProvider = Provider.of<OrderProvider>(context, listen: false);
-        orderProvider.clearSelectedPerson(); 
+        orderProvider.clearSelectedPerson();
         orderProvider.clearCart();
       }
-      
+
       if (mounted) {
         Provider.of<OrderHistoryProvider>(context, listen: false).refreshOrdersAndConnectivity();
       }
-      
+      trace.mark('cleanup');
+
+      // Flushed before the dialog so cashier think-time is excluded.
+      await trace.flush(outcome: outcome);
+
       if (mounted) {
         await _showBalanceMessageDialog(change);
       }
     } catch (e) {
+      outcome = 'error=$e';
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${'Error processing payment'.tr()}: $e')),
         );
+      }
+    } finally {
+      await trace.flush(outcome: outcome);
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      } else {
+        _isProcessing = false;
       }
     }
   }
@@ -5902,6 +5922,101 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
   //   }
   // }
 
+  /// Hands the receipt off for printing.
+  ///
+  /// Normally this queues and returns immediately, so payment latency no longer
+  /// includes the printer. When the `receipt_print_async` preference is off it
+  /// prints inline instead, restoring the pre-change behaviour exactly.
+  Future<void> _dispatchReceipt(String label, double discount) async {
+    final job = _buildReceiptJob(label, discount);
+    if (ReceiptPrintQueue.asyncEnabled) {
+      ReceiptPrintQueue.enqueue(job);
+      return;
+    }
+    await ReceiptPrintQueue.runInline(job);
+  }
+
+  /// Snapshots everything a background print/PDF needs, while this screen is
+  /// still alive to provide it.
+  ///
+  /// Field sources match _generateReceipt() below and the printThermalBill call
+  /// sites exactly, so moving printing off the payment path changes latency and
+  /// nothing else. Note printOrder is widget.order while the PDF fields come
+  /// from _updatedOrder - that asymmetry is pre-existing and preserved.
+  ReceiptJob _buildReceiptJob(String label, double discount) {
+    final amounts = _calculateAmounts();
+    final orderItems = _updatedOrder?.items ?? widget.order.items;
+    final serviceType = _updatedOrder?.serviceType ?? widget.order.serviceType;
+    final orderNumber = _updatedOrder?.id?.toString().padLeft(4, '0') ??
+        widget.order.orderNumber;
+    final depositAmount =
+        _updatedOrder?.depositAmount ?? widget.order.depositAmount;
+
+    return ReceiptJob(
+      label: label,
+      printOrder: widget.order,
+      isEdited: widget.isEdited,
+      taxRate: widget.taxRate,
+      discount: discount,
+      pdfItems: orderItems.map((item) => item.toMenuItem()).toList(),
+      serviceType: serviceType,
+      orderNumber: orderNumber,
+      subtotal: amounts['subtotal']!,
+      tax: amounts['tax']!,
+      total: amounts['total']!,
+      depositAmount: depositAmount,
+      deliveryCharge: widget.order.deliveryCharge,
+    );
+  }
+
+  Future<void> _dispatchCreditReceipt(
+    Order actualOrder,
+    String orderNumber,
+    double taxRate,
+  ) async {
+    final job = _buildCreditReceiptJob(actualOrder, orderNumber, taxRate);
+    if (ReceiptPrintQueue.asyncEnabled) {
+      ReceiptPrintQueue.enqueue(job);
+      return;
+    }
+    await ReceiptPrintQueue.runInline(job);
+  }
+
+  /// The credit-completion equivalent of [_buildReceiptJob].
+  ///
+  /// Simpler than that one: the regular paths print widget.order but build the
+  /// PDF from _updatedOrder, whereas here both sides come from the same
+  /// actualOrder loaded out of the database, so there is no asymmetry to
+  /// preserve. Amounts are the stored order's, not _calculateAmounts() - the
+  /// receipt is for the original order, not for what this screen is showing.
+  ///
+  /// depositAmount stays null because the generateBill call this replaced did
+  /// not pass one; this change is about latency, not about the receipt.
+  ReceiptJob _buildCreditReceiptJob(
+    Order actualOrder,
+    String orderNumber,
+    double taxRate,
+  ) {
+    return ReceiptJob(
+      label: 'credit',
+      printOrder: OrderHistory.fromOrder(actualOrder),
+      isEdited: widget.isEdited,
+      taxRate: taxRate,
+      discount: actualOrder.discount,
+      pdfItems: actualOrder.items.map((item) => item.toMenuItem()).toList(),
+      serviceType: actualOrder.serviceType,
+      orderNumber: orderNumber,
+      personName: widget.customer?.name,
+      subtotal: actualOrder.subtotal,
+      tax: actualOrder.tax,
+      total: actualOrder.total,
+      depositAmount: null,
+      deliveryCharge: actualOrder.deliveryCharge,
+    );
+  }
+
+  /// Still used by the manual reprint (:708) and the temporary invoice (:1068),
+  /// where the user is deliberately waiting for a PDF.
   Future<pw.Document> _generateReceipt() async {
     final amounts = _calculateAmounts();
     
@@ -5969,11 +6084,9 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
            // ✅ Save the order with CORRECT subtotal and tax
           Order savedOrder;
           if (widget.order.id != 0) {
-            final orders = await _localOrderRepo.getAllOrders();
-            final orderIndex = orders.indexWhere((o) => o.id == widget.order.id);
-            
-            if (orderIndex >= 0) {
-              final existingOrder = orders[orderIndex];
+            final existingOrder = await _localOrderRepo.getOrderById(widget.order.id);
+
+            if (existingOrder != null) {
               savedOrder = Order(
                 id: existingOrder.id,
                 staffDeviceId: existingOrder.staffDeviceId,
@@ -6229,7 +6342,14 @@ Future<void> _handleCustomerCreditPayment() async {
   }
 
 // Add this method to TenderScreen
-Future<void> _processCreditCompletionPayment(double amount, String paymentMethod) async {
+/// [trace] is supplied by callers that already own one, so a credit completion
+/// emits a single payment line. PaymentTrace.flush is idempotent, so the
+/// caller's own finally-flush afterwards is a harmless no-op.
+Future<void> _processCreditCompletionPayment(
+  double amount,
+  String paymentMethod, {
+  PaymentTrace? trace,
+}) async {
   if (widget.creditTransactionId == null || widget.customer == null) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Invalid credit transaction'.tr())),
@@ -6250,6 +6370,7 @@ Future<void> _processCreditCompletionPayment(double amount, String paymentMethod
     // Mark credit transaction as completed
     final transactionCompleted = await creditRepo.markCreditTransactionCompleted(widget.creditTransactionId!);
 
+    trace?.mark('credit');
 
     if (!mounted) return;
     if (transactionCompleted) {
@@ -6259,6 +6380,8 @@ Future<void> _processCreditCompletionPayment(double amount, String paymentMethod
         widget.customer!.id!,
         -widget.order.total, // Negative to deduct from credit
       );
+
+      trace?.mark('customer');
 
       if (success) {
         // ✅ NEW: Handle split payment for credit completion
@@ -6287,55 +6410,28 @@ Future<void> _processCreditCompletionPayment(double amount, String paymentMethod
         if (actualOrder == null) {
           throw Exception('Could not load original order');
         }
-        // ✅ Calculate tax rate from actual order data
-        final effectiveTaxRate = actualOrder.subtotal > 0 
-            ? (actualOrder.tax / actualOrder.subtotal) * 100 
-            : 0.0;
-        // Use actual order for PDF generation
-        final pdf = await BillService.generateBill(
-          items: actualOrder.items.map((item) => item.toMenuItem()).toList(),
-          serviceType: actualOrder.serviceType,
-          subtotal: actualOrder.subtotal,
-          tax: actualOrder.tax,
-          discount: actualOrder.discount,
-          total: actualOrder.total,
-          personName: widget.customer?.name,
-          tableInfo: actualOrder.serviceType.contains('Table') ? actualOrder.serviceType : null,
-          isEdited: widget.isEdited,
-          orderNumber: creditTransaction.orderNumber,
-          taxRate: effectiveTaxRate,
-          deliveryCharge: actualOrder.deliveryCharge,
-        );
+        trace?.mark('order');
 
-   
-        bool printed = false;
-         try {
-          printed = await BillService.printThermalBill(
-            OrderHistory.fromOrder(actualOrder), 
-            isEdited: widget.isEdited, 
-            taxRate: effectiveTaxRate, 
-            discount: actualOrder.discount
-          );
-        } catch (e) {
-          debugPrint('Printing error: $e');
-        }
-        
-        bool? saveAsPdf = false;
-        if (!printed) {
-          if (mounted) {
-            saveAsPdf = await _showSavePdfDialog();
-          }
-          
-          if (saveAsPdf == true) {
-            try {
-              final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-              final fileName = 'SIMS_receipt_${widget.order.orderNumber}_$timestamp.pdf';
-              await CrossPlatformPdfService.savePdf(pdf, suggestedFileName: fileName);
-            } catch (e) {
-              debugPrint('Error saving PDF: $e');
-            }
-          }
-        }
+        // ✅ Calculate tax rate from actual order data
+        final effectiveTaxRate = actualOrder.subtotal > 0
+            ? (actualOrder.tax / actualOrder.subtotal) * 100
+            : 0.0;
+
+        // Printing is queued rather than awaited, as on every other payment
+        // path. This also drops an unconditional generateBill that used to
+        // render a full PDF even when printing succeeded - the PDF is now built
+        // only if the cashier asks for it from the failure banner.
+        await _dispatchCreditReceipt(
+          actualOrder,
+          creditTransaction.orderNumber,
+          effectiveTaxRate,
+        );
+        trace?.mark('enqueue');
+
+        // Flushed before the dialog so cashier think-time is excluded. Without
+        // this the credit path reported totals of ~2s that were mostly a human
+        // reading the balance dialog.
+        await trace?.flush(outcome: 'creditCompletion=true queued=true');
 
         if (mounted) {
           String message;
@@ -6366,6 +6462,9 @@ Future<void> _processCreditCompletionPayment(double amount, String paymentMethod
       throw Exception('Failed to mark transaction as completed');
     }
   } catch (e) {
+    // Needed for the confirmation-dialog route, which owns no finally block of
+    // its own. Idempotent, so the traced callers are unaffected.
+    await trace?.flush(outcome: 'creditCompletion=true error=$e');
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -6382,16 +6481,14 @@ Future<void> _processCreditCompletionPayment(double amount, String paymentMethod
 Future<void> _updateOriginalOrderPaymentMethod(String orderNumber, String paymentMethod) async {
   try {
     final localOrderRepo = LocalOrderRepository();
-    final allOrders = await localOrderRepo.getAllOrders();
-    
+
     // Find the order by order number (the order number is the ID formatted)
     final orderId = int.tryParse(orderNumber);
     if (orderId == null) return;
-    
-    final orderIndex = allOrders.indexWhere((order) => order.id == orderId);
-    
-    if (orderIndex >= 0) {
-      final existingOrder = allOrders[orderIndex];
+
+    final existingOrder = await localOrderRepo.getOrderById(orderId);
+
+    if (existingOrder != null) {
       // ✅ FIX: Only apply discount if there's a new discount
       // Otherwise preserve the existing order's amounts
       double finalSubtotal = existingOrder.subtotal;
@@ -6491,16 +6588,14 @@ Future<void> _updateOriginalOrderPaymentMethodWithSplit(
 ) async {
   try {
     final localOrderRepo = LocalOrderRepository();
-    final allOrders = await localOrderRepo.getAllOrders();
-    
+
     // Find the order by order number
     final orderId = int.tryParse(orderNumber);
     if (orderId == null) return;
-    
-    final orderIndex = allOrders.indexWhere((order) => order.id == orderId);
-    
-    if (orderIndex >= 0) {
-      final existingOrder = allOrders[orderIndex];
+
+    final existingOrder = await localOrderRepo.getOrderById(orderId);
+
+    if (existingOrder != null) {
        // ✅ FIX: Preserve existing amounts, only apply new discount if any
       double finalSubtotal = existingOrder.subtotal;
       double finalTax = existingOrder.tax;
@@ -6590,13 +6685,9 @@ Future<void> _updateOriginalOrderPaymentMethodWithSplit(
 Future<void> _updateOrderWithCustomer(Person customer) async {
   try {
     final localOrderRepo = LocalOrderRepository();
-    final allOrders = await localOrderRepo.getAllOrders();
-    
-    final orderIndex = allOrders.indexWhere((order) => order.id == widget.order.id);
-    
-    if (orderIndex >= 0) {
-      final existingOrder = allOrders[orderIndex];
-      
+    final existingOrder = await localOrderRepo.getOrderById(widget.order.id);
+
+    if (existingOrder != null) {
       // Use copyWith to ensure we don't lose any data (deposit, tokenNumber, deliveryCharge, etc.)
       final updatedOrder = existingOrder.copyWith(
         customerId: customer.id,

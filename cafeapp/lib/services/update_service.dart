@@ -10,6 +10,13 @@ import '../utils/app_localization.dart';
 class UpdateService {
   static const String appcastUrl = 'https://raw.githubusercontent.com/simsai-git/SIMS-CAFE/main/appcast.xml';
 
+  // Master switch for the whole update feature.
+  // Set to false while the GitHub account hosting the appcast/releases is
+  // unavailable, so the app never hits a dead URL. Flip back to true (and
+  // update appcastUrl + the release links inside appcast.xml) once the new
+  // account is set up.
+  static const bool updateChecksEnabled = false;
+
   static Future<void> initializeWindowsUpdater() async {
     // We no longer initialize WinSparkle (auto_updater) on Windows
     // because we are using a custom Flutter UI.
@@ -18,6 +25,15 @@ class UpdateService {
 
   static Future<void> checkUpdateCustomUI(BuildContext context, {required String os, bool showNoUpdateMessage = false}) async {
     if (kIsWeb) return;
+
+    if (!updateChecksEnabled) {
+      if (showNoUpdateMessage && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Update checking is temporarily unavailable.'.tr())),
+        );
+      }
+      return;
+    }
 
     try {
       if (showNoUpdateMessage) {

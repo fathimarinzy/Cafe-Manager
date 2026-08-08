@@ -3,7 +3,7 @@ import 'package:network_info_plus/network_info_plus.dart';
 import 'package:printing/printing.dart';
 import 'dart:io';
 import 'dart:async';
-import 'package:flutter_usb_printer/flutter_usb_printer.dart';
+import '../services/android_usb_printer.dart';
 import '../services/thermal_printer_service.dart';
 import '../utils/app_localization.dart';
 import '../utils/keyboard_utils.dart';
@@ -15,7 +15,8 @@ class PrinterSettingsScreen extends StatefulWidget {
   State<PrinterSettingsScreen> createState() => _PrinterSettingsScreenState();
 }
 
-class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with SingleTickerProviderStateMixin {
+class _PrinterSettingsScreenState extends State<PrinterSettingsScreen>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   // Receipt Printer controllers
   final _receiptIpController = TextEditingController();
   final _receiptPortController = TextEditingController();
@@ -39,6 +40,8 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
   // NEW: USB Printer State
   List<Map<String, dynamic>> _usbPrinters = [];
   bool _isLoadingUsbPrinters = false;
+  /// Why the last enumeration failed, so an error never looks like "nothing plugged in".
+  String? _usbPrinterError;
   String? _selectedReceiptUsbId;
   String? _selectedReceiptUsbName;
 
@@ -49,13 +52,25 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    WidgetsBinding.instance.addObserver(this);
     _loadSettings();
     _loadSystemPrinters();
     _loadUsbPrinters();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Plugging in OTG hardware happens outside the app; re-enumerate on the way
+    // back so the user doesn't have to know to press Refresh.
+    if (state == AppLifecycleState.resumed && Platform.isAndroid) {
+      _loadUsbPrinters();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _receiptIpController.dispose();
     _receiptPortController.dispose();
     _receiptIpFocus.dispose();
@@ -63,43 +78,89 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
     _tabController.dispose();
     super.dispose();
   }
+  /// Operator-facing label for a USB device.
+  ///
+  /// `deviceName` is the kernel node (`/dev/bus/usb/001/014`), which renumbers on
+  /// every replug and means nothing to staff, so prefer the descriptor strings.
+  static String _usbLabel(Map<String, dynamic> printer) {
+    final product = (printer['productName'] as String?)?.trim();
+    final manufacturer = (printer['manufacturer'] as String?)?.trim();
+    if (product != null && product.isNotEmpty) {
+      if (manufacturer != null && manufacturer.isNotEmpty && manufacturer != product) {
+        return '$manufacturer $product';
+      }
+      return product;
+    }
+    if (manufacturer != null && manufacturer.isNotEmpty) return manufacturer;
+    return printer['deviceName'] as String? ?? 'Unknown USB Device';
+  }
+
+  /// Splits a `"<vendorId>_<productId>"` dropdown key, tolerating a malformed
+  /// or partial value rather than throwing a RangeError out of a button handler.
+  static ({int? vId, int? pId}) _parseUsbId(String? id) {
+    if (id == null) return (vId: null, pId: null);
+    final parts = id.split('_');
+    if (parts.length < 2) return (vId: null, pId: null);
+    return (vId: int.tryParse(parts[0]), pId: int.tryParse(parts[1]));
+  }
+
   Future<void> _loadUsbPrinters() async {
+    if (!Platform.isAndroid) {
+      setState(() {
+        _isLoadingUsbPrinters = false;
+      });
+      return;
+    }
+
     setState(() {
       _isLoadingUsbPrinters = true;
+      _usbPrinterError = null;
     });
     try {
-      if (Platform.isAndroid) {
-        final printers = await FlutterUsbPrinter.getUSBDeviceList();
-        setState(() {
-          _usbPrinters = List<Map<String, dynamic>>.from(printers);
-          _isLoadingUsbPrinters = false;
-        });
-      } else {
-        setState(() {
-          _isLoadingUsbPrinters = false;
-        });
-      }
+      final printers = await AndroidUsbPrinter.listDevices();
+      if (!mounted) return;
+      setState(() {
+        _usbPrinters = printers;
+        _isLoadingUsbPrinters = false;
+      });
+    } on UsbPrinterException catch (e) {
+      debugPrint('Error loading USB printers: $e');
+      if (!mounted) return;
+      setState(() {
+        _usbPrinters = [];
+        _usbPrinterError = e.friendlyMessage;
+        _isLoadingUsbPrinters = false;
+      });
     } catch (e) {
       debugPrint('Error loading USB printers: $e');
+      if (!mounted) return;
       setState(() {
+        _usbPrinters = [];
+        _usbPrinterError = '$e';
         _isLoadingUsbPrinters = false;
       });
     }
   }
 
   Future<void> _loadSystemPrinters() async {
+    // Android has no system print queues we can drive; querying the print
+    // framework here only adds startup latency.
+    if (Platform.isAndroid) return;
+
     setState(() {
       _isLoadingSystemPrinters = true;
     });
-    
+
     try {
       final printers = await Printing.listPrinters();
+      if (!mounted) return;
       setState(() {
         _systemPrinters = printers;
         _isLoadingSystemPrinters = false;
       });
     } catch (e) {
       debugPrint('Error loading system printers: $e');
+      if (!mounted) return;
       setState(() {
         _isLoadingSystemPrinters = false;
       });
@@ -559,10 +620,9 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
       } else if (_receiptPrinterType == ThermalPrinterService.printerTypeSystem) {
         await ThermalPrinterService.setReceiptSystemPrinterName(_selectedReceiptSystemPrinter);
       } else if (_receiptPrinterType == ThermalPrinterService.printerTypeUsb) {
-        final parts = _selectedReceiptUsbId!.split('_');
-        final vId = int.tryParse(parts[0]);
-        final pId = int.tryParse(parts[1]);
-        await ThermalPrinterService.setReceiptUsbPrinter(_selectedReceiptUsbName, vId, pId);
+        final ids = _parseUsbId(_selectedReceiptUsbId);
+        await ThermalPrinterService.setReceiptUsbPrinter(
+            _selectedReceiptUsbName, ids.vId, ids.pId);
       }
       
       if (!mounted) return;
@@ -586,44 +646,46 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
     });
 
     try {
-      int? vId, pId;
-      if (_selectedReceiptUsbId != null) {
-        final parts = _selectedReceiptUsbId!.split('_');
-        vId = int.tryParse(parts[0]);
-        pId = int.tryParse(parts[1]);
-      }
+      final ids = _parseUsbId(_selectedReceiptUsbId);
       final connected = await ThermalPrinterService.testConnection(
         type: _receiptPrinterType,
         ip: _receiptIpController.text.trim(),
         port: int.tryParse(_receiptPortController.text.trim()),
         systemPrinterName: _selectedReceiptSystemPrinter,
-        usbVendorId: vId,
-        usbProductId: pId,
-      );
-      
+        usbVendorId: ids.vId,
+        usbProductId: ids.pId,
+        // The USB path can sit on the system permission dialog; without this the
+        // spinner would stick forever if the user walks away from it.
+      ).timeout(const Duration(seconds: 90));
+
       if (!mounted) return;
-      
-      setState(() {
-        _isTestingReceipt = false;
-      });
-      
+
       if (connected) {
         _showSuccessMessage("Successfully connected to receipt printer".tr());
       } else {
+        final reason = ThermalPrinterService.lastPrintError;
         if (_receiptPrinterType == ThermalPrinterService.printerTypeNetwork) {
           _showErrorMessage("Failed to connect to receipt printer. Please check IP address and port.".tr());
         } else if (_receiptPrinterType == ThermalPrinterService.printerTypeUsb) {
-          _showErrorMessage("Failed to connect to USB printer. Please check if the printer is connected and turned on.".tr());
+          _showErrorMessage(reason ??
+              "Failed to connect to USB printer. Please check if the printer is connected and turned on.".tr());
         } else {
           _showErrorMessage("Failed to test system printer. Please check if the printer is on and drivers are installed.".tr());
         }
       }
-    } catch (e) {
+    } on TimeoutException {
       if (!mounted) return;
-      setState(() {
-        _isTestingReceipt = false;
-      });
+      _showErrorMessage("Printer test timed out. Please try again.".tr());
+    } catch (e) {
+      debugPrint('Error testing receipt printer connection: $e');
+      if (!mounted) return;
       _showErrorMessage("Error testing receipt printer connection".tr());
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isTestingReceipt = false;
+        });
+      }
     }
   }
 
@@ -657,29 +719,36 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
         ip: config.ip,
         port: config.port,
         systemPrinterName: config.systemPrinterName,
-      );
-      
+        usbVendorId: config.usbVendorId,
+        usbProductId: config.usbProductId,
+      ).timeout(const Duration(seconds: 90));
+
       if (!mounted) return;
-      
-      setState(() {
-        _isTestingKot = false;
-      });
-      
+
       if (connected) {
         _showSuccessMessage("Successfully connected to ${config.name ?? 'Printer'}".tr());
       } else {
         if (config.type == ThermalPrinterService.printerTypeNetwork) {
           _showErrorMessage("Failed to connect to ${config.name}. Check IP/Port.".tr());
+        } else if (config.type == ThermalPrinterService.printerTypeUsb) {
+          _showErrorMessage("Failed to connect to USB printer. Please check if the printer is connected and turned on.".tr());
         } else {
           _showErrorMessage("Failed to test system printer.".tr());
         }
       }
-    } catch (e) {
+    } on TimeoutException {
       if (!mounted) return;
-      setState(() {
-        _isTestingKot = false;
-      });
+      _showErrorMessage("Printer test timed out. Please try again.".tr());
+    } catch (e) {
+      debugPrint('Error testing KOT printer connection: $e');
+      if (!mounted) return;
       _showErrorMessage("Error testing connection".tr());
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isTestingKot = false;
+        });
+      }
     }
   }
 
@@ -966,6 +1035,11 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
                           setState(() {
                             _receiptPrinterType = value;
                           });
+                          // The list is captured at initState, so a printer plugged in
+                          // after this screen opened would otherwise never show up.
+                          if (value == ThermalPrinterService.printerTypeUsb) {
+                            _loadUsbPrinters();
+                          }
                         }
                       },
                     ),
@@ -1017,7 +1091,8 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            'No USB printers found. Connect a printer via OTG and refresh.'.tr(),
+                            _usbPrinterError ??
+                                'No USB printers found. Connect a printer via OTG and refresh.'.tr(),
                             style: TextStyle(color: Colors.orange.shade900, fontSize: 13),
                           ),
                         ),
@@ -1055,7 +1130,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
                                       children: [
                                         const Icon(Icons.print, size: 18, color: Colors.grey),
                                         const SizedBox(width: 8),
-                                        Flexible(child: Text(printer['deviceName'] ?? 'Unknown USB Device', overflow: TextOverflow.ellipsis)),
+                                        Flexible(child: Text(_usbLabel(printer), overflow: TextOverflow.ellipsis)),
                                       ],
                                     ),
                                   );
@@ -1065,7 +1140,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
                                     final printer = _usbPrinters.firstWhere((p) => "${p['vendorId']}_${p['productId']}" == value);
                                     setState(() {
                                       _selectedReceiptUsbId = value;
-                                      _selectedReceiptUsbName = printer['deviceName'];
+                                      _selectedReceiptUsbName = _usbLabel(printer);
                                     });
                                   }
                                 },
@@ -1524,7 +1599,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
                             final pId = "${printer['vendorId']}_${printer['productId']}";
                             return DropdownMenuItem<String>(
                               value: pId,
-                              child: Text(printer['deviceName'] ?? 'Unknown USB Device', overflow: TextOverflow.ellipsis),
+                              child: Text(_usbLabel(printer), overflow: TextOverflow.ellipsis),
                             );
                           }).toList(),
                           onChanged: (val) {
@@ -1532,7 +1607,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
                               final printer = _usbPrinters.firstWhere((p) => "${p['vendorId']}_${p['productId']}" == val);
                               setState(() {
                                 usbId = val;
-                                usbDeviceName = printer['deviceName'];
+                                usbDeviceName = _usbLabel(printer);
                               });
                             }
                           },
@@ -1574,10 +1649,10 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> with Sing
                   }
 
                   int? vId, pId;
-                  if (usbId != null && type == ThermalPrinterService.printerTypeUsb) {
-                    final parts = usbId!.split('_');
-                    vId = int.tryParse(parts[0]);
-                    pId = int.tryParse(parts[1]);
+                  if (type == ThermalPrinterService.printerTypeUsb) {
+                    final ids = _parseUsbId(usbId);
+                    vId = ids.vId;
+                    pId = ids.pId;
                   }
 
                   final newPrinter = KotPrinterConfig(

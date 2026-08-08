@@ -305,22 +305,18 @@ class DeviceSyncService {
           // Search for existing order by staff device ID and staff order number
           debugPrint('🔍 Searching for existing local order...');
           
-          final allOrdersFuture = localRepo.getAllOrders();
-          final allOrders = await allOrdersFuture.timeout(
+          // Indexed lookup on (staff_device_id, staff_order_number) instead of
+          // loading the whole orders table and scanning it in Dart.
+          final existingOrder = await localRepo
+              .findByStaffOrder(syncOrder.staffDeviceId, syncOrder.staffOrderNumber)
+              .timeout(
             const Duration(seconds: 5),
             onTimeout: () {
-              debugPrint('⏱️ Timeout getting all orders, returning empty list');
-              return <local_models.Order>[];
+              debugPrint('⏱️ Timeout looking up local order by staff order number');
+              return null;
             },
           );
-          
-          debugPrint('📊 Found ${allOrders.length} total local orders');
-          
-          final existingOrder = allOrders.firstWhereOrNull(
-            (o) => o.staffDeviceId == syncOrder.staffDeviceId && 
-                   o.staffOrderNumber == syncOrder.staffOrderNumber,
-          );
-          
+
           if (existingOrder != null) {
             debugPrint('✏️ Found existing local order #${existingOrder.id}, updating...');
             // Update the existing order with the main number
@@ -728,14 +724,12 @@ class DeviceSyncService {
         existingOrder = await localRepo.getOrderById(syncOrder.id!);
       }
       
-      // If not found by ID, search by staff device ID and staff order number
-      if (existingOrder == null) {
-        final allOrders = await localRepo.getAllOrders();
-        existingOrder = allOrders.firstWhereOrNull(
-          (o) => o.staffDeviceId == syncOrder.staffDeviceId && 
-                 o.staffOrderNumber == syncOrder.staffOrderNumber,
-        );
-      }
+      // If not found by ID, search by staff device ID and staff order number.
+      // Indexed lookup - this used to load the entire orders table.
+      existingOrder ??= await localRepo.findByStaffOrder(
+        syncOrder.staffDeviceId,
+        syncOrder.staffOrderNumber,
+      );
       
       if (existingOrder != null) {
         debugPrint('ℹ️ Order already exists locally (ID=${existingOrder.id}), checking for updates...');
@@ -893,10 +887,11 @@ class DeviceSyncService {
       }
 
       final localRepo = LocalOrderRepository();
-      final orders = await localRepo.getAllOrders();
-      
-      // Only sync orders that haven't been synced yet
-      final unsyncedOrders = orders.where((o) => !o.isSynced).toList();
+
+      // Only sync orders that haven't been synced yet. Filtered in SQL via
+      // idx_orders_is_synced rather than loading every order and filtering in
+      // Dart.
+      final unsyncedOrders = await localRepo.getUnsyncedOrders();
 
       if (unsyncedOrders.isEmpty) {
         debugPrint('ℹ️ No unsynced orders to process');

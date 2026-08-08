@@ -1,3 +1,4 @@
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 // import 'package:path/path.dart';
@@ -8,6 +9,98 @@ import '../repositories/local_expense_repository.dart';
 import '../repositories/local_menu_repository.dart';
 import '../repositories/local_person_repository.dart';
 import '../utils/database_helper.dart';
+import '../utils/logger.dart';
+import 'order_query_filters.dart';
+
+// SQLite caps the number of bound variables in a single statement. The Windows
+// ffi build allows 32,766, but Android's system SQLite is historically compiled
+// with SQLITE_MAX_VARIABLE_NUMBER=999, so any query that binds one variable per
+// row has to be chunked well under the lower bound. Exceeding it throws
+// "too many SQL variables", which the catch blocks below would turn into an
+// empty result - a blank report rather than a visible error.
+const int _kSqlVarChunk = 500;
+
+// Payment methods stored as translated UI labels instead of canonical codes.
+//
+// tender_screen used to write _selectedPaymentMethod straight to the database.
+// That string is localised, so an Arabic till recorded 'بنك' rather than 'bank'
+// and - because the same value failed an `== 'bank'` test - never added the
+// paid amount to bank_amount. Only 'en' and 'ar' exist, so this mapping is
+// closed. See _canonicalPaymentMethod() in tender_screen.dart for the forward
+// fix.
+const Map<String, String> kTranslatedPaymentMethodRepairs = {
+  'نقدي': 'cash',
+  'بنك': 'bank',
+  'بنك + نقد': 'bank+cash',
+  'ائتمان العميل': 'customer_credit',
+};
+
+/// Repairs orders written with a translated payment method (schema v18).
+///
+/// Deliberately conservative, because this rewrites historical financial
+/// records:
+///  - the method string is always normalised, since that mapping is lossless;
+///  - amounts are only backfilled for a fully-paid, single-method order
+///    (`status='completed'`, both amounts empty, no deposit) where `total` is
+///    unambiguously the amount taken.
+/// Split ('bank+cash') and deposit-bearing orders are left untouched - their
+/// division between cash and bank cannot be recovered and must not be guessed.
+///
+/// Exposed (rather than private) so tests can run it against a seeded database.
+/// [log] defaults to the persistent crash-log appender; tests pass a capturing
+/// function so a test run does not append to the real log file.
+Future<void> repairTranslatedPaymentMethods(
+  Database db, {
+  Future<void> Function(String message)? log,
+}) async {
+  final write = log ?? logErrorToFile;
+  try {
+    var methodsFixed = 0;
+    var cashBackfilled = 0;
+    var bankBackfilled = 0;
+
+    for (final entry in kTranslatedPaymentMethodRepairs.entries) {
+      methodsFixed += await db.update(
+        'orders',
+        {'payment_method': entry.value},
+        where: 'payment_method = ?',
+        whereArgs: [entry.key],
+      );
+    }
+
+    // Only where the paid amount is unambiguous.
+    const backfillWhere =
+        "status = 'completed' "
+        'AND COALESCE(cash_amount, 0) = 0 '
+        'AND COALESCE(bank_amount, 0) = 0 '
+        'AND COALESCE(deposit_amount, 0) = 0 '
+        'AND COALESCE(total, 0) > 0 '
+        'AND payment_method = ?';
+
+    cashBackfilled = await db.rawUpdate(
+      'UPDATE orders SET cash_amount = total WHERE $backfillWhere',
+      ['cash'],
+    );
+    bankBackfilled = await db.rawUpdate(
+      'UPDATE orders SET bank_amount = total WHERE $backfillWhere',
+      ['bank'],
+    );
+
+    if (methodsFixed > 0 || cashBackfilled > 0 || bankBackfilled > 0) {
+      await write(
+        '🔧 v18 payment repair: normalised $methodsFixed payment_method values, '
+        'backfilled cash_amount on $cashBackfilled and bank_amount on '
+        '$bankBackfilled orders',
+      );
+    } else {
+      await write('🔧 v18 payment repair: nothing to repair');
+    }
+  } catch (e) {
+    // Never block the upgrade on a repair failure - the forward fix already
+    // prevents new bad rows, and a half-open database is worse.
+    await write('❌ v18 payment repair failed: $e');
+  }
+}
 
 class LocalOrderRepository {
   static Database? _database;
@@ -28,8 +121,14 @@ class LocalOrderRepository {
     if (_dbOpenFuture != null) return _dbOpenFuture!;
     
     // Otherwise start initialization
-    _dbOpenFuture = _initDatabase();
-    
+    _dbOpenFuture = _initDatabase().timeout(
+      const Duration(seconds: 30),
+      onTimeout: () {
+        _dbOpenFuture = null;
+        throw Exception('Database took too long to open. Please restart the app.');
+      },
+    );
+
     try {
       _database = await _dbOpenFuture;
       return _database!;
@@ -45,7 +144,7 @@ class LocalOrderRepository {
     
     return await openDatabase(
       path,
-      version: 16, // Increment version for LAN sync and temp receipt columns
+      version: 18, // v18: repair payment methods stored as translated labels
       onConfigure: (db) async {
         await db.rawQuery('PRAGMA journal_mode=WAL;');
       },
@@ -111,6 +210,7 @@ class LocalOrderRepository {
         await db.execute('CREATE INDEX idx_orders_event_date ON orders (event_date)');
         await db.execute('CREATE INDEX idx_orders_created_at ON orders (created_at)');
         await db.execute('CREATE INDEX idx_orders_updated_at ON orders (updated_at)');
+        await db.execute('CREATE INDEX idx_orders_is_synced ON orders (is_synced)');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         debugPrint('Upgrading orders database from version $oldVersion to $newVersion');
@@ -261,6 +361,21 @@ class LocalOrderRepository {
             debugPrint('Error adding is_temp_receipt_printed column to orders: $e');
           }
         }
+
+        if (oldVersion < 17) {
+          // Backs getUnsyncedOrders(), which replaced a full-table scan in
+          // device sync.
+          try {
+            await db.execute('CREATE INDEX IF NOT EXISTS idx_orders_is_synced ON orders (is_synced)');
+            debugPrint('Added idx_orders_is_synced index to orders table');
+          } catch (e) {
+            debugPrint('Error adding idx_orders_is_synced index to orders: $e');
+          }
+        }
+
+        if (oldVersion < 18) {
+          await repairTranslatedPaymentMethods(db);
+        }
       },
     );
   }
@@ -292,22 +407,26 @@ class LocalOrderRepository {
       // Determine if this is an update or new order
       final bool isUpdate = order.id != null;
       debugPrint(isUpdate ? 'Updating existing order #${order.id}' : 'Creating new order');
-      
+
+      // Preserve the original timestamp only when updating an existing order.
+      final bool preservesTimestamp = isUpdate && order.createdAt != null;
+
+      // Allocate the staff order number BEFORE opening the transaction.
+      // _getNextStaffOrderNumber() does SharedPreferences disk I/O, and awaiting
+      // non-database I/O while holding the write lock stalls every other query.
+      int? preAllocatedStaffNum = order.staffOrderNumber;
+      if (!preservesTimestamp) {
+        preAllocatedStaffNum ??= await _getNextStaffOrderNumber();
+      }
+
       return await db.transaction((txn) async {
         // FIXED: Always use current local time for new orders, preserve existing for updates
-        String timestampToUse;
-        int? staffOrderNum = order.staffOrderNumber;
+        int? staffOrderNum = preAllocatedStaffNum;
+        // Reassigned below when updating an existing row, so it can't be final.
+        String timestampToUse = preservesTimestamp
+            ? order.createdAt!
+            : DateTime.now().toIso8601String();
 
-        if (isUpdate && order.createdAt != null) {
-          // For updates, preserve the original timestamp
-          timestampToUse = order.createdAt!;
-        } else {
-          // For new orders, use current local time in ISO format
-          timestampToUse = DateTime.now().toIso8601String();
-          // Assign staff order number only for new orders
-          staffOrderNum ??= await _getNextStaffOrderNumber();
-        }
-        
         int orderId;
 
         // If it's an existing order with an ID, update rather than insert
@@ -520,32 +639,59 @@ class LocalOrderRepository {
       
       return await _mapOrdersWithItems(db, orders);
     } catch (e) {
-      debugPrint('Error getting advanced orders: $e');
+      // Persisted, not debugPrint: a windowed release build has no console, so
+      // an empty result here would otherwise reach the user with no trail.
+      await logErrorToFile('❌ getAdvancedOrders failed, returning empty list: $e');
       return [];
     }
   }
 
   // Optimized: Get Orders for a specific date range
-  Future<List<Order>> getOrdersByDateRange(DateTime start, DateTime end) async {
+  // [limit] defaults to null - unbounded - so the report screen's call site
+  // keeps the behaviour it relies on. The order list passes a page size, which
+  // is what stops the Yearly filter materialising a whole year: measured at
+  // 22,383 rows / 996ms on a seeded dataset, extrapolating to ~5s for a cafe
+  // taking 300 orders a day.
+  Future<List<Order>> getOrdersByDateRange(
+    DateTime start,
+    DateTime end, {
+    int? limit,
+    int offset = 0,
+    OrderQueryFilters filters = OrderQueryFilters.none,
+  }) async {
     try {
-      final db = await database;
-      
-      final startStr = start.toIso8601String();
-      final endStr = end.toIso8601String();
-      
-      // Fetch orders within range
-      final orders = await db.query(
-        'orders',
-        where: 'created_at >= ? AND created_at <= ?',
-        whereArgs: [startStr, endStr],
-        orderBy: 'created_at DESC'
+      return await _queryOrders(
+        conditions: const ['created_at >= ? AND created_at <= ?'],
+        args: [start.toIso8601String(), end.toIso8601String()],
+        filters: filters,
+        limit: limit,
+        offset: offset,
       );
-      
-      return await _mapOrdersWithItems(db, orders);
     } catch (e) {
-      debugPrint('Error getting orders by date range: $e');
+      await logErrorToFile('❌ getOrdersByDateRange failed, returning empty list: $e');
       return [];
     }
+  }
+
+  // Runs [query] once per chunk of [ids] and concatenates the rows. Callers use
+  // this for any "WHERE col IN (...)" lookup whose id list is unbounded, so the
+  // number of bound variables in one statement stays under the SQLite limit.
+  // See _kSqlVarChunk.
+  Future<List<Map<String, Object?>>> _queryInChunks(
+    List<int> ids,
+    Future<List<Map<String, Object?>>> Function(List<int> chunk) query,
+  ) async {
+    if (ids.isEmpty) return const [];
+
+    // Common case: small enough for a single round trip.
+    if (ids.length <= _kSqlVarChunk) return query(ids);
+
+    final results = <Map<String, Object?>>[];
+    for (var i = 0; i < ids.length; i += _kSqlVarChunk) {
+      final end = i + _kSqlVarChunk;
+      results.addAll(await query(ids.sublist(i, end > ids.length ? ids.length : end)));
+    }
+    return results;
   }
 
   // Helper to map DB rows to Order objects with items
@@ -554,17 +700,20 @@ class LocalOrderRepository {
     
     final result = <Order>[];
     
-    // ✅ FIX: Fetch ALL order items in a single query to avoid N+1 problem
-    // Extract all order IDs
+    // Fetch order items in batched queries rather than one per order, which
+    // avoids the N+1 problem. Batches are capped at _kSqlVarChunk ids so the
+    // statement never exceeds SQLite's bound-variable limit.
     final orderIds = orders.map((o) => o['id'] as int).toList();
-    
-    // Fetch all items for all orders in ONE query
-    final allItems = await db.query(
-      'order_items',
-      where: 'order_id IN (${orderIds.map((_) => '?').join(',')})',
-      whereArgs: orderIds,
+
+    final allItems = await _queryInChunks(
+      orderIds,
+      (chunk) => db.query(
+        'order_items',
+        where: 'order_id IN (${chunk.map((_) => '?').join(',')})',
+        whereArgs: chunk,
+      ),
     );
-    
+
     // Group items by order_id in memory
     final itemsByOrderId = <int, List<Map<String, Object?>>>{};
     for (var item in allItems) {
@@ -637,26 +786,207 @@ class LocalOrderRepository {
     return result;
   }
   
-  // Get all local orders (delegates to common mapper for consistency)
+  // Get all local orders (delegates to common mapper for consistency).
+  // Used by reports, tender reconciliation and sync, which need the full
+  // dataset for correctness - do NOT add a default limit here. UI list views
+  // that only need a page of recent orders should use getOrdersPage() below.
   Future<List<Order>> getAllOrders() async {
     try {
       final db = await database;
-      
+
       // Get all orders
       final orders = await db.query(
         'orders',
         orderBy: 'created_at DESC'
       );
-      
+
       // debugPrint('Retrieved ${orders.length} orders from local database');
-      
+
       return await _mapOrdersWithItems(db, orders);
     } catch (e) {
-      debugPrint('Error getting all orders: $e');
+      await logErrorToFile('❌ getAllOrders failed, returning empty list: $e');
+      return [];
+    }
+  }
+
+  // Counts for the dashboard stat cards. Uses SQL aggregates so no order rows
+  // or order_items are materialised - the dashboard only needs a few integers,
+  // and loading the whole table for them does not scale as history grows.
+  //
+  // 'pending'      - all pending orders regardless of date (desktop dashboard)
+  // 'today'        - orders created today
+  // 'pendingToday' - pending orders created today (mobile dashboard)
+  Future<Map<String, int>> getDashboardCounts() async {
+    try {
+      final db = await database;
+
+      // created_at is stored as an ISO8601 string, so a prefix match on the
+      // local date selects "today" without parsing every row in Dart.
+      final todayPrefix = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      final like = '$todayPrefix%';
+
+      final rows = await db.rawQuery(
+        'SELECT '
+        "  (SELECT COUNT(*) FROM orders WHERE status = 'pending') AS pending, "
+        '  (SELECT COUNT(*) FROM orders WHERE created_at LIKE ?) AS today, '
+        "  (SELECT COUNT(*) FROM orders WHERE created_at LIKE ? AND status = 'pending') AS pending_today",
+        [like, like],
+      );
+
+      final row = rows.first;
+      return {
+        'pending': (row['pending'] as int?) ?? 0,
+        'today': (row['today'] as int?) ?? 0,
+        'pendingToday': (row['pending_today'] as int?) ?? 0,
+      };
+    } catch (e) {
+      await logErrorToFile('❌ getDashboardCounts failed, returning zeros: $e');
+      return {'pending': 0, 'today': 0, 'pendingToday': 0};
+    }
+  }
+
+  // Get a page of local orders, most recent first. Used by the Order List
+  // screen's "All Orders" view so it stays fast regardless of how many
+  // orders a customer has accumulated over time.
+  Future<List<Order>> getOrdersPage({
+    int limit = 200,
+    int offset = 0,
+    OrderQueryFilters filters = OrderQueryFilters.none,
+  }) async {
+    try {
+      return await _queryOrders(filters: filters, limit: limit, offset: offset);
+    } catch (e) {
+      await logErrorToFile('❌ getOrdersPage failed, returning empty list: $e');
+      return [];
+    }
+  }
+
+  // One builder behind every paged order listing, so getOrdersPage and
+  // getOrdersByDateRange cannot drift apart in how they apply filters.
+  //
+  // [conditions] are the caller's own WHERE fragments (a date range, say) and
+  // [args] their bound values, in the same order. Filter conditions are
+  // appended after them, which keeps placeholders and arguments aligned.
+  Future<List<Order>> _queryOrders({
+    List<String> conditions = const [],
+    List<Object?> args = const [],
+    OrderQueryFilters filters = OrderQueryFilters.none,
+    int? limit,
+    int offset = 0,
+  }) async {
+    final db = await database;
+
+    final (filterConditions, filterArgs) = filters.toConditions();
+    final allConditions = [...conditions, ...filterConditions];
+    final allArgs = [...args, ...filterArgs];
+
+    final orders = await db.query(
+      'orders',
+      where: allConditions.isEmpty ? null : allConditions.join(' AND '),
+      whereArgs: allArgs.isEmpty ? null : allArgs,
+      orderBy: 'created_at DESC',
+      limit: limit,
+      // SQL has no OFFSET without LIMIT, so an offset alone would build an
+      // invalid statement. Callers that want everything pass neither.
+      offset: (limit != null && offset > 0) ? offset : null,
+    );
+
+    return await _mapOrdersWithItems(db, orders);
+  }
+
+  // Search orders directly in SQL (indexed columns where available) instead
+  // of loading the whole table into memory and filtering in Dart.
+  Future<List<Order>> searchOrders(String query, {int limit = 200}) async {
+    try {
+      final db = await database;
+      final like = '%$query%';
+
+      final orders = await db.query(
+        'orders',
+        where: 'CAST(id AS TEXT) LIKE ? '
+            'OR CAST(main_order_number AS TEXT) LIKE ? '
+            'OR token_number LIKE ? '
+            'OR customer_name LIKE ? '
+            'OR service_type LIKE ?',
+        whereArgs: [like, like, like, like, like],
+        orderBy: 'created_at DESC',
+        limit: limit,
+      );
+
+      return await _mapOrdersWithItems(db, orders);
+    } catch (e) {
+      await logErrorToFile('❌ searchOrders failed, returning empty list: $e');
       return [];
     }
   }
   
+  // Fetch just the orders whose ids are already known, instead of loading the
+  // whole table and filtering in Dart. Chunked, so the caller's id set can be
+  // any size.
+  Future<List<Order>> getOrdersByIds(Set<int> ids) async {
+    if (ids.isEmpty) return [];
+    try {
+      final db = await database;
+
+      final orders = await _queryInChunks(
+        ids.toList(),
+        (chunk) => db.query(
+          'orders',
+          where: 'id IN (${chunk.map((_) => '?').join(',')})',
+          whereArgs: chunk,
+        ),
+      );
+
+      return await _mapOrdersWithItems(db, orders);
+    } catch (e) {
+      await logErrorToFile('❌ getOrdersByIds failed, returning empty list: $e');
+      return [];
+    }
+  }
+
+  // Locate a single order by the (device, staff order number) pair used during
+  // device sync. Backed by idx_orders_staff_device.
+  Future<Order?> findByStaffOrder(String staffDeviceId, int? staffOrderNumber) async {
+    if (staffDeviceId.isEmpty || staffOrderNumber == null) return null;
+    try {
+      final db = await database;
+
+      final orders = await db.query(
+        'orders',
+        where: 'staff_device_id = ? AND staff_order_number = ?',
+        whereArgs: [staffDeviceId, staffOrderNumber],
+        limit: 1,
+      );
+
+      if (orders.isEmpty) return null;
+      final mapped = await _mapOrdersWithItems(db, orders);
+      return mapped.isEmpty ? null : mapped.first;
+    } catch (e) {
+      await logErrorToFile('❌ findByStaffOrder failed, returning null: $e');
+      return null;
+    }
+  }
+
+  // Orders still awaiting upload. Backed by idx_orders_is_synced (schema v17)
+  // so this stays cheap as history grows.
+  Future<List<Order>> getUnsyncedOrders() async {
+    try {
+      final db = await database;
+
+      final orders = await db.query(
+        'orders',
+        where: 'is_synced = ?',
+        whereArgs: [0],
+        orderBy: 'created_at DESC',
+      );
+
+      return await _mapOrdersWithItems(db, orders);
+    } catch (e) {
+      await logErrorToFile('❌ getUnsyncedOrders failed, returning empty list: $e');
+      return [];
+    }
+  }
+
   // Get a specific order by ID
   Future<Order?> getOrderById(int orderId) async {
     try {
@@ -840,6 +1170,7 @@ class LocalOrderRepository {
   static Future<void> resetConnection() async {
     try {
       _isResetting = true; // 🛡️ Block access during reset
+      _dbOpenFuture = null; // Clear stale future so next open starts fresh
       if (_database != null) {
         if (_database!.isOpen) {
           await _database!.close();

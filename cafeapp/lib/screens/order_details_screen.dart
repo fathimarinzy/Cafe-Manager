@@ -850,8 +850,71 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     return false;
   }
   
+  // Mirrors _handleItemSelection in MenuScreen: items with sizes get a size
+  // picker, and the chosen size becomes a variant item. Returns null if the
+  // user cancelled the size dialog.
+  Future<MenuItem?> _pickItemVariant(BuildContext context, MenuItem item) async {
+    if (item.sizes.isEmpty) return item;
+
+    return showDialog<MenuItem>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${'Select Size'.tr()} - ${item.name}'),
+        content: SizedBox(
+          width: 300,
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: item.sizes.length,
+            separatorBuilder: (c, i) => const Divider(),
+            itemBuilder: (c, i) {
+              final size = item.sizes[i];
+              return ListTile(
+                title: Text(size.name),
+                subtitle: Text('${'Price'.tr()}: ${size.price.toStringAsFixed(2)}'),
+                onTap: () => Navigator.of(ctx).pop(
+                  item.copyWith(
+                    id: '${item.id}_${size.name}',
+                    name: '${item.name} - ${size.name}',
+                    price: size.price,
+                    purchasePrice: size.purchasePrice,
+                    sizes: [], // prevent infinite sizes loop
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Cancel'.tr()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSoldOutBadge() {
+    return Container(
+      margin: const EdgeInsets.only(left: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.red.shade100,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        'Sold Out'.tr(),
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: Colors.red.shade900,
+        ),
+      ),
+    );
+  }
+
   Future<void> _showAddItemDialog(BuildContext context, List<OrderItem> items, StateSetter setState) async {
-    
+
     if (!context.mounted) return;
 
     final menuProvider = Provider.of<MenuProvider>(context, listen: false);
@@ -863,7 +926,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
     final menuItems = menuProvider.items;
     final categories = menuProvider.categories;
     
-    MenuItem? selectedItem;
+    MenuItem? selectedItem;   // resolved item actually added (may be a size variant)
+    String? selectedBaseId;   // id of the highlighted row
     int quantity = 1;
     String searchQuery = '';
     String? selectedCategory;
@@ -965,6 +1029,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                       style: const TextStyle(fontWeight: FontWeight.bold),
                                     ),
                                   ),
+                                  if (!selectedItem!.isAvailable)
+                                    _buildSoldOutBadge(),
                                   // NEW: Show tax-exempt indicator
                                   if (selectedItem!.taxExempt)
                                     Container(
@@ -1001,8 +1067,22 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                               itemCount: filteredItems.length,
                               itemBuilder: (context, index) {
                                 final item = filteredItems[index];
-                                final bool isSelected = selectedItem?.id == item.id;
-                                
+                                final bool isSelected = selectedBaseId == item.id;
+                                final bool hasSizes = item.sizes.isNotEmpty;
+
+                                // For sized items show the range covered by the
+                                // sizes instead of the (unused) base price.
+                                final String priceLabel;
+                                if (hasSizes) {
+                                  final prices = item.sizes.map((s) => s.price).toList()..sort();
+                                  final currency = NumberFormat.currency(symbol: '', decimalDigits: 3);
+                                  priceLabel = prices.first == prices.last
+                                      ? currency.format(prices.first)
+                                      : '${currency.format(prices.first)} - ${currency.format(prices.last)}';
+                                } else {
+                                  priceLabel = NumberFormat.currency(symbol: '', decimalDigits: 3).format(item.price);
+                                }
+
                                 return Card(
                                   elevation: isSelected ? 4 : 1,
                                   color: isSelected ? Colors.blue.shade100 : Colors.white,
@@ -1014,12 +1094,34 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                             item.name,
                                             style: TextStyle(
                                               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                              color: item.isAvailable ? null : Colors.grey,
                                             ),
                                           ),
                                         ),
+                                        if (!item.isAvailable)
+                                          _buildSoldOutBadge(),
+                                        if (hasSizes)
+                                          Container(
+                                            margin: const EdgeInsets.only(left: 4),
+                                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.blue[50],
+                                              borderRadius: BorderRadius.circular(4),
+                                              border: Border.all(color: Colors.blue[200]!),
+                                            ),
+                                            child: Text(
+                                              '${item.sizes.length} ${'Sizes'.tr()}',
+                                              style: TextStyle(
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.blue[800],
+                                              ),
+                                            ),
+                                          ),
                                         // NEW: Show tax-exempt badge
                                         if (item.taxExempt)
                                           Container(
+                                            margin: const EdgeInsets.only(left: 4),
                                             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                                             decoration: BoxDecoration(
                                               color: Colors.orange[100],
@@ -1037,15 +1139,17 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                           ),
                                       ],
                                     ),
-                                    subtitle: Text(
-                                      '${NumberFormat.currency(symbol: '', decimalDigits: 3).format(item.price)} - ${item.category}',
-                                    ),
-                                    trailing: isSelected 
+                                    subtitle: Text('$priceLabel - ${item.category}'),
+                                    trailing: isSelected
                                         ? const Icon(Icons.check_circle, color: Colors.blue)
                                         : null,
-                                    onTap: () {
+                                    onTap: () async {
+                                      final chosen = await _pickItemVariant(ctx, item);
+                                      if (chosen == null) return; // size dialog cancelled
                                       setDialogState(() {
-                                        selectedItem = item;
+                                        selectedItem = chosen;
+                                        selectedBaseId = item.id;
+                                        quantity = 1;
                                       });
                                     },
                                   ),
@@ -1095,21 +1199,36 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                 ),
                 ElevatedButton(
                   onPressed: selectedItem == null ? null : () {
+                    final added = selectedItem!;
+                    // Size variants carry a non-numeric id like "12_Large";
+                    // fall back to 0 exactly as OrderProvider does.
                     final newItem = OrderItem(
-                      id: int.parse(selectedItem!.id),
-                      name: selectedItem!.name,
-                      price: selectedItem!.price,
+                      id: int.tryParse(added.id) ?? 0,
+                      name: added.name,
+                      price: added.price,
                       quantity: quantity,
-                      kitchenNote: selectedItem!.kitchenNote,
-                      taxExempt: selectedItem!.taxExempt, // NEW: Include tax-exempt status
-                      purchasePrice: selectedItem!.purchasePrice,
+                      kitchenNote: added.kitchenNote,
+                      taxExempt: added.taxExempt, // NEW: Include tax-exempt status
+                      purchasePrice: added.purchasePrice,
                     );
-                    
+
                     setState(() {
                       items.add(newItem);
                     });
-                    
+
+                    final messenger = ScaffoldMessenger.of(context);
                     Navigator.of(ctx).pop();
+
+                    if (!added.isAvailable) {
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            '"${added.name}" ${'is out of stock but has been added to your order'.tr()}',
+                          ),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    }
                   },
                   child:  Text('Add Item'.tr()),
                 ),

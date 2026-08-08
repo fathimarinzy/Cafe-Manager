@@ -1,15 +1,6 @@
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        classpath("com.android.tools.build:gradle:7.0.2")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.6.10")
-        classpath("com.google.gms:google-services:4.3.15")
-
-    }
-}
+// Plugin versions are declared once in settings.gradle.kts (pluginManagement).
+// A buildscript{} block here would resolve a second, conflicting AGP/Kotlin
+// graph onto the same classpath.
 
 allprojects {
     repositories {

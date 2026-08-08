@@ -74,10 +74,11 @@ class BillService {
     // Return cached font if available
     if (_cachedFallbackFont != null) return _cachedFallbackFont;
 
+    // Must match the actual filenames in assets/fonts/ - the previous list used
+    // "open-sans-regular.ttf" (hyphen) plus two fonts that aren't in the project,
+    // so every candidate missed and PDFs silently fell back to a default face.
     final List<String> fallbackFonts = [
-      "assets/fonts/open-sans-regular.ttf",
-      "assets/fonts/roboto-regular.ttf",
-      "assets/fonts/ubuntu-regular.ttf"
+      "assets/fonts/open-sans.regular.ttf",
     ];
     
     for (String fontPath in fallbackFonts) {

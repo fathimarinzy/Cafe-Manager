@@ -12,6 +12,7 @@ import '../services/logo_service.dart';
 import '../providers/order_provider.dart';
 import '../providers/table_provider.dart';
 import '../models/order.dart';
+import '../repositories/local_order_repository.dart';
 import '../screens/quotations_list_screen.dart';
 
 
@@ -58,9 +59,17 @@ class DashboardUltimate extends StatefulWidget {
 }
 
 class _DashboardUltimateState extends State<DashboardUltimate> with TickerProviderStateMixin {
-  String _timeString = "";
-  late Timer _timer;
   late AnimationController _bgController;
+
+  // Held in state rather than created inside build(). Passing
+  // `future: orderProvider.fetchOrders()` straight to a FutureBuilder re-ran a
+  // full unbounded scan of the orders table on every rebuild, which the clock's
+  // per-second setState turned into a permanent busy-loop against the database.
+  Future<Map<String, int>>? _statsFuture;
+  Future<List<Order>>? _recentFuture;
+
+  final LocalOrderRepository _orderRepo = LocalOrderRepository();
+  OrderProvider? _orderProvider;
 
   // Animation Controller for Logo Pulse
 //   late final AnimationController _logoPulseController;
@@ -69,9 +78,12 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
   @override
   void initState() {
     super.initState();
-    _timeString = _formatTime();
-    _timer = Timer.periodic(const Duration(seconds: 1), (Timer t) => _updateTime());
-    
+    _refreshData();
+
+    // Refresh when orders actually change, instead of on every rebuild.
+    _orderProvider = Provider.of<OrderProvider>(context, listen: false);
+    _orderProvider!.addListener(_refreshData);
+
     _bgController = AnimationController(
        vsync: this,
        // Slow down animation on Android to save resources, or keep normal on Desktop
@@ -90,22 +102,19 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
     // );
   }
 
-  void _updateTime() {
-    final String formattedDateTime = _formatTime();
-    if (mounted) {
-      setState(() {
-        _timeString = formattedDateTime;
-      });
-    }
-  }
-
-  String _formatTime() {
-    return DateFormat('hh:mm a').format(DateTime.now());
+  // Rebuilds the cached futures. Called on init and whenever OrderProvider
+  // reports a change - never from build().
+  void _refreshData() {
+    if (!mounted) return;
+    setState(() {
+      _statsFuture = _orderRepo.getDashboardCounts();
+      _recentFuture = _orderRepo.getOrdersPage(limit: 7);
+    });
   }
 
   @override
   void dispose() {
-    _timer.cancel();
+    _orderProvider?.removeListener(_refreshData);
     _bgController.dispose();
     // _logoPulseController.dispose(); // Dispose pulse controller
     super.dispose();
@@ -600,7 +609,7 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
                    children: [
                      const Icon(Icons.access_time_rounded, color: Color(0xFF76FF03), size: 18),
                      const SizedBox(width: 8),
-                     Text(_timeString, style: const TextStyle(color: Color(0xFF76FF03), fontWeight: FontWeight.bold)),
+                     const _DashboardClock(),
                    ],
                  ),
               ),
@@ -631,40 +640,16 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
   }
 
   Widget _buildStatsRow(BuildContext context, {bool isMobile = false}) {
-    return Consumer2<OrderProvider, TableProvider>(
-      builder: (context, orderProvider, tableProvider, child) {
-        return FutureBuilder<List<Order>>(
-          // We can remove FetchOrders here if we want to rely on provider state, 
-          // but fetchOrders ensures fresh data. 
-          future: orderProvider.fetchOrders(),
+    return Consumer<TableProvider>(
+      builder: (context, tableProvider, child) {
+        // Counts come from SQL aggregates (see getDashboardCounts) rather than
+        // loading every order and its items just to total two numbers.
+        return FutureBuilder<Map<String, int>>(
+          future: _statsFuture,
           builder: (context, snapshot) {
-             // double revenue = 0;
-             int pending = 0;
-             int todayOrders = 0;
-
-             if (snapshot.hasData) {
-               final now = DateTime.now();
-               // Create date bounds for "today"
-               final todayStr = DateFormat('yyyy-MM-dd').format(now);
-               
-               for (var order in snapshot.data!) {
-                 // Check if order is from today
-                 if (order.createdAt != null) {
-                   // Simple string check since we likely store as ISO8601
-                   // Or clearer parsing:
-                   final orderDate = DateTime.tryParse(order.createdAt!);
-                   if (orderDate != null) {
-                     final orderDateStr = DateFormat('yyyy-MM-dd').format(orderDate);
-                     if (orderDateStr == todayStr) {
-                       todayOrders++;
-                     }
-                   }
-                 }
-                 
-                 // revenue += order.total;
-                 if (order.status == 'pending') pending++;
-               }
-             }
+             final counts = snapshot.data;
+             final int pending = counts?['pending'] ?? 0;
+             final int todayOrders = counts?['today'] ?? 0;
 
              final occupiedTables = tableProvider.tables.where((t) => t.isOccupied).length;
              
@@ -928,10 +913,12 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
           ),
           const SizedBox(height: 16),
           Expanded(
-            child: Consumer<OrderProvider>(
-              builder: (context, orderProvider, child) {
+            // getOrdersPage already returns created_at DESC and is limited to
+            // the 7 rows shown here, so there is nothing left to sort or trim.
+            child: Builder(
+              builder: (context) {
                 return FutureBuilder<List<Order>>(
-                  future: orderProvider.fetchOrders(),
+                  future: _recentFuture,
                   builder: (context, snapshot) {
                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
                        return Center(
@@ -946,9 +933,7 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
                        );
                      }
 
-                     final orders = snapshot.data!;
-                     orders.sort((a, b) => (b.createdAt ?? "").compareTo(a.createdAt ?? ""));
-                     final recentOrders = orders.take(7).toList();
+                     final recentOrders = snapshot.data!;
 
                      return ListView.separated(
                        itemCount: recentOrders.length,
@@ -1357,6 +1342,55 @@ class _AnimatedOrderListButtonState extends State<_AnimatedOrderListButton> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// Self-contained clock. Previously the dashboard state itself held the time and
+// called setState every second, rebuilding the whole dashboard - including the
+// FutureBuilders that query the orders table. Keeping the tick isolated here
+// means only this Text rebuilds.
+class _DashboardClock extends StatefulWidget {
+  const _DashboardClock();
+
+  @override
+  State<_DashboardClock> createState() => _DashboardClockState();
+}
+
+class _DashboardClockState extends State<_DashboardClock> {
+  late Timer _timer;
+  String _timeString = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _timeString = _formatTime();
+    // The display is minute-precision ('hh:mm a'), so a per-second tick would
+    // redraw the same text 59 times out of 60.
+    _timer = Timer.periodic(const Duration(seconds: 20), (_) {
+      final formatted = _formatTime();
+      if (mounted && formatted != _timeString) {
+        setState(() => _timeString = formatted);
+      }
+    });
+  }
+
+  String _formatTime() => DateFormat('hh:mm a').format(DateTime.now());
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      _timeString,
+      style: const TextStyle(
+        color: Color(0xFF76FF03),
+        fontWeight: FontWeight.bold,
       ),
     );
   }

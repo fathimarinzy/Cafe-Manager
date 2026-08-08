@@ -9,6 +9,7 @@ class MainActivity : FlutterActivity(){
         GeneratedPluginRegistrant.registerWith(flutterEngine)
         super.configureFlutterEngine(flutterEngine)
         flutterEngine.plugins.add(FilePickerPlugin())
+        flutterEngine.plugins.add(UsbPrinterPlugin())
     }
 }
 

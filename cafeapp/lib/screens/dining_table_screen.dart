@@ -9,6 +9,7 @@ import '../providers/table_provider.dart';
 import '../providers/settings_provider.dart';
 import '../repositories/local_order_repository.dart';
 import '../utils/app_localization.dart';
+import '../widgets/clock_widget.dart';
 
 class DiningTableScreen extends StatefulWidget {
   const DiningTableScreen({super.key});
@@ -18,9 +19,6 @@ class DiningTableScreen extends StatefulWidget {
 }
 
 class _DiningTableScreenState extends State<DiningTableScreen> {
-  late Timer _timer;
-  late String _currentTime;
-  
   // Table layout configuration
   int _columns = 6; // Default columns
   int _rows = 4;    // Default rows
@@ -34,12 +32,6 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
   @override
   void initState() {
     super.initState();
-    _updateTime();
-    // Update time every second
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      _updateTime();
-    });
-    
     // Load saved layout configuration
     _loadSavedLayout();
     
@@ -81,15 +73,15 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
         return;
       }
       
-      // Query orders to find which tables these belong to
+      // Fetch only the orders we already have ids for, rather than loading the
+      // entire orders table and filtering it in Dart.
       final repo = LocalOrderRepository();
-      final allOrders = await repo.getAllOrders();
+      final receiptOrders = await repo.getOrdersByIds(receiptOrderIds);
       final tableRegex = RegExp(r'Table\s+(\d+)');
-      
+
       Set<int> tables = {};
-      for (var order in allOrders) {
-        if (receiptOrderIds.contains(order.id) &&
-            order.status.toLowerCase() == 'pending' &&
+      for (var order in receiptOrders) {
+        if (order.status.toLowerCase() == 'pending' &&
             order.serviceType.contains('Dining - Table')) {
           final match = tableRegex.firstMatch(order.serviceType);
           if (match != null) {
@@ -129,19 +121,9 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
   
   @override
   void dispose() {
-    _timer.cancel();
     super.dispose();
   }
   
-  void _updateTime() {
-    final now = DateTime.now();
-    final hour = now.hour > 12 ? now.hour - 12 : now.hour == 0 ? 12 : now.hour;
-    final amPm = now.hour >= 12 ? 'PM' : 'AM';
-  
-    setState(() {
-      _currentTime = '${hour.toString()}:${now.minute.toString().padLeft(2, '0')} $amPm';
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -193,9 +175,9 @@ class _DiningTableScreenState extends State<DiningTableScreen> {
               children: [
                 const Icon(Icons.access_time_rounded, color: Colors.black54, size: 16),
                 const SizedBox(width: 6),
-                Text(
-                  _currentTime,
-                  style: const TextStyle(
+                const ClockWidget(
+                  pattern: 'h:mm a',
+                  style: TextStyle(
                     color: Colors.black87,
                     fontWeight: FontWeight.w600,
                     fontSize: 13,

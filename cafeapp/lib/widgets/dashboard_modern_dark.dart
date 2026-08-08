@@ -4,8 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/logo_provider.dart';
 import '../services/logo_service.dart';
-import 'dart:async';
-import 'package:intl/intl.dart';
+import 'clock_widget.dart';
 
 
 class DashboardModernDark extends StatefulWidget {
@@ -33,35 +32,6 @@ class DashboardModernDark extends StatefulWidget {
 }
 
 class _DashboardModernDarkState extends State<DashboardModernDark> {
-  String _timeString = "";
-  late Timer _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _timeString = _formatTime();
-    _timer = Timer.periodic(const Duration(seconds: 1), (Timer t) => _getTime());
-  }
-
-  void _getTime() {
-    final String formattedDateTime = _formatTime();
-    if (mounted) {
-      setState(() {
-        _timeString = formattedDateTime;
-      });
-    }
-  }
-
-  String _formatTime() {
-    return DateFormat('hh:mm:ss a').format(DateTime.now());
-  }
-
-  @override
-  void dispose() {
-    _timer.cancel();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -77,9 +47,9 @@ class _DashboardModernDarkState extends State<DashboardModernDark> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    _timeString,
-                    style: const TextStyle(
+                  const ClockWidget(
+                    pattern: 'hh:mm:ss a',
+                    style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w400,
