@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_localization.dart';
+import '../utils/currency_format.dart';
 import '../services/online_sync_service.dart';
 import '../providers/lan_sync_provider.dart';
 import '../models/lan_sync_models.dart';
@@ -28,6 +29,9 @@ class SettingsProvider with ChangeNotifier {
   // Tax settings
   double _taxRate = 0.0;
   bool _isVatInclusive = false; // NEW: Add this field
+
+  // Currency / number format
+  int _currencyDecimals = CurrencyFormat.defaultDecimals;
 
   // Table layout
   int _tableRows = 4;
@@ -73,6 +77,7 @@ class SettingsProvider with ChangeNotifier {
   String get appTheme => _appTheme;
   String get appLanguage => _appLanguage;
   double get taxRate => _taxRate;
+  int get currencyDecimals => _currencyDecimals;
   int get tableRows => _tableRows;
   int get tableColumns => _tableColumns;
   String get businessName => _businessName;
@@ -184,6 +189,11 @@ class SettingsProvider with ChangeNotifier {
       // Load tax settings
       _taxRate = prefs.getDouble('tax_rate') ?? _taxRate;
       _isVatInclusive = prefs.getBool('is_vat_inclusive') ?? _isVatInclusive;
+
+      // Load currency / number format settings
+      _currencyDecimals = prefs.getInt(CurrencyFormat.prefsKey) ?? _currencyDecimals;
+      CurrencyFormat.applyDecimals(_currencyDecimals);
+      _currencyDecimals = CurrencyFormat.decimals;
 
       // Load table layout
       _tableRows = prefs.getInt('table_rows') ?? _tableRows;
@@ -297,6 +307,15 @@ class SettingsProvider with ChangeNotifier {
             await prefs.setBool(key, value);
           }
           break;
+        case CurrencyFormat.prefsKey:
+          if (value is int) {
+            // Keep the static formatter and the provider in lockstep; the
+            // static is what PDF/printing paths read.
+            CurrencyFormat.applyDecimals(value);
+            _currencyDecimals = CurrencyFormat.decimals;
+            await prefs.setInt(key, _currencyDecimals);
+          }
+          break;
         case 'table_rows':
           if (value is int) {
             _tableRows = value;
@@ -359,9 +378,9 @@ class SettingsProvider with ChangeNotifier {
           break;
       }
       // Trigger sync if needed
-      if (isBusinessInfoUpdated || key == 'tax_rate' || key == 'is_vat_inclusive' || key == 'receipt_footer') {
+      if (isBusinessInfoUpdated || key == 'tax_rate' || key == 'is_vat_inclusive' || key == 'receipt_footer' || key == CurrencyFormat.prefsKey) {
         _triggerBusinessInfoSync();
-        
+
         // LAN Sync
         final settingsMap = {
           'business_name': _businessName,
@@ -372,6 +391,7 @@ class SettingsProvider with ChangeNotifier {
           'tax_rate': _taxRate,
           'is_vat_inclusive': _isVatInclusive,
           'receipt_footer': _receiptFooter,
+          CurrencyFormat.prefsKey: _currencyDecimals,
         };
         LanSyncProvider.instance.broadcastEvent(
           SyncEvent(
@@ -415,6 +435,7 @@ class SettingsProvider with ChangeNotifier {
     String? receiptFooter,
     ThemeMode? themeMode,
     bool? isVatInclusive,
+    int? currencyDecimals,
 
     bool? deviceSyncEnabled,
     bool? doubleTapToOpenKeyboard,
@@ -478,6 +499,14 @@ class SettingsProvider with ChangeNotifier {
         _isVatInclusive = isVatInclusive;
         await prefs.setBool('is_vat_inclusive', isVatInclusive);
       }
+
+      // Update currency / number format
+      if (currencyDecimals != null) {
+        CurrencyFormat.applyDecimals(currencyDecimals);
+        _currencyDecimals = CurrencyFormat.decimals;
+        await prefs.setInt(CurrencyFormat.prefsKey, _currencyDecimals);
+      }
+
       // Update table layout
       if (tableRows != null) {
         _tableRows = tableRows;
@@ -536,9 +565,9 @@ class SettingsProvider with ChangeNotifier {
       }
 
       // Trigger sync if needed
-      if (isBusinessInfoUpdated || taxRate != null || isVatInclusive != null || receiptFooter != null) {
+      if (isBusinessInfoUpdated || taxRate != null || isVatInclusive != null || receiptFooter != null || currencyDecimals != null) {
         _triggerBusinessInfoSync();
-        
+
         // LAN Sync
         final settingsMap = {
           'business_name': _businessName,
@@ -549,6 +578,7 @@ class SettingsProvider with ChangeNotifier {
           'tax_rate': _taxRate,
           'is_vat_inclusive': _isVatInclusive,
           'receipt_footer': _receiptFooter,
+          CurrencyFormat.prefsKey: _currencyDecimals,
         };
         LanSyncProvider.instance.broadcastEvent(
           SyncEvent(
@@ -591,7 +621,11 @@ class SettingsProvider with ChangeNotifier {
       // Reset tax settings
       _taxRate = 0.0;
       _isVatInclusive = false;
-      
+
+      // Reset currency / number format
+      _currencyDecimals = CurrencyFormat.defaultDecimals;
+      CurrencyFormat.applyDecimals(_currencyDecimals);
+
       // Input settings
       _doubleTapToOpenKeyboard = false;
 
@@ -632,6 +666,7 @@ class SettingsProvider with ChangeNotifier {
         receiptFooter: _receiptFooter,
         themeMode: _themeMode,
         isVatInclusive: _isVatInclusive,
+        currencyDecimals: _currencyDecimals,
         doubleTapToOpenKeyboard: _doubleTapToOpenKeyboard,
 
       );

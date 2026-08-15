@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import '../models/order_history.dart';
 import '../providers/order_history_provider.dart';
 import 'order_details_screen.dart';
@@ -13,6 +12,7 @@ import '../models/person.dart';
 import '../widgets/clock_widget.dart';
 import '../screens/quotations_list_screen.dart';
 import '../utils/keyboard_utils.dart';
+import '../utils/currency_format.dart';
 // import 'package:shared_preferences/shared_preferences.dart';
 
 
@@ -710,7 +710,7 @@ Widget _buildOrderList() {
 
 Widget _buildOrderCard(OrderHistory order) {
     // Format currency
-    final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
+    final currencyFormat = CurrencyFormat.numberFormat;
     
     // Get service type icon and color
     IconData serviceIcon = _getServiceTypeIcon(order.serviceType);

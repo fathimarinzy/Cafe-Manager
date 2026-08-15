@@ -13,6 +13,7 @@ import 'package:window_manager/window_manager.dart';
 import 'utils/database_helper.dart';
 import 'utils/logger.dart';
 import 'utils/app_messenger.dart';
+import 'utils/currency_format.dart';
 
 import 'screens/login_screen.dart';
 import 'screens/person_form_screen.dart';
@@ -57,7 +58,11 @@ void main() async {
   // 🛡️ CRITICAL: Set up global error logging immediately
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
-    
+
+    // Load the configured currency decimal places before the first frame so
+    // that UI, PDF and printing paths all format money consistently.
+    await CurrencyFormat.init();
+
     // Load environment variables early
     try {
       await dotenv.load(fileName: ".env");

@@ -8,6 +8,7 @@ import '../services/cross_platform_pdf_service.dart';
 import '../providers/order_provider.dart';
 import '../providers/order_history_provider.dart';
 import '../utils/app_localization.dart';
+import '../utils/currency_format.dart';
 
 class QuotationsListScreen extends StatefulWidget {
   const QuotationsListScreen({super.key});
@@ -178,7 +179,7 @@ class _QuotationsListScreenState extends State<QuotationsListScreen> {
                                 children: [
                                   Text('${'Items'.tr()}: ${quote.items.length}'),
                                   Text(
-                                    '${'Total'.tr()}: ${NumberFormat.currency(symbol: '').format(quote.total)}',
+                                    '${'Total'.tr()}: ${CurrencyFormat.numberFormat.format(quote.total)}',
                                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                   ),
                                 ],

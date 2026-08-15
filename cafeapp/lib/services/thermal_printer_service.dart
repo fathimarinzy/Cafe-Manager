@@ -4,8 +4,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:image/image.dart' as img;
 import 'package:intl/intl.dart';
+import 'package:image/image.dart' as img;
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:esc_pos_printer_plus/esc_pos_printer_plus.dart';
 import 'android_usb_printer.dart';
@@ -13,6 +13,7 @@ import 'windows_raw_printer.dart';
 import '../models/menu_item.dart';
 import '../models/order_item.dart';
 import 'logo_service.dart';
+import '../utils/currency_format.dart';
 
 class KotPrinterConfig {
   String ip;
@@ -521,7 +522,7 @@ class ThermalPrinterService {
     
     // Price - right aligned
     final pricePainter = _createTextPainter(
-      item.price.toStringAsFixed(3),
+      item.price.toMoney(),
       fontSize: _fontSize - 4,
     );
     final priceXAligned = priceX + (_thermalPrinterWidth * 0.20 - 30 - pricePainter.width);
@@ -530,7 +531,7 @@ class ThermalPrinterService {
     // Total - right aligned
     final totalPrice = item.price * item.quantity;
     final totalPainter = _createTextPainter(
-      totalPrice.toStringAsFixed(3),
+      totalPrice.toMoney(),
       fontSize: _fontSize - 4,
       fontWeight: FontWeight.bold,
     ); 
@@ -958,27 +959,27 @@ static Future<Uint8List?> _generateReceiptImage({
     currentY = _drawLine(canvas, currentY);
     
     // Totals
-    currentY = _drawTotalRow(canvas, 'Subtotal:', subtotal.toStringAsFixed(3), currentY);
-    currentY = _drawTotalRow(canvas, 'Tax (${effectiveTaxRate.toStringAsFixed(1)}%):', tax.toStringAsFixed(3), currentY);
+    currentY = _drawTotalRow(canvas, 'Subtotal:', subtotal.toMoney(), currentY);
+    currentY = _drawTotalRow(canvas, 'Tax (${effectiveTaxRate.toStringAsFixed(1)}%):', tax.toMoney(), currentY);
     
     if (deliveryCharge != null && deliveryCharge > 0) {
-       currentY = _drawTotalRow(canvas, 'Delivery Fee:', deliveryCharge.toStringAsFixed(3), currentY);
+       currentY = _drawTotalRow(canvas, 'Delivery Fee:', deliveryCharge.toMoney(), currentY);
     }
     
     if (discount > 0) {
-      currentY = _drawTotalRow(canvas, 'Discount:', discount.toStringAsFixed(3), currentY);
+      currentY = _drawTotalRow(canvas, 'Discount:', discount.toMoney(), currentY);
     }
     
     currentY = _drawLine(canvas, currentY);
-    currentY = _drawTotalRow(canvas, 'TOTAL:', total.toStringAsFixed(3), currentY, isTotal: true);
+    currentY = _drawTotalRow(canvas, 'TOTAL:', total.toMoney(), currentY, isTotal: true);
     // Deposit and Balance
     if (depositAmount != null && depositAmount > 0) {
        currentY += 5;
        currentY = _drawLine(canvas, currentY, thickness: 2.0);
-       currentY = _drawTotalRow(canvas, 'Advance Paid:', depositAmount.toStringAsFixed(3), currentY);
+       currentY = _drawTotalRow(canvas, 'Advance Paid:', depositAmount.toMoney(), currentY);
        
        final balance = total - depositAmount;
-       currentY = _drawTotalRow(canvas, 'Balance Due:', balance.toStringAsFixed(3), currentY, isTotal: true);
+       currentY = _drawTotalRow(canvas, 'Balance Due:', balance.toMoney(), currentY, isTotal: true);
     }
     // currentY = _drawLine(canvas, currentY);
     
@@ -2435,6 +2436,23 @@ static Future<Uint8List?> _generateKotImage({
       return null;
     }
   }
+  /// Parses the mixed `created_at` formats carried in report payloads:
+  /// local-naive ISO, UTC ISO from synced devices, and legacy
+  /// `local_<epochMillis>`.
+  static DateTime? _parseReportDate(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      if (raw.contains('local_')) {
+        final parts = raw.split('_');
+        if (parts.length < 2) return null;
+        return DateTime.fromMillisecondsSinceEpoch(int.parse(parts.last));
+      }
+      return DateTime.parse(raw);
+    } catch (e) {
+      return null;
+    }
+  }
+
   // Generate Report Image for thermal printing
   static Future<Uint8List?> _generateReportImage({
     required Map<String, dynamic> reportData,
@@ -2443,7 +2461,7 @@ static Future<Uint8List?> _generateKotImage({
     required Map<String, String> businessInfo,
   }) async {
     try {
-      final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
+      final currencyFormat = CurrencyFormat.numberFormat;
       final revenue = reportData['revenue'] ?? {};
       final paymentTotals = reportData['paymentTotals'] as Map<String, dynamic>? ?? {};
       final serviceTypeSales = reportData['serviceTypeSales'] as List? ?? [];
@@ -2458,7 +2476,8 @@ static Future<Uint8List?> _generateKotImage({
       // omit them as well.
       final isProfitReport = reportTitle.contains('Profit');
       final isSummaryReport = reportTitle.contains('Summary');
-      final showSalesSections = !isProfitReport && !isSummaryReport;
+      final isCancelledReport = reportTitle.contains('Cancelled');
+      final showSalesSections = !isProfitReport && !isSummaryReport && !isCancelledReport;
 
       // Single layout routine. Runs twice: once with a null canvas to measure,
       // once with the real canvas to draw. The drawing helpers skip painting when
@@ -2740,6 +2759,64 @@ static Future<Uint8List?> _generateKotImage({
                {'text': currencyFormat.format(price), 'width': 0.20, 'align': 'right'},
                {'text': currencyFormat.format(totalRevenue), 'width': 0.20, 'align': 'right'},
              ], currentY);
+          }
+      } else if (isCancelledReport) {
+          final cancelledOrders = reportData['cancelledOrders'] as List? ?? [];
+          final cancelledCount = reportData['cancelledCount'] as int? ?? 0;
+          final cancelledValue = reportData['cancelledValue'] as double? ?? 0.0;
+
+          currentY = _drawText(
+            canvas,
+            'Cancelled Orders',
+            x: _padding,
+            y: currentY,
+            fontSize: _fontSize - 2,
+            fontWeight: FontWeight.bold,
+            textAlign: TextAlign.center,
+          );
+          currentY = _drawLine(canvas, currentY);
+
+          currentY = _drawReportRow(canvas, [
+            {'text': 'Cancelled Orders:', 'width': 0.66, 'align': 'right'},
+            {'text': '$cancelledCount', 'width': 0.34, 'align': 'right'},
+          ], currentY);
+
+          currentY = _drawReportRow(canvas, [
+            {'text': 'Cancelled Value:', 'width': 0.66, 'align': 'right', 'bold': true},
+            {'text': currencyFormat.format(cancelledValue), 'width': 0.34, 'align': 'right', 'bold': true},
+          ], currentY);
+
+          currentY += 8;
+
+          if (cancelledOrders.isEmpty) {
+            currentY = _drawText(
+              canvas,
+              'No cancelled orders found',
+              x: _padding,
+              y: currentY,
+              fontSize: _fontSize - 2,
+              textAlign: TextAlign.center,
+            );
+          } else {
+            currentY = _drawReportRow(canvas, [
+              {'text': 'Order #', 'width': 0.25, 'bold': true},
+              {'text': 'Date', 'width': 0.45, 'bold': true},
+              {'text': 'Total', 'width': 0.30, 'bold': true, 'align': 'right'},
+            ], currentY);
+            currentY = _drawLine(canvas, currentY);
+
+            for (var order in cancelledOrders) {
+              final orderMap = order as Map<String, dynamic>;
+              final orderNumber = orderMap['orderNumber']?.toString() ?? '';
+              final total = orderMap['total'] as double? ?? 0.0;
+              final orderDate = _parseReportDate(orderMap['createdAt'] as String?);
+
+              currentY = _drawReportRow(canvas, [
+                {'text': orderNumber, 'width': 0.25},
+                {'text': orderDate == null ? '' : DateFormat('dd/MM HH:mm').format(orderDate), 'width': 0.45},
+                {'text': currencyFormat.format(total), 'width': 0.30, 'align': 'right'},
+              ], currentY);
+            }
           }
       } else {
         // Revenue Breakdown Section

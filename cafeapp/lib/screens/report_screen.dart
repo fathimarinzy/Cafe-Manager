@@ -15,6 +15,7 @@ import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
 // import 'dart:convert'; // For utf8 encoding
 import '../services/cross_platform_pdf_service.dart';
+import '../utils/currency_format.dart';
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
@@ -48,7 +49,12 @@ class _ReportScreenState extends State<ReportScreen> {
   String _summaryReportPeriod = 'daily'; // 'daily', 'weekly', 'monthly', 'yearly', 'custom'
   late DateTime _summaryStartDate;
   late DateTime _summaryEndDate;
-  
+
+  // Date range specifically for cancelled orders reports
+  String _cancelledReportPeriod = 'daily'; // 'daily', 'weekly', 'monthly', 'yearly', 'custom'
+  late DateTime _cancelledStartDate;
+  late DateTime _cancelledEndDate;
+
   bool _isPrinting = false;
   bool _isSavingPdf = false; // Add PDF saving state
 
@@ -67,6 +73,8 @@ class _ReportScreenState extends State<ReportScreen> {
     _profitEndDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
     _summaryStartDate = DateTime(now.year, now.month, now.day);
     _summaryEndDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    _cancelledStartDate = DateTime(now.year, now.month, now.day);
+    _cancelledEndDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
     _loadReport();
   }
  // Helper method to format time range text for display
@@ -210,10 +218,12 @@ class _ReportScreenState extends State<ReportScreen> {
         filename = 'Profit_Report_${DateFormat('dd-MM-yyyy').format(_profitStartDate)}_to_${DateFormat('dd-MM-yyyy').format(_profitEndDate)}.pdf';
       } else if (_selectedReportType == 'summary') {
         filename = 'Summary_Report_${DateFormat('dd-MM-yyyy').format(_summaryStartDate)}_to_${DateFormat('dd-MM-yyyy').format(_summaryEndDate)}.pdf';
+      } else if (_selectedReportType == 'cancelled') {
+        filename = 'Cancelled_Orders_Report_${DateFormat('dd-MM-yyyy').format(_cancelledStartDate)}_to_${DateFormat('dd-MM-yyyy').format(_cancelledEndDate)}.pdf';
       } else {
         filename = 'Report_${DateFormat('dd-MM-yyyy').format(_startDate)}_to_${DateFormat('dd-MM-yyyy').format(_endDate)}.pdf';
       }
-      
+
      // Use cross-platform PDF saving
     final saved = await CrossPlatformPdfService.savePdf(pdf, suggestedFileName: filename);
 
@@ -343,6 +353,14 @@ class _ReportScreenState extends State<ReportScreen> {
         } else {
           dateRangeText = '${DateFormat('dd MMM yyyy').format(_summaryStartDate)} - ${DateFormat('dd MMM yyyy').format(_summaryEndDate)}${_getTimeRangeText()}';
         }
+      } else if (_selectedReportType == 'cancelled') {
+        // ThermalPrinterService branches on this title string.
+        reportTitle = 'Cancelled Orders Report';
+        if (_cancelledReportPeriod == 'daily') {
+          dateRangeText = DateFormat('dd MMM yyyy').format(_cancelledStartDate) + _getTimeRangeText();
+        } else {
+          dateRangeText = '${DateFormat('dd MMM yyyy').format(_cancelledStartDate)} - ${DateFormat('dd MMM yyyy').format(_cancelledEndDate)}${_getTimeRangeText()}';
+        }
       } else {
         reportTitle = 'Monthly Report';
         dateRangeText = '${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}${_getTimeRangeText()}';
@@ -418,12 +436,19 @@ Future<pw.Document> _generateReportPdf() async {
        } else {
           dateRangeText = '${DateFormat('dd MMM yyyy').format(_summaryStartDate)} - ${DateFormat('dd MMM yyyy').format(_summaryEndDate)}${_getTimeRangeText()}';
        }
+  } else if (_selectedReportType == 'cancelled') {
+       reportTitle = 'Cancelled Orders Report'.tr();
+       if (_cancelledReportPeriod == 'daily') {
+          dateRangeText = DateFormat('dd MMM yyyy').format(_cancelledStartDate) + _getTimeRangeText();
+       } else {
+          dateRangeText = '${DateFormat('dd MMM yyyy').format(_cancelledStartDate)} - ${DateFormat('dd MMM yyyy').format(_cancelledEndDate)}${_getTimeRangeText()}';
+       }
   } else {
     reportTitle = 'Monthly Report'.tr();
     dateRangeText = '${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}${_getTimeRangeText()}';
   }
   
-  final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
+  final currencyFormat = CurrencyFormat.numberFormat;
   final revenue = _reportData!['revenue'] ?? {};
   final paymentTotals = _reportData!['paymentTotals'] as Map<String, dynamic>? ?? {};
   final serviceTypeSales = _reportData!['serviceTypeSales'] as List? ?? [];
@@ -634,8 +659,76 @@ Future<pw.Document> _generateReportPdf() async {
                 ]
               )
             ];
+         } else if (_selectedReportType == 'cancelled') {
+            final cancelledOrders = _reportData!['cancelledOrders'] as List? ?? [];
+            final cancelledCount = _reportData!['cancelledCount'] as int? ?? 0;
+            final cancelledValue = _reportData!['cancelledValue'] as double? ?? 0.0;
+            return [
+              pw.SizedBox(height: 15),
+              pw.Container(
+                padding: const pw.EdgeInsets.all(10),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColors.grey300),
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(5)),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        _createText('Cancelled Orders'.tr(), fallbackFont: fallbackFont, arabicFont: arabicFont, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                        _createText('$cancelledCount', fallbackFont: fallbackFont, arabicFont: arabicFont, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      ]
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        _createText('Cancelled Value'.tr(), fallbackFont: fallbackFont, arabicFont: arabicFont, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                        _createText(currencyFormat.format(cancelledValue), fallbackFont: fallbackFont, arabicFont: arabicFont, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.red800)),
+                      ]
+                    ),
+                  ]
+                )
+              ),
+              pw.SizedBox(height: 15),
+              pw.Text('Cancelled Orders'.tr(), style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 10),
+              if (cancelledOrders.isEmpty)
+                _createText('No cancelled orders found'.tr(), fallbackFont: fallbackFont, arabicFont: arabicFont)
+              else
+                pw.Table(
+                  border: pw.TableBorder.all(color: PdfColors.grey300),
+                  children: [
+                    pw.TableRow(
+                      decoration: const pw.BoxDecoration(color: PdfColors.blue100),
+                      children: [
+                        pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText('Order #'.tr(), fallbackFont: fallbackFont, arabicFont: arabicFont, style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                        pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText('Date'.tr(), fallbackFont: fallbackFont, arabicFont: arabicFont, style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                        pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText('Service Type'.tr(), fallbackFont: fallbackFont, arabicFont: arabicFont, style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                        pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText('Customer'.tr(), fallbackFont: fallbackFont, arabicFont: arabicFont, style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                        pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText('Total'.tr(), fallbackFont: fallbackFont, arabicFont: arabicFont, textAlign: pw.TextAlign.right, style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
+                      ]
+                    ),
+                    ...cancelledOrders.map((order) {
+                      final orderMap = order as Map<String, dynamic>;
+                      final orderDate = _parseOrderDate(orderMap['createdAt'] as String?);
+                      return pw.TableRow(
+                        children: [
+                          pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText(orderMap['orderNumber']?.toString() ?? '', fallbackFont: fallbackFont, arabicFont: arabicFont)),
+                          pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText(orderDate == null ? '' : DateFormat('dd MMM yy HH:mm').format(orderDate), fallbackFont: fallbackFont, arabicFont: arabicFont)),
+                          pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText(orderMap['serviceType']?.toString() ?? '', fallbackFont: fallbackFont, arabicFont: arabicFont)),
+                          pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText(orderMap['customerName']?.toString() ?? '', fallbackFont: fallbackFont, arabicFont: arabicFont)),
+                          pw.Padding(padding: const pw.EdgeInsets.all(5), child: _createText(currencyFormat.format(orderMap['total'] as double? ?? 0.0), fallbackFont: fallbackFont, arabicFont: arabicFont, textAlign: pw.TextAlign.right)),
+                        ]
+                      );
+                    }),
+                  ]
+                )
+            ];
          }
-        
+
         return [
           pw.SizedBox(height: 15),
           
@@ -1029,10 +1122,12 @@ pw.Widget _buildPdfProfitRow(Map<String, dynamic> paymentTotals, NumberFormat fo
         filename = 'Profit_Report_${DateFormat('dd-MM-yyyy').format(_profitStartDate)}_to_${DateFormat('dd-MM-yyyy').format(_profitEndDate)}.pdf';
       } else if (_selectedReportType == 'summary') {
         filename = 'Summary_Report_${DateFormat('dd-MM-yyyy').format(_summaryStartDate)}_to_${DateFormat('dd-MM-yyyy').format(_summaryEndDate)}.pdf';
+      } else if (_selectedReportType == 'cancelled') {
+        filename = 'Cancelled_Orders_Report_${DateFormat('dd-MM-yyyy').format(_cancelledStartDate)}_to_${DateFormat('dd-MM-yyyy').format(_cancelledEndDate)}.pdf';
       } else {
         filename = 'Report_${DateFormat('dd-MM-yyyy').format(_startDate)}_to_${DateFormat('dd-MM-yyyy').format(_endDate)}.pdf';
       }
-      
+
        // Use cross-platform PDF saving
     final saved = await CrossPlatformPdfService.savePdf(pdf, suggestedFileName: filename);
 
@@ -1294,6 +1389,28 @@ pw.Widget _buildPdfProfitRow(Map<String, dynamic> paymentTotals, NumberFormat fo
         startDate = _summaryStartDate;
         endDate = _summaryEndDate;
       }
+    } else if (_selectedReportType == 'cancelled') {
+      if (_useTimeFilter) {
+        startDate = DateTime(
+          _cancelledStartDate.year,
+          _cancelledStartDate.month,
+          _cancelledStartDate.day,
+          _startTime.hour,
+          _startTime.minute,
+        );
+        endDate = DateTime(
+          _cancelledEndDate.year,
+          _cancelledEndDate.month,
+          _cancelledEndDate.day,
+          _endTime.hour,
+          _endTime.minute,
+          59,
+          999
+        );
+      } else {
+        startDate = _cancelledStartDate;
+        endDate = _cancelledEndDate;
+      }
     } else {
       if (_useTimeFilter) {
         startDate = DateTime(
@@ -1401,6 +1518,22 @@ Future<void> _selectTime(bool isStartTime) async {
     final reportData = _createReportFromData(filteredOrders, filteredExpenses);
     return reportData;
   }
+  /// Parses the mixed `created_at` formats stored on orders: local-naive ISO,
+  /// UTC ISO from synced devices, and the legacy `local_<epochMillis>` form.
+  static DateTime? _parseOrderDate(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      if (raw.contains('local_')) {
+        final parts = raw.split('_');
+        if (parts.length < 2) return null;
+        return DateTime.fromMillisecondsSinceEpoch(int.parse(parts.last));
+      }
+      return DateTime.parse(raw);
+    } catch (e) {
+      return null;
+    }
+  }
+
 List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, DateTime endDate) {
   debugPrint('Filtering orders from ${DateFormat('yyyy-MM-dd HH:mm:ss').format(startDate)} to ${DateFormat('yyyy-MM-dd HH:mm:ss').format(endDate)}');
   
@@ -1470,9 +1603,24 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
   Map<String, dynamic> _createReportFromData(List<Order> orders, List<Map<String, dynamic>> expenses) {
     debugPrint('=== REPORT GENERATION DEBUG ===');
     
+    // Keep the cancelled orders aside for the Cancelled Orders report before
+    // stripping them; every report type shares one cached payload, so this has
+    // to be part of the same superset map (see _getCacheKey).
+    final cancelledOrders = orders
+        .where((o) => o.status.toLowerCase() == 'cancelled')
+        .toList()
+      ..sort((a, b) {
+        final da = _parseOrderDate(a.createdAt);
+        final db = _parseOrderDate(b.createdAt);
+        if (da == null && db == null) return 0;
+        if (da == null) return 1;
+        if (db == null) return -1;
+        return db.compareTo(da); // newest first
+      });
+
     // Filter out cancelled orders before processing anything
     orders = orders.where((o) => o.status.toLowerCase() != 'cancelled').toList();
-    
+
     debugPrint('Creating report from ${orders.length} active orders and ${expenses.length} expenses');
     
     final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
@@ -1720,6 +1868,23 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
       'paymentTotals': paymentTotals,
       'serviceTypeSales': serviceTypeSales,
       'topItems': topItems,
+      // Cancelled Orders report. Excluded from every revenue figure above.
+      'cancelledCount': cancelledOrders.length,
+      'cancelledValue':
+          cancelledOrders.fold(0.0, (sum, order) => sum + order.total),
+      'cancelledOrders': cancelledOrders.map((order) {
+        return {
+          'id': order.id,
+          'orderNumber': order.getDisplayOrderNumber(true),
+          'serviceType': _normalizeServiceType(order.serviceType),
+          'customerName': order.customerName ?? '',
+          'paymentMethod': order.paymentMethod ?? '',
+          'total': order.total,
+          'itemCount': order.items
+              .fold(0, (itemSum, item) => itemSum + item.quantity),
+          'createdAt': order.createdAt,
+        };
+      }).toList(),
       // NEW: Compute total cost and total profit
       'totalCost': orders.fold(0.0, (sum, order) {
          return sum + order.items.fold(0.0, (itemSum, item) => itemSum + (item.purchasePrice * item.quantity));
@@ -1829,50 +1994,38 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    SizedBox(
-                      width: MediaQuery.of(context).size.width > 600 ? (MediaQuery.of(context).size.width - 64) / 4 : (MediaQuery.of(context).size.width - 48) / 2,
-                      child: _buildReportTypeCard(
-                        'daily',
-                        'Daily Report'.tr(),
-                        Icons.today,
-                        _selectedReportType == 'daily',
-                      ),
-                    ),
-                    SizedBox(
-                      width: MediaQuery.of(context).size.width > 600 ? (MediaQuery.of(context).size.width - 64) / 4 : (MediaQuery.of(context).size.width - 48) / 2,
-                      child: _buildReportTypeCard(
-                        'custom', // This is actually Monthly based on your code
-                        'Monthly Report'.tr(),
-                        Icons.calendar_month,
-                        _selectedReportType == 'custom',
-                      ),
-                    ),
-                    SizedBox(
-                      width: MediaQuery.of(context).size.width > 600 ? (MediaQuery.of(context).size.width - 64) / 4 : (MediaQuery.of(context).size.width - 48) / 2,
-                      child: _buildReportTypeCard(
-                        'profit', // NEW: Profit
-                        'Profit Report'.tr(),
-                        Icons.insights,
-                        _selectedReportType == 'profit',
-                      ),
-                    ),
-                    SizedBox(
-                      width: MediaQuery.of(context).size.width > 600 ? (MediaQuery.of(context).size.width - 64) / 4 : (MediaQuery.of(context).size.width - 48) / 2,
-                      child: _buildReportTypeCard(
-                        'summary', // NEW: Summary
-                        'Summary Report'.tr(),
-                        Icons.assessment,
-                        _selectedReportType == 'summary',
-                      ),
-                    ),
-                  ],
-                ),
+                Builder(builder: (context) {
+                  final screenWidth = MediaQuery.of(context).size.width;
+                  // 5 cards would be cramped on a tablet, so step down to 3
+                  // before dropping to the 2-per-row phone layout.
+                  final perRow = screenWidth > 1000 ? 5 : (screenWidth > 600 ? 3 : 2);
+                  final cardWidth = (screenWidth - 16 * (perRow + 1)) / perRow;
+
+                  Widget sized(String type, String title, IconData icon) => SizedBox(
+                        width: cardWidth,
+                        child: _buildReportTypeCard(
+                          type,
+                          title,
+                          icon,
+                          _selectedReportType == type,
+                        ),
+                      );
+
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      sized('daily', 'Daily Report'.tr(), Icons.today),
+                      // 'custom' is the Monthly Report in this screen's wiring
+                      sized('custom', 'Monthly Report'.tr(), Icons.calendar_month),
+                      sized('profit', 'Profit Report'.tr(), Icons.insights),
+                      sized('summary', 'Summary Report'.tr(), Icons.assessment),
+                      sized('cancelled', 'Cancelled Orders'.tr(), Icons.cancel_outlined),
+                    ],
+                  );
+                }),
                 const SizedBox(height: 16),
-                
+
                 if (_selectedReportType == 'daily')
                   _buildDateSelector()
                 else if (_selectedReportType == 'monthly')
@@ -1881,6 +2034,8 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
                   _buildProfitDateSelector()
                 else if (_selectedReportType == 'summary')
                   _buildSummaryDateSelector()
+                else if (_selectedReportType == 'cancelled')
+                  _buildCancelledDateSelector()
                 else
                   _buildDateRangeSelector(),
               ],
@@ -1921,6 +2076,8 @@ List<Order> _filterOrdersByDateRange(List<Order> orders, DateTime startDate, Dat
               _updateProfitDates(_profitReportPeriod);
             } else if (type == 'summary') {
               _updateSummaryDates(_summaryReportPeriod);
+            } else if (type == 'cancelled') {
+              _updateCancelledDates(_cancelledReportPeriod);
             }
           });
           _loadReport();
@@ -2513,7 +2670,95 @@ Widget _buildMonthSelector() {
     });
   }
 
-  Widget _buildSummaryDateSelector() {
+  void _updateCancelledDates(String period) {
+    final now = DateTime.now();
+    setState(() {
+      _cancelledReportPeriod = period;
+
+      switch (period) {
+        case 'daily':
+          _cancelledStartDate = DateTime(now.year, now.month, now.day);
+          _cancelledEndDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+          break;
+        case 'weekly':
+          final int daysToSubtract = now.weekday - 1;
+          _cancelledStartDate = DateTime(now.year, now.month, now.day - daysToSubtract);
+          _cancelledEndDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+          break;
+        case 'monthly':
+          _cancelledStartDate = DateTime(now.year, now.month, 1);
+          _cancelledEndDate = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+          break;
+        case 'yearly':
+          _cancelledStartDate = DateTime(now.year, 1, 1);
+          _cancelledEndDate = DateTime(now.year, 12, 31, 23, 59, 59);
+          break;
+        case 'custom':
+          break;
+      }
+    });
+  }
+
+  Future<void> _selectCancelledCustomDate(bool isStart) async {
+    final DateTime baseDate = isStart ? _cancelledStartDate : _cancelledEndDate;
+    DateTime initialDate = DateTime(baseDate.year, baseDate.month, baseDate.day);
+
+    final DateTime now = DateTime.now();
+    final DateTime maxDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    if (initialDate.isAfter(maxDate)) {
+      initialDate = DateTime(now.year, now.month, now.day);
+    }
+
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2020),
+      lastDate: maxDate,
+    );
+
+    if (picked != null) {
+      setState(() {
+        if (isStart) {
+          _cancelledStartDate = DateTime(picked.year, picked.month, picked.day);
+          if (_cancelledStartDate.isAfter(_cancelledEndDate)) {
+            _cancelledEndDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
+          }
+        } else {
+          _cancelledEndDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
+          if (_cancelledEndDate.isBefore(_cancelledStartDate)) {
+            _cancelledStartDate = DateTime(picked.year, picked.month, picked.day);
+          }
+        }
+      });
+      _loadReport();
+    }
+  }
+
+  Widget _buildSummaryDateSelector() => _buildPeriodDateSelector(
+        selectedPeriod: _summaryReportPeriod,
+        startDate: _summaryStartDate,
+        endDate: _summaryEndDate,
+        onPeriodSelected: _updateSummaryDates,
+        onPickCustomDate: _selectSummaryCustomDate,
+      );
+
+  Widget _buildCancelledDateSelector() => _buildPeriodDateSelector(
+        selectedPeriod: _cancelledReportPeriod,
+        startDate: _cancelledStartDate,
+        endDate: _cancelledEndDate,
+        onPeriodSelected: _updateCancelledDates,
+        onPickCustomDate: _selectCancelledCustomDate,
+      );
+
+  /// Shared daily/weekly/monthly/yearly/custom period picker used by the
+  /// Summary and Cancelled Orders reports.
+  Widget _buildPeriodDateSelector({
+    required String selectedPeriod,
+    required DateTime startDate,
+    required DateTime endDate,
+    required void Function(String period) onPeriodSelected,
+    required void Function(bool isStart) onPickCustomDate,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -2522,16 +2767,14 @@ Widget _buildMonthSelector() {
           spacing: 8.0,
           runSpacing: 8.0,
           children: ['daily', 'weekly', 'monthly', 'yearly', 'custom'].map((String period) {
-            final isSelected = _summaryReportPeriod == period;
+            final isSelected = selectedPeriod == period;
             return ChoiceChip(
               label: Text(period.tr().toUpperCase(), style: TextStyle(fontSize: 12)),
               selected: isSelected,
               onSelected: (bool selected) {
                 if (selected) {
-                  if (period == 'custom') {
-                    _updateSummaryDates(period);
-                  } else {
-                    _updateSummaryDates(period);
+                  onPeriodSelected(period);
+                  if (period != 'custom') {
                     _loadReport();
                   }
                 }
@@ -2545,7 +2788,7 @@ Widget _buildMonthSelector() {
           }).toList(),
         ),
         const SizedBox(height: 12),
-        if (_summaryReportPeriod == 'custom')
+        if (selectedPeriod == 'custom')
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
             decoration: BoxDecoration(
@@ -2561,7 +2804,7 @@ Widget _buildMonthSelector() {
                   children: [
                     Expanded(
                       child: InkWell(
-                        onTap: () => _selectSummaryCustomDate(true),
+                        onTap: () => onPickCustomDate(true),
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                           decoration: BoxDecoration(
@@ -2575,7 +2818,7 @@ Widget _buildMonthSelector() {
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
-                                  DateFormat('dd MMM yy').format(_summaryStartDate),
+                                  DateFormat('dd MMM yy').format(startDate),
                                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -2590,7 +2833,7 @@ Widget _buildMonthSelector() {
                     const SizedBox(width: 4),
                     Expanded(
                       child: InkWell(
-                        onTap: () => _selectSummaryCustomDate(false),
+                        onTap: () => onPickCustomDate(false),
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                           decoration: BoxDecoration(
@@ -2604,7 +2847,7 @@ Widget _buildMonthSelector() {
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
-                                  DateFormat('dd MMM yy').format(_summaryEndDate),
+                                  DateFormat('dd MMM yy').format(endDate),
                                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -2961,6 +3204,10 @@ Widget _buildReportContent() {
       return _buildSummaryReportContent();
     }
 
+    if (_selectedReportType == 'cancelled') {
+      return _buildCancelledReportContent();
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -3029,7 +3276,7 @@ Widget _buildReportContent() {
                           ),
                         ),
                         title: Text(name),
-                        subtitle: Text('${'Price'.tr()}: ${price.toStringAsFixed(3)}'),
+                        subtitle: Text('${'Price'.tr()}: ${price.toMoney()}'),
                         trailing: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.end,
@@ -3039,7 +3286,116 @@ Widget _buildReportContent() {
                               style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
                             Text(
-                              totalRevenue.toStringAsFixed(3),
+                              totalRevenue.toMoney(),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // NEW: Dedicated view for Cancelled Orders Report
+  Widget _buildCancelledReportContent() {
+    final cancelledOrders = _reportData!['cancelledOrders'] as List? ?? [];
+    final cancelledCount = _reportData!['cancelledCount'] as int? ?? 0;
+    final cancelledValue = _reportData!['cancelledValue'] as double? ?? 0.0;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _buildSummaryCard(
+                  'Cancelled Orders'.tr(),
+                  '$cancelledCount',
+                  Icons.cancel_outlined,
+                  Colors.red,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildSummaryCard(
+                  'Cancelled Value'.tr(),
+                  cancelledValue.toMoney(),
+                  Icons.money_off,
+                  Colors.orange,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          Text(
+            'Cancelled Orders'.tr(),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: cancelledOrders.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Center(child: Text('No cancelled orders found'.tr())),
+                  )
+                : ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: cancelledOrders.length,
+                    separatorBuilder: (context, index) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final order = cancelledOrders[index] as Map<String, dynamic>;
+                      final orderNumber = order['orderNumber']?.toString() ?? '';
+                      final serviceType = order['serviceType']?.toString() ?? '';
+                      final customerName = order['customerName']?.toString() ?? '';
+                      final total = order['total'] as double? ?? 0.0;
+                      final itemCount = order['itemCount'] as int? ?? 0;
+                      final orderDate = _parseOrderDate(order['createdAt'] as String?);
+
+                      final subtitleParts = <String>[
+                        if (orderDate != null)
+                          DateFormat('dd MMM yy, hh:mm a').format(orderDate),
+                        if (serviceType.isNotEmpty) serviceType,
+                        if (customerName.isNotEmpty) customerName,
+                      ];
+
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.red.shade50,
+                          child: Icon(
+                            Icons.cancel_outlined,
+                            color: Colors.red.shade400,
+                            size: 20,
+                          ),
+                        ),
+                        title: Text('#$orderNumber'),
+                        subtitle: Text(subtitleParts.join('  •  ')),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              total.toMoney(),
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            Text(
+                              // Not "sold" — these orders never completed.
+                              '$itemCount ${'Items'.tr()}',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey.shade600,
@@ -3074,7 +3430,7 @@ Widget _buildReportContent() {
               Expanded(
                 child: _buildSummaryCard(
                   'Total Revenue'.tr(),
-                  totalRevenue.toStringAsFixed(3),
+                  totalRevenue.toMoney(),
                   Icons.attach_money,
                   Colors.green,
                 ),
@@ -3083,7 +3439,7 @@ Widget _buildReportContent() {
               Expanded(
                 child: _buildSummaryCard(
                   'Total Cost'.tr(),
-                  totalCost.toStringAsFixed(3),
+                  totalCost.toMoney(),
                   Icons.shopping_cart,
                   Colors.orange,
                 ),
@@ -3092,7 +3448,7 @@ Widget _buildReportContent() {
               Expanded(
                 child: _buildSummaryCard(
                   'Total Profit'.tr(),
-                  totalProfit.toStringAsFixed(3),
+                  totalProfit.toMoney(),
                   Icons.insights,
                   totalProfit >= 0 ? Colors.blue : Colors.red,
                 ),
@@ -3135,8 +3491,8 @@ Widget _buildReportContent() {
                         subtitle: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('${'Sale:'.tr()} ${effectiveRev.toStringAsFixed(3)}'),
-                            Text('${'Cost:'.tr()} ${cost.toStringAsFixed(3)}'),
+                            Text('${'Sale:'.tr()} ${effectiveRev.toMoney()}'),
+                            Text('${'Cost:'.tr()} ${cost.toMoney()}'),
                           ],
                         ),
                         trailing: Column(
@@ -3144,7 +3500,7 @@ Widget _buildReportContent() {
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
-                              profit.toStringAsFixed(3),
+                              profit.toMoney(),
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 color: profit >= 0 ? Colors.green.shade700 : Colors.red.shade700,
@@ -3183,7 +3539,7 @@ Widget _buildReportContent() {
             Expanded(
               child: _buildSummaryCard(
                 'Total Revenue'.tr(),
-                (summary['totalRevenue'] as double? ?? 0.0).toStringAsFixed(3),
+                (summary['totalRevenue'] as double? ?? 0.0).toMoney(),
                 Icons.attach_money,
                 Colors.green,
               ),
@@ -3329,7 +3685,7 @@ Widget _buildReportContent() {
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Text(
-                                  totalRevenue.toStringAsFixed(3),
+                                  totalRevenue.toMoney(),
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
@@ -3394,7 +3750,7 @@ Widget _buildRevenueSection() {
                     ),
                   ],
                 ),
-                Text((revenue['tax'] as double? ?? 0.0).toStringAsFixed(3)),
+                Text((revenue['tax'] as double? ?? 0.0).toMoney()),
               ],
             ),
             const SizedBox(height: 8),
@@ -3419,7 +3775,7 @@ Widget _buildRevenueSection() {
           ),
         ),
         Text(
-          amount.toStringAsFixed(3),
+          amount.toMoney(),
           style: TextStyle(
             fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
             fontSize: isTotal ? 16 : 14,
@@ -3474,7 +3830,7 @@ Widget _buildRevenueSection() {
                         ),
                       ),
                       title: Text(name),
-                      subtitle: Text('${'Price'.tr()}: ${price.toStringAsFixed(3)}'),
+                      subtitle: Text('${'Price'.tr()}: ${price.toMoney()}'),
                       trailing: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.end,
@@ -3484,7 +3840,7 @@ Widget _buildRevenueSection() {
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           Text(
-                            totalRevenue.toStringAsFixed(3),
+                            totalRevenue.toMoney(),
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey.shade600,
@@ -3509,7 +3865,7 @@ Widget _buildRevenueSection() {
       return Center(child: Text('Payment data not available'.tr()));
     }
     
-    final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
+    final currencyFormat = CurrencyFormat.numberFormat;
     
     final totalRevenue = _getPaymentValue(paymentTotals, 'total', 'sales');
     final totalExpenses = _getPaymentValue(paymentTotals, 'total', 'expenses');

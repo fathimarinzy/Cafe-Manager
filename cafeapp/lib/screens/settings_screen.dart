@@ -20,6 +20,7 @@ import 'modifier_screen.dart';
 import 'table_management_screen.dart'; 
 import 'printer_settings_screen.dart'; 
 import '../utils/app_localization.dart';
+import '../utils/currency_format.dart';
 import '../screens/expense_screen.dart';
 import '../utils/keyboard_utils.dart';
 import '../screens/report_screen.dart';
@@ -89,7 +90,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   
   // Tax Settings
   final _taxRateController = TextEditingController(text: '0.0');
-  
+
+  // Currency / Number Format
+  int _currencyDecimals = CurrencyFormat.defaultDecimals;
+
   // Table Layout
   int _tableRows = 4;
   int _tableColumns = 4;
@@ -506,7 +510,9 @@ Future<void> _checkLicenseStatus() async {
 
       
       _taxRateController.text = settingsProvider.taxRate.toString();
-      
+
+      _currencyDecimals = settingsProvider.currencyDecimals;
+
       _tableRows = settingsProvider.tableRows;
       _tableColumns = settingsProvider.tableColumns;
       
@@ -1111,7 +1117,11 @@ Future<void> _checkLicenseStatus() async {
                   _buildSectionHeader('Tax Settings'.tr()),
                   _buildTaxSettingsSection(),
                   const Divider(),
-                  
+
+                  _buildSectionHeader('Currency / Number Format'.tr()),
+                  _buildCurrencyFormatSection(),
+                  const Divider(),
+
                   _buildSectionHeader('Printer Settings'.tr()),
                   _buildPrinterSettingsSection(),
                   const Divider(),
@@ -1731,7 +1741,7 @@ Future<void> _checkLicenseStatus() async {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('Version 1.6.5'.tr(), style: const TextStyle(fontSize: 13)),
+                        Text('Version 1.7.5'.tr(), style: const TextStyle(fontSize: 13)),
                         const SizedBox(width: 8),
                         const Text('•', style: TextStyle(color: Colors.grey)),
                         const SizedBox(width: 8),
@@ -2277,6 +2287,50 @@ Future<void> _performFirstTimeReset() async {
     }
   }
 }
+  Widget _buildCurrencyFormatSection() {
+    return Card(
+      child: ListTile(
+        leading: Icon(Icons.numbers, color: _isDemoExpired ? Colors.grey : Colors.blue[700]),
+        title: Text('Decimal Places'.tr()),
+        subtitle: Text('${'Example'.tr()}: ${(1234.5).toStringAsFixed(_currencyDecimals)}'),
+        trailing: DropdownButton<int>(
+          value: _currencyDecimals,
+          onChanged: _isDemoExpired
+              ? null
+              : (int? newValue) async {
+                  if (newValue == null) return;
+
+                  setState(() {
+                    _currencyDecimals = newValue;
+                  });
+
+                  // Persist immediately (like Language / Dashboard Layout) so
+                  // the choice survives even if the user leaves without saving.
+                  final settingsProvider =
+                      Provider.of<SettingsProvider>(context, listen: false);
+                  await settingsProvider.setSetting(
+                      CurrencyFormat.prefsKey, newValue);
+
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Decimal places updated'.tr()),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                },
+          items: CurrencyFormat.allowedDecimals
+              .map((int value) => DropdownMenuItem<int>(
+                    value: value,
+                    child: Text('$value'),
+                  ))
+              .toList(),
+          underline: Container(),
+        ),
+      ),
+    );
+  }
+
   Widget _buildTaxSettingsSection() {
     return Card(
       child: ListTile(

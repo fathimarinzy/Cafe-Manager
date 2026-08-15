@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../repositories/local_expense_repository.dart';
 import '../screens/expense_screen.dart';
+import '../utils/currency_format.dart';
 
 class ExpenseHistoryScreen extends StatefulWidget {
   const ExpenseHistoryScreen({super.key});
@@ -23,10 +24,9 @@ class _ExpenseHistoryScreenState extends State<ExpenseHistoryScreen> {
   
   // For date formatting
   final DateFormat _dateFormat = DateFormat('MMM d, yyyy');
-  final NumberFormat _currencyFormat = NumberFormat.currency(
-    symbol: '',
-    decimalDigits: 3,
-  );
+  // Read through the getter (not a cached instance) so a decimal-places change
+  // is picked up without recreating this State.
+  NumberFormat get _currencyFormat => CurrencyFormat.numberFormat;
 
   @override
   void initState() {

@@ -14,6 +14,7 @@ import '../providers/table_provider.dart';
 import '../models/order.dart';
 import '../repositories/local_order_repository.dart';
 import '../screens/quotations_list_screen.dart';
+import '../utils/currency_format.dart';
 
 
 class DashboardUltimate extends StatefulWidget {
@@ -1012,7 +1013,7 @@ class _DashboardUltimateState extends State<DashboardUltimate> with TickerProvid
                                        ),
                                      ),
                                      Text(
-                                       order.total.toStringAsFixed(0),
+                                       order.total.toMoney(),
                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                                      ),
                                    ],

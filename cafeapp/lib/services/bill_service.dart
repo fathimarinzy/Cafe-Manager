@@ -13,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/order_item.dart';
 import 'cross_platform_pdf_service.dart'; // Import the new service
 import '../services/logo_service.dart';
+import '../utils/currency_format.dart';
 
 
 class BillService {
@@ -417,7 +418,7 @@ class BillService {
                             pw.Expanded(
                               flex: 2,
                               child: _createText(
-                                item.price.toStringAsFixed(3),
+                                item.price.toMoney(),
                                 arabicFont: arabicFont,
                                 fallbackFont: fallbackFont,
                                 style: pw.TextStyle(fontSize: 10),
@@ -427,7 +428,7 @@ class BillService {
                             pw.Expanded(
                               flex: 2,
                               child: _createText(
-                                (item.price * item.quantity).toStringAsFixed(3),
+                                (item.price * item.quantity).toMoney(),
                                 arabicFont: arabicFont,
                                 fallbackFont: fallbackFont,
                                 style: pw.TextStyle(fontSize: 10),
@@ -494,7 +495,7 @@ class BillService {
                     pw.Expanded(
                       flex: 4,
                       child: _createText(
-                        subtotal.toStringAsFixed(3),
+                        subtotal.toMoney(),
                         arabicFont: arabicFont,
                         fallbackFont: fallbackFont,
                         style: pw.TextStyle(fontSize: 10),
@@ -522,7 +523,7 @@ class BillService {
                     pw.Expanded(
                       flex: 4,
                       child: _createText(
-                        tax.toStringAsFixed(3),
+                        tax.toMoney(),
                         arabicFont: arabicFont,
                         fallbackFont: fallbackFont,
                         style: pw.TextStyle(fontSize: 10),
@@ -551,7 +552,7 @@ class BillService {
                       pw.Expanded(
                         flex: 4,
                         child: _createText(
-                          deliveryCharge.toStringAsFixed(3),
+                          deliveryCharge.toMoney(),
                           arabicFont: arabicFont,
                           fallbackFont: fallbackFont,
                           style: pw.TextStyle(fontSize: 10),
@@ -580,7 +581,7 @@ class BillService {
                       pw.Expanded(
                         flex: 4,
                         child: _createText(
-                          discount.toStringAsFixed(3),
+                          discount.toMoney(),
                           arabicFont: arabicFont,
                           fallbackFont: fallbackFont,
                           style: pw.TextStyle(fontSize: 10),
@@ -610,7 +611,7 @@ class BillService {
                       pw.Expanded(
                         flex: 4,
                         child: _createText(
-                          depositAmount.toStringAsFixed(3),
+                          depositAmount.toMoney(),
                           arabicFont: arabicFont,
                           fallbackFont: fallbackFont,
                           style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
@@ -637,7 +638,7 @@ class BillService {
                       pw.Expanded(
                         flex: 4,
                         child: _createText(
-                          (total - depositAmount).toStringAsFixed(3),
+                          (total - depositAmount).toMoney(),
                           arabicFont: arabicFont,
                           fallbackFont: fallbackFont,
                           style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.red),
@@ -672,7 +673,7 @@ class BillService {
                     pw.Expanded(
                       flex: 4,
                       child: _createText(
-                        total.toStringAsFixed(3),
+                        total.toMoney(),
                         arabicFont: arabicFont,
                         fallbackFont: fallbackFont,
                         style: pw.TextStyle(

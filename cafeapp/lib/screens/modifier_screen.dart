@@ -13,6 +13,7 @@ import '../models/menu_item.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../utils/app_localization.dart';
 import '../utils/keyboard_utils.dart';
+import '../utils/currency_format.dart';
 
 
 class ModifierScreen extends StatefulWidget {
@@ -1403,7 +1404,7 @@ void _showPermissionDeniedDialog(BuildContext context) {
       _editingItem = item;
       _nameController.text = item.name;
       _priceController.text = item.price.toString();
-      _purchasePriceController.text = item.purchasePrice > 0 ? item.purchasePrice.toStringAsFixed(2) : ''; // NEW
+      _purchasePriceController.text = item.purchasePrice > 0 ? item.purchasePrice.toMoney() : ''; // NEW
       _barcodeController.text = item.barcode; // NEW
       _itemSizes = List.from(item.sizes);
       _selectedCategory = item.category;
@@ -2387,7 +2388,7 @@ void _showPermissionDeniedDialog(BuildContext context) {
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(item.price.toStringAsFixed(2)),
+                        Text(item.price.toMoney()),
                         Text(
                           item.isAvailable ? 'Available'.tr() : 'Out of stock'.tr(),
                           style: TextStyle(
@@ -2653,7 +2654,7 @@ void _showPermissionDeniedDialog(BuildContext context) {
                         return ListTile(
                           dense: true,
                           title: Text(size.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text('Sale: ${size.price.toStringAsFixed(2)} | Cost: ${size.purchasePrice.toStringAsFixed(2)}'.tr()),
+                          subtitle: Text('Sale: ${size.price.toMoney()} | Cost: ${size.purchasePrice.toMoney()}'.tr()),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [

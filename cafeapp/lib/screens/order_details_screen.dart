@@ -22,6 +22,7 @@ import '../providers/lan_sync_provider.dart';
 import '../models/lan_sync_models.dart';
 import '../services/thermal_printer_service.dart';
 import '../utils/keyboard_utils.dart';
+import '../utils/currency_format.dart';
 
 class OrderDetailsScreen extends StatefulWidget {
   final int orderId;
@@ -703,7 +704,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                 Expanded(
                                   flex: isPortrait ? 2 : 3,
                                   child: Text(
-                                    NumberFormat.currency(symbol: '', decimalDigits: 3).format(item.price),
+                                    CurrencyFormat.numberFormat.format(item.price),
                                     textAlign: TextAlign.right,
                                   ),
                                 ),
@@ -870,7 +871,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
               final size = item.sizes[i];
               return ListTile(
                 title: Text(size.name),
-                subtitle: Text('${'Price'.tr()}: ${size.price.toStringAsFixed(2)}'),
+                subtitle: Text('${'Price'.tr()}: ${size.price.toMoney()}'),
                 onTap: () => Navigator.of(ctx).pop(
                   item.copyWith(
                     id: '${item.id}_${size.name}',
@@ -1051,7 +1052,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                     ),
                                 ],
                               ),
-                              Text('${'Price'.tr()}: ${NumberFormat.currency(symbol: '', decimalDigits: 3).format(selectedItem!.price)}'),
+                              Text('${'Price'.tr()}: ${CurrencyFormat.numberFormat.format(selectedItem!.price)}'),
                               Text('${'Category'.tr()}: ${selectedItem!.category.tr()}'),
                             ],
                           ),
@@ -1075,12 +1076,12 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
                                 final String priceLabel;
                                 if (hasSizes) {
                                   final prices = item.sizes.map((s) => s.price).toList()..sort();
-                                  final currency = NumberFormat.currency(symbol: '', decimalDigits: 3);
+                                  final currency = CurrencyFormat.numberFormat;
                                   priceLabel = prices.first == prices.last
                                       ? currency.format(prices.first)
                                       : '${currency.format(prices.first)} - ${currency.format(prices.last)}';
                                 } else {
-                                  priceLabel = NumberFormat.currency(symbol: '', decimalDigits: 3).format(item.price);
+                                  priceLabel = CurrencyFormat.numberFormat.format(item.price);
                                 }
 
                                 return Card(
@@ -1557,7 +1558,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen> {
   }
 
   Widget _buildOrderDetailsView() {
-    final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
+    final currencyFormat = CurrencyFormat.numberFormat;
     final settingsProvider = Provider.of<SettingsProvider>(context);
     
     // NEW: Calculate with tax-exempt handling

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import '../providers/order_history_provider.dart';
 import '../models/order_history.dart';
 import '../models/order_item.dart';
@@ -8,6 +7,7 @@ import 'order_details_screen.dart';
 import 'menu_screen.dart';
 import '../providers/order_provider.dart';
 import '../utils/app_localization.dart';
+import '../utils/currency_format.dart';
 
 class TableOrdersScreen extends StatefulWidget {
   final int tableNumber;
@@ -192,7 +192,7 @@ class _TableOrdersScreenState extends State<TableOrdersScreen> {
   }
 
   Widget _buildOrderCard(OrderHistory order) {
-    final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 3);
+    final currencyFormat = CurrencyFormat.numberFormat;
     
     Color statusColor = Colors.green;
     if (order.status.toLowerCase() == 'pending') {
@@ -421,7 +421,7 @@ class _TableOrdersScreenState extends State<TableOrdersScreen> {
                 ),
               ),
               Text(
-                '${item.price.toStringAsFixed(3)} × ${item.quantity}',
+                '${item.price.toMoney()} × ${item.quantity}',
                 style: TextStyle(
                   color: Colors.grey.shade700,
                   fontSize: 14,

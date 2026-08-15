@@ -406,7 +406,7 @@ class _DeliverySetupScreenState extends State<DeliverySetupScreen> {
                                 keyboardType: TextInputType.number,
                                 decoration: InputDecoration(
                                   labelText: 'Charge'.tr(),
-                                  prefixIcon: const Icon(Icons.attach_money),
+                                  // prefixIcon: const Icon(Icons.attach_money),
                                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                   filled: true,
                                   fillColor: Colors.grey[50],

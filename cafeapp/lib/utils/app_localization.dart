@@ -922,6 +922,18 @@ class AppLocalization {
     'Cost (Purchase Price)': 'التكلفة (سعر الشراء)',
     'International Barcode': 'الباركود الدولي',
 
+    // Cancelled Orders Report
+    'Cancelled Orders': 'الطلبات الملغاة',
+    'Cancelled Orders Report': 'تقرير الطلبات الملغاة',
+    'Cancelled Value': 'قيمة الطلبات الملغاة',
+    'No cancelled orders found': 'لا توجد طلبات ملغاة',
+
+    // Currency / Number Format
+    'Currency / Number Format': 'العملة / تنسيق الأرقام',
+    'Decimal Places': 'المنازل العشرية',
+    'Decimal places updated': 'تم تحديث المنازل العشرية',
+    'Example': 'مثال',
+
     // Profit Report
     'Profit Report': 'تقرير الأرباح',
     'Profit Summary': 'ملخص الأرباح',

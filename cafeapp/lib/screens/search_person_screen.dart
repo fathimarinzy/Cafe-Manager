@@ -10,6 +10,7 @@ import '../screens/tender_screen.dart';
 import '../models/credit_transaction.dart';
 import 'person_form_screen.dart'; // Add import
 import '../utils/keyboard_utils.dart';
+import '../utils/currency_format.dart';
 
 class SearchPersonScreen extends StatefulWidget {
     final bool isForCreditReceipt;
@@ -74,7 +75,7 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       Text(
-                        person.credit.toStringAsFixed(3),
+                        person.credit.toMoney(),
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: Colors.green.shade700,
@@ -105,7 +106,7 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('${'Amount:'.tr()} ${transaction.amount.toStringAsFixed(3)}'),
+                              Text('${'Amount:'.tr()} ${transaction.amount.toMoney()}'),
                               Text(
                                 '${'Date:'.tr()} ${DateFormat('dd-MM-yyyy HH:mm').format(transaction.createdAt)}',
                                 style: TextStyle(
@@ -307,7 +308,7 @@ class SearchPersonScreenState extends State<SearchPersonScreen> {
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                '${'Credit:'.tr()} ${person.credit.toStringAsFixed(2)}',
+                                '${'Credit:'.tr()} ${person.credit.toMoney()}',
                                 style: TextStyle(
                                   color: person.credit > 0 ? Colors.red[700] : Colors.green[700],
                                   fontWeight: FontWeight.w600,

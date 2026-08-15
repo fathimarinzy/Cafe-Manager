@@ -1,13 +1,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import 'dart:async';
 import '../models/order_history.dart';
 import '../providers/order_history_provider.dart';
 import '../screens/order_details_screen.dart';
 // import '../utils/app_localization.dart';
 import '../utils/service_type_utils.dart';
+import '../utils/currency_format.dart';
 
 class OrderListModern extends StatefulWidget {
   final String? serviceType;
@@ -331,7 +331,7 @@ class _OrderListModernState extends State<OrderListModern> {
   }
 
   Widget _buildOrderCard(OrderHistory order) {
-    final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 2);
+    final currencyFormat = CurrencyFormat.numberFormat;
     
     // Determine Gradient based on Service Type
     LinearGradient cardGradient;

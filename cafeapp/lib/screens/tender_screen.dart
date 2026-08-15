@@ -37,6 +37,7 @@ import '../providers/lan_sync_provider.dart';
 import '../models/lan_sync_models.dart';
 import '../utils/logger.dart';
 import '../utils/payment_trace.dart';
+import '../utils/currency_format.dart';
 
 
 class TenderScreen extends StatefulWidget {
@@ -238,7 +239,7 @@ class _TenderScreenState extends State<TenderScreen> {
       
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${'Discount of'.tr()} ${effectiveDiscount.toStringAsFixed(3)} ${'applied successfully'.tr()}'),
+          content: Text('${'Discount of'.tr()} ${effectiveDiscount.toMoney()} ${'applied successfully'.tr()}'),
           backgroundColor: Colors.green.shade600,
           duration: const Duration(seconds: 2),
         ),
@@ -246,7 +247,7 @@ class _TenderScreenState extends State<TenderScreen> {
     });
      // Force update the received amount controller
     final discountedTotal = _getDiscountedTotal();
-    _receivedAmountController.text = discountedTotal.toStringAsFixed(3);
+    _receivedAmountController.text = discountedTotal.toMoney();
   // Reopen bank dialog if we came from there
     if (_shouldReopenBankDialog) {
       _shouldReopenBankDialog = false;
@@ -953,7 +954,7 @@ void _handleAdvancePayment() {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${'Record Advance of'.tr()} ${amount.toStringAsFixed(3)}?'),
+            Text('${'Record Advance of'.tr()} ${amount.toMoney()}?'),
             const SizedBox(height: 16),
             Text('Select Payment Method:'.tr(), style: const TextStyle(fontWeight: FontWeight.bold)),
             RadioListTile<String>(
@@ -1177,10 +1178,10 @@ void _showSplitPaymentDialog() {
               // Update the other field
               if (isCashMode) {
                 _bankAmount = otherAmount;
-                bankController.text = otherAmount.toStringAsFixed(3);
+                bankController.text = otherAmount.toMoney();
               } else {
                 _cashAmount = otherAmount;
-                cashController.text = otherAmount.toStringAsFixed(3);
+                cashController.text = otherAmount.toMoney();
               }
             });
           }
@@ -1270,7 +1271,7 @@ void _showSplitPaymentDialog() {
                                             children: [
                                               Text('Subtotal:'.tr(), style: const TextStyle(fontSize: 14)),
                                               Text(
-                                                discountedTotal.toStringAsFixed(3),
+                                                discountedTotal.toMoney(),
                                                 style: const TextStyle(fontSize: 14),
                                               ),
                                             ],
@@ -1282,7 +1283,7 @@ void _showSplitPaymentDialog() {
                                               children: [
                                                 Text('Delivery Fee:'.tr(), style: const TextStyle(fontSize: 14)),
                                                 Text(
-                                                  (widget.order.deliveryCharge ?? 0.0).toStringAsFixed(3),
+                                                  (widget.order.deliveryCharge ?? 0.0).toMoney(),
                                                   style: const TextStyle(fontSize: 14),
                                                 ),
                                               ],
@@ -1295,7 +1296,7 @@ void _showSplitPaymentDialog() {
                                               children: [
                                                 Text('Advance Paid:'.tr(), style: TextStyle(fontSize: 14, color: Colors.orange.shade800)),
                                                 Text(
-                                                  '-${(widget.order.depositAmount ?? 0.0).toStringAsFixed(3)}',
+                                                  '-${(widget.order.depositAmount ?? 0.0).toMoney()}',
                                                   style: TextStyle(fontSize: 14, color: Colors.orange.shade800, fontWeight: FontWeight.bold),
                                                 ),
                                               ],
@@ -1307,7 +1308,7 @@ void _showSplitPaymentDialog() {
                                             children: [
                                               Text('Balance to Pay:'.tr(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                                               Text(
-                                                (discountedTotal - (widget.order.depositAmount ?? 0.0)).toStringAsFixed(3),
+                                                (discountedTotal - (widget.order.depositAmount ?? 0.0)).toMoney(),
                                                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                                               ),
                                             ],
@@ -1318,7 +1319,7 @@ void _showSplitPaymentDialog() {
                                             children: [
                                               Text('Cash Amount:'.tr(), style: const TextStyle(fontSize: 14)),
                                               Text(
-                                                _cashAmount.toStringAsFixed(3),
+                                                _cashAmount.toMoney(),
                                                 style: TextStyle(fontSize: 14, color: Colors.green.shade700),
                                               ),
                                             ],
@@ -1329,7 +1330,7 @@ void _showSplitPaymentDialog() {
                                             children: [
                                               Text('Bank Amount:'.tr(), style: const TextStyle(fontSize: 14)),
                                               Text(
-                                                _bankAmount.toStringAsFixed(3),
+                                                _bankAmount.toMoney(),
                                                 style: TextStyle(fontSize: 14, color: Colors.blue.shade700),
                                               ),
                                             ],
@@ -1340,7 +1341,7 @@ void _showSplitPaymentDialog() {
                                             children: [
                                               Text(_isDepositMode ? 'Balance:'.tr() : 'Remaining:'.tr(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                                               Text(
-                                                remainingAmount.toStringAsFixed(3),
+                                                remainingAmount.toMoney(),
                                                 style: TextStyle(
                                                   fontSize: 16,
                                                   fontWeight: FontWeight.bold,
@@ -1605,7 +1606,7 @@ void _showSplitPaymentDialog() {
                                       children: [
                                         Text('Subtotal:'.tr(), style: const TextStyle(fontSize: 14)),
                                         Text(
-                                          discountedTotal.toStringAsFixed(3),
+                                          discountedTotal.toMoney(),
                                           style: const TextStyle(fontSize: 14),
                                         ),
                                       ],
@@ -1617,7 +1618,7 @@ void _showSplitPaymentDialog() {
                                         children: [
                                           Text('Delivery Fee:'.tr(), style: const TextStyle(fontSize: 14)),
                                           Text(
-                                            (widget.order.deliveryCharge ?? 0.0).toStringAsFixed(3),
+                                            (widget.order.deliveryCharge ?? 0.0).toMoney(),
                                             style: const TextStyle(fontSize: 14),
                                           ),
                                         ],
@@ -1630,7 +1631,7 @@ void _showSplitPaymentDialog() {
                                         children: [
                                           Text('Advance Paid:'.tr(), style: TextStyle(fontSize: 14, color: Colors.orange.shade800)),
                                           Text(
-                                            '-${(widget.order.depositAmount ?? 0.0).toStringAsFixed(3)}',
+                                            '-${(widget.order.depositAmount ?? 0.0).toMoney()}',
                                             style: TextStyle(fontSize: 14, color: Colors.orange.shade800, fontWeight: FontWeight.bold),
                                           ),
                                         ],
@@ -1642,7 +1643,7 @@ void _showSplitPaymentDialog() {
                                       children: [
                                         Text('Balance to Pay:'.tr(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                                         Text(
-                                          (discountedTotal - (widget.order.depositAmount ?? 0.0)).toStringAsFixed(3),
+                                          (discountedTotal - (widget.order.depositAmount ?? 0.0)).toMoney(),
                                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                                         ),
                                       ],
@@ -1653,7 +1654,7 @@ void _showSplitPaymentDialog() {
                                       children: [
                                         Text('Cash Amount:'.tr(), style: const TextStyle(fontSize: 14)),
                                         Text(
-                                          _cashAmount.toStringAsFixed(3),
+                                          _cashAmount.toMoney(),
                                           style: TextStyle(fontSize: 14, color: Colors.green.shade700),
                                         ),
                                       ],
@@ -1664,7 +1665,7 @@ void _showSplitPaymentDialog() {
                                       children: [
                                         Text('Bank Amount:'.tr(), style: const TextStyle(fontSize: 14)),
                                         Text(
-                                          _bankAmount.toStringAsFixed(3),
+                                          _bankAmount.toMoney(),
                                           style: TextStyle(fontSize: 14, color: Colors.blue.shade700),
                                         ),
                                       ],
@@ -1675,7 +1676,7 @@ void _showSplitPaymentDialog() {
                                       children: [
                                         Text(_isDepositMode ? 'Balance:'.tr() : 'Remaining:'.tr(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                                         Text(
-                                          remainingAmount.toStringAsFixed(3),
+                                          remainingAmount.toMoney(),
                                           style: TextStyle(
                                             fontSize: 16,
                                             fontWeight: FontWeight.bold,
@@ -2211,7 +2212,7 @@ void _showSplitPaymentDialog() {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${'Payment processed'.tr()} - ${'Cash'.tr()}: ${cashAmount.toStringAsFixed(3)}, ${'Bank'.tr()}: ${bankAmount.toStringAsFixed(3)}'),
+            content: Text('${'Payment processed'.tr()} - ${'Cash'.tr()}: ${cashAmount.toMoney()}, ${'Bank'.tr()}: ${bankAmount.toMoney()}'),
             backgroundColor: Colors.green,
           ),
         );
@@ -2638,7 +2639,7 @@ void _showSplitPaymentDialog() {
                                         children: [
                                           Text('$labelCurrent: ', style: const TextStyle(fontSize: 16)),
                                           Text(
-                                            currentBalance.toStringAsFixed(3),
+                                            currentBalance.toMoney(),
                                             style: const TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: 16,
@@ -2657,7 +2658,7 @@ void _showSplitPaymentDialog() {
                                         children: [
                                           Text('$labelNew: ', style: const TextStyle(fontSize: 16)),
                                           Text(
-                                            (currentBalance - discountAmount).toStringAsFixed(3),
+                                            (currentBalance - discountAmount).toMoney(),
                                             style: TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: 16,
@@ -3012,7 +3013,7 @@ void _showSplitPaymentDialog() {
   final depositAmount = widget.order.depositAmount ?? 0.0;
   final remainingAmount = discountedTotal - depositAmount;
   
-  _receivedAmountController.text = remainingAmount.toStringAsFixed(3);
+  _receivedAmountController.text = remainingAmount.toMoney();
   _receivedAmountController.selection = TextSelection.fromPosition(
     TextPosition(offset: _receivedAmountController.text.length),
   ); // Ensure cursor is at end
@@ -3167,7 +3168,7 @@ Widget _buildLandscapeLayout(StateSetter setState, double initialDiscountedTotal
                       Expanded(
                         flex: inputFlex, // Responsive flex
                         child: Text(
-                          NumberFormat.currency(symbol: '', decimalDigits: 3).format(currentDiscountedTotal - (widget.order.depositAmount ?? 0.0)),
+                          CurrencyFormat.numberFormat.format(currentDiscountedTotal - (widget.order.depositAmount ?? 0.0)),
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -3215,7 +3216,7 @@ Widget _buildLandscapeLayout(StateSetter setState, double initialDiscountedTotal
                            onTap: () {
                             final deposit = widget.order.depositAmount ?? 0.0;
                             setState(() {
-                              _receivedAmountController.text = (currentDiscountedTotal - deposit).toStringAsFixed(3);
+                              _receivedAmountController.text = (currentDiscountedTotal - deposit).toMoney();
                               // Move cursor to end
                               _receivedAmountController.selection = TextSelection.fromPosition(
                                 TextPosition(offset: _receivedAmountController.text.length)
@@ -3690,7 +3691,7 @@ Widget _buildNumberButton(String text) {
 
 // Extract payment summary panel
 Widget _buildPaymentSummary() {
-  final formatCurrency = NumberFormat.currency(symbol: '', decimalDigits: 3);
+  final formatCurrency = CurrencyFormat.numberFormat;
   final discount = _getCurrentDiscount();
   // final discountedTotal = _getDiscountedTotal();
 
@@ -3856,7 +3857,7 @@ Widget _buildPaymentSummary() {
 
   // Extract order info bar
   Widget _buildOrderInfoBar() {
-    final formatCurrency = NumberFormat.currency(symbol: '', decimalDigits: 3);
+    final formatCurrency = CurrencyFormat.numberFormat;
     final discount = _getCurrentDiscount();
     
     return Container(
@@ -4221,7 +4222,7 @@ Widget _buildPortraitLayout(StateSetter setState, double initialDiscountedTotal,
                   Expanded(
                     flex: 4,
                     child: Text(
-                      NumberFormat.currency(symbol: '', decimalDigits: 3).format(currentDiscountedTotal - (widget.order.depositAmount ?? 0.0)),
+                      CurrencyFormat.numberFormat.format(currentDiscountedTotal - (widget.order.depositAmount ?? 0.0)),
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -4269,7 +4270,7 @@ Widget _buildPortraitLayout(StateSetter setState, double initialDiscountedTotal,
                         // Update received amount to current discounted total minus deposit when tapped
                         final deposit = widget.order.depositAmount ?? 0.0;
                          setState(() {
-                          _receivedAmountController.text = (currentDiscountedTotal - deposit).toStringAsFixed(3);
+                          _receivedAmountController.text = (currentDiscountedTotal - deposit).toMoney();
                         });
                       },
                     ),
@@ -4861,7 +4862,7 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${'Payment of'.tr()} ${NumberFormat.currency(symbol: '', decimalDigits: 3).format(amount)} ${'accepted. Return change'.tr()}: ${NumberFormat.currency(symbol: '', decimalDigits: 3).format(change)}'),
+              content: Text('${'Payment of'.tr()} ${CurrencyFormat.numberFormat.format(amount)} ${'accepted. Return change'.tr()}: ${CurrencyFormat.numberFormat.format(change)}'),
               duration: const Duration(seconds: 1),
             ),
           );
@@ -4870,7 +4871,7 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${'Payment of'.tr()} ${NumberFormat.currency(symbol: '', decimalDigits: 3).format(amount)} ${'accepted'.tr()}.'),
+              content: Text('${'Payment of'.tr()} ${CurrencyFormat.numberFormat.format(amount)} ${'accepted'.tr()}.'),
               duration: const Duration(seconds: 1),
             ),
           );
@@ -5062,7 +5063,7 @@ Widget _buildPortraitNumberPadButton(String text, StateSetter setState, {bool is
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${'Payment processed'.tr()} - ${'Cash'.tr()}: ${cashAmount.toStringAsFixed(3)}, ${'Bank'.tr()}: ${bankAmount.toStringAsFixed(3)}'),
+          content: Text('${'Payment processed'.tr()} - ${'Cash'.tr()}: ${cashAmount.toMoney()}, ${'Bank'.tr()}: ${bankAmount.toMoney()}'),
           backgroundColor: Colors.green,
         ),
       );
@@ -5398,13 +5399,13 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
         if (mounted) {
          String message;
           if (paymentMethod == 'bank+cash') {
-            message = '${'Credit payment completed via'.tr()} ${'Bank + Cash'.tr()} - ${'Cash'.tr()}: ${_cashAmount.toStringAsFixed(3)}, ${'Bank'.tr()}: ${_bankAmount.toStringAsFixed(3)}';
+            message = '${'Credit payment completed via'.tr()} ${'Bank + Cash'.tr()} - ${'Cash'.tr()}: ${_cashAmount.toMoney()}, ${'Bank'.tr()}: ${_bankAmount.toMoney()}';
           } else {
             message = '${'Credit payment completed via'.tr()} $paymentMethod'.tr();
           }
           // ✅ Add discount info to message if applicable
           if (_getCurrentDiscount() > 0) {
-            message += ' (${'Discount'.tr()}: ${_getCurrentDiscount().toStringAsFixed(3)})';
+            message += ' (${'Discount'.tr()}: ${_getCurrentDiscount().toMoney()})';
           }
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -5661,9 +5662,7 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  change > 0 
-                      ? '${'Balance amount is'.tr()} ${NumberFormat.currency(symbol: '', decimalDigits: 3).format(change)}'
-                      : '${'Balance amount is'.tr()} 0.000',
+                  '${'Balance amount is'.tr()} ${CurrencyFormat.grouped(change > 0 ? change : 0)}',
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -6174,7 +6173,7 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
           if (mounted) {
            ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('${'Credit of'.tr()} ${amountToPay.toStringAsFixed(3)} ${'added to'.tr()} ${customer.name}${_getCurrentDiscount() > 0 ? ' (${'after discount of'.tr()} ${_getCurrentDiscount().toStringAsFixed(3)})' : ''}'),
+                content: Text('${'Credit of'.tr()} ${amountToPay.toMoney()} ${'added to'.tr()} ${customer.name}${_getCurrentDiscount() > 0 ? ' (${'after discount of'.tr()} ${_getCurrentDiscount().toMoney()})' : ''}'),
                 backgroundColor: Colors.green,
               ),
             );
@@ -6245,16 +6244,16 @@ Future<void> _processCreditCompletionPaymentWithoutPrinting(double amount, Strin
               const SizedBox(height: 16),
               // Show original amount if there's a discount
             if (discount > 0) ...[
-              Text('${'Original Amount:'.tr()} ${originalTotal.toStringAsFixed(3)}'),
-              Text('${'Discount:'.tr()} ${discount.toStringAsFixed(3)}',
+              Text('${'Original Amount:'.tr()} ${originalTotal.toMoney()}'),
+              Text('${'Discount:'.tr()} ${discount.toMoney()}',
                    style: TextStyle(color: Colors.red.shade700)),
               const Divider(),
             ],
 
-              Text('${'Credit Amount:'.tr()} ${amount.toStringAsFixed(3)}'),
+              Text('${'Credit Amount:'.tr()} ${amount.toMoney()}'),
               const SizedBox(height: 8),
               Text(
-                '${'Current credit balance:'.tr()} ${customer.credit.toStringAsFixed(3)}',
+                '${'Current credit balance:'.tr()} ${customer.credit.toMoney()}',
                 style: TextStyle(
                   color: Colors.grey.shade600,
                   fontSize: 12,
@@ -6436,13 +6435,13 @@ Future<void> _processCreditCompletionPayment(
         if (mounted) {
           String message;
           if (paymentMethod == 'bank+cash') {
-            message = '${'Credit payment completed via'.tr()} ${'Bank + Cash'.tr()} - ${'Cash'.tr()}: ${_cashAmount.toStringAsFixed(3)}, ${'Bank'.tr()}: ${_bankAmount.toStringAsFixed(3)}';
+            message = '${'Credit payment completed via'.tr()} ${'Bank + Cash'.tr()} - ${'Cash'.tr()}: ${_cashAmount.toMoney()}, ${'Bank'.tr()}: ${_bankAmount.toMoney()}';
           } else {
             message = '${'Credit payment completed via'.tr()} $paymentMethod'.tr();
           }
            // ✅ Add discount info to message if applicable
           if (_getCurrentDiscount() > 0) {
-            message += ' (${'Discount'.tr()}: ${_getCurrentDiscount().toStringAsFixed(3)})';
+            message += ' (${'Discount'.tr()}: ${_getCurrentDiscount().toMoney()})';
           }
           
           ScaffoldMessenger.of(context).showSnackBar(

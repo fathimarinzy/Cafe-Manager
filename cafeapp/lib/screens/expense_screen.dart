@@ -4,6 +4,7 @@ import '../repositories/local_expense_repository.dart';
 import '../screens/expense_history_screen.dart';
 import '../utils/app_localization.dart';
 import '../utils/keyboard_utils.dart';
+import '../utils/currency_format.dart';
 
 class ExpenseScreen extends StatefulWidget {
   final Map<String, dynamic>? expenseToEdit;
@@ -752,7 +753,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                                     decoration: BoxDecoration(
                                       border: Border.all(color: Colors.grey),
                                     ),
-                                    child: const Text('0.000'),
+                                    child: Text(0.toMoney()),
                                   ),
                                 ],
                               ),
@@ -769,7 +770,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                                     decoration: BoxDecoration(
                                       border: Border.all(color: Colors.grey),
                                     ),
-                                    child: const Text('0.000'),
+                                    child: Text(0.toMoney()),
                                   ),
                                 ],
                               ),
@@ -787,7 +788,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                                       border: Border.all(color: Colors.grey),
                                     ),
                                     child: Text(
-                                      _grandTotal.toStringAsFixed(3),
+                                      _grandTotal.toMoney(),
                                       style: const TextStyle(fontWeight: FontWeight.bold),
                                     ),
                                   ),
@@ -1036,7 +1037,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                   alignment: Alignment.centerRight,
                   child: Text(
-                    item.amount.toStringAsFixed(3),
+                    item.amount.toMoney(),
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),

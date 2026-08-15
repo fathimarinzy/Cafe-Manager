@@ -6,6 +6,7 @@ import '../providers/order_provider.dart';
 import 'dashboard_screen.dart';
 import '../utils/app_localization.dart';
 import '../utils/service_type_utils.dart';
+import '../utils/currency_format.dart';
 // import '../models/order.dart';
 // import '../repositories/local_order_repository.dart';
 
@@ -274,14 +275,14 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                                     Expanded(
                                       flex: 3,
                                       child: Text(
-                                        item.price.toStringAsFixed(3),
+                                        item.price.toMoney(),
                                         textAlign: TextAlign.right,
                                       ),
                                     ),
                                     Expanded(
                                       flex: 3,
                                       child: Text(
-                                        (item.price * item.quantity).toStringAsFixed(3),
+                                        (item.price * item.quantity).toMoney(),
                                         textAlign: TextAlign.right,
                                       ),
                                     ),
@@ -332,7 +333,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                               Expanded(
                                 flex: 3,
                                 child: Text(
-                                  amounts['subtotal']!.toStringAsFixed(3),
+                                  amounts['subtotal']!.toMoney(),
                                   textAlign: TextAlign.right,
                                   style: const TextStyle(fontWeight: FontWeight.w500),
                                 ),
@@ -353,7 +354,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                             Expanded(
                               flex: 3,
                               child: Text(
-                                amounts['tax']!.toStringAsFixed(3),
+                                amounts['tax']!.toMoney(),
                                 textAlign: TextAlign.right,
                               ),
                             ),
@@ -374,7 +375,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                               Expanded(
                                 flex: 3,
                                 child: Text(
-                                  amounts['deliveryCharge']!.toStringAsFixed(3),
+                                  amounts['deliveryCharge']!.toMoney(),
                                   textAlign: TextAlign.right,
                                 ),
                               ),
@@ -405,7 +406,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                         //       Expanded(
                         //         flex: 3,
                         //         child: Text(
-                        //           amounts['taxExemptTotal']!.toStringAsFixed(3),
+                        //           amounts['taxExemptTotal']!.toMoney(),
                         //           textAlign: TextAlign.right,
                         //           style: TextStyle(
                         //             fontSize: 12,
@@ -430,7 +431,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                               Expanded(
                                 flex: 3,
                                 child: Text(
-                                  orderProvider.discount.toStringAsFixed(3),
+                                  orderProvider.discount.toMoney(),
                                   textAlign: TextAlign.right,
                                 ),
                               ),
@@ -456,7 +457,7 @@ class _OrderConfirmationScreenState extends State<OrderConfirmationScreen> {
                             Expanded(
                               flex: 3,
                               child: Text(
-                                (amounts['total']! - orderProvider.discount).toStringAsFixed(3),
+                                (amounts['total']! - orderProvider.discount).toMoney(),
                                 textAlign: TextAlign.right,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,

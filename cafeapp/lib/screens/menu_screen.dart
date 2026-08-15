@@ -30,6 +30,7 @@ import '../screens/printer_settings_screen.dart';
 import '../services/thermal_printer_service.dart';
 import '../utils/keyboard_utils.dart';
 import '../widgets/clock_widget.dart';
+import '../utils/currency_format.dart';
 
 
 class MenuScreen extends StatefulWidget {
@@ -356,7 +357,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                 final size = item.sizes[i];
                 return ListTile(
                   title: Text(size.name),
-                  subtitle: Text('Price: ${size.price.toStringAsFixed(2)}'),
+                  subtitle: Text('Price: ${size.price.toMoney()}'),
                   onTap: () {
                     final variantItem = item.copyWith(
                       id: '${item.id}_${size.name}',
@@ -1033,7 +1034,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                 children: [
                   Text("$itemCount Items".tr(), style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
                   Text(
-                    "\$${total.toStringAsFixed(2)}", 
+                    "\$${total.toMoney()}", 
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue.shade800),
                   ),
                 ],
@@ -1461,7 +1462,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
                                             Text(
-                                              item.price.toStringAsFixed(3),
+                                              item.price.toMoney(),
                                               style: TextStyle(
                                                 color: Colors.black,
                                                 fontSize: (itemWidth * 0.06).clamp(10.0, 13.0),
@@ -1642,7 +1643,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(item.name, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12)),
-                                        Text('${item.price.toStringAsFixed(3)} × ${item.quantity}', 
+                                        Text('${item.price.toMoney()} × ${item.quantity}', 
                                              style: TextStyle(color: Colors.grey.shade600, fontSize: 10)),
                                       ],
                                     ),
@@ -1677,7 +1678,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                                   // Total and remove
                                   SizedBox(
                                     width: 40,
-                                    child: Text((item.price * item.quantity).toStringAsFixed(3), 
+                                    child: Text((item.price * item.quantity).toMoney(), 
                                                style: const TextStyle(fontSize: 11), textAlign: TextAlign.right),
                                   ),
                                   IconButton(
@@ -1708,7 +1709,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                     padding: const EdgeInsets.all(12),
                     child: Column(
                       children: [
-                        _buildSummaryRow('Sub total'.tr(), orderProvider.subtotal.toStringAsFixed(3)),
+                        _buildSummaryRow('Sub total'.tr(), orderProvider.subtotal.toMoney()),
                         // Tax row with VAT type indicator
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1754,7 +1755,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                                     ),
                                 ],
                               ),
-                              Text(orderProvider.tax.toStringAsFixed(3)),
+                              Text(orderProvider.tax.toMoney()),
                             ],
                           ),
                         ),
@@ -1766,7 +1767,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text('Delivery Fee'.tr()),
-                                Text((orderProvider.deliveryCharge ?? 0).toStringAsFixed(3)),
+                                Text((orderProvider.deliveryCharge ?? 0).toMoney()),
                               ],
                             ),
                           ),
@@ -1775,7 +1776,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text('Grand total'.tr(), style: TextStyle(fontWeight: FontWeight.bold)),
-                            Text(orderProvider.total.toStringAsFixed(3), style: const TextStyle(fontWeight: FontWeight.bold)),
+                            Text(orderProvider.total.toMoney(), style: const TextStyle(fontWeight: FontWeight.bold)),
                           ],
                         ),
                         const SizedBox(height: 12),
@@ -1964,7 +1965,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${item.price.toStringAsFixed(3)} x ${item.quantity}',
+                            '${item.price.toMoney()} x ${item.quantity}',
                             style: TextStyle(
                               color: Colors.grey.shade600,
                               fontSize: 12,
@@ -2017,7 +2018,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                         SizedBox(
                           width: 50,
                           child: Text(
-                            (item.price * item.quantity).toStringAsFixed(3),
+                            (item.price * item.quantity).toMoney(),
                             style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
                             textAlign: TextAlign.right,
                             overflow: TextOverflow.ellipsis,
@@ -2052,7 +2053,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Sub total'.tr(), style: TextStyle(fontWeight: FontWeight.w500)),
-              Text(orderProvider.subtotal.toStringAsFixed(3), style: const TextStyle(fontWeight: FontWeight.w500)),
+              Text(orderProvider.subtotal.toMoney(), style: const TextStyle(fontWeight: FontWeight.w500)),
             ],
           ),
           const SizedBox(height: 8),
@@ -2098,7 +2099,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                     ),
                 ],
               ),
-              Text(orderProvider.tax.toStringAsFixed(3)),
+              Text(orderProvider.tax.toMoney()),
             ],
           ),
           
@@ -2109,7 +2110,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('Delivery Fee'.tr()),
-                  Text((orderProvider.deliveryCharge ?? 0).toStringAsFixed(3)),
+                  Text((orderProvider.deliveryCharge ?? 0).toMoney()),
                 ],
               ),
             ),
@@ -2121,7 +2122,7 @@ Future<void> _saveMenuLayout(int rows, int columns) async {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Grand total'.tr(), style: TextStyle(fontWeight: FontWeight.bold)),
-              Text(orderProvider.total.toStringAsFixed(3), style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(orderProvider.total.toMoney(), style: const TextStyle(fontWeight: FontWeight.bold)),
             ],
           ),
           
