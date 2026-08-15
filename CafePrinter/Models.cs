@@ -43,7 +43,12 @@ public record ReceiptPrintData(
     double DepositAmount,
     double DeliveryCharge,
     string Title,
-    List<PrintItem> Items
+    List<PrintItem> Items,
+    // Decimal places for money on the receipt, mirroring the app's
+    // Settings > Currency / Number Format option. Defaulted so payloads written
+    // before this field existed still parse, and because 3 is what the renderer
+    // hard-coded previously.
+    int DecimalPlaces = 3
 );
 
 public record KotPrintData(

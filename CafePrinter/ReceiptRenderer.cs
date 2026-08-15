@@ -49,6 +49,11 @@ public static class ReceiptRenderer
     {
         bool hasArabic = DetectArabic(d);
 
+        // Money format follows the app's configured decimal places. Clamped
+        // because the value arrives over JSON and an out-of-range count would
+        // make ToString throw mid-render.
+        string moneyFmt = "F" + Math.Clamp(d.DecimalPlaces, 0, 3);
+
         // Logo
         if (!string.IsNullOrEmpty(d.LogoPath) && File.Exists(d.LogoPath))
         {
@@ -72,13 +77,14 @@ public static class ReceiptRenderer
         // Business name
         y += DrawCenteredText(canvas, d.BusinessName, SmallFont, bold: true, y: y) + 8f - 5f;
 
-        // Second name
+        // Second name. Wider gap so it does not crowd the address below it.
         if (!string.IsNullOrEmpty(d.SecondBusinessName))
-            y += DrawCenteredText(canvas, d.SecondBusinessName, FontSize, bold: true, y: y) + 8f - 5f;
+            y += DrawCenteredText(canvas, d.SecondBusinessName, FontSize, bold: true, y: y) + 12f;
 
-        // Address
+        // Address. Gets a wider gap than the other header lines because the
+        // address and phone sat almost touching on the printed receipt.
         if (!string.IsNullOrEmpty(d.BusinessAddress))
-            y += DrawCenteredText(canvas, d.BusinessAddress, FontSize - 4f, bold: false, y: y) + 8f - 6f;
+            y += DrawCenteredText(canvas, d.BusinessAddress, FontSize - 4f, bold: false, y: y) + 12f;
 
         // Phone
         if (!string.IsNullOrEmpty(d.BusinessPhone))
@@ -92,7 +98,8 @@ public static class ReceiptRenderer
         string orderNum = string.IsNullOrEmpty(d.OrderNumber)
             ? (DateTime.Now.Ticks % 10000).ToString()
             : d.OrderNumber;
-        y += DrawCenteredText(canvas, $"ORDER #{orderNum}", FontSize - 4f, bold: false, y: y) + 8f - 6f;
+        // Wider gap so the order number does not crowd the date below it.
+        y += DrawCenteredText(canvas, $"ORDER #{orderNum}", FontSize - 4f, bold: false, y: y) + 12f;
 
         // Date/time — matches Dart: DD-MM-YYYY at HH:MM
         var now = DateTime.Now;
@@ -120,7 +127,7 @@ public static class ReceiptRenderer
         // Item rows
         foreach (var item in d.Items)
         {
-            y = DrawItemRow(canvas, item, y);
+            y = DrawItemRow(canvas, item, y, moneyFmt);
             y += 5f;
         }
 
@@ -128,25 +135,25 @@ public static class ReceiptRenderer
         y += 4f + 8f;
 
         // Subtotal
-        y = DrawTotalRow(canvas, "Subtotal:", d.Subtotal.ToString("F3"), isTotal: false, y: y);
+        y = DrawTotalRow(canvas, "Subtotal:", d.Subtotal.ToString(moneyFmt), isTotal: false, y: y);
 
         // Tax
         string taxLabel = d.TaxRate > 0 ? $"Tax ({d.TaxRate:F1}%):" : "Tax:";
-        y = DrawTotalRow(canvas, taxLabel, d.Tax.ToString("F3"), isTotal: false, y: y);
+        y = DrawTotalRow(canvas, taxLabel, d.Tax.ToString(moneyFmt), isTotal: false, y: y);
 
         // Delivery fee
         if (d.DeliveryCharge > 0)
-            y = DrawTotalRow(canvas, "Delivery Fee:", d.DeliveryCharge.ToString("F3"), isTotal: false, y: y);
+            y = DrawTotalRow(canvas, "Delivery Fee:", d.DeliveryCharge.ToString(moneyFmt), isTotal: false, y: y);
 
         // Discount
         if (d.Discount > 0)
-            y = DrawTotalRow(canvas, "Discount:", d.Discount.ToString("F3"), isTotal: false, y: y);
+            y = DrawTotalRow(canvas, "Discount:", d.Discount.ToString(moneyFmt), isTotal: false, y: y);
 
         DrawLine(canvas, y, 4f);
         y += 4f + 8f;
 
         // TOTAL
-        y = DrawTotalRow(canvas, "TOTAL:", d.Total.ToString("F3"), isTotal: true, y: y);
+        y = DrawTotalRow(canvas, "TOTAL:", d.Total.ToString(moneyFmt), isTotal: true, y: y);
 
         // Deposit section
         if (d.DepositAmount > 0)
@@ -154,9 +161,9 @@ public static class ReceiptRenderer
             y += 5f;
             DrawLine(canvas, y, 2f);
             y += 2f + 8f;
-            y = DrawTotalRow(canvas, "Advance Paid:", d.DepositAmount.ToString("F3"), isTotal: false, y: y);
+            y = DrawTotalRow(canvas, "Advance Paid:", d.DepositAmount.ToString(moneyFmt), isTotal: false, y: y);
             double balance = d.Total - d.DepositAmount;
-            y = DrawTotalRow(canvas, "Balance Due:", balance.ToString("F3"), isTotal: true, y: y);
+            y = DrawTotalRow(canvas, "Balance Due:", balance.ToString(moneyFmt), isTotal: true, y: y);
         }
 
         y += 10f;
@@ -246,7 +253,7 @@ public static class ReceiptRenderer
     }
 
     // Single item row — matches Dart's _drawItemRow() pixel-for-pixel
-    static float DrawItemRow(SKCanvas? canvas, PrintItem item, float y)
+    static float DrawItemRow(SKCanvas? canvas, PrintItem item, float y, string moneyFmt)
     {
         float fs = FontSize - 4f;
         // Name column runs up to the Qty band, less a small gap. The old value
@@ -257,8 +264,8 @@ public static class ReceiptRenderer
         // Real wrapped lines, measured with proper shaped widths for Arabic.
         var   nameLines = TextLayout.WrapLines(item.Name, fs, false, nameMaxWidth);
         string qtyStr   = item.Quantity.ToString();
-        string priceStr = item.Price.ToString("F3");
-        string totalStr = (item.Price * item.Quantity).ToString("F3");
+        string priceStr = item.Price.ToString(moneyFmt);
+        string totalStr = (item.Price * item.Quantity).ToString(moneyFmt);
 
         // ONE baseline for the whole row. Previously the name and the numbers each
         // computed their own - Arabic at y + fontSize*1.2, digits at y + tight

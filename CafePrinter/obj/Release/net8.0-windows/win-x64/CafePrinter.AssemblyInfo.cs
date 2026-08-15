@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("CafePrinter")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("2.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("2.0.0+503f20f4383efbefc7f76ceaa1cdfac36ada5e08")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("2.0.0+e13ca38d5676334aeca9c3918ac5e0d30f93ccda")]
 [assembly: System.Reflection.AssemblyProductAttribute("CafePrinter")]
 [assembly: System.Reflection.AssemblyTitleAttribute("CafePrinter")]
 [assembly: System.Reflection.AssemblyVersionAttribute("2.0.0.0")]

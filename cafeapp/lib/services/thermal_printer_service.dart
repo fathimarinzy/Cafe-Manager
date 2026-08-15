@@ -1916,6 +1916,9 @@ static Future<Uint8List?> _generateKotImage({
       'depositAmount':      depositAmount ?? 0.0,
       'deliveryCharge':     deliveryCharge ?? 0.0,
       'title':              title ?? '',
+      // CafePrinter.exe renders its own receipt, so it needs the configured
+      // decimal places rather than the already-formatted strings.
+      'decimalPlaces':      CurrencyFormat.decimals,
       'items': items.map((item) => {
         'id':          item.id,
         'name':        item.name,
